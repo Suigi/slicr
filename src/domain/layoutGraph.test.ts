@@ -31,8 +31,8 @@ describe('layoutGraph', () => {
 
     const result = layoutGraph(nodes, edges);
 
-    expect(result.pos['cmd-a'].x).toBeLessThanOrEqual(result.pos['evt-a'].x);
-    expect(result.pos['evt-a'].x).toBeLessThanOrEqual(result.pos['rm-a'].x);
+    expect(result.pos['evt-a'].x - result.pos['cmd-a'].x).toBeGreaterThanOrEqual(48);
+    expect(result.pos['rm-a'].x - result.pos['evt-a'].x).toBeGreaterThanOrEqual(48);
     expect(result.usedRows).toEqual([1, 2]);
   });
 

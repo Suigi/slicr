@@ -20,6 +20,16 @@ nix-shell --run 'npm run dev'
 nix-shell --run 'npm run build'
 ```
 
+## Testing policy
+
+Always run the full test suite for validation, not only task-specific tests.
+
+Use:
+
+```bash
+nix-shell --run 'npm test'
+```
+
 ## Verified finding (2026-02-16)
 
 Running the build through Nix shell succeeds:

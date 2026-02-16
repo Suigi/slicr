@@ -19,7 +19,7 @@ describe('edgePath', () => {
 
     const geometry = edgePath(from, to);
 
-    expect(geometry.d).toBe('M 60 70 C 60 110 180 110 180 150');
+    expect(geometry.d).toBe('M 72 70 C 91 106 149 114 168 150');
     expect(geometry.labelX).toBe(126);
     expect(geometry.labelY).toBe(110);
   });
@@ -30,7 +30,7 @@ describe('edgePath', () => {
 
     const geometry = edgePath(from, to);
 
-    expect(geometry.d).toBe('M 240 180 C 240 130 120 130 120 80');
+    expect(geometry.d).toBe('M 252 180 C 223 135 137 125 108 80');
     expect(geometry.labelX).toBe(186);
     expect(geometry.labelY).toBe(130);
   });

@@ -1,4 +1,5 @@
 import { Edge, LayoutResult, VisualNode } from './types';
+import { EDGE_ANCHOR_OFFSET } from './edgePath';
 
 const NODE_W = 180;
 const NODE_H_BASE = 42;
@@ -8,6 +9,7 @@ const COL_GAP = 80;
 export const PAD_X = 56;
 const PAD_TOP = 16;
 const ROW_GAP = 120;
+const MIN_SUCCESSOR_X_OFFSET = EDGE_ANCHOR_OFFSET * 4;
 
 export function nodeHeight(node: VisualNode): number {
   if (!node.data) {
@@ -137,14 +139,30 @@ export function layoutGraph(nodes: Map<string, VisualNode>, edges: Edge[]): Layo
   }
 
   const pos: LayoutResult['pos'] = {};
-  nodes.forEach((node, key) => {
+  for (const key of encounterOrder) {
+    const node = nodes.get(key);
+    if (!node) {
+      continue;
+    }
+
+    let x = colX[col[key]];
+    const sources = minColSource[key];
+    const list = sources === undefined ? [] : Array.isArray(sources) ? sources : [sources];
+
+    for (const source of list) {
+      const sourcePos = pos[source];
+      if (sourcePos) {
+        x = Math.max(x, sourcePos.x + MIN_SUCCESSOR_X_OFFSET);
+      }
+    }
+
     pos[key] = {
-      x: colX[col[key]],
+      x,
       y: rowY[rowFor(node.type)],
       w: NODE_W,
       h: nodeHeight(node)
     };
-  });
+  }
 
   const maxX = Math.max(...Object.values(pos).map((value) => value.x + value.w)) + PAD_X;
   const maxY = Math.max(...Object.values(pos).map((value) => value.y + value.h)) + 48;
