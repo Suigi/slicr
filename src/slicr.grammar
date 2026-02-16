@@ -2,8 +2,7 @@
 
 Statement {
   SliceStatement |
-  ArtifactStatement |
-  ArrowStatement |
+  NodeStatement |
   DataStatement
 }
 
@@ -11,44 +10,45 @@ SliceStatement {
   kw<"slice"> String
 }
 
-ArtifactStatement {
-  RmArtifact | UiArtifact | CmdArtifact | EvtArtifact | ExcArtifact | AutArtifact | ExtArtifact | GenericArtifact
+NodeStatement {
+  ArtifactRef IncomingClause?
 }
 
-ArrowStatement {
-  Arrow (RmArtifact | UiArtifact | CmdArtifact | EvtArtifact | ExcArtifact | AutArtifact | ExtArtifact | GenericArtifact) Label?
+IncomingClause {
+  DependsArrow ArtifactRef (Comma ArtifactRef)*
 }
 
-RmArtifact { kw_rm Colon RmName }
-UiArtifact { kw_ui Colon UiName }
-CmdArtifact { kw_cmd Colon CmdName }
-EvtArtifact { kw_evt Colon EvtName }
-ExcArtifact { kw_exc Colon Identifier }
-AutArtifact { kw_aut Colon Identifier }
-ExtArtifact { kw_ext Colon Identifier }
-GenericArtifact { Identifier Colon Identifier }
+ArtifactRef {
+  RmRef | UiRef | CmdRef | EvtRef | ExcRef | AutRef | ExtRef | GenericRef
+}
+
+RmRef { kw_rm Colon RmName Version? }
+UiRef { kw_ui Colon UiName Version? }
+CmdRef { kw_cmd Colon CmdName Version? }
+EvtRef { kw_evt Colon EvtName Version? }
+ExcRef { kw_exc Colon Identifier Version? }
+AutRef { kw_aut Colon Identifier Version? }
+ExtRef { kw_ext Colon Identifier Version? }
+GenericRef { Identifier Colon Identifier Version? }
 
 RmName { Identifier }
 UiName { Identifier }
 CmdName { Identifier }
 EvtName { Identifier }
+Version { At Number }
 
 DataStatement {
-  kw<"data"> Colon JsonObject
+  kw<"data"> Colon JsonObject?
 }
 
-Label {
-  BracketL LabelContent? BracketR
-}
-
-@external tokens labelContent from "./tokens" { LabelContent }
 @tokens {
   Identifier { $[a-zA-Z_] $[a-zA-Z0-9_\-#]* }
   String { '"' (!["\\] | "\\" _) * '"' }
   Number { $[0-9]+ ("." $[0-9]+)? }
   
-  Arrow { "->" }
+  DependsArrow { "<-" }
   Colon { ":" }
+  At { "@" }
   BracketL { "[" }
   BracketR { "]" }
   BraceL { "{" }
@@ -58,7 +58,7 @@ Label {
   space { $[ \t]+ }
   newline { $[\r\n]+ }
 
-  @precedence { Arrow, Identifier }
+  @precedence { DependsArrow, Identifier }
   @precedence { space, Identifier }
 }
 
@@ -72,7 +72,7 @@ kw_ext { @specialize[@name=extType]<Identifier, "ext"> }
 
 kw<term> { @specialize[@name={term}]<Identifier, term> }
 
-// Simplified JSON rules for the 'data' block
+// Simplified JSON rules for the one-line 'data' block.
 JsonObject { BraceL (Property (Comma Property)*)? BraceR }
 Property { (String | Identifier) Colon Value }
 Value { String | Number | JsonObject | JsonArray | kw<"true"> | kw<"false"> | kw<"null"> }

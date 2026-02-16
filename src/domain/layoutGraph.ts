@@ -1,5 +1,6 @@
 import { Edge, LayoutResult, VisualNode } from './types';
 import { EDGE_ANCHOR_OFFSET } from './edgePath';
+import { countNodeDataLines } from './formatNodeData';
 
 const NODE_W = 180;
 const NODE_H_BASE = 42;
@@ -16,8 +17,8 @@ export function nodeHeight(node: VisualNode): number {
     return NODE_H_BASE;
   }
 
-  const fields = Object.keys(node.data).length;
-  return NODE_H_BASE + NODE_FIELD_PAD + fields * NODE_FIELD_H;
+  const lines = countNodeDataLines(node.data);
+  return NODE_H_BASE + NODE_FIELD_PAD + lines * NODE_FIELD_H;
 }
 
 export function rowFor(type: string): number {

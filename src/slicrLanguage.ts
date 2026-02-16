@@ -52,11 +52,10 @@ export const slicrLanguage = LRLanguage.define({
         "Identifier": t.variableName,
         "String": t.string,
         "Number": t.number,
-        "Arrow": t.operator,
-        "Colon Comma": t.punctuation,
+        "DependsArrow": t.operator,
+        "Colon Comma At": t.punctuation,
         "BracketL BracketR": t.bracket,
         "BraceL BraceR": t.bracket,
-        "LabelContent": t.attributeName,
         "true false": t.bool,
         "null": t.null,
         "Property/String Property/Identifier": t.propertyName

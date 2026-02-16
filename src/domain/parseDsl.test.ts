@@ -2,40 +2,110 @@ import { describe, expect, it } from 'vitest';
 import { parseDsl } from './parseDsl';
 
 describe('parseDsl', () => {
-  it('parses slice name, edges, labels, and data attachments', () => {
+  it('parses node dependencies via <- and data attachments', () => {
     const input = `slice "Orders"
 
-  rm:orders
-    -> ui:orders-page [open]
-      data: {"page": 1}
-      -> cmd:create-order
-        data: {"order_id": "o-1"}
-        -> evt:order-created`;
+evt:order-created@1
+  data:
+    order-id: o-1
+
+evt:order-created@2
+  data:
+    order-id: o-2
+
+rm:orders <- evt:order-created@1, evt:order-created@2
+  data:
+    ids:
+      - o-1
+      - o-2
+
+ui:orders-list <- rm:orders
+cmd:create-order <- ui:orders-list`;
 
     const parsed = parseDsl(input);
 
     expect(parsed.sliceName).toBe('Orders');
+    expect(parsed.nodes.has('order-created@1')).toBe(true);
+    expect(parsed.nodes.has('order-created@2')).toBe(true);
     expect(parsed.nodes.has('orders')).toBe(true);
-    expect(parsed.nodes.has('orders-page')).toBe(true);
+    expect(parsed.nodes.has('orders-list')).toBe(true);
     expect(parsed.nodes.has('create-order')).toBe(true);
-    expect(parsed.nodes.has('order-created')).toBe(true);
 
     expect(parsed.edges).toEqual([
-      { from: 'orders', to: 'orders-page', label: 'open' },
-      { from: 'orders-page', to: 'create-order', label: null },
-      { from: 'create-order', to: 'order-created', label: null }
+      { from: 'order-created@1', to: 'orders', label: null },
+      { from: 'order-created@2', to: 'orders', label: null },
+      { from: 'orders', to: 'orders-list', label: null },
+      { from: 'orders-list', to: 'create-order', label: null }
     ]);
+  });
 
-    expect(parsed.nodes.get('orders-page')?.data).toEqual({ page: 1 });
-    expect(parsed.nodes.get('create-order')?.data).toEqual({ order_id: 'o-1' });
+  it('parses multiline YAML data blocks and attaches them to previous node', () => {
+    const input = `slice "Yaml Data"
+
+evt:room-opened
+  data:
+    room-number: 101
+    capacity: 2
+    meta:
+      building: A
+    tags:
+      - near-window
+      - quiet`;
+
+    const parsed = parseDsl(input);
+
+    expect(parsed.nodes.get('room-opened')?.data).toEqual({
+      'room-number': 101,
+      capacity: 2,
+      meta: { building: 'A' },
+      tags: ['near-window', 'quiet']
+    });
+  });
+
+  it('parses YAML arrays of objects for node data', () => {
+    const input = `slice "Arrays"
+
+rm:available-rooms
+  data:
+    rooms:
+      - room-number: 101
+        capacity: 2
+      - room-number: 102
+        capacity: 4`;
+
+    const parsed = parseDsl(input);
+
+    expect(parsed.nodes.get('available-rooms')?.data).toEqual({
+      rooms: [
+        { 'room-number': 101, capacity: 2 },
+        { 'room-number': 102, capacity: 4 }
+      ]
+    });
+  });
+
+  it('continues to parse one-line JSON data blocks', () => {
+    const input = `slice "Mixed Data"
+
+ui:booking-form
+  data: {"step": 2}
+cmd:book-room <- ui:booking-form
+  data:
+    room-id: 42
+    notes: near-window`;
+
+    const parsed = parseDsl(input);
+
+    expect(parsed.nodes.get('booking-form')?.data).toEqual({ step: 2 });
+    expect(parsed.nodes.get('book-room')?.data).toEqual({ 'room-id': 42, notes: 'near-window' });
+    expect(parsed.edges).toEqual([{ from: 'booking-form', to: 'book-room', label: null }]);
   });
 
   it('ignores malformed data blocks without throwing', () => {
     const input = `slice "Bad Data"
 
-  cmd:place-order
-    data: {"order_id": }
-    -> evt:order-failed`;
+cmd:place-order
+  data: {"order_id": }
+evt:order-failed <- cmd:place-order`;
 
     expect(() => parseDsl(input)).not.toThrow();
     const parsed = parseDsl(input);
@@ -44,24 +114,47 @@ describe('parseDsl', () => {
     expect(parsed.edges).toEqual([{ from: 'place-order', to: 'order-failed', label: null }]);
   });
 
-  it('disambiguates repeated rm/ui names with suffixed keys', () => {
-    const input = `slice "Dupes"
+  it('parses the room-opened flow with read-model update versions', () => {
+    const input = `slice "Book Room"
 
-  rm:inventory
-    -> ui:inventory-view
-      -> rm:inventory
-        -> ui:inventory-view`;
+evt:room-opened@1
+  data:
+    room-number: 101
+    capacity: 2
+
+evt:room-opened@2
+  data:
+    room-number: 102
+    capacity: 4
+
+rm:available-rooms <- evt:room-opened@1, evt:room-opened@2
+  data:
+    rooms:
+      - room-number: 101
+        capacity: 2
+      - room-number: 102
+        capacity: 4
+
+ui:room-list <- rm:available-rooms
+cmd:book-room <- ui:room-list
+evt:room-booked <- cmd:book-room
+rm:available-rooms@2 <- evt:room-booked
+ui:room-list@2 <- rm:available-rooms@2
+rm:pending-bookings <- evt:room-booked`;
 
     const parsed = parseDsl(input);
 
-    expect(parsed.nodes.has('inventory')).toBe(true);
-    expect(parsed.nodes.has('inventory#2')).toBe(true);
-    expect(parsed.nodes.has('inventory-view')).toBe(true);
-    expect(parsed.nodes.has('inventory-view#2')).toBe(true);
+    expect(parsed.nodes.get('room-opened@1')?.data).toEqual({ 'room-number': 101, capacity: 2 });
+    expect(parsed.nodes.get('room-opened@2')?.data).toEqual({ 'room-number': 102, capacity: 4 });
     expect(parsed.edges).toEqual([
-      { from: 'inventory', to: 'inventory-view', label: null },
-      { from: 'inventory-view', to: 'inventory#2', label: null },
-      { from: 'inventory#2', to: 'inventory-view#2', label: null }
+      { from: 'room-opened@1', to: 'available-rooms', label: null },
+      { from: 'room-opened@2', to: 'available-rooms', label: null },
+      { from: 'available-rooms', to: 'room-list', label: null },
+      { from: 'room-list', to: 'book-room', label: null },
+      { from: 'book-room', to: 'room-booked', label: null },
+      { from: 'room-booked', to: 'available-rooms@2', label: null },
+      { from: 'available-rooms@2', to: 'room-list@2', label: null },
+      { from: 'room-booked', to: 'pending-bookings', label: null }
     ]);
   });
 });

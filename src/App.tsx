@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { DEFAULT_DSL } from './defaultDsl';
 import { edgePath } from './domain/edgePath';
+import { formatNodeData } from './domain/formatNodeData';
 import { layoutGraph, PAD_X } from './domain/layoutGraph';
 import { parseDsl } from './domain/parseDsl';
 import type { Parsed } from './domain/types';
@@ -90,6 +91,24 @@ function App() {
 
   const parsed = parseResult.parsed;
   const errorText = parseResult.error;
+  const renderDataLine = (line: string, index: number) => {
+    const match = line.match(/^(\s*(?:-\s*)?)([^:\n]+:)(.*)$/);
+    if (!match) {
+      return (
+        <div key={index} className="node-field-line">
+          {line}
+        </div>
+      );
+    }
+
+    return (
+      <div key={index} className="node-field-line">
+        {match[1]}
+        <span className="node-field-key">{match[2]}</span>
+        <span className="node-field-val">{match[3]}</span>
+      </div>
+    );
+  };
 
   return (
     <>
@@ -207,10 +226,11 @@ function App() {
 
                       {node.data && (
                         <div className="node-fields">
-                          {Object.entries(node.data).map(([key, value]) => (
-                            <div key={`${node.key}-${key}`} className="node-field">
-                              <span className="node-field-key">{key}:</span>
-                              <span className="node-field-val">{JSON.stringify(value)}</span>
+                          {formatNodeData(node.data).map((field) => (
+                            <div key={`${node.key}-${field.key}`} className="node-field">
+                              <div className="node-field-lines">
+                                {field.text.split('\n').map((line, index) => renderDataLine(line, index))}
+                              </div>
                             </div>
                           ))}
                         </div>

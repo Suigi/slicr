@@ -372,7 +372,7 @@ header h1 {
   font-family: 'JetBrains Mono', monospace;
   font-size: 12px;
   font-weight: 600;
-  white-space: nowrap;
+  white-space: normal;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -386,6 +386,7 @@ header h1 {
   display: flex;
   align-items: center;
   gap: 8px;
+  white-space: nowrap;
 }
 
 .node-prefix {
@@ -407,19 +408,26 @@ header h1 {
 .node-field {
   font-size: 10px;
   font-weight: 400;
-  display: flex;
-  gap: 5px;
+  display: block;
   line-height: 1.5;
 }
 
-.node-field-key {
-  color: rgb(255 255 255 / 45%);
-  flex-shrink: 0;
+.node-field-lines {
+  display: flex;
+  flex-direction: column;
+}
+
+.node-field-line {
+  white-space: pre;
 }
 
 .node-field-val {
   color: rgb(255 255 255 / 90%);
   font-weight: 500;
+}
+
+.node-field-key {
+  color: rgb(255 255 255 / 45%);
 }
 
 .node.rm {

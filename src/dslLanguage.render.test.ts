@@ -7,11 +7,11 @@ import { slicr } from './slicrLanguage';
 
 const SIMPLE_DSL = `slice "Test Slice"
 
-  ui:the-screen
+ui:the-screen@2 <- rm:the-read-model@1, evt:the-event
   data: {"screen": "main"}
-  cmd:the-command
-  -> evt:the-event
-    -> rm:the-read-model`;
+cmd:the-command <- ui:the-screen@2
+evt:the-event <- cmd:the-command
+rm:the-read-model@1`;
 
 let view: EditorView | null = null;
 
@@ -37,9 +37,9 @@ describe('DSL language rendering', () => {
     const content = host.querySelector('.cm-content');
     expect(content).not.toBeNull();
     expect(content?.textContent).toContain('cmd:the-command');
-    expect(content?.textContent).toContain('evt:the-event');
-    expect(content?.textContent).toContain('rm:the-read-model');
-    expect(content?.textContent).toContain('ui:the-screen');
+    expect(content?.textContent).toContain('evt:the-event <- cmd:the-command');
+    expect(content?.textContent).toContain('rm:the-read-model@1');
+    expect(content?.textContent).toContain('ui:the-screen@2 <- rm:the-read-model@1, evt:the-event');
     expect(content?.textContent).toContain('"screen": "main"');
 
     const highlightedSpans = content?.querySelectorAll('span[class*="dsl-tok-"]');
@@ -56,6 +56,8 @@ describe('DSL language rendering', () => {
     const rmNameToken = content?.querySelectorAll('.dsl-tok-rmName')[0];
 
     const stringToken = content?.querySelector('.dsl-tok-string');
+    const operatorToken = content?.querySelector('.dsl-tok-operator');
+    const punctuationTokens = [...(content?.querySelectorAll('.dsl-tok-punctuation') ?? [])];
 
     expect(uiTypeToken?.textContent?.trim()).toBe('ui');
     expect(cmdTypeToken?.textContent?.trim()).toBe('cmd');
@@ -68,5 +70,7 @@ describe('DSL language rendering', () => {
     expect(rmNameToken?.textContent?.trim()).toBe('the-read-model');
 
     expect(stringToken?.textContent?.trim()).toBe('"Test Slice"');
+    expect(operatorToken?.textContent?.trim()).toBe('<-');
+    expect(punctuationTokens.some((token) => token.textContent?.trim() === '@')).toBe(true);
   });
 });
