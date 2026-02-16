@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Slice Visualizer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;700;800&display=swap');
+
+  :root {
+    --bg:        #0f0f13;
+    --surface:   #17171f;
+    --border:    #2a2a38;
+    --text:      #e8e8f0;
+    --muted:     #6b6b80;
+
+    --rm:        #22c55e;
+    --rm-bg:     #0a1f10;
+    --rm-border: #185c2e;
+
+    --cmd:        #3b82f6;
+    --cmd-bg:     #0d1d3d;
+    --cmd-border: #1e408a;
+
+    --evt:        #f97316;
+    --evt-bg:     #271100;
+    --evt-border: #7a3800;
+
+    --exc:        #ef4444;
+    --exc-bg:     #2a0f0f;
+    --exc-border: #7a1f1f;
+
+    --arrow:      #3a3a52;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  /* ── Header ── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 12px;
+    height: 52px;
+    flex-shrink: 0;
+    z-index: 10;
+  }
+
+  header h1 {
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .legend {
+    display: flex;
+    gap: 14px;
+    margin-left: auto;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+
+  /* Hide legend text labels on small screens, keep dots */
+  @media (max-width: 500px) {
+    .legend-item span { display: none; }
+    .legend { gap: 10px; }
+  }
+
+  /* ── DSL toggle button (mobile) ── */
+  .dsl-toggle {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    padding: 6px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .dsl-toggle:hover { border-color: var(--text); color: var(--text); }
+  .dsl-toggle svg { flex-shrink: 0; }
+
+  @media (max-width: 768px) {
+    .dsl-toggle { display: flex; }
+  }
+
+  /* ── Main area ── */
+  .main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* ── Editor panel ── */
+  .editor-panel {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    width: 340px;
+    flex-shrink: 0;
+    transition: transform 0.25s ease, opacity 0.25s ease;
+  }
+
+  /* On mobile: editor is an overlay drawer from the bottom */
+  @media (max-width: 768px) {
+    .editor-panel {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      width: 100%;
+      height: 52vh;
+      border-right: none;
+      border-top: 1px solid var(--border);
+      z-index: 20;
+      transform: translateY(100%);
+      opacity: 0;
+      pointer-events: none;
+      border-radius: 12px 12px 0 0;
+    }
+    .editor-panel.open {
+      transform: translateY(0);
+      opacity: 1;
+      pointer-events: all;
+    }
+  }
+
+  .panel-label {
+    padding: 12px 16px 8px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Drag handle on mobile */
+  .panel-handle {
+    display: none;
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    margin: 0 auto 0;
+  }
+  @media (max-width: 768px) {
+    .panel-handle { display: block; margin-bottom: 2px; }
+    .panel-label { flex-direction: column; padding-top: 10px; }
+  }
+
+  textarea {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    resize: none;
+    padding: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--text);
+    caret-color: var(--evt);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .error-bar {
+    padding: 10px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--exc);
+    background: var(--exc-bg);
+    border-top: 1px solid var(--exc-border);
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  /* ── Canvas ── */
+  .canvas-panel {
+    flex: 1;
+    position: relative;
+    overflow: auto;
+    background: var(--bg);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #canvas {
+    position: absolute;
+    top: 0; left: 0;
+  }
+
+  .lane-band {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    border-top: 1px solid #1e1e2c;
+    pointer-events: none;
+  }
+
+  .lane-label {
+    position: absolute;
+    left: 8px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    opacity: 0.4;
+  }
+
+  .node {
+    position: absolute;
+    border-radius: 6px;
+    padding: 8px 14px 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border: 1px solid;
+    transition: box-shadow 0.15s;
+    cursor: default;
+    user-select: none;
+  }
+
+  .node-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .node-prefix {
+    font-size: 10px;
+    font-weight: 400;
+    opacity: 0.5;
+    letter-spacing: 0.04em;
+  }
+
+  .node-fields {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .node-field {
+    font-size: 10px;
+    font-weight: 400;
+    display: flex;
+    gap: 5px;
+    line-height: 1.5;
+  }
+
+  .node-field-key {
+    color: rgba(255,255,255,0.45);
+    flex-shrink: 0;
+  }
+
+  .node-field-val {
+    color: rgba(255,255,255,0.9);
+    font-weight: 500;
+  }
+
+  .node.rm  { background: var(--rm-bg);  border-color: var(--rm-border);  color: var(--rm); }
+  .node.cmd { background: var(--cmd-bg); border-color: var(--cmd-border); color: var(--cmd); }
+  .node.evt { background: var(--evt-bg); border-color: var(--evt-border); color: var(--evt); }
+  .node.exc { background: var(--exc-bg); border-color: var(--exc-border); color: var(--exc); }
+  .node.ui  { background: #1c1a2e;       border-color: #3c3660;           color: #a78bfa; }
+
+  .node.rm:hover  { box-shadow: 0 0 0 2px var(--rm),  0 6px 20px rgba(34,197,94,0.15); }
+  .node.cmd:hover { box-shadow: 0 0 0 2px var(--cmd), 0 6px 20px rgba(59,130,246,0.15); }
+  .node.evt:hover { box-shadow: 0 0 0 2px var(--evt), 0 6px 20px rgba(249,115,22,0.15); }
+  .node.exc:hover { box-shadow: 0 0 0 2px var(--exc), 0 6px 20px rgba(239,68,68,0.15); }
+
+  #arrows {
+    position: absolute;
+    top: 0; left: 0;
+    pointer-events: none;
+    overflow: visible;
+  }
+
+  .arrow-path {
+    fill: none;
+    stroke: var(--arrow);
+    stroke-width: 1.5;
+  }
+
+  .arrow-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    fill: var(--muted);
+  }
+
+  .slice-title {
+    position: absolute;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    opacity: 0.6;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Slice Visualizer</h1>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--cmd)"></div><span>command</span></div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--rm)"></div><span>read model</span></div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--evt)"></div><span>event</span></div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--exc)"></div><span>exception</span></div>
+  </div>
+  <button class="dsl-toggle" id="dslToggle" aria-label="Toggle DSL editor">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline>
+    </svg>
+    DSL
+  </button>
+</header>
+
+<div class="main">
+  <div class="editor-panel" id="editorPanel">
+    <div class="panel-label">
+      <div class="panel-handle"></div>
+      DSL
+    </div>
+    <textarea id="dsl" spellcheck="false">slice "Book Room"
+
+  rm:available-rooms
+  data: {"room_number": 101, "check_in": "2025-03-01"}
+    -> ui:room-list
+      -> cmd:book-room
+         data: {"customer_id": "cust-abc", "room_number": 101}
+         -> evt:room-booked
+              data: {"reservation_id": "res-xyz", "room_number": 101}
+              -> rm:available-rooms
+                -> ui:room-list
+         -> evt:booking-confirmed
+              -> rm:pending-bookings
+              data: {"reservation_id": "res-xyz", "status": "pending"}</textarea>
+    <div class="error-bar" id="error"></div>
+  </div>
+
+  <div class="canvas-panel">
+    <div id="canvas">
+      <svg id="arrows"></svg>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// PARSER
+// ─────────────────────────────────────────────
+
+function parse(src) {
+  const lines = src.split('\n');
+  // nodes: unique key -> { type, name, displayName }
+  // Each occurrence of an rm in the flow gets its own unique node key,
+  // so repeated read models are drawn as fresh boxes rather than back-references.
+  const nodes = new Map();
+  const edges = [];
+  let sliceName = '';
+  // Track how many times each base name has appeared so we can make unique keys
+  const nameCounts = {};
+
+  for (const line of lines) {
+    const m = line.match(/^slice\s+"([^"]+)"/);
+    if (m) { sliceName = m[1]; break; }
+  }
+
+  const items = [];
+  for (const line of lines) {
+    if (!line.trim() || line.trim().startsWith('slice')) continue;
+    const indent  = line.match(/^(\s*)/)[1].length;
+    const content = line.trim();
+
+    // data: {...} line — attach to the most recently pushed item
+    const dataM = content.match(/^data:\s*(.+)$/);
+    if (dataM && items.length > 0) {
+      try {
+        items[items.length - 1].data = JSON.parse(dataM[1]);
+      } catch(e) {
+        items[items.length - 1].dataError = true;
+      }
+      continue;
+    }
+
+    const arrowM = content.match(/^->\s+([a-z]+):([^\s\[]+)(?:\s+\[([^\]]+)\])?$/);
+    if (arrowM) {
+      items.push({ kind: 'arrow', indent, type: arrowM[1], name: arrowM[2], label: arrowM[3] || null, data: null });
+      continue;
+    }
+    const artM = content.match(/^([a-z]+):([^\s\[]+)$/);
+    if (artM) {
+      items.push({ kind: 'artifact', indent, type: artM[1], name: artM[2], data: null });
+    }
+  }
+
+  function makeKey(type, name) {
+    // Read models and UIs always get a fresh unique key each occurrence —
+    // they represent a new state/screen, not a back-reference.
+    // Commands and events are deduplicated by name (unique within a slice).
+    if (type === 'rm' || type === 'ui') {
+      const count = (nameCounts[name] || 0) + 1;
+      nameCounts[name] = count;
+      return count === 1 ? name : `${name}#${count}`;
+    }
+    return name;
+  }
+
+  const ownerAt = {};
+  for (const item of items) {
+    const key = makeKey(item.type, item.name);
+    if (!nodes.has(key)) {
+      nodes.set(key, { type: item.type, name: item.name, key, data: item.data || null });
+    } else if (item.data) {
+      // Update data if this occurrence has it
+      nodes.get(key).data = item.data;
+    }
+    if (item.kind === 'artifact') {
+      ownerAt[item.indent] = key;
+    } else {
+      let from = null;
+      const sorted = Object.keys(ownerAt).map(Number).sort((a, b) => b - a);
+      for (const i of sorted) {
+        if (i < item.indent) { from = ownerAt[i]; break; }
+      }
+      if (from) edges.push({ from, to: key, label: item.label });
+      ownerAt[item.indent] = key;
+    }
+  }
+
+  return { sliceName, nodes, edges };
+}
+
+// ─────────────────────────────────────────────
+// LAYOUT
+//
+// Swimlane rows:
+//   0 = ui        (top)
+//   1 = cmd, rm   (middle)
+//   2 = evt       (bottom)
+//
+// Columns via longest-path depth.
+// ─────────────────────────────────────────────
+
+const NODE_W        = 180;
+const NODE_H_BASE   = 42;   // height with no data fields
+const NODE_FIELD_H  = 16;   // height added per data field
+const NODE_FIELD_PAD = 10;  // top padding for the fields block
+const COL_GAP = 80;
+const PAD_X   = 56;
+const PAD_TOP = 16;
+const ROW_GAP = 120;  // vertical gap between swimlane centres
+
+function nodeHeight(node) {
+  if (!node.data) return NODE_H_BASE;
+  const fields = Object.keys(node.data).length;
+  return NODE_H_BASE + NODE_FIELD_PAD + fields * NODE_FIELD_H;
+}
+
+function rowFor(type) {
+  if (type === 'ui')  return 0;
+  if (type === 'evt') return 2;
+  return 1;
+}
+
+function layout(nodes, edges) {
+  // ── Walk flow in encounter order (BFS from sources) ──────────────────────
+  // Preserves the left-to-right sequence from the DSL.
+  const inDeg = {};
+  nodes.forEach((_, k) => { inDeg[k] = 0; });
+  edges.forEach(e => { if (nodes.has(e.to)) inDeg[e.to]++; });
+
+  const encounterOrder = [];
+  const visited = new Set();
+  const queue = [...nodes.keys()].filter(k => !inDeg[k]);
+  if (!queue.length) queue.push(nodes.keys().next().value);
+
+  while (queue.length) {
+    const cur = queue.shift();
+    if (visited.has(cur)) continue;
+    visited.add(cur);
+    encounterOrder.push(cur);
+    for (const e of edges) {
+      if (e.from === cur && !visited.has(e.to)) queue.push(e.to);
+    }
+  }
+  nodes.forEach((_, k) => { if (!visited.has(k)) encounterOrder.push(k); });
+
+  // ── For every edge, the target must be placed at a column >= the source's
+  //    column — this prevents any rightward-to-leftward arrows in the diagram.
+  //    We store, per node, the maximum lower-bound imposed by all its incoming
+  //    edges. Since nodes are placed in encounter order, a source is always
+  //    placed before its targets, so col[source] is known when we need it.
+  //
+  //    Special case: cmd → evt edges use the cmd's column as the *exact* start
+  //    (not just a minimum) so events sit directly below their command.
+  // ──────────────────────────────────────────────────────────────────────────
+  const minColSource = {}; // node key -> source key whose col is the lower bound
+
+  edges.forEach(e => {
+    if (!nodes.has(e.from) || !nodes.has(e.to)) return;
+    // Keep the tightest (rightmost) lower bound across all incoming edges
+    if (minColSource[e.to] === undefined) {
+      minColSource[e.to] = e.from;
+    } else {
+      // will resolve after placement; store all sources and take max at placement time
+      if (!Array.isArray(minColSource[e.to])) minColSource[e.to] = [minColSource[e.to]];
+      minColSource[e.to].push(e.from);
+    }
+  });
+
+  const col = {};
+  const occupied = {}; // `${col},${row}` -> true
+
+  for (const k of encounterOrder) {
+    const r = rowFor(nodes.get(k).type);
+
+    // Compute the minimum column from all already-placed incoming sources
+    let startCol = 0;
+    const sources = minColSource[k];
+    if (sources !== undefined) {
+      const sourceList = Array.isArray(sources) ? sources : [sources];
+      for (const s of sourceList) {
+        if (col[s] !== undefined) startCol = Math.max(startCol, col[s]);
+      }
+    }
+
+    let c = startCol;
+    while (occupied[`${c},${r}`]) c++;
+    col[k] = c;
+    occupied[`${c},${r}`] = true;
+  }
+
+  // ── Rows used ─────────────────────────────────────────────────────────────
+  const usedRows = [...new Set([...nodes.values()].map(n => rowFor(n.type)))].sort((a, b) => a - b);
+
+  // ── Row Y positions ───────────────────────────────────────────────────────
+  const rowY = {};
+  usedRows.forEach((r, i) => {
+    rowY[r] = PAD_TOP + 32 + i * (NODE_H_BASE + ROW_GAP);
+  });
+
+  // ── Column X positions ────────────────────────────────────────────────────
+  const numCols = Math.max(...Object.values(col)) + 1;
+  const colX = {};
+  for (let c = 0; c < numCols; c++) colX[c] = PAD_X + c * (NODE_W + COL_GAP);
+
+  // ── Final positions ───────────────────────────────────────────────────────
+  const pos = {};
+  nodes.forEach((node, k) => {
+    pos[k] = { x: colX[col[k]], y: rowY[rowFor(node.type)], w: NODE_W, h: nodeHeight(node) };
+  });
+
+  const maxX = Math.max(...Object.values(pos).map(p => p.x + p.w)) + PAD_X;
+  const maxY = Math.max(...Object.values(pos).map(p => p.y + p.h)) + 48;
+
+  return { pos, rowY, usedRows, w: maxX, h: maxY };
+}
+
+// ─────────────────────────────────────────────
+// RENDER
+// ─────────────────────────────────────────────
+
+const TYPE_LABEL = { rm: 'rm', cmd: 'cmd', evt: 'evt', exc: 'exc', ui: 'ui', aut: 'aut', ext: 'ext' };
+const ROW_NAME   = { 0: 'ui', 1: 'middle', 2: 'events' };
+
+function render(dsl) {
+  const errorEl = document.getElementById('error');
+  const canvas  = document.getElementById('canvas');
+  const svg     = document.getElementById('arrows');
+
+  [...canvas.children].forEach(el => { if (el !== svg) el.remove(); });
+  svg.innerHTML = '';
+  errorEl.textContent = '';
+
+  let parsed;
+  try { parsed = parse(dsl); }
+  catch (e) { errorEl.textContent = '⚠ ' + e.message; return; }
+
+  const { sliceName, nodes, edges } = parsed;
+  if (!nodes.size) return;
+
+  const { pos, rowY, usedRows, w, h } = layout(nodes, edges);
+
+  canvas.style.width  = w + 'px';
+  canvas.style.height = h + 'px';
+  svg.setAttribute('width', w);
+  svg.setAttribute('height', h);
+
+  // ── Swimlane bands ─────────────────────────
+  usedRows.forEach((r, i) => {
+    const bandTop = rowY[r] - 28;
+    const bandH   = i < usedRows.length - 1
+      ? rowY[usedRows[i + 1]] - rowY[r]
+      : h - bandTop;
+
+    const band = document.createElement('div');
+    band.className = 'lane-band';
+    band.style.top    = bandTop + 'px';
+    band.style.height = bandH + 'px';
+    canvas.appendChild(band);
+
+    const lbl = document.createElement('div');
+    lbl.className = 'lane-label';
+    lbl.textContent = ROW_NAME[r] || '';
+    lbl.style.top = (rowY[r] + NODE_H_BASE / 2 - 5) + 'px';
+    canvas.appendChild(lbl);
+  });
+
+  // ── Slice title ────────────────────────────
+  if (sliceName) {
+    const t = document.createElement('div');
+    t.className = 'slice-title';
+    t.textContent = sliceName;
+    t.style.top  = '6px';
+    t.style.left = PAD_X + 'px';
+    canvas.appendChild(t);
+  }
+
+  // ── Nodes ──────────────────────────────────
+  nodes.forEach((node, key) => {
+    const p = pos[key];
+    if (!p) return;
+    const el = document.createElement('div');
+    el.className = 'node ' + (node.type || 'rm');
+    el.style.left   = p.x + 'px';
+    el.style.top    = p.y + 'px';
+    el.style.width  = p.w + 'px';
+    el.style.height = p.h + 'px';
+
+    // Header: prefix + name
+    const header = document.createElement('div');
+    header.className = 'node-header';
+
+    const pfx = document.createElement('span');
+    pfx.className = 'node-prefix';
+    pfx.textContent = (TYPE_LABEL[node.type] || node.type) + ':';
+
+    const lbl = document.createElement('span');
+    lbl.textContent = node.name;
+
+    header.appendChild(pfx);
+    header.appendChild(lbl);
+    el.appendChild(header);
+
+    // Data fields
+    if (node.data && typeof node.data === 'object') {
+      const fields = document.createElement('div');
+      fields.className = 'node-fields';
+      Object.entries(node.data).forEach(([k, v]) => {
+        const row = document.createElement('div');
+        row.className = 'node-field';
+        const keyEl = document.createElement('span');
+        keyEl.className = 'node-field-key';
+        keyEl.textContent = k + ':';
+        const valEl = document.createElement('span');
+        valEl.className = 'node-field-val';
+        valEl.textContent = JSON.stringify(v);
+        row.appendChild(keyEl);
+        row.appendChild(valEl);
+        fields.appendChild(row);
+      });
+      el.appendChild(fields);
+    }
+
+    canvas.appendChild(el);
+  });
+
+  // ── Arrow marker ───────────────────────────
+  const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+  defs.innerHTML = `
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#3a3a52"/>
+    </marker>`;
+  svg.appendChild(defs);
+
+  // ── Edges ──────────────────────────────────
+  // All edges point right or downward — no back-edges needed since
+  // repeated read models are treated as new instances by the parser.
+  edges.forEach(edge => {
+    const F = pos[edge.from];
+    const T = pos[edge.to];
+    if (!F || !T) return;
+
+    const fMx = F.x + F.w / 2,  fMy = F.y + F.h / 2;
+    const tMx = T.x + T.w / 2,  tMy = T.y + T.h / 2;
+    const sameRow = Math.abs(F.y - T.y) < 4;
+
+    let d, labelX, labelY;
+
+    if (sameRow) {
+      // Same-row forward: exit right edge, enter left edge
+      const x1 = F.x + F.w, y1 = fMy;
+      const x2 = T.x,        y2 = tMy;
+      const cx = (x1 + x2) / 2;
+      d = `M ${x1} ${y1} C ${cx} ${y1} ${cx} ${y2} ${x2} ${y2}`;
+      labelX = cx; labelY = y1 - 7;
+
+    } else {
+      // Cross-row: exit bottom of source, enter top of target (or vice-versa)
+      const goDown = T.y > F.y;
+      const x1 = fMx, y1 = goDown ? F.y + F.h : F.y;
+      const x2 = tMx, y2 = goDown ? T.y        : T.y + T.h;
+      const cy = (y1 + y2) / 2;
+      d = `M ${x1} ${y1} C ${x1} ${cy} ${x2} ${cy} ${x2} ${y2}`;
+      labelX = (x1 + x2) / 2 + 6; labelY = cy;
+    }
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', d);
+    path.setAttribute('class', 'arrow-path');
+    path.setAttribute('marker-end', 'url(#arr)');
+    svg.appendChild(path);
+
+    if (edge.label) {
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.setAttribute('class', 'arrow-label');
+      text.setAttribute('text-anchor', 'middle');
+      text.setAttribute('x', labelX);
+      text.setAttribute('y', labelY);
+      text.textContent = `[${edge.label}]`;
+      svg.appendChild(text);
+    }
+  });
+}
+
+// ─────────────────────────────────────────────
+const ta = document.getElementById('dsl');
+ta.addEventListener('input', () => render(ta.value));
+render(ta.value);
+
+// ── Mobile DSL drawer toggle ──────────────────
+const toggle     = document.getElementById('dslToggle');
+const editorPanel = document.getElementById('editorPanel');
+let editorOpen   = false;
+
+toggle.addEventListener('click', () => {
+  editorOpen = !editorOpen;
+  editorPanel.classList.toggle('open', editorOpen);
+  toggle.style.color        = editorOpen ? 'var(--text)' : '';
+  toggle.style.borderColor  = editorOpen ? 'var(--text)' : '';
+});
+
+// Close drawer when tapping outside of it on mobile
+document.addEventListener('pointerdown', e => {
+  if (editorOpen && !editorPanel.contains(e.target) && !toggle.contains(e.target)) {
+    editorOpen = false;
+    editorPanel.classList.remove('open');
+    toggle.style.color       = '';
+    toggle.style.borderColor = '';
+  }
+});
+</script>
+</body>
+</html>
