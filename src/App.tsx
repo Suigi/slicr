@@ -22,6 +22,7 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 const DSL_STORAGE_KEY = 'slicr.dsl';
+const NODE_VERSION_SUFFIX = /@\d+$/;
 
 function readInitialDsl(): string {
   try {
@@ -221,7 +222,7 @@ function App() {
                     >
                       <div className="node-header">
                         <span className="node-prefix">{TYPE_LABEL[node.type] ?? node.type}:</span>
-                        <span>{node.name}</span>
+                        <span>{node.name.replace(NODE_VERSION_SUFFIX, '')}</span>
                       </div>
 
                       {node.data && (
