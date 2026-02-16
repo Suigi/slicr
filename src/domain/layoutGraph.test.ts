@@ -7,7 +7,8 @@ function makeNode(key: string, type: string): VisualNode {
     key,
     name: key,
     type,
-    data: null
+    data: null,
+    srcRange: {from: 0, to: 0},
   };
 }
 

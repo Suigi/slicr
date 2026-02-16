@@ -8,6 +8,8 @@ type NodeSpec = {
   name: string;
   incoming: ArtifactRef[];
   data: NodeData;
+  srcRange: { from: number; to: number };
+  dataEndPos?: number;
 };
 
 type ArtifactRef = {
@@ -62,12 +64,13 @@ export function parseDsl(src: string): Parsed {
         type: parsed.target.type,
         name: parsed.target.name,
         incoming: parsed.incoming,
-        data: null
+        data: null,
+        srcRange: { from: cursor.from, to: cursor.to }
       });
     }
   } while (cursor.next());
 
-  attachDataBlocks(lines, specs);
+  attachDataBlocks(lines, specs, lineStarts);
 
   const refToKey = new Map<string, string>();
   const usedKeys = new Set<string>();
@@ -82,17 +85,23 @@ export function parseDsl(src: string): Parsed {
       usedKeys.add(key);
     }
 
+    const finalRange = spec.dataEndPos
+      ? { from: spec.srcRange.from, to: spec.dataEndPos }
+      : spec.srcRange;
+
     if (!nodes.has(key)) {
       nodes.set(key, {
         type: spec.type,
         name: spec.name,
         key,
-        data: spec.data
+        data: spec.data,
+        srcRange: finalRange
       });
     } else if (spec.data) {
       const existing = nodes.get(key);
       if (existing) {
         existing.data = spec.data;
+        existing.srcRange = finalRange;
       }
     }
 
@@ -246,7 +255,7 @@ function getLineIndexAtPos(lineStarts: number[], pos: number) {
   return Math.max(0, lineStarts.length - 1);
 }
 
-function attachDataBlocks(lines: string[], specs: NodeSpec[]) {
+function attachDataBlocks(lines: string[], specs: NodeSpec[], lineStarts: number[]) {
   let specCursor = 0;
   let lastSpecIndex: number | null = null;
 
@@ -267,6 +276,7 @@ function attachDataBlocks(lines: string[], specs: NodeSpec[]) {
     if (inlineRaw) {
       try {
         specs[lastSpecIndex].data = JSON.parse(inlineRaw) as Record<string, unknown>;
+        specs[lastSpecIndex].dataEndPos = lineStarts[lineIndex] + line.length;
       } catch {
         // Keep parity with previous behavior: ignore malformed data blocks.
       }
@@ -274,6 +284,7 @@ function attachDataBlocks(lines: string[], specs: NodeSpec[]) {
     }
 
     const blockLines: string[] = [];
+    let lastNonEmptyNext = lineIndex;
     for (let next = lineIndex + 1; next < lines.length; next += 1) {
       const nextLine = lines[next];
       if (!nextLine.trim()) {
@@ -287,11 +298,13 @@ function attachDataBlocks(lines: string[], specs: NodeSpec[]) {
       }
 
       blockLines.push(nextLine);
+      lastNonEmptyNext = next;
     }
 
     const parsedYaml = parseYamlBlock(blockLines);
     if (parsedYaml) {
       specs[lastSpecIndex].data = parsedYaml;
+      specs[lastSpecIndex].dataEndPos = lineStarts[lastNonEmptyNext] + lines[lastNonEmptyNext].length;
     }
   }
 }

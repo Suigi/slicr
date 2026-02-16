@@ -169,6 +169,8 @@ evt:room-opened@1
     const parsed = parseDsl(input);
 
     expect(parsed.nodes.size).toBe(1);
-    expect(parsed.nodes.has('room-opened@1')).toBe(true);
+    const node = parsed.nodes.get('room-opened@1');
+    expect(node).toBeDefined();
+    expect(node?.srcRange).toEqual({ from: 19, to: 81 });
   });
 });

@@ -7,6 +7,7 @@ export type VisualNode = {
   name: string;
   key: string;
   data: NodeData;
+  srcRange: { from: number; to: number };
 };
 
 export type Edge = {

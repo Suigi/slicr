@@ -5,7 +5,7 @@ import { formatNodeData } from './domain/formatNodeData';
 import { layoutGraph, PAD_X } from './domain/layoutGraph';
 import { parseDsl } from './domain/parseDsl';
 import type { Parsed } from './domain/types';
-import { useDslEditor } from './useDslEditor';
+import { Range, useDslEditor } from './useDslEditor';
 
 type ParseResult =
   | { parsed: Parsed; error: '' }
@@ -39,8 +39,16 @@ function App() {
   const toggleRef = useRef<HTMLButtonElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const editorMountRef = useRef<HTMLDivElement>(null);
+  const [highlightRange, setHighlightRange] = useState<Range | null>(null);
+  const [hoveredEditorRange, setHoveredEditorRange] = useState<Range | null>(null);
 
-  useDslEditor({ dsl, onDslChange: setDsl, editorMountRef });
+  useDslEditor({
+    dsl,
+    onDslChange: setDsl,
+    onRangeHover: setHoveredEditorRange,
+    editorMountRef,
+    highlightRange
+  });
 
   useEffect(() => {
     try {
@@ -58,12 +66,28 @@ function App() {
     }
   }, [dsl]);
 
+  const parsed = parseResult.parsed;
+  const errorText = parseResult.error;
+
   const layoutResult = useMemo(() => {
-    if (!parseResult.parsed || parseResult.parsed.nodes.size === 0) {
+    if (!parsed || parsed.nodes.size === 0) {
       return null;
     }
-    return layoutGraph(parseResult.parsed.nodes, parseResult.parsed.edges);
-  }, [parseResult]);
+    return layoutGraph(parsed.nodes, parsed.edges);
+  }, [parsed]);
+
+  const activeNodeKeyFromEditor = useMemo(() => {
+    if (!hoveredEditorRange || !parsed) {
+      return null;
+    }
+    const pos = hoveredEditorRange.from;
+    for (const node of parsed.nodes.values()) {
+      if (pos >= node.srcRange.from && pos <= node.srcRange.to) {
+        return node.key;
+      }
+    }
+    return null;
+  }, [hoveredEditorRange, parsed]);
 
   useEffect(() => {
     const closeOnOutside = (event: PointerEvent) => {
@@ -90,8 +114,6 @@ function App() {
     };
   }, [editorOpen]);
 
-  const parsed = parseResult.parsed;
-  const errorText = parseResult.error;
   const renderDataLine = (line: string, index: number) => {
     const match = line.match(/^(\s*(?:-\s*)?)([^:\n]+:)(.*)$/);
     if (!match) {
@@ -212,13 +234,15 @@ function App() {
                   return (
                     <div
                       key={node.key}
-                      className={`node ${node.type || 'rm'}`}
+                      className={`node ${node.type || 'rm'} ${activeNodeKeyFromEditor === node.key ? 'highlighted' : ''}`}
                       style={{
                         left: `${position.x}px`,
                         top: `${position.y}px`,
                         width: `${position.w}px`,
                         height: `${position.h}px`
                       }}
+                      onMouseEnter={() => setHighlightRange(node.srcRange)}
+                      onMouseLeave={() => setHighlightRange(null)}
                     >
                       <div className="node-header">
                         <span className="node-prefix">{TYPE_LABEL[node.type] ?? node.type}:</span>
