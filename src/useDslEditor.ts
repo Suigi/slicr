@@ -1,7 +1,7 @@
 import { Dispatch, RefObject, SetStateAction, useEffect, useRef } from 'react';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-import { dslHighlightDecorations } from './dslHighlightDecorations';
+import { slicr } from './slicrLanguage';
 
 export type EditorViewLike = {
   state: {
@@ -25,7 +25,7 @@ const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocChanged }
     state: EditorState.create({
       doc,
       extensions: [
-        dslHighlightDecorations,
+        slicr(),
         EditorView.lineWrapping,
         EditorView.theme({
           '&': {

@@ -1,0 +1,81 @@
+@top Program { (Statement | newline)* }
+
+Statement {
+  SliceStatement |
+  ArtifactStatement |
+  ArrowStatement |
+  DataStatement
+}
+
+SliceStatement {
+  kw<"slice"> String
+}
+
+ArtifactStatement {
+  RmArtifact | UiArtifact | CmdArtifact | EvtArtifact | ExcArtifact | AutArtifact | ExtArtifact | GenericArtifact
+}
+
+ArrowStatement {
+  Arrow (RmArtifact | UiArtifact | CmdArtifact | EvtArtifact | ExcArtifact | AutArtifact | ExtArtifact | GenericArtifact) Label?
+}
+
+RmArtifact { kw_rm Colon RmName }
+UiArtifact { kw_ui Colon UiName }
+CmdArtifact { kw_cmd Colon CmdName }
+EvtArtifact { kw_evt Colon EvtName }
+ExcArtifact { kw_exc Colon Identifier }
+AutArtifact { kw_aut Colon Identifier }
+ExtArtifact { kw_ext Colon Identifier }
+GenericArtifact { Identifier Colon Identifier }
+
+RmName { Identifier }
+UiName { Identifier }
+CmdName { Identifier }
+EvtName { Identifier }
+
+DataStatement {
+  kw<"data"> Colon JsonObject
+}
+
+Label {
+  BracketL LabelContent? BracketR
+}
+
+@external tokens labelContent from "./tokens" { LabelContent }
+@tokens {
+  Identifier { $[a-zA-Z_] $[a-zA-Z0-9_\-#]* }
+  String { '"' (!["\\] | "\\" _) * '"' }
+  Number { $[0-9]+ ("." $[0-9]+)? }
+  
+  Arrow { "->" }
+  Colon { ":" }
+  BracketL { "[" }
+  BracketR { "]" }
+  BraceL { "{" }
+  BraceR { "}" }
+  Comma { "," }
+
+  space { $[ \t]+ }
+  newline { $[\r\n]+ }
+
+  @precedence { Arrow, Identifier }
+  @precedence { space, Identifier }
+}
+
+kw_rm { @specialize[@name=rmType]<Identifier, "rm"> }
+kw_ui { @specialize[@name=uiType]<Identifier, "ui"> }
+kw_cmd { @specialize[@name=cmdType]<Identifier, "cmd"> }
+kw_evt { @specialize[@name=evtType]<Identifier, "evt"> }
+kw_exc { @specialize[@name=excType]<Identifier, "exc"> }
+kw_aut { @specialize[@name=autType]<Identifier, "aut"> }
+kw_ext { @specialize[@name=extType]<Identifier, "ext"> }
+
+kw<term> { @specialize[@name={term}]<Identifier, term> }
+
+// Simplified JSON rules for the 'data' block
+JsonObject { BraceL (Property (Comma Property)*)? BraceR }
+Property { (String | Identifier) Colon Value }
+Value { String | Number | JsonObject | JsonArray | kw<"true"> | kw<"false"> | kw<"null"> }
+JsonArray { BracketL (Value (Comma Value)*)? BracketR }
+
+@skip { space }

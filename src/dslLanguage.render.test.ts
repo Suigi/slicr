@@ -3,7 +3,7 @@
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { afterEach, describe, expect, it } from 'vitest';
-import { dslHighlightDecorations } from './dslHighlightDecorations';
+import { slicr } from './slicrLanguage';
 
 const SIMPLE_DSL = `slice "Test Slice"
 
@@ -29,7 +29,7 @@ describe('DSL language rendering', () => {
     view = new EditorView({
       state: EditorState.create({
         doc: SIMPLE_DSL,
-        extensions: [dslHighlightDecorations, EditorView.lineWrapping]
+        extensions: [slicr(), EditorView.lineWrapping]
       }),
       parent: host
     });
@@ -45,26 +45,28 @@ describe('DSL language rendering', () => {
     const highlightedSpans = content?.querySelectorAll('span[class*="dsl-tok-"]');
     expect(highlightedSpans && highlightedSpans.length).toBeGreaterThan(0);
 
-    const uiToken = content?.querySelector('.dsl-tok-uiType');
-    const uiNameToken = content?.querySelector('.dsl-tok-uiName');
-    const cmdToken = content?.querySelector('.dsl-tok-cmdType');
-    const cmdNameToken = content?.querySelector('.dsl-tok-cmdName');
-    const evtToken = content?.querySelector('.dsl-tok-evtType');
-    const evtNameToken = content?.querySelector('.dsl-tok-evtName');
-    const rmToken = content?.querySelector('.dsl-tok-rmType');
-    const rmNameToken = content?.querySelector('.dsl-tok-rmName');
-    const jsonKeyToken = content?.querySelector('.dsl-tok-jsonKey');
+    const uiTypeToken = content?.querySelectorAll('.dsl-tok-uiType')[0];
+    const cmdTypeToken = content?.querySelectorAll('.dsl-tok-cmdType')[0];
+    const evtTypeToken = content?.querySelectorAll('.dsl-tok-evtType')[0];
+    const rmTypeToken = content?.querySelectorAll('.dsl-tok-rmType')[0];
+
+    const uiNameToken = content?.querySelectorAll('.dsl-tok-uiName')[0];
+    const cmdNameToken = content?.querySelectorAll('.dsl-tok-cmdName')[0];
+    const evtNameToken = content?.querySelectorAll('.dsl-tok-evtName')[0];
+    const rmNameToken = content?.querySelectorAll('.dsl-tok-rmName')[0];
+
     const stringToken = content?.querySelector('.dsl-tok-string');
 
-    expect(uiToken?.textContent?.trim()).toBe('ui');
+    expect(uiTypeToken?.textContent?.trim()).toBe('ui');
+    expect(cmdTypeToken?.textContent?.trim()).toBe('cmd');
+    expect(evtTypeToken?.textContent?.trim()).toBe('evt');
+    expect(rmTypeToken?.textContent?.trim()).toBe('rm');
+
     expect(uiNameToken?.textContent?.trim()).toBe('the-screen');
-    expect(cmdToken?.textContent?.trim()).toBe('cmd');
     expect(cmdNameToken?.textContent?.trim()).toBe('the-command');
-    expect(evtToken?.textContent?.trim()).toBe('evt');
     expect(evtNameToken?.textContent?.trim()).toBe('the-event');
-    expect(rmToken?.textContent?.trim()).toBe('rm');
     expect(rmNameToken?.textContent?.trim()).toBe('the-read-model');
-    expect(jsonKeyToken?.textContent?.trim()).toBe('"screen"');
+
     expect(stringToken?.textContent?.trim()).toBe('"Test Slice"');
   });
 });

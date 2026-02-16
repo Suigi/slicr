@@ -1,5 +1,6 @@
+import { parser } from '../slicr.parser.js';
+import * as terms from '../slicr.parser.terms.js';
 import { Edge, NodeData, Parsed, VisualNode } from './types';
-import { DslToken, tokenizeDslLine } from '../dslTokenizer';
 
 type Item = {
   kind: 'arrow' | 'artifact';
@@ -11,69 +12,67 @@ type Item = {
 };
 
 export function parseDsl(src: string): Parsed {
-  const lines = src.split('\n');
+  const tree = parser.parse(src);
   const nodes = new Map<string, VisualNode>();
   const edges: Edge[] = [];
   let sliceName = '';
   const nameCounts: Record<string, number> = {};
-
-  for (const line of lines) {
-    const tokens = tokenizeDslLine(line);
-    const first = tokens[0];
-    const second = tokens[1];
-
-    if (first?.type === 'keyword' && first.text === 'slice' && second?.type === 'string') {
-      sliceName = second.text.slice(1, -1);
-      break;
-    }
-  }
-
   const items: Item[] = [];
-  for (const line of lines) {
-    const tokens = tokenizeDslLine(line);
-    if (tokens.length === 0 || (tokens[0].type === 'keyword' && tokens[0].text === 'slice')) {
-      continue;
-    }
 
-    const indent = (line.match(/^(\s*)/)?.[1] ?? '').length;
+  const cursor = tree.cursor();
+  do {
+    const typeId = cursor.type.id;
+    const statementText = src.slice(cursor.from, cursor.to).trim();
 
-    if (isDataLine(tokens) && items.length > 0) {
-      try {
-        const colon = line.indexOf(':');
-        if (colon >= 0) {
-          const raw = line.slice(colon + 1).trim();
-          items[items.length - 1].data = JSON.parse(raw) as Record<string, unknown>;
-        }
-      } catch {
-        // Keep parity with existing behavior: ignore bad data blocks.
+    if (typeId === terms.SliceStatement) {
+      const match = statementText.match(/^slice\s+"([^"]+)"/);
+      if (match) {
+        sliceName = match[1];
       }
       continue;
     }
 
-    const parsedArrow = parseArrowLine(tokens);
-    if (parsedArrow) {
-      items.push({
-        kind: 'arrow',
-        indent,
-        type: parsedArrow.type,
-        name: parsedArrow.name,
-        label: parsedArrow.label,
-        data: null
-      });
+    if (typeId === terms.ArtifactStatement) {
+      const parsed = parseArtifactText(statementText);
+      if (parsed) {
+        items.push({
+          kind: 'artifact',
+          indent: getIndent(src, cursor.from),
+          type: parsed.type,
+          name: parsed.name,
+          data: null
+        });
+      }
       continue;
     }
 
-    const parsedArtifact = parseArtifactLine(tokens);
-    if (parsedArtifact) {
-      items.push({
-        kind: 'artifact',
-        indent,
-        type: parsedArtifact.type,
-        name: parsedArtifact.name,
-        data: null
-      });
+    if (typeId === terms.ArrowStatement) {
+      const parsed = parseArrowText(statementText);
+      if (parsed) {
+        items.push({
+          kind: 'arrow',
+          indent: getIndent(src, cursor.from),
+          type: parsed.type,
+          name: parsed.name,
+          label: parsed.label,
+          data: null
+        });
+      }
+      continue;
     }
-  }
+
+    if (typeId === terms.DataStatement && items.length > 0) {
+      const parsed = parseDataText(statementText);
+      if (!parsed) {
+        continue;
+      }
+      try {
+        items[items.length - 1].data = JSON.parse(parsed) as Record<string, unknown>;
+      } catch {
+        // Keep parity with previous behavior: ignore malformed data blocks.
+      }
+    }
+  } while (cursor.next());
 
   const makeKey = (type: string, name: string) => {
     if (type === 'rm' || type === 'ui') {
@@ -130,64 +129,38 @@ export function parseDsl(src: string): Parsed {
   return { sliceName, nodes, edges };
 }
 
-function isDataLine(tokens: DslToken[]) {
-  return tokens[0]?.type === 'keyword' && tokens[0].text === 'data' && tokens[1]?.type === 'punctuation';
+function parseArtifactText(text: string) {
+  const match = text.match(/^([a-z]+):([^\s[]+)$/);
+  if (!match) {
+    return null;
+  }
+  return { type: match[1], name: match[2] };
 }
 
-function parseArrowLine(tokens: DslToken[]) {
-  if (tokens[0]?.type !== 'operator') {
+function parseArrowText(text: string) {
+  const match = text.match(/^->\s+([a-z]+):([^\s[]+)(?:\s+\[([^\]]+)])?$/);
+  if (!match) {
     return null;
   }
-  if (!isTypeToken(tokens[1])) {
-    return null;
-  }
-  if (tokens[2]?.type !== 'punctuation') {
-    return null;
-  }
-  if (tokens[3]?.type !== 'variableName') {
-    return null;
-  }
-  const labelToken = tokens[4];
-  if (labelToken && labelToken.type !== 'attributeName') {
-    return null;
-  }
-  if (tokens.length > 5) {
-    return null;
-  }
-
-  return {
-    type: tokens[1].text,
-    name: tokens[3].text,
-    label: labelToken ? labelToken.text.slice(1, -1) : null
-  };
+  return { type: match[1], name: match[2], label: match[3] ?? null };
 }
 
-function parseArtifactLine(tokens: DslToken[]) {
-  if (!isTypeToken(tokens[0])) {
-    return null;
-  }
-  if (tokens[1]?.type !== 'punctuation') {
-    return null;
-  }
-  if (tokens[2]?.type !== 'variableName') {
-    return null;
-  }
-  if (tokens.length > 3) {
-    return null;
-  }
-
-  return {
-    type: tokens[0].text,
-    name: tokens[2].text
-  };
+function parseDataText(text: string) {
+  const match = text.match(/^data:\s*(.+)$/);
+  return match ? match[1] : null;
 }
 
-function isTypeToken(token: DslToken | undefined) {
-  return (
-    token?.type === 'rmType' ||
-    token?.type === 'uiType' ||
-    token?.type === 'cmdType' ||
-    token?.type === 'evtType' ||
-    token?.type === 'typeName'
-  );
+function getIndent(src: string, pos: number): number {
+  const lastNewline = src.lastIndexOf('\n', pos - 1);
+  const lineStart = lastNewline === -1 ? 0 : lastNewline + 1;
+  let indent = 0;
+  for (let i = lineStart; i < pos; i += 1) {
+    const char = src[i];
+    if (char === ' ' || char === '\t') {
+      indent += 1;
+    } else {
+      break;
+    }
+  }
+  return indent;
 }
