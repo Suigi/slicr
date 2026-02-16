@@ -1,5 +1,5 @@
-import { parser } from '../slicr.parser.js';
-import * as terms from '../slicr.parser.terms.js';
+import { parser } from '../slicr.parser';
+import * as terms from '../slicr.parser.terms';
 import { Edge, NodeData, Parsed, VisualNode } from './types';
 
 type NodeSpec = {
@@ -32,27 +32,33 @@ export function parseDsl(src: string): Parsed {
 
   const cursor = tree.cursor();
   do {
-    const statementText = src.slice(cursor.from, cursor.to).trim();
-    if (!statementText) {
-      continue;
-    }
-
     if (cursor.type.id === terms.SliceStatement) {
-      const match = statementText.match(/^slice\s+"([^"]+)"/);
-      if (match) {
-        sliceName = match[1];
+      cursor.firstChild(); // Move to kw<"slice">
+      // @ts-ignore cursor is being modified by cursor.nextSibling()
+      if (cursor.nextSibling() && cursor.type.id === terms.String) {
+        const raw = src.slice(cursor.from, cursor.to);
+        sliceName = raw.slice(1, -1); // Remove quotes
       }
+      cursor.parent();
       continue;
     }
 
     if (cursor.type.id === terms.NodeStatement) {
-      const parsed = parseNodeStatement(statementText);
+      // Ensure the node is at the start of a line (no leading whitespace in DSL for top-level nodes)
+      const lineIndex = getLineIndexAtPos(lineStarts, cursor.from);
+      const lineStart = lineStarts[lineIndex];
+      const prefix = src.slice(lineStart, cursor.from);
+      if (prefix.length > 0) {
+        continue;
+      }
+
+      const parsed = parseNodeStatement(cursor, src);
       if (!parsed) {
         continue;
       }
 
       specs.push({
-        line: getLineIndexAtPos(lineStarts, cursor.from),
+        line: lineIndex,
         type: parsed.target.type,
         name: parsed.target.name,
         incoming: parsed.incoming,
@@ -106,37 +112,86 @@ export function parseDsl(src: string): Parsed {
   return { sliceName, nodes, edges };
 }
 
-function parseNodeStatement(text: string) {
-  const match = text.match(/^([a-z]+):([^\s<,]+)(?:\s*<-\s*(.+))?$/);
-  if (!match) {
+function parseNodeStatement(cursor: any, src: string) {
+  cursor.firstChild(); // Move to ArtifactRef
+  const target = parseArtifactRef(cursor, src);
+  if (!target) {
+    cursor.parent();
     return null;
   }
 
-  const target: ArtifactRef = { type: match[1], name: match[2] };
-  const incoming = match[3]
-    ? splitRefs(match[3]).map(parseArtifactRef).filter((value): value is ArtifactRef => value !== null)
-    : [];
-
-  if (match[3] && incoming.length === 0) {
-    return null;
+  const incoming: ArtifactRef[] = [];
+  if (cursor.nextSibling() && cursor.type.id === terms.IncomingClause) {
+    cursor.firstChild(); // Move to DependsArrow
+    while (cursor.nextSibling()) {
+      if (cursor.type.id === terms.ArtifactRef) {
+        const ref = parseArtifactRef(cursor, src);
+        if (ref) {
+          incoming.push(ref);
+        }
+      }
+    }
+    cursor.parent();
   }
 
+  cursor.parent();
   return { target, incoming };
 }
 
-function splitRefs(text: string) {
-  return text
-    .split(',')
-    .map((part) => part.trim())
-    .filter(Boolean);
-}
-
-function parseArtifactRef(text: string): ArtifactRef | null {
-  const match = text.match(/^([a-z]+):([^\s,]+)$/);
-  if (!match) {
+function parseArtifactRef(cursor: any, src: string): ArtifactRef | null {
+  if (cursor.type.id !== terms.ArtifactRef) {
     return null;
   }
-  return { type: match[1], name: match[2] };
+
+  cursor.firstChild(); // Move to specific ref (RmRef, UiRef, etc.)
+  const typeId = cursor.type.id;
+
+  let type = '';
+  if (typeId === terms.RmRef) type = 'rm';
+  else if (typeId === terms.UiRef) type = 'ui';
+  else if (typeId === terms.CmdRef) type = 'cmd';
+  else if (typeId === terms.EvtRef) type = 'evt';
+  else if (typeId === terms.ExcRef) type = 'exc';
+  else if (typeId === terms.AutRef) type = 'aut';
+  else if (typeId === terms.ExtRef) type = 'ext';
+  else if (typeId === terms.GenericRef) {
+    cursor.firstChild();
+    type = src.slice(cursor.from, cursor.to);
+    cursor.parent();
+  }
+
+  if (!type) {
+    cursor.parent();
+    return null;
+  }
+
+  let name = '';
+  let version = '';
+
+  // Traverse children of the specific ref to find Name and Version
+  cursor.firstChild();
+  do {
+    const tid = cursor.type.id;
+    if (
+      tid === terms.RmName ||
+      tid === terms.UiName ||
+      tid === terms.CmdName ||
+      tid === terms.EvtName ||
+      (typeId === terms.GenericRef && tid === terms.Identifier && name === '')
+    ) {
+      name = src.slice(cursor.from, cursor.to);
+    } else if (tid === terms.Identifier && name === '') {
+      // For ExcRef, AutRef, ExtRef which use Identifier directly in grammar
+      name = src.slice(cursor.from, cursor.to);
+    } else if (tid === terms.Version) {
+      version = src.slice(cursor.from, cursor.to);
+    }
+  } while (cursor.nextSibling());
+
+  cursor.parent(); // Back to specific ref
+  cursor.parent(); // Back to ArtifactRef
+
+  return { type, name: name + version };
 }
 
 function toRefId(type: string, name: string) {

@@ -157,4 +157,18 @@ rm:pending-bookings <- evt:room-booked`;
       { from: 'room-booked', to: 'pending-bookings', label: null }
     ]);
   });
+
+  it('does not create extra nodes from data properties', () => {
+    const input = `slice "Book Room"
+
+evt:room-opened@1
+  data:
+    room-number: 101
+    capacity: 2`;
+
+    const parsed = parseDsl(input);
+
+    expect(parsed.nodes.size).toBe(1);
+    expect(parsed.nodes.has('room-opened@1')).toBe(true);
+  });
 });
