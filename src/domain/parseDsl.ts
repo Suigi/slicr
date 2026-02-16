@@ -43,7 +43,7 @@ export function parseDsl(src: string): Parsed {
       continue;
     }
 
-    const arrowMatch = content.match(/^->\s+([a-z]+):([^\s\[]+)(?:\s+\[([^\]]+)])?$/);
+    const arrowMatch = content.match(/^->\s+([a-z]+):([^\s[]+)(?:\s+\[([^\]]+)])?$/);
     if (arrowMatch) {
       items.push({
         kind: 'arrow',
@@ -56,7 +56,7 @@ export function parseDsl(src: string): Parsed {
       continue;
     }
 
-    const artifactMatch = content.match(/^([a-z]+):([^\s\[]+)$/);
+    const artifactMatch = content.match(/^([a-z]+):([^\s[]+)$/);
     if (artifactMatch) {
       items.push({
         kind: 'artifact',

@@ -79,6 +79,7 @@ export function useDslEditor({
   createEditorView?: CreateEditorView;
 }) {
   const editorViewRef = useRef<EditorViewLike | null>(null);
+  const initialDslRef = useRef(dsl);
 
   useEffect(() => {
     if (!editorMountRef.current || editorViewRef.current) {
@@ -87,7 +88,7 @@ export function useDslEditor({
 
     const editorView = createEditorView({
       parent: editorMountRef.current,
-      doc: dsl,
+      doc: initialDslRef.current,
       onDocChanged: (nextValue) => {
         onDslChange((current) => (current === nextValue ? current : nextValue));
       }

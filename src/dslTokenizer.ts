@@ -88,7 +88,7 @@ export function readDslToken(stream: TokenStream): DslTokenType | null {
     return 'number';
   }
 
-  if (stream.match(/[{}\[\],]/)) {
+  if (stream.match(/[[\]{},]/)) {
     return 'punctuation';
   }
 
