@@ -4,6 +4,7 @@ import { act } from 'react';
 import ReactDOM from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import App from './App';
+import { DEFAULT_DSL } from './defaultDsl';
 
 let root: ReactDOM.Root | null = null;
 let host: HTMLDivElement | null = null;
@@ -25,6 +26,7 @@ afterEach(() => {
   root = null;
   host = null;
   document.body.innerHTML = '';
+  localStorage.clear();
 });
 
 function renderApp() {
@@ -37,6 +39,27 @@ function renderApp() {
 }
 
 describe('App interactions', () => {
+  it('loads default DSL when storage is empty and persists it', () => {
+    renderApp();
+
+    const sliceTitle = document.querySelector('.slice-title');
+
+    expect(sliceTitle?.textContent).toBe('Book Room');
+    expect(localStorage.getItem('slicr.dsl')).toBe(DEFAULT_DSL);
+  });
+
+  it('loads DSL from localStorage on first render', () => {
+    const persistedDsl = `slice "Persisted Slice"
+
+rm:persisted-view`;
+    localStorage.setItem('slicr.dsl', persistedDsl);
+
+    renderApp();
+
+    const sliceTitle = document.querySelector('.slice-title');
+    expect(sliceTitle?.textContent).toBe('Persisted Slice');
+  });
+
   it('opens and closes the editor panel via toggle and outside click', () => {
     renderApp();
 

@@ -20,14 +20,33 @@ const TYPE_LABEL: Record<string, string> = {
   ext: 'ext'
 };
 
+const DSL_STORAGE_KEY = 'slicr.dsl';
+
+function readInitialDsl(): string {
+  try {
+    const savedDsl = localStorage.getItem(DSL_STORAGE_KEY);
+    return savedDsl ?? DEFAULT_DSL;
+  } catch {
+    return DEFAULT_DSL;
+  }
+}
+
 function App() {
-  const [dsl, setDsl] = useState(DEFAULT_DSL);
+  const [dsl, setDsl] = useState(readInitialDsl);
   const [editorOpen, setEditorOpen] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const editorMountRef = useRef<HTMLDivElement>(null);
 
   useDslEditor({ dsl, onDslChange: setDsl, editorMountRef });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(DSL_STORAGE_KEY, dsl);
+    } catch {
+      // Ignore storage failures (e.g. restricted environments).
+    }
+  }, [dsl]);
 
   const parseResult = useMemo<ParseResult>(() => {
     try {
