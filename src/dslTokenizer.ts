@@ -18,6 +18,7 @@ export type DslToken = {
   from: number;
   to: number;
   type: DslTokenType;
+  text: string;
 };
 
 export type TokenStream = {
@@ -160,16 +161,20 @@ export function tokenizeDslLine(line: string): DslToken[] {
   const tokens: DslToken[] = [];
 
   while (!stream.eol()) {
-    const from = stream.pos;
+    const rawFrom = stream.pos;
     const type = readDslToken(stream);
-    const to = stream.pos;
+    const rawTo = stream.pos;
 
-    if (to <= from) {
-      throw new Error(`Tokenizer did not advance at ${from} for line "${line}"`);
+    if (rawTo <= rawFrom) {
+      throw new Error(`Tokenizer did not advance at ${rawFrom} for line "${line}"`);
     }
 
     if (type) {
-      tokens.push({ from, to, type });
+      let from = rawFrom;
+      while (from < rawTo && /[\s\u00a0]/.test(line[from])) {
+        from += 1;
+      }
+      tokens.push({ from, to: rawTo, type, text: line.slice(from, rawTo) });
     }
   }
 
