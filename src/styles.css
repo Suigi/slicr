@@ -11,7 +11,7 @@
   --rm-bg: #0a1f10;
   --rm-border: #185c2e;
 
-  --cmd: #3b82f6;
+  --cmd: var(--command-color);
   --cmd-bg: #0d1d3d;
   --cmd-border: #1e408a;
 
@@ -24,6 +24,13 @@
   --exc-border: #7a1f1f;
 
   --arrow: #3a3a52;
+  --command-color: #3b82f6;
+  --command-color-rgb: 59 130 246;
+  --event-color: #f97316;
+  --event-color-rgb: 249 115 22;
+  --rm-color-rgb: 34 197 94;
+  --ui-color: #a78bfa;
+  --ui-color-rgb: 167 139 250;
 }
 
 * {
@@ -236,27 +243,51 @@ header h1 {
 }
 
 .dsl-editor .dsl-tok-keyword {
-  color: #f97316;
+  color: #eab308;
   font-weight: 700;
 }
 
 .dsl-editor .dsl-tok-cmdType {
-  color: #3b82f6;
-  font-weight: 700;
-}
-
-.dsl-editor .dsl-tok-rmType {
-  color: #22c55e;
-  font-weight: 700;
-}
-
-.dsl-editor .dsl-tok-uiType {
-  color: #a78bfa;
+  color: rgb(var(--command-color-rgb) / 0.7);
+  color: color-mix(in srgb, var(--command-color) 72%, var(--muted) 28%);
   font-weight: 700;
 }
 
 .dsl-editor .dsl-tok-evtType {
-  color: #f97316;
+  color: rgb(var(--event-color-rgb) / 0.7);
+  color: color-mix(in srgb, var(--event-color) 72%, var(--muted) 28%);
+  font-weight: 700;
+}
+
+.dsl-editor .dsl-tok-rmType {
+  color: rgb(var(--rm-color-rgb) / 0.7);
+  color: color-mix(in srgb, var(--rm) 72%, var(--muted) 28%);
+  font-weight: 700;
+}
+
+.dsl-editor .dsl-tok-uiType {
+  color: rgb(var(--ui-color-rgb) / 0.7);
+  color: color-mix(in srgb, var(--ui-color) 72%, var(--muted) 28%);
+  font-weight: 700;
+}
+
+.dsl-editor .dsl-tok-cmdName {
+  color: var(--command-color);
+  font-weight: 700;
+}
+
+.dsl-editor .dsl-tok-evtName {
+  color: var(--event-color);
+  font-weight: 700;
+}
+
+.dsl-editor .dsl-tok-rmName {
+  color: var(--rm);
+  font-weight: 700;
+}
+
+.dsl-editor .dsl-tok-uiName {
+  color: var(--ui-color);
   font-weight: 700;
 }
 
@@ -278,7 +309,11 @@ header h1 {
 }
 
 .dsl-editor .dsl-tok-string {
-  color: #22c55e;
+  color: #14b8a6;
+}
+
+.dsl-editor .dsl-tok-jsonKey {
+  color: #ababab;
 }
 
 .dsl-editor .dsl-tok-number {
@@ -414,7 +449,7 @@ header h1 {
 .node.ui {
   background: #1c1a2e;
   border-color: #3c3660;
-  color: #a78bfa;
+  color: var(--ui-color);
 }
 
 .node.rm:hover {
