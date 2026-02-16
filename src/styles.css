@@ -216,19 +216,82 @@ header h1 {
   }
 }
 
-textarea {
+.dsl-editor {
   flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.dsl-editor .cm-editor {
+  height: 100%;
   background: transparent;
-  border: none;
+}
+
+.dsl-editor .cm-editor.cm-focused {
   outline: none;
-  resize: none;
-  padding: 16px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 13px;
-  line-height: 1.7;
-  color: var(--text);
-  caret-color: var(--evt);
+}
+
+.dsl-editor .cm-scroller {
   -webkit-overflow-scrolling: touch;
+}
+
+.dsl-editor .dsl-tok-keyword {
+  color: #f97316;
+  font-weight: 700;
+}
+
+.dsl-editor .dsl-tok-cmdType {
+  color: #3b82f6;
+  font-weight: 700;
+}
+
+.dsl-editor .dsl-tok-rmType {
+  color: #22c55e;
+  font-weight: 700;
+}
+
+.dsl-editor .dsl-tok-uiType {
+  color: #a78bfa;
+  font-weight: 700;
+}
+
+.dsl-editor .dsl-tok-evtType {
+  color: #f97316;
+  font-weight: 700;
+}
+
+.dsl-editor .dsl-tok-typeName {
+  color: #60a5fa;
+  font-weight: 600;
+}
+
+.dsl-editor .dsl-tok-variableName {
+  color: #e8e8f0;
+}
+
+.dsl-editor .dsl-tok-attributeName {
+  color: #22c55e;
+}
+
+.dsl-editor .dsl-tok-operator {
+  color: #a78bfa;
+}
+
+.dsl-editor .dsl-tok-string {
+  color: #22c55e;
+}
+
+.dsl-editor .dsl-tok-number {
+  color: #f59e0b;
+}
+
+.dsl-editor .dsl-tok-bool,
+.dsl-editor .dsl-tok-null {
+  color: #ef4444;
+}
+
+.dsl-editor .dsl-tok-punctuation {
+  color: #6b6b80;
 }
 
 .error-bar {
