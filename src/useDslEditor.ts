@@ -1,6 +1,6 @@
 import { Dispatch, RefObject, SetStateAction, useEffect, useRef } from 'react';
 import { EditorState, StateEffect, StateField } from '@codemirror/state';
-import { foldGutter, codeFolding } from '@codemirror/language';
+import { foldGutter, codeFolding, foldEffect, foldable } from '@codemirror/language';
 import { EditorView, Decoration, DecorationSet } from '@codemirror/view';
 import { slicr } from './slicrLanguage';
 
@@ -184,6 +184,50 @@ export function useDslEditor({
   const editorViewRef = useRef<EditorViewLike | null>(null);
   const initialDslRef = useRef(dsl);
 
+  const collapseAllDataRegions = () => {
+    const editorView = editorViewRef.current as EditorView | null;
+    if (!editorView) {
+      return;
+    }
+
+    const effects: StateEffect<unknown>[] = [];
+    for (let lineNumber = 1; lineNumber <= editorView.state.doc.lines; lineNumber++) {
+      const line = editorView.state.doc.line(lineNumber);
+      if (!/^\s*data:\s*$/.test(line.text)) {
+        continue;
+      }
+
+      const foldRange = foldable(editorView.state, line.from, line.to);
+      if (foldRange) {
+        effects.push(foldEffect.of(foldRange));
+      }
+    }
+
+    if (effects.length > 0) {
+      editorView.dispatch({ effects });
+    }
+  };
+
+  const collapseAllRegions = () => {
+    const editorView = editorViewRef.current as EditorView | null;
+    if (!editorView) {
+      return;
+    }
+
+    const effects: StateEffect<unknown>[] = [];
+    for (let lineNumber = 1; lineNumber <= editorView.state.doc.lines; lineNumber++) {
+      const line = editorView.state.doc.line(lineNumber);
+      const foldRange = foldable(editorView.state, line.from, line.to);
+      if (foldRange) {
+        effects.push(foldEffect.of(foldRange));
+      }
+    }
+
+    if (effects.length > 0) {
+      editorView.dispatch({ effects });
+    }
+  };
+
   useEffect(() => {
     const editorView = editorViewRef.current;
     if (!editorView) {
@@ -252,4 +296,6 @@ export function useDslEditor({
       changes: { from: 0, to: editorView.state.doc.length, insert: dsl }
     });
   }, [dsl]);
+
+  return { collapseAllDataRegions, collapseAllRegions };
 }

@@ -44,7 +44,7 @@ function App() {
   const [hoveredEditorRange, setHoveredEditorRange] = useState<Range | null>(null);
   const [selectedNodeKey, setSelectedNodeKey] = useState<string | null>(null);
 
-  useDslEditor({
+  const { collapseAllDataRegions, collapseAllRegions } = useDslEditor({
     dsl,
     onDslChange: setDsl,
     onRangeHover: setHoveredEditorRange,
@@ -212,7 +212,23 @@ function App() {
         <div ref={editorRef} className={`editor-panel ${editorOpen ? 'open' : ''}`}>
           <div className="panel-label">
             <div className="panel-handle" />
-            DSL
+            <span>DSL</span>
+            <button
+              type="button"
+              className="panel-action"
+              onClick={collapseAllDataRegions}
+              aria-label="Collapse all data regions"
+            >
+              Collapse data
+            </button>
+            <button
+              type="button"
+              className="panel-action"
+              onClick={collapseAllRegions}
+              aria-label="Collapse all regions"
+            >
+              Collapse all
+            </button>
           </div>
           <div ref={editorMountRef} className="dsl-editor" />
           <div className="error-bar">{errorText}</div>

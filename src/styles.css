@@ -202,6 +202,32 @@ header h1 {
   gap: 8px;
 }
 
+.panel-action {
+  margin-left: 0;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background-color 0.15s;
+}
+
+.panel-action:hover {
+  color: var(--text);
+  border-color: rgb(232 232 240 / 45%);
+  background: rgb(255 255 255 / 3%);
+}
+
+.panel-label > .panel-action:first-of-type {
+  margin-left: auto;
+}
+
 .panel-handle {
   display: none;
   width: 36px;
@@ -220,6 +246,11 @@ header h1 {
   .panel-label {
     flex-direction: column;
     padding-top: 10px;
+  }
+
+  .panel-action,
+  .panel-label > .panel-action:first-of-type {
+    margin-left: 0;
   }
 }
 
