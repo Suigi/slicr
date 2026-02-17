@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Dispatch, SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
 import { DEFAULT_DSL } from './defaultDsl';
 import { edgePath } from './domain/edgePath';
 import { formatNodeData } from './domain/formatNodeData';
@@ -6,6 +6,7 @@ import { layoutGraph, PAD_X } from './domain/layoutGraph';
 import { parseDsl } from './domain/parseDsl';
 import { getRelatedElements } from './domain/traversal';
 import type { Parsed } from './domain/types';
+import { addNewSlice, getSliceNameFromDsl, loadSliceLibrary, saveSliceLibrary, selectSlice, updateSelectedSliceDsl } from './sliceLibrary';
 import { Range, useDslEditor } from './useDslEditor';
 
 type ParseResult =
@@ -22,20 +23,10 @@ const TYPE_LABEL: Record<string, string> = {
   ext: 'ext'
 };
 
-const DSL_STORAGE_KEY = 'slicr.dsl';
 const NODE_VERSION_SUFFIX = /@\d+$/;
 
-function readInitialDsl(): string {
-  try {
-    const savedDsl = localStorage.getItem(DSL_STORAGE_KEY);
-    return savedDsl ?? DEFAULT_DSL;
-  } catch {
-    return DEFAULT_DSL;
-  }
-}
-
 function App() {
-  const [dsl, setDsl] = useState(readInitialDsl);
+  const [library, setLibrary] = useState(loadSliceLibrary);
   const [editorOpen, setEditorOpen] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
@@ -43,10 +34,29 @@ function App() {
   const [highlightRange, setHighlightRange] = useState<Range | null>(null);
   const [hoveredEditorRange, setHoveredEditorRange] = useState<Range | null>(null);
   const [selectedNodeKey, setSelectedNodeKey] = useState<string | null>(null);
+  const currentSlice =
+    library.slices.find((slice) => slice.id === library.selectedSliceId) ?? library.slices[0];
+  const currentDsl = currentSlice?.dsl ?? DEFAULT_DSL;
+
+  const setCurrentDsl: Dispatch<SetStateAction<string>> = (updater) => {
+    setLibrary((currentLibrary) => {
+      const selected =
+        currentLibrary.slices.find((slice) => slice.id === currentLibrary.selectedSliceId) ?? currentLibrary.slices[0];
+      if (!selected) {
+        return currentLibrary;
+      }
+
+      const nextDsl = typeof updater === 'function' ? updater(selected.dsl) : updater;
+      if (nextDsl === selected.dsl) {
+        return currentLibrary;
+      }
+      return updateSelectedSliceDsl(currentLibrary, nextDsl);
+    });
+  };
 
   const { collapseAllDataRegions, collapseAllRegions } = useDslEditor({
-    dsl,
-    onDslChange: setDsl,
+    dsl: currentDsl,
+    onDslChange: setCurrentDsl,
     onRangeHover: setHoveredEditorRange,
     editorMountRef,
     highlightRange
@@ -54,19 +64,19 @@ function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(DSL_STORAGE_KEY, dsl);
+      saveSliceLibrary(library);
     } catch {
       // Ignore storage failures (e.g. restricted environments).
     }
-  }, [dsl]);
+  }, [library]);
 
   const parseResult = useMemo<ParseResult>(() => {
     try {
-      return { parsed: parseDsl(dsl), error: '' };
+      return { parsed: parseDsl(currentDsl), error: '' };
     } catch (error) {
       return { parsed: null, error: `⚠ ${(error as Error).message}` };
     }
-  }, [dsl]);
+  }, [currentDsl]);
 
   const parsed = parseResult.parsed;
   const errorText = parseResult.error;
@@ -161,7 +171,7 @@ function App() {
   return (
     <>
       <header>
-        <h1>Slice Visualizer</h1>
+        <h1>Slicer</h1>
         <div className="legend">
           <div className="legend-item">
             <div className="legend-dot" style={{ background: 'var(--cmd)' }} />
@@ -179,6 +189,39 @@ function App() {
             <div className="legend-dot" style={{ background: 'var(--exc)' }} />
             <span>exception</span>
           </div>
+        </div>
+        <div className="slice-controls">
+          <label className="sr-only" htmlFor="slice-select">
+            Select slice
+          </label>
+          <select
+            id="slice-select"
+            className="slice-select"
+            aria-label="Select slice"
+            value={library.selectedSliceId}
+            onChange={(event) => {
+              setSelectedNodeKey(null);
+              setHighlightRange(null);
+              setLibrary((currentLibrary) => selectSlice(currentLibrary, event.target.value));
+            }}
+          >
+            {library.slices.map((slice) => (
+              <option key={slice.id} value={slice.id}>
+                {getSliceNameFromDsl(slice.dsl)}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="slice-new"
+            onClick={() => {
+              setSelectedNodeKey(null);
+              setHighlightRange(null);
+              setLibrary((currentLibrary) => addNewSlice(currentLibrary));
+            }}
+          >
+            New
+          </button>
         </div>
 
         <button

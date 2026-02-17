@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 
 import { EditorState } from '@codemirror/state';
-import { EditorView } from '@codemirror/view';
 import { foldable } from '@codemirror/language';
 import { describe, expect, it } from 'vitest';
 import { slicr } from './slicrLanguage';

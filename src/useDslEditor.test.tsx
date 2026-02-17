@@ -153,4 +153,49 @@ describe('useDslEditor', () => {
     expect(vi.mocked(onDslChange)).toHaveBeenCalledTimes(1);
     expect(dslValue).toBe('slice "Updated"');
   });
+
+  it('does not recreate editor when onDslChange callback identity changes', () => {
+    const editorRef: { current: TestEditor | null } = { current: null };
+    const createEditorView = vi.fn(({ doc }) => {
+      let text = doc;
+      editorRef.current = {
+        state: {
+          doc: {
+            toString: () => text,
+            get length() {
+              return text.length;
+            }
+          }
+        },
+        dispatch: ({ changes }) => {
+          text = changes.insert;
+        },
+        destroy: () => undefined,
+        emitDocChanged: () => undefined
+      };
+      return editorRef.current;
+    });
+
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = ReactDOM.createRoot(host);
+
+    const onDslChangeA: Dispatch<SetStateAction<string>> = () => undefined;
+    const onDslChangeB: Dispatch<SetStateAction<string>> = () => undefined;
+
+    act(() => {
+      root?.render(<Harness dsl={'slice "A"'} onDslChange={onDslChangeA} createEditorView={createEditorView} />);
+    });
+
+    act(() => {
+      editorRef.current?.dispatch({ changes: { from: 0, to: editorRef.current.state.doc.length, insert: 'slice "Edited"' } });
+    });
+
+    act(() => {
+      root?.render(<Harness dsl={'slice "Edited"'} onDslChange={onDslChangeB} createEditorView={createEditorView} />);
+    });
+
+    expect(createEditorView).toHaveBeenCalledTimes(1);
+    expect(editorRef.current?.state.doc.toString()).toBe('slice "Edited"');
+  });
 });

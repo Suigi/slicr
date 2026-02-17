@@ -1,7 +1,15 @@
-import { syntaxTree, foldService } from "@codemirror/language"
-import { LRLanguage, LanguageSupport, syntaxHighlighting, HighlightStyle, foldNodeProp, foldInside, indentNodeProp } from "@codemirror/language"
-import { styleTags, tags as t } from "@lezer/highlight"
-import { parser } from "./slicr.parser.js"
+import {
+  foldInside,
+  foldNodeProp,
+  foldService,
+  HighlightStyle,
+  LanguageSupport,
+  LRLanguage,
+  syntaxHighlighting,
+  syntaxTree
+} from "@codemirror/language"
+import {styleTags, tags as t} from "@lezer/highlight"
+import {parser} from "./slicr.parser.js"
 
 export const slicrHighlightStyle = HighlightStyle.define([
   { tag: t.keyword, class: "dsl-tok-keyword" },
@@ -75,7 +83,7 @@ export const slicrLanguage = LRLanguage.define({
 export function slicr() {
   return [
     new LanguageSupport(slicrLanguage, [
-      foldService.of((state, lineStart, lineEnd) => {
+      foldService.of((state, lineStart) => {
         const line = state.doc.lineAt(lineStart)
         const indent = line.text.match(/^\s*/)?.[0].length ?? 0
         

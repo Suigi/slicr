@@ -183,6 +183,16 @@ export function useDslEditor({
 }) {
   const editorViewRef = useRef<EditorViewLike | null>(null);
   const initialDslRef = useRef(dsl);
+  const onDocChangedRef = useRef(onDslChange);
+  const onRangeHoverRef = useRef(onRangeHover);
+
+  useEffect(() => {
+    onDocChangedRef.current = onDslChange;
+  }, [onDslChange]);
+
+  useEffect(() => {
+    onRangeHoverRef.current = onRangeHover;
+  }, [onRangeHover]);
 
   const collapseAllDataRegions = () => {
     const editorView = editorViewRef.current as EditorView | null;
@@ -254,22 +264,22 @@ export function useDslEditor({
       parent: editorMountRef.current,
       doc: initialDslRef.current,
       onDocChanged: (nextValue) => {
-        onDslChange((current) => (current === nextValue ? current : nextValue));
+        onDocChangedRef.current((current) => (current === nextValue ? current : nextValue));
       }
     });
 
-    if (onRangeHover) {
+    if (onRangeHoverRef.current) {
       const view = editorView as EditorView;
       view.dom.addEventListener('mousemove', (event) => {
         const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
         if (pos !== null) {
-          onRangeHover({ from: pos, to: pos });
+          onRangeHoverRef.current?.({ from: pos, to: pos });
         } else {
-          onRangeHover(null);
+          onRangeHoverRef.current?.(null);
         }
       });
       view.dom.addEventListener('mouseleave', () => {
-        onRangeHover(null);
+        onRangeHoverRef.current?.(null);
       });
     }
 
@@ -279,7 +289,7 @@ export function useDslEditor({
       editorView.destroy();
       editorViewRef.current = null;
     };
-  }, [createEditorView, editorMountRef, onDslChange]);
+  }, [createEditorView, editorMountRef]);
 
   useEffect(() => {
     const editorView = editorViewRef.current;

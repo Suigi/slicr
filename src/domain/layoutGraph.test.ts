@@ -71,4 +71,30 @@ describe('layoutGraph', () => {
     expect(result.w).toBeGreaterThan(0);
     expect(result.h).toBeGreaterThan(0);
   });
+
+  it('keeps merge targets to the right of all predecessors even when discovered early', () => {
+    const nodes = new Map<string, VisualNode>([
+      ['cmd-schedule', makeNode('cmd-schedule', 'cmd')],
+      ['evt-scheduled', makeNode('evt-scheduled', 'evt')],
+      ['rm-available', makeNode('rm-available', 'rm')],
+      ['ui-available', makeNode('ui-available', 'ui')],
+      ['cmd-buy', makeNode('cmd-buy', 'cmd')],
+      ['evt-sold', makeNode('evt-sold', 'evt')],
+      ['rm-available-2', makeNode('rm-available-2', 'rm')]
+    ]);
+    const edges: Edge[] = [
+      { from: 'cmd-schedule', to: 'evt-scheduled', label: null },
+      { from: 'evt-scheduled', to: 'rm-available', label: null },
+      { from: 'rm-available', to: 'ui-available', label: null },
+      { from: 'ui-available', to: 'cmd-buy', label: null },
+      { from: 'cmd-buy', to: 'evt-sold', label: null },
+      { from: 'evt-scheduled', to: 'rm-available-2', label: null },
+      { from: 'evt-sold', to: 'rm-available-2', label: null }
+    ];
+
+    const result = layoutGraph(nodes, edges);
+
+    expect(result.pos['rm-available-2'].x).toBeGreaterThanOrEqual(result.pos['evt-sold'].x + 48);
+    expect(result.pos['rm-available-2'].x).toBeGreaterThan(result.pos['cmd-buy'].x);
+  });
 });

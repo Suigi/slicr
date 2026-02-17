@@ -33,48 +33,43 @@ export function rowFor(type: string): number {
 
 export function layoutGraph(nodes: Map<string, VisualNode>, edges: Edge[]): LayoutResult {
   const inDeg: Record<string, number> = {};
+  const outgoing: Record<string, string[]> = {};
+  const nodeOrder = [...nodes.keys()];
   nodes.forEach((_, key) => {
     inDeg[key] = 0;
+    outgoing[key] = [];
   });
 
   for (const edge of edges) {
-    if (nodes.has(edge.to)) {
-      inDeg[edge.to] += 1;
+    if (!nodes.has(edge.from) || !nodes.has(edge.to)) {
+      continue;
     }
+    inDeg[edge.to] += 1;
+    outgoing[edge.from].push(edge.to);
   }
 
   const encounterOrder: string[] = [];
-  const visited = new Set<string>();
-  const queue: string[] = [...nodes.keys()].filter((key) => !inDeg[key]);
-
-  if (queue.length === 0) {
-    const firstKey = nodes.keys().next().value as string | undefined;
-    if (firstKey) {
-      queue.push(firstKey);
-    }
-  }
+  const queue: string[] = nodeOrder.filter((key) => inDeg[key] === 0);
 
   while (queue.length > 0) {
     const current = queue.shift() as string;
-    if (visited.has(current)) {
-      continue;
-    }
-
-    visited.add(current);
     encounterOrder.push(current);
 
-    for (const edge of edges) {
-      if (edge.from === current && !visited.has(edge.to)) {
-        queue.push(edge.to);
+    for (const next of outgoing[current]) {
+      inDeg[next] -= 1;
+      if (inDeg[next] === 0) {
+        queue.push(next);
       }
     }
   }
 
-  nodes.forEach((_, key) => {
-    if (!visited.has(key)) {
-      encounterOrder.push(key);
+  if (encounterOrder.length < nodeOrder.length) {
+    for (const key of nodeOrder) {
+      if (!encounterOrder.includes(key)) {
+        encounterOrder.push(key);
+      }
     }
-  });
+  }
 
   const minColSource: Record<string, string | string[]> = {};
 
