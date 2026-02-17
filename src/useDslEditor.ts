@@ -1,6 +1,7 @@
 import { Dispatch, RefObject, SetStateAction, useEffect, useRef } from 'react';
 import { EditorState, StateEffect, StateField } from '@codemirror/state';
-import { Decoration, DecorationSet, EditorView } from '@codemirror/view';
+import { foldGutter, codeFolding } from '@codemirror/language';
+import { EditorView, Decoration, DecorationSet } from '@codemirror/view';
 import { slicr } from './slicrLanguage';
 
 export type Range = { from: number; to: number };
@@ -52,6 +53,30 @@ type CreateEditorView = (args: {
   onDocChanged: (nextDoc: string) => void;
 }) => EditorViewLike;
 
+const createFoldMarker = (open: boolean) => {
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const marker = document.createElement('span');
+  marker.className = 'cm-fold-marker';
+
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', '0 0 12 12');
+  svg.setAttribute('width', '10');
+  svg.setAttribute('height', '10');
+  svg.setAttribute('aria-hidden', 'true');
+
+  const path = document.createElementNS(svgNS, 'path');
+  path.setAttribute('fill', 'none');
+  path.setAttribute('stroke', 'currentColor');
+  path.setAttribute('stroke-width', '1.6');
+  path.setAttribute('stroke-linecap', 'round');
+  path.setAttribute('stroke-linejoin', 'round');
+  path.setAttribute('d', open ? 'M2 4 Q6 9 10 4' : 'M4 2 Q9 6 4 10');
+
+  svg.appendChild(path);
+  marker.appendChild(svg);
+  return marker;
+};
+
 const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocChanged }) =>
   new EditorView({
     state: EditorState.create({
@@ -59,11 +84,46 @@ const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocChanged }
       extensions: [
         slicr(),
         highlightField,
+        foldGutter({
+          markerDOM: (open) => createFoldMarker(open)
+        }),
+        codeFolding({
+          placeholderText: '...',
+        }),
         EditorView.lineWrapping,
         EditorView.theme({
           '&': {
             height: '100%',
             backgroundColor: 'transparent'
+          },
+          '.cm-gutters': {
+            backgroundColor: 'transparent',
+            color: '#6b6b80',
+            border: 'none',
+            borderRight: '1px solid rgb(42 42 56 / 45%)'
+          },
+          '.cm-gutter': {
+            backgroundColor: 'transparent',
+            border: 'none'
+          },
+          '.cm-gutterElement': {
+            color: '#6b6b80'
+          },
+          '.cm-foldGutter .cm-gutterElement': {
+            color: '#8a8aa0'
+          },
+          '.cm-fold-marker': {
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '12px',
+            height: '12px'
+          },
+          '.cm-fold-marker svg': {
+            display: 'block'
+          },
+          '.cm-foldGutter .cm-gutterElement:hover': {
+            color: '#b8b8c7'
           },
           '.cm-scroller': {
             overflow: 'auto',
@@ -86,6 +146,12 @@ const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocChanged }
           },
           '.cm-activeLine': {
             backgroundColor: 'rgb(255 255 255 / 2%)'
+          },
+          '.cm-foldPlaceholder': {
+            backgroundColor: 'transparent',
+            border: 'none',
+            color: '#8a8aa0',
+            fontWeight: '600'
           }
         }),
         EditorView.updateListener.of((update) => {

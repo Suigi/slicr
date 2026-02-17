@@ -4,6 +4,7 @@ import { edgePath } from './domain/edgePath';
 import { formatNodeData } from './domain/formatNodeData';
 import { layoutGraph, PAD_X } from './domain/layoutGraph';
 import { parseDsl } from './domain/parseDsl';
+import { getRelatedElements } from './domain/traversal';
 import type { Parsed } from './domain/types';
 import { Range, useDslEditor } from './useDslEditor';
 
@@ -41,6 +42,7 @@ function App() {
   const editorMountRef = useRef<HTMLDivElement>(null);
   const [highlightRange, setHighlightRange] = useState<Range | null>(null);
   const [hoveredEditorRange, setHoveredEditorRange] = useState<Range | null>(null);
+  const [selectedNodeKey, setSelectedNodeKey] = useState<string | null>(null);
 
   useDslEditor({
     dsl,
@@ -89,6 +91,11 @@ function App() {
     return null;
   }, [hoveredEditorRange, parsed]);
 
+  const relatedElements = useMemo(() => {
+    if (!parsed) return { nodes: new Set<string>(), edges: new Set<string>() };
+    return getRelatedElements(parsed, selectedNodeKey);
+  }, [parsed, selectedNodeKey]);
+
   useEffect(() => {
     const closeOnOutside = (event: PointerEvent) => {
       if (!editorOpen) {
@@ -113,6 +120,24 @@ function App() {
       document.removeEventListener('pointerdown', closeOnOutside);
     };
   }, [editorOpen]);
+
+  useEffect(() => {
+    const deselectOnCanvasClick = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+
+      const canvas = document.getElementById('canvas');
+      const isCanvasClick = canvas?.contains(target) && target === canvas;
+      const isNodeClick = (target as HTMLElement).closest('.node');
+
+      if (isCanvasClick && !isNodeClick) {
+        setSelectedNodeKey(null);
+      }
+    };
+
+    document.addEventListener('pointerdown', deselectOnCanvasClick);
+    return () => document.removeEventListener('pointerdown', deselectOnCanvasClick);
+  }, []);
 
   const renderDataLine = (line: string, index: number) => {
     const match = line.match(/^(\s*(?:-\s*)?)([^:\n]+:)(.*)$/);
@@ -231,10 +256,14 @@ function App() {
                     return null;
                   }
 
+                  const isHighlighted = activeNodeKeyFromEditor === node.key;
+                  const isSelected = selectedNodeKey === node.key;
+                  const isRelated = relatedElements.nodes.has(node.key);
+
                   return (
                     <div
                       key={node.key}
-                      className={`node ${node.type || 'rm'} ${activeNodeKeyFromEditor === node.key ? 'highlighted' : ''}`}
+                      className={`node ${node.type || 'rm'} ${isHighlighted ? 'highlighted' : ''} ${isSelected ? 'selected' : ''} ${isRelated ? 'related' : ''}`}
                       style={{
                         left: `${position.x}px`,
                         top: `${position.y}px`,
@@ -243,6 +272,10 @@ function App() {
                       }}
                       onMouseEnter={() => setHighlightRange(node.srcRange)}
                       onMouseLeave={() => setHighlightRange(null)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedNodeKey(node.key);
+                      }}
                     >
                       <div className="node-header">
                         <span className="node-prefix">{TYPE_LABEL[node.type] ?? node.type}:</span>
@@ -269,6 +302,9 @@ function App() {
                     <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
                       <path d="M0,0 L0,6 L8,3 z" fill="#3a3a52" />
                     </marker>
+                    <marker id="arr-related" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+                      <path d="M0,0 L0,6 L8,3 z" fill="var(--text)" />
+                    </marker>
                   </defs>
 
                   {parsed.edges.map((edge, index) => {
@@ -279,10 +315,11 @@ function App() {
                     }
 
                     const geometry = edgePath(from, to);
+                    const isRelated = relatedElements.edges.has(`${edge.from}->${edge.to}`);
 
                     return (
-                      <g key={`${edge.from}-${edge.to}-${index}`}>
-                        <path d={geometry.d} className="arrow-path" markerEnd="url(#arr)" />
+                      <g key={`${edge.from}-${edge.to}-${index}`} className={isRelated ? 'related' : ''}>
+                        <path d={geometry.d} className="arrow-path" markerEnd={isRelated ? "url(#arr-related)" : "url(#arr)"} />
                         {edge.label && (
                           <text
                             className="arrow-label"

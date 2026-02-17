@@ -1,4 +1,5 @@
-import { LRLanguage, LanguageSupport, syntaxHighlighting, HighlightStyle } from "@codemirror/language"
+import { syntaxTree, foldService } from "@codemirror/language"
+import { LRLanguage, LanguageSupport, syntaxHighlighting, HighlightStyle, foldNodeProp, foldInside, indentNodeProp } from "@codemirror/language"
 import { styleTags, tags as t } from "@lezer/highlight"
 import { parser } from "./slicr.parser.js"
 
@@ -59,6 +60,9 @@ export const slicrLanguage = LRLanguage.define({
         "true false": t.bool,
         "null": t.null,
         "Property/String Property/Identifier": t.propertyName
+      }),
+      foldNodeProp.add({
+        JsonObject: foldInside
       })
     ]
   }),
@@ -70,7 +74,39 @@ export const slicrLanguage = LRLanguage.define({
 
 export function slicr() {
   return [
-    new LanguageSupport(slicrLanguage),
+    new LanguageSupport(slicrLanguage, [
+      foldService.of((state, lineStart, lineEnd) => {
+        const line = state.doc.lineAt(lineStart)
+        const indent = line.text.match(/^\s*/)?.[0].length ?? 0
+        
+        // Prefer node-based folding if available
+        const tree = syntaxTree(state)
+        const node = tree.resolveInner(lineStart, 1)
+        for (let cur: typeof node | null = node; cur; cur = cur.parent) {
+          const prop = cur.type.prop(foldNodeProp)
+          if (prop) {
+            const range = prop(cur, state)
+            if (range && range.from < range.to) return range
+          }
+        }
+
+        let lastLine = line.number
+        for (let i = line.number + 1; i <= state.doc.lines; i++) {
+          const nextLine = state.doc.line(i)
+          if (nextLine.text.trim().length === 0) {
+            if (i === state.doc.lines) break
+            continue
+          }
+          const nextIndent = nextLine.text.match(/^\s*/)?.[0].length ?? 0
+          if (nextIndent <= indent) break
+          lastLine = i
+        }
+        if (lastLine > line.number) {
+          return { from: line.to, to: state.doc.line(lastLine).to }
+        }
+        return null
+      })
+    ]),
     syntaxHighlighting(slicrHighlightStyle)
   ]
 }

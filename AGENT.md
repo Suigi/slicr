@@ -1,5 +1,10 @@
 # AGENT Notes
 
+## Tests and Test-Driven Development
+
+- **ALWAYS** run all the tests (`npm test`) instead of just the task-specific ones.
+- **ALWAYS** write a failing test before adding or changing behavior. Run the tests to see it fail in the expected way. Only then, implement the feature.
+
 ## Running npm in this repo
 
 `npm` is expected to run inside the Nix shell.
@@ -29,17 +34,3 @@ Use:
 ```bash
 nix-shell --run 'npm test'
 ```
-
-## Verified finding (2026-02-16)
-
-Running the build through Nix shell succeeds:
-
-```bash
-nix-shell --run 'npm run build'
-```
-
-Observed result:
-
-- `tsc -b && vite build` completed successfully.
-- Production assets were generated in `dist/`.
-- Non-blocking warning seen: missing Nix channels path `/nix/var/nix/profiles/per-user/root/channels`.

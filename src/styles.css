@@ -481,23 +481,33 @@ header h1 {
 }
 
 .node.ui:hover,
-.node.highlighted {
+.node.highlighted,
+.node.selected,
+.node.related {
   box-shadow: 0 0 0 2px var(--ui-color), 0 6px 20px rgb(167 139 250 / 15%);
 }
 
-.node.rm.highlighted {
+.node.rm.highlighted,
+.node.rm.selected,
+.node.rm.related {
   box-shadow: 0 0 0 2px var(--rm), 0 6px 20px rgb(34 197 94 / 15%);
 }
 
-.node.cmd.highlighted {
+.node.cmd.highlighted,
+.node.cmd.selected,
+.node.cmd.related {
   box-shadow: 0 0 0 2px var(--cmd), 0 6px 20px rgb(59 130 246 / 15%);
 }
 
-.node.evt.highlighted {
+.node.evt.highlighted,
+.node.evt.selected,
+.node.evt.related {
   box-shadow: 0 0 0 2px var(--evt), 0 6px 20px rgb(249 115 22 / 15%);
 }
 
-.node.exc.highlighted {
+.node.exc.highlighted,
+.node.exc.selected,
+.node.exc.related {
   box-shadow: 0 0 0 2px var(--exc), 0 6px 20px rgb(239 68 68 / 15%);
 }
 
@@ -513,6 +523,11 @@ header h1 {
   fill: none;
   stroke: var(--arrow);
   stroke-width: 1.5;
+  transition: stroke 0.15s, stroke-width 0.15s;
+}
+
+g.related .arrow-path {
+  stroke: var(--text);
 }
 
 .arrow-label {
