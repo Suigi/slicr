@@ -358,6 +358,9 @@ header h1 {
 
 .panel-action {
   margin-left: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   background: transparent;
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -370,6 +373,12 @@ header h1 {
   padding: 4px 8px;
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s, background-color 0.15s;
+}
+
+.panel-action-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
 }
 
 .panel-action:hover {

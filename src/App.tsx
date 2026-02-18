@@ -77,7 +77,7 @@ function App() {
   const errorText = parseResult.error;
   const currentSliceName = getSliceNameFromDsl(currentDsl);
 
-  const { collapseAllDataRegions, collapseAllRegions } = useDslEditor({
+  const { collapseAllDataRegions, collapseAllRegions, expandAllRegions } = useDslEditor({
     dsl: currentDsl,
     onDslChange: setCurrentDsl,
     onRangeHover: setHoveredEditorRange,
@@ -333,16 +333,51 @@ function App() {
               className="panel-action"
               onClick={collapseAllDataRegions}
               aria-label="Collapse all data regions"
+              title="Collapse data regions"
             >
-              Collapse data
+              <svg
+                className="panel-action-icon"
+                viewBox="0 0 12 12"
+                fill="none"
+                aria-hidden="true"
+              >
+                <path d="M2.5 2.5 5 5M5 5V3.6M5 5H3.6M9.5 9.5 7 7M7 7V8.4M7 7H8.4M4.2 7.8 7.8 4.2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              data
             </button>
             <button
               type="button"
               className="panel-action"
               onClick={collapseAllRegions}
               aria-label="Collapse all regions"
+              title="Collapse all regions"
             >
-              Collapse all
+              <svg
+                className="panel-action-icon"
+                viewBox="0 0 12 12"
+                fill="none"
+                aria-hidden="true"
+              >
+                <path d="M2.5 2.5 5 5M5 5V3.6M5 5H3.6M9.5 9.5 7 7M7 7V8.4M7 7H8.4M4.2 7.8 7.8 4.2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              all
+            </button>
+            <button
+              type="button"
+              className="panel-action"
+              onClick={expandAllRegions}
+              aria-label="Expand all regions"
+              title="Expand all regions"
+            >
+              <svg
+                className="panel-action-icon"
+                viewBox="0 0 12 12"
+                fill="none"
+                aria-hidden="true"
+              >
+                <path d="M5 5 2.5 2.5M2.5 2.5V3.9M2.5 2.5H3.9M7 7 9.5 9.5M9.5 9.5V8.1M9.5 9.5H8.1" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              all
             </button>
           </div>
           <div ref={editorMountRef} className="dsl-editor" />
