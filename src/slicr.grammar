@@ -5,6 +5,7 @@ Statement {
   NodeStatement |
   EdgeStatement |
   BoundaryStatement |
+  StreamStatement |
   DataStatement
 }
 
@@ -54,6 +55,10 @@ Version { At Number }
 
 DataStatement {
   kw<"data"> Colon JsonObject?
+}
+
+StreamStatement {
+  kw<"stream"> Colon (Identifier | String)
 }
 
 @tokens {

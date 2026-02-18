@@ -6,6 +6,7 @@ export type VisualNode = {
   type: NodeType;
   name: string;
   alias: string | null;
+  stream: string | null;
   key: string;
   data: NodeData;
   srcRange: { from: number; to: number };
@@ -45,6 +46,7 @@ export type LayoutResult = {
   pos: Record<string, Position>;
   rowY: Record<number, number>;
   usedRows: number[];
+  rowStreamLabels: Record<number, string>;
   w: number;
   h: number;
 };

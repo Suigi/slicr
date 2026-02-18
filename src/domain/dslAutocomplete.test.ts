@@ -76,4 +76,17 @@ ui:my-ui "My UI"
     expect(suggestions).toContain('rm:my-rm');
     expect(suggestions).not.toContain('ui:my-ui');
   });
+
+  it('does not treat stream metadata lines as dependency refs', () => {
+    const dsl = `slice "Streams"
+
+evt:first-event
+stream: first
+rm:read-model <- `;
+
+    const suggestions = getDependencySuggestions(dsl, dsl.length);
+
+    expect(suggestions).toContain('evt:first-event');
+    expect(suggestions).not.toContain('stream:first');
+  });
 });

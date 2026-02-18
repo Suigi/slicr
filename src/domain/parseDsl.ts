@@ -7,6 +7,7 @@ type NodeSpec = {
   type: string;
   name: string;
   alias: string | null;
+  stream: string | null;
   incoming: ArtifactRef[];
   outgoing: ArtifactRef[];
   data: NodeData;
@@ -42,6 +43,11 @@ type EdgeClauseSpec = {
   to: number;
 };
 
+type StreamClauseSpec = {
+  line: number;
+  stream: string;
+};
+
 export function parseDsl(src: string): Parsed {
   const tree = parser.parse(src);
   const lines = src.split('\n');
@@ -55,6 +61,7 @@ export function parseDsl(src: string): Parsed {
   let sliceName = '';
   const specs: NodeSpec[] = [];
   const edgeClauses: EdgeClauseSpec[] = [];
+  const streamClauses: StreamClauseSpec[] = [];
 
   const cursor: ParseCursor = tree.cursor();
   do {
@@ -88,6 +95,7 @@ export function parseDsl(src: string): Parsed {
         type: parsed.target.type,
         name: parsed.target.name,
         alias: parsed.alias,
+        stream: null,
         incoming: parsed.incoming,
         outgoing: parsed.outgoing,
         data: null,
@@ -110,10 +118,22 @@ export function parseDsl(src: string): Parsed {
         from: cursor.from,
         to: cursor.to
       });
+      continue;
+    }
+
+    if (cursorTypeId(cursor) === terms.StreamStatement) {
+      const parsed = parseStreamStatement(cursor, src);
+      if (!parsed) {
+        continue;
+      }
+
+      const lineIndex = getLineIndexAtPos(lineStarts, cursor.from);
+      streamClauses.push({ line: lineIndex, stream: parsed.stream });
     }
   } while (cursor.next());
 
   attachStandaloneEdgeClauses(specs, edgeClauses);
+  attachStandaloneStreamClauses(specs, streamClauses);
 
   attachDataBlocks(lines, specs, lineStarts);
 
@@ -144,15 +164,19 @@ export function parseDsl(src: string): Parsed {
         type: spec.type,
         name: spec.name,
         alias: spec.alias,
+        stream: spec.stream,
         key,
         data: spec.data,
         srcRange: finalRange
       });
-    } else if (spec.data || spec.alias) {
+    } else if (spec.data || spec.alias || spec.stream) {
       const existing = nodes.get(key);
       if (existing) {
         if (!existing.alias && spec.alias) {
           existing.alias = spec.alias;
+        }
+        if (!existing.stream && spec.stream) {
+          existing.stream = spec.stream;
         }
         if (spec.data) {
           existing.data = spec.data;
@@ -288,6 +312,32 @@ function parseEdgeStatement(cursor: ParseCursor, src: string) {
   return { incoming, outgoing };
 }
 
+function parseStreamStatement(cursor: ParseCursor, src: string) {
+  if (!cursor.firstChild()) {
+    return null;
+  }
+
+  let stream: string | null = null;
+  do {
+    const tid = cursorTypeId(cursor);
+    if (tid === terms.String) {
+      stream = unquote(src.slice(cursor.from, cursor.to));
+      break;
+    }
+    if (tid === terms.Identifier) {
+      stream = src.slice(cursor.from, cursor.to);
+      break;
+    }
+  } while (cursor.nextSibling());
+
+  cursor.parent();
+  if (!stream) {
+    return null;
+  }
+
+  return { stream };
+}
+
 function parseClauseRefs(cursor: ParseCursor, src: string): ArtifactRef[] {
   const refs: ArtifactRef[] = [];
   cursor.firstChild(); // Arrow token
@@ -324,6 +374,28 @@ function attachStandaloneEdgeClauses(specs: NodeSpec[], edgeClauses: EdgeClauseS
     owner.outgoing.push(...clause.outgoing);
     if (owner.line === clause.line) {
       owner.srcRange.to = Math.max(owner.srcRange.to, clause.to);
+    }
+  }
+}
+
+function attachStandaloneStreamClauses(specs: NodeSpec[], streamClauses: StreamClauseSpec[]) {
+  if (specs.length === 0 || streamClauses.length === 0) {
+    return;
+  }
+
+  let specIndex = 0;
+  for (const clause of streamClauses) {
+    while (specIndex + 1 < specs.length && specs[specIndex + 1].line <= clause.line) {
+      specIndex += 1;
+    }
+
+    if (specs[specIndex].line > clause.line) {
+      continue;
+    }
+
+    const owner = specs[specIndex];
+    if (owner.type === 'evt') {
+      owner.stream = clause.stream;
     }
   }
 }

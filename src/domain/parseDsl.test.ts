@@ -350,4 +350,39 @@ evt:second <- cmd:first`;
     expect(parsed.boundaries).toEqual([{ after: 'first' }]);
     expect(parsed.edges).toEqual([{ from: 'first', to: 'second', label: null }]);
   });
+
+  it('attaches stream metadata to preceding event nodes', () => {
+    const input = `slice "Streams"
+
+evt:first-event
+stream: first
+
+evt:second-event
+stream: second
+
+rm:read-model
+  <- evt:first-event
+  <- evt:second-event`;
+
+    const parsed = parseDsl(input);
+
+    expect(parsed.nodes.get('first-event')?.stream).toBe('first');
+    expect(parsed.nodes.get('second-event')?.stream).toBe('second');
+    expect(parsed.nodes.get('read-model')?.stream).toBeNull();
+    expect(parsed.edges).toEqual([
+      { from: 'first-event', to: 'read-model', label: null },
+      { from: 'second-event', to: 'read-model', label: null }
+    ]);
+  });
+
+  it('ignores stream metadata when the preceding node is not an event', () => {
+    const input = `slice "Streams"
+
+rm:read-model
+stream: first`;
+
+    const parsed = parseDsl(input);
+
+    expect(parsed.nodes.get('read-model')?.stream).toBeNull();
+  });
 });

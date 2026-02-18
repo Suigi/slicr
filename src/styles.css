@@ -601,6 +601,17 @@ header h1 {
   pointer-events: none;
 }
 
+.lane-stream-label {
+  position: absolute;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
 .slice-divider {
   position: absolute;
   top: 0;

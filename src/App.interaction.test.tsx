@@ -240,6 +240,48 @@ rm:persisted-view`;
     expect(divider).not.toBeNull();
   });
 
+  it('renders stream lane headers for event streams', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{
+          id: 'a',
+          dsl: 'slice "Streams"\n\nevt:first-event\nstream: first\n\nevt:second-event\nstream: second\n\nrm:read-model\n  <- evt:first-event\n  <- evt:second-event'
+        }]
+      })
+    );
+
+    renderApp();
+
+    const laneLabels = [...document.querySelectorAll('.lane-stream-label')]
+      .map((node) => node.textContent?.trim())
+      .filter(Boolean);
+    expect(laneLabels).toContain('first');
+    expect(laneLabels).toContain('second');
+  });
+
+  it('does not render a header for the default event stream', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{
+          id: 'a',
+          dsl: 'slice "Streams"\n\nevt:first-event\nstream: first\n\nevt:default-event\n\nrm:read-model\n  <- evt:first-event\n  <- evt:default-event'
+        }]
+      })
+    );
+
+    renderApp();
+
+    const laneLabels = [...document.querySelectorAll('.lane-stream-label')]
+      .map((node) => node.textContent?.trim())
+      .filter(Boolean);
+    expect(laneLabels).toContain('first');
+    expect(laneLabels).not.toContain('default');
+  });
+
   it('toggles and persists light/dark theme from header button', () => {
     renderApp();
 

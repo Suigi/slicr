@@ -90,6 +90,8 @@ export function layoutGraph(nodes: Map<string, VisualNode>, edges: Edge[], bound
     }
   }
 
+  const { rowByKey, usedRows, rowStreamLabels } = buildRowAssignments(nodes, nodeOrder);
+
   let col: Record<string, number> = {};
   const occupied: Record<string, boolean> = {};
   const nodeOrderIndex = new Map<string, number>();
@@ -113,7 +115,7 @@ export function layoutGraph(nodes: Map<string, VisualNode>, edges: Edge[], bound
       continue;
     }
 
-    const row = rowFor(node.type);
+    const row = rowByKey[key];
     let startCol = 0;
     const sources = minColSource[key];
 
@@ -149,9 +151,7 @@ export function layoutGraph(nodes: Map<string, VisualNode>, edges: Edge[], bound
     occupied[`${currentCol},${row}`] = true;
   }
 
-  col = applyBoundaryColumnFloors(col, nodeOrder, nodes, boundarySpecs, nodeOrderIndex);
-
-  const usedRows = [...new Set([...nodes.values()].map((node) => rowFor(node.type)))].sort((a, b) => a - b);
+  col = applyBoundaryColumnFloors(col, nodeOrder, boundarySpecs, nodeOrderIndex, rowByKey);
 
   const rowY: Record<number, number> = {};
   usedRows.forEach((row, i) => {
@@ -184,37 +184,36 @@ export function layoutGraph(nodes: Map<string, VisualNode>, edges: Edge[], bound
 
     pos[key] = {
       x,
-      y: rowY[rowFor(node.type)],
+      y: rowY[rowByKey[key]],
       w: NODE_W,
       h: nodeHeight(node)
     };
   }
 
-  applyBoundaryXFloors(pos, nodeOrder, nodes, boundarySpecs, nodeOrderIndex);
+  applyBoundaryXFloors(pos, nodeOrder, boundarySpecs, nodeOrderIndex, rowByKey);
 
   const maxX = Math.max(...Object.values(pos).map((value) => value.x + value.w)) + PAD_X;
   const maxY = Math.max(...Object.values(pos).map((value) => value.y + value.h)) + 48;
 
-  return { pos, rowY, usedRows, w: maxX, h: maxY };
+  return { pos, rowY, usedRows, rowStreamLabels, w: maxX, h: maxY };
 }
 
 function applyBoundaryColumnFloors(
   col: Record<string, number>,
   nodeOrder: string[],
-  nodes: Map<string, VisualNode>,
   boundarySpecs: Array<{ afterKey: string; afterIndex: number }>,
-  nodeOrderIndex: Map<string, number>
+  nodeOrderIndex: Map<string, number>,
+  rowByKey: Record<string, number>
 ) {
   const adjusted: Record<string, number> = {};
   const occupied: Record<string, boolean> = {};
 
   for (const key of nodeOrder) {
-    const node = nodes.get(key);
-    if (!node) {
+    const row = rowByKey[key];
+    if (row === undefined) {
       continue;
     }
     const orderIndex = nodeOrderIndex.get(key);
-    const row = rowFor(node.type);
     let nextCol = col[key] ?? 0;
 
     if (orderIndex !== undefined) {
@@ -242,20 +241,19 @@ function applyBoundaryColumnFloors(
 function applyBoundaryXFloors(
   pos: LayoutResult['pos'],
   nodeOrder: string[],
-  nodes: Map<string, VisualNode>,
   boundarySpecs: Array<{ afterKey: string; afterIndex: number }>,
-  nodeOrderIndex: Map<string, number>
+  nodeOrderIndex: Map<string, number>,
+  rowByKey: Record<string, number>
 ) {
   const nextFreeXByRow: Record<number, number> = {};
 
   for (const key of nodeOrder) {
-    const node = nodes.get(key);
     const current = pos[key];
-    if (!node || !current) {
+    const row = rowByKey[key];
+    if (!current || row === undefined) {
       continue;
     }
 
-    const row = rowFor(node.type);
     let minX = nextFreeXByRow[row] ?? Number.NEGATIVE_INFINITY;
     const orderIndex = nodeOrderIndex.get(key);
     if (orderIndex !== undefined) {
@@ -274,4 +272,57 @@ function applyBoundaryXFloors(
     current.x = x;
     nextFreeXByRow[row] = x + NODE_W + COL_GAP;
   }
+}
+
+function buildRowAssignments(nodes: Map<string, VisualNode>, nodeOrder: string[]) {
+  const rowByKey: Record<string, number> = {};
+  const eventsByStream = new Map<string, string[]>();
+
+  for (const key of nodeOrder) {
+    const node = nodes.get(key);
+    if (!node) {
+      continue;
+    }
+
+    if (node.type === 'ui') {
+      rowByKey[key] = 0;
+      continue;
+    }
+    if (node.type !== 'evt') {
+      rowByKey[key] = 1;
+      continue;
+    }
+
+    const stream = node.stream?.trim() || 'default';
+    const keys = eventsByStream.get(stream);
+    if (keys) {
+      keys.push(key);
+    } else {
+      eventsByStream.set(stream, [key]);
+    }
+  }
+
+  const streamOrder = [...eventsByStream.keys()].sort((a, b) => {
+    if (a === 'default') return 1;
+    if (b === 'default') return -1;
+    return 0;
+  });
+  const eventStreamRows = new Map<string, number>();
+  streamOrder.forEach((stream, index) => {
+    const row = 2 + index;
+    eventStreamRows.set(stream, row);
+    for (const key of eventsByStream.get(stream) ?? []) {
+      rowByKey[key] = row;
+    }
+  });
+
+  const usedRows = [...new Set(Object.values(rowByKey))].sort((a, b) => a - b);
+  const rowStreamLabels: Record<number, string> = {};
+  for (const [stream, row] of eventStreamRows.entries()) {
+    if (stream !== 'default') {
+      rowStreamLabels[row] = stream;
+    }
+  }
+
+  return { rowByKey, usedRows, rowStreamLabels };
 }

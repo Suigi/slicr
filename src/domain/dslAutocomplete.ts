@@ -66,7 +66,7 @@ function collectRefs(dsl: string): string[] {
 
 function parseRef(line: string): string | null {
   const trimmed = line.trim();
-  if (!trimmed || trimmed.startsWith('slice ') || line.startsWith(' ') || line.startsWith('\t')) {
+  if (!trimmed || trimmed.startsWith('slice ') || trimmed.startsWith('stream:') || line.startsWith(' ') || line.startsWith('\t')) {
     return null;
   }
 

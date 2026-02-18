@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { PAD_X, layoutGraph, rowFor } from './layoutGraph';
 import { Edge, VisualNode } from './types';
 
-function makeNode(key: string, type: string): VisualNode {
+function makeNode(key: string, type: string, stream: string | null = null): VisualNode {
   return {
     key,
     name: key,
     alias: null,
+    stream,
     type,
     data: null,
     srcRange: {from: 0, to: 0},
@@ -131,5 +132,39 @@ describe('layoutGraph', () => {
 
     expect(result.pos.anchor.x).toBeGreaterThan(result.pos.a.x);
     expect(result.pos.after.x).toBeGreaterThanOrEqual(result.pos.anchor.x + result.pos.anchor.w + 40 + PAD_X);
+  });
+
+  it('places events from different streams on separate rows and tracks row labels', () => {
+    const nodes = new Map<string, VisualNode>([
+      ['first-event', makeNode('first-event', 'evt', 'first')],
+      ['second-event', makeNode('second-event', 'evt', 'second')],
+      ['read-model', makeNode('read-model', 'rm')]
+    ]);
+    const edges: Edge[] = [
+      { from: 'first-event', to: 'read-model', label: null },
+      { from: 'second-event', to: 'read-model', label: null }
+    ];
+
+    const result = layoutGraph(nodes, edges);
+
+    expect(result.pos['first-event'].y).not.toBe(result.pos['second-event'].y);
+    expect(Object.values(result.rowStreamLabels).sort()).toEqual(['first', 'second']);
+  });
+
+  it('places default stream below named streams and omits its header label', () => {
+    const nodes = new Map<string, VisualNode>([
+      ['named-event', makeNode('named-event', 'evt', 'orders')],
+      ['default-event', makeNode('default-event', 'evt')],
+      ['read-model', makeNode('read-model', 'rm')]
+    ]);
+    const edges: Edge[] = [
+      { from: 'named-event', to: 'read-model', label: null },
+      { from: 'default-event', to: 'read-model', label: null }
+    ];
+
+    const result = layoutGraph(nodes, edges);
+
+    expect(result.pos['default-event'].y).toBeGreaterThan(result.pos['named-event'].y);
+    expect(Object.values(result.rowStreamLabels)).toEqual(['orders']);
   });
 });

@@ -400,13 +400,20 @@ function App() {
                     i < layoutResult.usedRows.length - 1
                       ? layoutResult.rowY[layoutResult.usedRows[i + 1]] - layoutResult.rowY[row]
                       : layoutResult.h - bandTop;
+                  const streamLabel = layoutResult.rowStreamLabels[row];
 
                   return (
-                    <div
-                      key={`lane-${row}`}
-                      className="lane-band"
-                      style={{ top: `${bandTop}px`, height: `${bandHeight}px` }}
-                    />
+                    <div key={`lane-${row}`}>
+                      <div
+                        className="lane-band"
+                        style={{ top: `${bandTop}px`, height: `${bandHeight}px` }}
+                      />
+                      {streamLabel && (
+                        <div className="lane-stream-label" style={{ top: `${bandTop + 8}px`, left: `${Math.max(8, PAD_X - 48)}px` }}>
+                          {streamLabel}
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
 
