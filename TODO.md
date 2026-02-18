@@ -7,3 +7,4 @@
 * inherit data somehow?
 * stream lanes (events in swimlanes)
 * documentation tab
+* generate code stubs from model

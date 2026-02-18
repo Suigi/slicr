@@ -337,4 +337,17 @@ rm:item "My \\"Label\\" and \\\\ path"`;
 
     expect(parsed.nodes.get('item')?.alias).toBe('My "Label" and \\ path');
   });
+
+  it('parses --- as a slice boundary after the preceding node', () => {
+    const input = `slice "Split"
+
+cmd:first
+---
+evt:second <- cmd:first`;
+
+    const parsed = parseDsl(input);
+
+    expect(parsed.boundaries).toEqual([{ after: 'first' }]);
+    expect(parsed.edges).toEqual([{ from: 'first', to: 'second', label: null }]);
+  });
 });

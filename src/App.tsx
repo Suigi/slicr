@@ -101,7 +101,7 @@ function App() {
     if (!parsed || parsed.nodes.size === 0) {
       return null;
     }
-    return layoutGraph(parsed.nodes, parsed.edges);
+    return layoutGraph(parsed.nodes, parsed.edges, parsed.boundaries);
   }, [parsed]);
 
   const activeNodeKeyFromEditor = useMemo(() => {
@@ -406,6 +406,21 @@ function App() {
                       key={`lane-${row}`}
                       className="lane-band"
                       style={{ top: `${bandTop}px`, height: `${bandHeight}px` }}
+                    />
+                  );
+                })}
+
+                {parsed.boundaries.map((boundary, index) => {
+                  const afterPos = layoutResult.pos[boundary.after];
+                  if (!afterPos) {
+                    return null;
+                  }
+                  const x = afterPos.x + afterPos.w + 40;
+                  return (
+                    <div
+                      key={`slice-divider-${index}-${boundary.after}`}
+                      className="slice-divider"
+                      style={{ left: `${x}px`, height: `${layoutResult.h}px` }}
                     />
                   );
                 })}

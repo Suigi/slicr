@@ -225,6 +225,21 @@ rm:persisted-view`;
     expect(labels).toContain('My UI');
   });
 
+  it('renders a slice divider for --- boundaries in the DSL', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{ id: 'a', dsl: 'slice "Split"\n\ncmd:first\n---\nevt:second <- cmd:first' }]
+      })
+    );
+
+    renderApp();
+
+    const divider = document.querySelector('.slice-divider');
+    expect(divider).not.toBeNull();
+  });
+
   it('toggles and persists light/dark theme from header button', () => {
     renderApp();
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { layoutGraph, rowFor } from './layoutGraph';
+import { PAD_X, layoutGraph, rowFor } from './layoutGraph';
 import { Edge, VisualNode } from './types';
 
 function makeNode(key: string, type: string): VisualNode {
@@ -97,5 +97,39 @@ describe('layoutGraph', () => {
 
     expect(result.pos['rm-available-2'].x).toBeGreaterThanOrEqual(result.pos['evt-sold'].x + 48);
     expect(result.pos['rm-available-2'].x).toBeGreaterThan(result.pos['cmd-buy'].x);
+  });
+
+  it('pushes nodes defined after a boundary to the right', () => {
+    const nodes = new Map<string, VisualNode>([
+      ['first', makeNode('first', 'ui')],
+      ['second', makeNode('second', 'evt')],
+      ['third', makeNode('third', 'cmd')]
+    ]);
+    const edges: Edge[] = [];
+    const baseline = layoutGraph(nodes, edges);
+
+    const result = layoutGraph(nodes, edges, [{ after: 'first' }]);
+
+    expect(baseline.pos.second.x).toBe(baseline.pos.first.x);
+    expect(result.pos.second.x).toBeGreaterThan(result.pos.first.x);
+    expect(result.pos.third.x).toBeGreaterThan(result.pos.first.x);
+  });
+
+  it('places nodes after a boundary to the right of the boundary anchor, even when anchor is already far right', () => {
+    const nodes = new Map<string, VisualNode>([
+      ['a', makeNode('a', 'cmd')],
+      ['b', makeNode('b', 'evt')],
+      ['anchor', makeNode('anchor', 'rm')],
+      ['after', makeNode('after', 'ui')]
+    ]);
+    const edges: Edge[] = [
+      { from: 'a', to: 'b', label: null },
+      { from: 'b', to: 'anchor', label: null }
+    ];
+
+    const result = layoutGraph(nodes, edges, [{ after: 'anchor' }]);
+
+    expect(result.pos.anchor.x).toBeGreaterThan(result.pos.a.x);
+    expect(result.pos.after.x).toBeGreaterThanOrEqual(result.pos.anchor.x + result.pos.anchor.w + 40 + PAD_X);
   });
 });

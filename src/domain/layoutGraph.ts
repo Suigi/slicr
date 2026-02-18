@@ -1,4 +1,4 @@
-import { Edge, LayoutResult, VisualNode } from './types';
+import { Edge, LayoutResult, SliceBoundary, VisualNode } from './types';
 import { EDGE_ANCHOR_OFFSET } from './edgePath';
 import { countNodeDataLines } from './formatNodeData';
 
@@ -7,7 +7,7 @@ const NODE_H_BASE = 42;
 const NODE_FIELD_H = 16;
 const NODE_FIELD_PAD = 10;
 const COL_GAP = 80;
-export const PAD_X = 56;
+export const PAD_X = 40;
 const PAD_TOP = 16;
 const ROW_GAP = 120;
 const MIN_SUCCESSOR_X_OFFSET = EDGE_ANCHOR_OFFSET * 4;
@@ -31,7 +31,7 @@ export function rowFor(type: string): number {
   return 1;
 }
 
-export function layoutGraph(nodes: Map<string, VisualNode>, edges: Edge[]): LayoutResult {
+export function layoutGraph(nodes: Map<string, VisualNode>, edges: Edge[], boundaries: SliceBoundary[] = []): LayoutResult {
   const inDeg: Record<string, number> = {};
   const outgoing: Record<string, string[]> = {};
   const nodeOrder = [...nodes.keys()];
@@ -90,8 +90,22 @@ export function layoutGraph(nodes: Map<string, VisualNode>, edges: Edge[]): Layo
     }
   }
 
-  const col: Record<string, number> = {};
+  let col: Record<string, number> = {};
   const occupied: Record<string, boolean> = {};
+  const nodeOrderIndex = new Map<string, number>();
+  nodeOrder.forEach((key, index) => {
+    nodeOrderIndex.set(key, index);
+  });
+  const boundarySpecs = boundaries
+    .map((boundary) => {
+      const afterIndex = nodeOrderIndex.get(boundary.after);
+      if (afterIndex === undefined) {
+        return null;
+      }
+      return { afterKey: boundary.after, afterIndex };
+    })
+    .filter((spec): spec is { afterKey: string; afterIndex: number } => spec !== null)
+    .sort((a, b) => a.afterIndex - b.afterIndex);
 
   for (const key of encounterOrder) {
     const node = nodes.get(key);
@@ -111,6 +125,20 @@ export function layoutGraph(nodes: Map<string, VisualNode>, edges: Edge[]): Layo
         }
       }
     }
+    const orderIndex = nodeOrderIndex.get(key);
+    if (orderIndex !== undefined) {
+      let boundaryFloor = 0;
+      for (const boundary of boundarySpecs) {
+        if (boundary.afterIndex >= orderIndex) {
+          break;
+        }
+        const afterCol = col[boundary.afterKey];
+        if (afterCol !== undefined) {
+          boundaryFloor = Math.max(boundaryFloor, afterCol + 1);
+        }
+      }
+      startCol = Math.max(startCol, boundaryFloor);
+    }
 
     let currentCol = startCol;
     while (occupied[`${currentCol},${row}`]) {
@@ -120,6 +148,8 @@ export function layoutGraph(nodes: Map<string, VisualNode>, edges: Edge[]): Layo
     col[key] = currentCol;
     occupied[`${currentCol},${row}`] = true;
   }
+
+  col = applyBoundaryColumnFloors(col, nodeOrder, nodes, boundarySpecs, nodeOrderIndex);
 
   const usedRows = [...new Set([...nodes.values()].map((node) => rowFor(node.type)))].sort((a, b) => a - b);
 
@@ -160,8 +190,88 @@ export function layoutGraph(nodes: Map<string, VisualNode>, edges: Edge[]): Layo
     };
   }
 
+  applyBoundaryXFloors(pos, nodeOrder, nodes, boundarySpecs, nodeOrderIndex);
+
   const maxX = Math.max(...Object.values(pos).map((value) => value.x + value.w)) + PAD_X;
   const maxY = Math.max(...Object.values(pos).map((value) => value.y + value.h)) + 48;
 
   return { pos, rowY, usedRows, w: maxX, h: maxY };
+}
+
+function applyBoundaryColumnFloors(
+  col: Record<string, number>,
+  nodeOrder: string[],
+  nodes: Map<string, VisualNode>,
+  boundarySpecs: Array<{ afterKey: string; afterIndex: number }>,
+  nodeOrderIndex: Map<string, number>
+) {
+  const adjusted: Record<string, number> = {};
+  const occupied: Record<string, boolean> = {};
+
+  for (const key of nodeOrder) {
+    const node = nodes.get(key);
+    if (!node) {
+      continue;
+    }
+    const orderIndex = nodeOrderIndex.get(key);
+    const row = rowFor(node.type);
+    let nextCol = col[key] ?? 0;
+
+    if (orderIndex !== undefined) {
+      for (const boundary of boundarySpecs) {
+        if (boundary.afterIndex >= orderIndex) {
+          break;
+        }
+        const afterCol = adjusted[boundary.afterKey];
+        if (afterCol !== undefined) {
+          nextCol = Math.max(nextCol, afterCol + 1);
+        }
+      }
+    }
+
+    while (occupied[`${nextCol},${row}`]) {
+      nextCol += 1;
+    }
+    adjusted[key] = nextCol;
+    occupied[`${nextCol},${row}`] = true;
+  }
+
+  return adjusted;
+}
+
+function applyBoundaryXFloors(
+  pos: LayoutResult['pos'],
+  nodeOrder: string[],
+  nodes: Map<string, VisualNode>,
+  boundarySpecs: Array<{ afterKey: string; afterIndex: number }>,
+  nodeOrderIndex: Map<string, number>
+) {
+  const nextFreeXByRow: Record<number, number> = {};
+
+  for (const key of nodeOrder) {
+    const node = nodes.get(key);
+    const current = pos[key];
+    if (!node || !current) {
+      continue;
+    }
+
+    const row = rowFor(node.type);
+    let minX = nextFreeXByRow[row] ?? Number.NEGATIVE_INFINITY;
+    const orderIndex = nodeOrderIndex.get(key);
+    if (orderIndex !== undefined) {
+      for (const boundary of boundarySpecs) {
+        if (boundary.afterIndex >= orderIndex) {
+          break;
+        }
+        const anchor = pos[boundary.afterKey];
+        if (anchor) {
+          minX = Math.max(minX, anchor.x + anchor.w + 40 + PAD_X);
+        }
+      }
+    }
+
+    const x = Math.max(current.x, minX);
+    current.x = x;
+    nextFreeXByRow[row] = x + NODE_W + COL_GAP;
+  }
 }

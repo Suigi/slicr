@@ -22,11 +22,16 @@ export type ParseWarning = {
   range: { from: number; to: number };
 };
 
+export type SliceBoundary = {
+  after: string;
+};
+
 export type Parsed = {
   sliceName: string;
   nodes: Map<string, VisualNode>;
   edges: Edge[];
   warnings: ParseWarning[];
+  boundaries: SliceBoundary[];
 };
 
 export type Position = {

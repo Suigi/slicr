@@ -1,6 +1,6 @@
 import { parser } from '../slicr.parser';
 import * as terms from '../slicr.parser.terms';
-import { Edge, NodeData, Parsed, ParseWarning, VisualNode } from './types';
+import { Edge, NodeData, Parsed, ParseWarning, SliceBoundary, VisualNode } from './types';
 
 type NodeSpec = {
   line: number;
@@ -46,10 +46,12 @@ export function parseDsl(src: string): Parsed {
   const tree = parser.parse(src);
   const lines = src.split('\n');
   const lineStarts = buildLineStarts(lines);
+  const boundaryLines = collectBoundaryLines(lines);
 
   const nodes = new Map<string, VisualNode>();
   const edges: Edge[] = [];
   const warnings: ParseWarning[] = [];
+  const boundaries: SliceBoundary[] = [];
   let sliceName = '';
   const specs: NodeSpec[] = [];
   const edgeClauses: EdgeClauseSpec[] = [];
@@ -193,7 +195,51 @@ export function parseDsl(src: string): Parsed {
     }
   }
 
-  return { sliceName, nodes, edges, warnings };
+  boundaries.push(...resolveBoundaries(specs, boundaryLines, refToKey));
+
+  return { sliceName, nodes, edges, warnings, boundaries };
+}
+
+function collectBoundaryLines(lines: string[]) {
+  const boundaryLines: number[] = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    if (lines[i].trim() === '---') {
+      boundaryLines.push(i);
+    }
+  }
+  return boundaryLines;
+}
+
+function resolveBoundaries(specs: NodeSpec[], boundaryLines: number[], refToKey: Map<string, string>): SliceBoundary[] {
+  if (specs.length === 0 || boundaryLines.length === 0) {
+    return [];
+  }
+
+  const boundaries: SliceBoundary[] = [];
+  let specIndex = 0;
+  let lastSpec: NodeSpec | null = null;
+
+  for (const boundaryLine of boundaryLines) {
+    while (specIndex < specs.length && specs[specIndex].line < boundaryLine) {
+      lastSpec = specs[specIndex];
+      specIndex += 1;
+    }
+
+    if (!lastSpec) {
+      continue;
+    }
+
+    const key = refToKey.get(toRefId(lastSpec.type, lastSpec.name));
+    if (!key) {
+      continue;
+    }
+    if (boundaries.length > 0 && boundaries[boundaries.length - 1].after === key) {
+      continue;
+    }
+    boundaries.push({ after: key });
+  }
+
+  return boundaries;
 }
 
 function parseNodeStatement(cursor: ParseCursor, src: string) {

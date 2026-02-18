@@ -30,7 +30,8 @@ describe('traversal', () => {
     sliceName: 'Test',
     nodes,
     edges,
-    warnings: []
+    warnings: [],
+    boundaries: []
   };
 
   it('finds related nodes and edges for a middle node', () => {
