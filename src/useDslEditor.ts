@@ -17,28 +17,27 @@ export function getNewLineIndent(previousLineText: string): string {
 
 export function insertNewLineWithIndent(view: EditorView): boolean {
   const { state } = view;
-  const main = state.selection.main;
-  const line = state.doc.lineAt(main.from);
-  if (line.text.trim().length === 0) {
-    view.dispatch({
-      changes: { from: line.from, to: line.to, insert: '\n' },
-      selection: {
-        anchor: line.from + 1
-      }
-    });
-    return true;
-  }
+  const change = state.changeByRange((range) => {
+    const line = state.doc.lineAt(range.from);
 
-  const linePrefix = line.text.slice(0, main.from - line.from);
-  const indent = getNewLineIndent(linePrefix);
-  const insert = `\n${indent}`;
-
-  view.dispatch({
-    changes: { from: main.from, to: main.to, insert },
-    selection: {
-      anchor: main.from + insert.length
+    if (line.text.trim().length === 0) {
+      return {
+        changes: { from: line.from, to: line.to, insert: '\n' },
+        range: EditorSelection.cursor(line.from + 1)
+      };
     }
+
+    const linePrefix = line.text.slice(0, range.from - line.from);
+    const indent = getNewLineIndent(linePrefix);
+    const insert = `\n${indent}`;
+
+    return {
+      changes: { from: range.from, to: range.to, insert },
+      range: EditorSelection.cursor(range.from + insert.length)
+    };
   });
+
+  view.dispatch(change);
 
   return true;
 }
