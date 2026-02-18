@@ -1,7 +1,7 @@
 import { Dispatch, RefObject, SetStateAction, useEffect, useRef } from 'react';
-import { EditorState, RangeSet, RangeSetBuilder, StateEffect, StateField } from '@codemirror/state';
+import { EditorSelection, EditorState, Prec, RangeSet, RangeSetBuilder, StateEffect, StateField } from '@codemirror/state';
 import { foldGutter, codeFolding, foldEffect, foldable } from '@codemirror/language';
-import { EditorView, Decoration, DecorationSet, GutterMarker, gutterLineClass } from '@codemirror/view';
+import { EditorView, Decoration, DecorationSet, GutterMarker, gutterLineClass, keymap } from '@codemirror/view';
 import { slicr } from './slicrLanguage';
 
 export type Range = { from: number; to: number };
@@ -114,6 +114,88 @@ const warningMessagesField = StateField.define<Map<number, string>>({
   }
 });
 
+export function indentCurrentLineByTwo(view: EditorView): boolean {
+  const state = view.state;
+  const lineStarts = collectSelectedLineStarts(state);
+
+  const changes = [...lineStarts].sort((a, b) => a - b).map((from) => ({
+    from,
+    insert: '  '
+  }));
+
+  if (changes.length === 0) {
+    return false;
+  }
+
+  const changeSet = state.changes(changes);
+  const mappedRanges = state.selection.ranges.map((range) =>
+    EditorSelection.range(changeSet.mapPos(range.anchor, 1), changeSet.mapPos(range.head, 1))
+  );
+  view.dispatch({
+    changes: changeSet,
+    selection: EditorSelection.create(mappedRanges, state.selection.mainIndex)
+  });
+  return true;
+}
+
+export function unindentCurrentLineByTwo(view: EditorView): boolean {
+  const state = view.state;
+  const lineStarts = collectSelectedLineStarts(state);
+
+  const changes: Array<{ from: number; to: number }> = [];
+  for (const lineStart of [...lineStarts].sort((a, b) => a - b)) {
+    const line = state.doc.lineAt(lineStart);
+    const lineText = line.text;
+    if (lineText.startsWith('  ')) {
+      changes.push({ from: line.from, to: line.from + 2 });
+    } else if (lineText.startsWith(' ')) {
+      changes.push({ from: line.from, to: line.from + 1 });
+    }
+  }
+
+  if (changes.length === 0) {
+    return true;
+  }
+
+  const changeSet = state.changes(changes);
+  const mappedRanges = state.selection.ranges.map((range) =>
+    EditorSelection.range(changeSet.mapPos(range.anchor, 1), changeSet.mapPos(range.head, 1))
+  );
+  view.dispatch({
+    changes: changeSet,
+    selection: EditorSelection.create(mappedRanges, state.selection.mainIndex)
+  });
+  return true;
+}
+
+function collectSelectedLineStarts(state: EditorState): Set<number> {
+  const starts = new Set<number>();
+
+  for (const range of state.selection.ranges) {
+    const from = Math.min(range.anchor, range.head);
+    const to = Math.max(range.anchor, range.head);
+
+    if (from === to) {
+      starts.add(state.doc.lineAt(from).from);
+      continue;
+    }
+
+    let effectiveTo = to;
+    const endLine = state.doc.lineAt(to);
+    if (to > from && endLine.from === to) {
+      effectiveTo = to - 1;
+    }
+
+    const firstLine = state.doc.lineAt(from).number;
+    const lastLine = state.doc.lineAt(effectiveTo).number;
+    for (let lineNumber = firstLine; lineNumber <= lastLine; lineNumber += 1) {
+      starts.add(state.doc.line(lineNumber).from);
+    }
+  }
+
+  return starts;
+}
+
 export type EditorViewLike = {
   state: {
     doc: {
@@ -199,6 +281,12 @@ const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocChanged }
         codeFolding({
           placeholderText: '...',
         }),
+        Prec.highest(
+          keymap.of([
+            { key: 'Tab', run: indentCurrentLineByTwo, preventDefault: true },
+            { key: 'Shift-Tab', run: unindentCurrentLineByTwo, preventDefault: true }
+          ])
+        ),
         EditorView.lineWrapping,
         EditorView.theme({
           '&': {
@@ -511,11 +599,45 @@ export function useDslEditor({
     editorViewRef.current = editorView;
 
     if (editorView instanceof EditorView) {
+      const onTabKeyDown = (event: KeyboardEvent) => {
+        if (event.key !== 'Tab') {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        if (event.shiftKey) {
+          unindentCurrentLineByTwo(editorView);
+        } else {
+          indentCurrentLineByTwo(editorView);
+        }
+      };
+
+      const onWindowKeyDown = (event: KeyboardEvent) => {
+        if (event.key !== 'Tab') {
+          return;
+        }
+        if (!editorView.hasFocus) {
+          return;
+        }
+        onTabKeyDown(event);
+      };
+
+      const onDomKeyDown = (event: KeyboardEvent) => onTabKeyDown(event);
+      const onContentDomKeyDown = (event: KeyboardEvent) => onTabKeyDown(event);
+
+      editorView.dom.addEventListener('keydown', onDomKeyDown, { capture: true });
+      editorView.contentDOM.addEventListener('keydown', onContentDomKeyDown, { capture: true });
+      window.addEventListener('keydown', onWindowKeyDown, { capture: true });
       editorView.dispatch({
         effects: setWarnings.of(warningsRef.current)
       });
 
       return () => {
+        editorView.dom.removeEventListener('keydown', onDomKeyDown, { capture: true });
+        editorView.contentDOM.removeEventListener('keydown', onContentDomKeyDown, { capture: true });
+        window.removeEventListener('keydown', onWindowKeyDown, { capture: true });
         editorView.dom.querySelector('.cm-warning-tooltip')?.remove();
         editorView.destroy();
         editorViewRef.current = null;
