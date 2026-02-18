@@ -13,7 +13,7 @@ type TestEditor = {
       length: number;
     };
   };
-  dispatch: (spec: { changes: { from: number; to: number; insert: string } }) => void;
+  dispatch: (spec: { changes?: { from: number; to: number; insert: string }; effects?: unknown }) => void;
   destroy: () => void;
   emitDocChanged: (nextDoc: string) => void;
 };
@@ -77,7 +77,9 @@ describe('useDslEditor', () => {
           }
         },
         dispatch: ({ changes }) => {
-          text = changes.insert;
+          if (changes) {
+            text = changes.insert;
+          }
         },
         destroy: () => undefined,
         emitDocChanged: (nextDoc: string) => {
@@ -127,7 +129,9 @@ describe('useDslEditor', () => {
           }
         },
         dispatch: ({ changes }) => {
-          text = changes.insert;
+          if (changes) {
+            text = changes.insert;
+          }
         },
         destroy: () => undefined,
         emitDocChanged: (nextDoc: string) => {
@@ -168,7 +172,9 @@ describe('useDslEditor', () => {
           }
         },
         dispatch: ({ changes }) => {
-          text = changes.insert;
+          if (changes) {
+            text = changes.insert;
+          }
         },
         destroy: () => undefined,
         emitDocChanged: () => undefined

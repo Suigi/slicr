@@ -1,6 +1,6 @@
 import { parser } from '../slicr.parser';
 import * as terms from '../slicr.parser.terms';
-import { Edge, NodeData, Parsed, VisualNode } from './types';
+import { Edge, NodeData, Parsed, ParseWarning, VisualNode } from './types';
 
 type NodeSpec = {
   line: number;
@@ -29,6 +29,7 @@ export function parseDsl(src: string): Parsed {
 
   const nodes = new Map<string, VisualNode>();
   const edges: Edge[] = [];
+  const warnings: ParseWarning[] = [];
   let sliceName = '';
   const specs: NodeSpec[] = [];
 
@@ -73,11 +74,15 @@ export function parseDsl(src: string): Parsed {
   attachDataBlocks(lines, specs, lineStarts);
 
   const refToKey = new Map<string, string>();
+  const refToSpec = new Map<string, NodeSpec>();
   const usedKeys = new Set<string>();
   const unresolvedEdges: Array<{ fromRef: string; toRef: string }> = [];
 
   for (const spec of specs) {
     const ref = toRefId(spec.type, spec.name);
+    if (!refToSpec.has(ref)) {
+      refToSpec.set(ref, spec);
+    }
     let key = refToKey.get(ref);
     if (!key) {
       key = pickNodeKey(spec, usedKeys);
@@ -115,10 +120,17 @@ export function parseDsl(src: string): Parsed {
     const to = refToKey.get(edge.toRef);
     if (from && to) {
       edges.push({ from, to, label: null });
+    } else if (shouldWarnUnresolvedDependency(edge.fromRef, edge.toRef)) {
+      const targetSpec = refToSpec.get(edge.toRef);
+      const range = targetSpec?.srcRange ?? { from: 0, to: 0 };
+      warnings.push({
+        message: `Unresolved dependency: ${edge.fromRef} -> ${edge.toRef}`,
+        range
+      });
     }
   }
 
-  return { sliceName, nodes, edges };
+  return { sliceName, nodes, edges, warnings };
 }
 
 function parseNodeStatement(cursor: any, src: string) {
@@ -205,6 +217,18 @@ function parseArtifactRef(cursor: any, src: string): ArtifactRef | null {
 
 function toRefId(type: string, name: string) {
   return `${type}:${name}`;
+}
+
+function shouldWarnUnresolvedDependency(fromRef: string, toRef: string) {
+  const fromType = fromRef.split(':', 1)[0];
+  const toType = toRef.split(':', 1)[0];
+
+  // Commands can originate outside the slice and trigger an event entrypoint.
+  if (fromType === 'cmd' && toType === 'evt') {
+    return false;
+  }
+
+  return true;
 }
 
 function pickNodeKey(spec: NodeSpec, usedKeys: Set<string>) {

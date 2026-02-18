@@ -10,8 +10,8 @@ import { addNewSlice, getSliceNameFromDsl, loadSliceLibrary, saveSliceLibrary, s
 import { Range, useDslEditor } from './useDslEditor';
 
 type ParseResult =
-  | { parsed: Parsed; error: '' }
-  | { parsed: null; error: string };
+  | { parsed: Parsed; error: ''; warnings: Parsed['warnings'] }
+  | { parsed: null; error: string; warnings: [] };
 
 const TYPE_LABEL: Record<string, string> = {
   rm: 'rm',
@@ -54,12 +54,27 @@ function App() {
     });
   };
 
+  const parseResult = useMemo<ParseResult>(() => {
+    try {
+      const parsed = parseDsl(currentDsl);
+      return { parsed, error: '', warnings: parsed.warnings };
+    } catch (error) {
+      return { parsed: null, error: `⚠ ${(error as Error).message}`, warnings: [] };
+    }
+  }, [currentDsl]);
+
+  const parsed = parseResult.parsed;
+  const errorText =
+    parseResult.error || parseResult.warnings.map((warning) => `⚠ ${warning.message}`).join(' · ');
+  const currentSliceName = getSliceNameFromDsl(currentDsl);
+
   const { collapseAllDataRegions, collapseAllRegions } = useDslEditor({
     dsl: currentDsl,
     onDslChange: setCurrentDsl,
     onRangeHover: setHoveredEditorRange,
     editorMountRef,
-    highlightRange
+    highlightRange,
+    warningRanges: parseResult.warnings.map((warning) => warning.range)
   });
 
   useEffect(() => {
@@ -69,18 +84,6 @@ function App() {
       // Ignore storage failures (e.g. restricted environments).
     }
   }, [library]);
-
-  const parseResult = useMemo<ParseResult>(() => {
-    try {
-      return { parsed: parseDsl(currentDsl), error: '' };
-    } catch (error) {
-      return { parsed: null, error: `⚠ ${(error as Error).message}` };
-    }
-  }, [currentDsl]);
-
-  const parsed = parseResult.parsed;
-  const errorText = parseResult.error;
-  const currentSliceName = getSliceNameFromDsl(currentDsl);
 
   const layoutResult = useMemo(() => {
     if (!parsed || parsed.nodes.size === 0) {

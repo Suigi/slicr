@@ -1,12 +1,13 @@
 import { Dispatch, RefObject, SetStateAction, useEffect, useRef } from 'react';
-import { EditorState, StateEffect, StateField } from '@codemirror/state';
+import { EditorState, RangeSet, RangeSetBuilder, StateEffect, StateField } from '@codemirror/state';
 import { foldGutter, codeFolding, foldEffect, foldable } from '@codemirror/language';
-import { EditorView, Decoration, DecorationSet } from '@codemirror/view';
+import { EditorView, Decoration, DecorationSet, GutterMarker, gutter } from '@codemirror/view';
 import { slicr } from './slicrLanguage';
 
 export type Range = { from: number; to: number };
 
 const setHighlight = StateEffect.define<Range | null>();
+const setWarnings = StateEffect.define<Range[]>();
 
 const highlightField = StateField.define<DecorationSet>({
   create() {
@@ -36,6 +37,47 @@ const highlightField = StateField.define<DecorationSet>({
   provide: (f) => EditorView.decorations.from(f)
 });
 
+const warningMarker = new (class extends GutterMarker {
+  toDOM() {
+    const marker = document.createElement('span');
+    marker.className = 'cm-warning-marker';
+    marker.textContent = '⚠';
+    marker.title = 'Warning';
+    marker.setAttribute('aria-label', 'Warning');
+    return marker;
+  }
+})();
+
+const warningGutterField = StateField.define<RangeSet<GutterMarker>>({
+  create() {
+    return RangeSet.empty;
+  },
+  update(markers, tr) {
+    markers = markers.map(tr.changes);
+    for (const effect of tr.effects) {
+      if (!effect.is(setWarnings)) {
+        continue;
+      }
+
+      const builder = new RangeSetBuilder<GutterMarker>();
+      const seenLineStarts = new Set<number>();
+      for (const range of effect.value) {
+        if (range.from < 0 || range.from > tr.state.doc.length) {
+          continue;
+        }
+        const line = tr.state.doc.lineAt(range.from);
+        if (seenLineStarts.has(line.from)) {
+          continue;
+        }
+        seenLineStarts.add(line.from);
+        builder.add(line.from, line.from, warningMarker);
+      }
+      markers = builder.finish();
+    }
+    return markers;
+  }
+});
+
 export type EditorViewLike = {
   state: {
     doc: {
@@ -43,7 +85,7 @@ export type EditorViewLike = {
       length: number;
     };
   };
-  dispatch: (spec: { changes: { from: number; to: number; insert: string } }) => void;
+  dispatch: (spec: { changes?: { from: number; to: number; insert: string }; effects?: unknown }) => void;
   destroy: () => void;
 };
 
@@ -78,7 +120,7 @@ const createFoldMarker = (open: boolean) => {
 };
 
 const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocChanged }) =>
-  new EditorView({
+  (new EditorView({
     state: EditorState.create({
       doc,
       extensions: [
@@ -86,6 +128,12 @@ const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocChanged }
         highlightField,
         foldGutter({
           markerDOM: (open) => createFoldMarker(open)
+        }),
+        warningGutterField,
+        gutter({
+          class: 'cm-warning-gutter',
+          markers: (view) => view.state.field(warningGutterField),
+          initialSpacer: () => warningMarker
         }),
         codeFolding({
           placeholderText: '...',
@@ -124,6 +172,17 @@ const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocChanged }
           },
           '.cm-foldGutter .cm-gutterElement:hover': {
             color: '#b8b8c7'
+          },
+          '.cm-warning-gutter': {
+            width: '16px'
+          },
+          '.cm-warning-marker': {
+            color: '#f59e0b',
+            display: 'inline-block',
+            width: '100%',
+            textAlign: 'center',
+            fontSize: '10px',
+            lineHeight: '1'
           },
           '.cm-scroller': {
             overflow: 'auto',
@@ -164,7 +223,7 @@ const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocChanged }
       ]
     }),
     parent
-  });
+  }) as unknown as EditorViewLike);
 
 export function useDslEditor({
   dsl,
@@ -172,6 +231,7 @@ export function useDslEditor({
   onRangeHover,
   editorMountRef,
   highlightRange,
+  warningRanges = [],
   createEditorView = defaultCreateEditorView
 }: {
   dsl: string;
@@ -179,6 +239,7 @@ export function useDslEditor({
   onRangeHover?: (range: Range | null) => void;
   editorMountRef: RefObject<HTMLDivElement>;
   highlightRange?: Range | null;
+  warningRanges?: Range[];
   createEditorView?: CreateEditorView;
 }) {
   const editorViewRef = useRef<EditorViewLike | null>(null);
@@ -240,20 +301,31 @@ export function useDslEditor({
 
   useEffect(() => {
     const editorView = editorViewRef.current;
-    if (!editorView) {
+    if (!editorView || !(editorView instanceof EditorView)) {
       return;
     }
 
     if (highlightRange) {
-      (editorView as EditorView).dispatch({
+      editorView.dispatch({
         effects: setHighlight.of(highlightRange)
       });
     } else {
-      (editorView as EditorView).dispatch({
+      editorView.dispatch({
         effects: setHighlight.of(null)
       });
     }
   }, [highlightRange]);
+
+  useEffect(() => {
+    const editorView = editorViewRef.current;
+    if (!editorView || !(editorView instanceof EditorView)) {
+      return;
+    }
+
+    editorView.dispatch({
+      effects: setWarnings.of(warningRanges)
+    });
+  }, [warningRanges]);
 
   useEffect(() => {
     if (!editorMountRef.current || editorViewRef.current) {
@@ -284,6 +356,12 @@ export function useDslEditor({
     }
 
     editorViewRef.current = editorView;
+
+    if (editorView instanceof EditorView) {
+      editorView.dispatch({
+        effects: setWarnings.of(warningRanges)
+      });
+    }
 
     return () => {
       editorView.destroy();

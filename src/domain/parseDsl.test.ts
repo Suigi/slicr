@@ -173,4 +173,32 @@ evt:room-opened@1
     expect(node).toBeDefined();
     expect(node?.srcRange).toEqual({ from: 19, to: 81 });
   });
+
+  it('reports unresolved dependencies as warnings', () => {
+    const input = `slice "Warnings"
+
+rm:orders <- evt:missing`;
+
+    const parsed = parseDsl(input);
+
+    expect(parsed.edges).toEqual([]);
+    expect(parsed.warnings).toEqual([
+      {
+        message: 'Unresolved dependency: evt:missing -> rm:orders',
+        range: { from: input.indexOf('rm:orders'), to: input.indexOf('rm:orders') + 'rm:orders <- evt:missing'.length }
+      }
+    ]);
+  });
+
+  it('does not warn for command-to-event entry dependencies when command is not declared', () => {
+    const input = `slice "Buy Ticket"
+
+evt:concert-scheduled <- cmd:schedule-concert
+rm:available-concerts <- evt:concert-scheduled`;
+
+    const parsed = parseDsl(input);
+
+    expect(parsed.warnings).toEqual([]);
+    expect(parsed.edges).toEqual([{ from: 'concert-scheduled', to: 'available-concerts', label: null }]);
+  });
 });

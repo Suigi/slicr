@@ -16,10 +16,16 @@ export type Edge = {
   label: string | null;
 };
 
+export type ParseWarning = {
+  message: string;
+  range: { from: number; to: number };
+};
+
 export type Parsed = {
   sliceName: string;
   nodes: Map<string, VisualNode>;
   edges: Edge[];
+  warnings: ParseWarning[];
 };
 
 export type Position = {

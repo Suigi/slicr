@@ -175,4 +175,35 @@ rm:persisted-view`;
     });
     expect(panel?.classList.contains('open')).toBe(true);
   });
+
+  it('shows a warning in the error bar for unresolved dependencies', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{ id: 'a', dsl: 'slice "Warnings"\n\nrm:orders <- evt:missing' }]
+      })
+    );
+
+    renderApp();
+
+    const errorBar = document.querySelector('.error-bar');
+    expect(errorBar?.textContent).toContain('Unresolved dependency: evt:missing -> rm:orders');
+  });
+
+  it('shows a warning icon in the editor gutter for unresolved dependencies', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{ id: 'a', dsl: 'slice "Warnings"\n\nrm:orders <- evt:missing' }]
+      })
+    );
+
+    renderApp();
+
+    const warningMarker = document.querySelector('.cm-warning-marker');
+    expect(warningMarker).not.toBeNull();
+    expect(warningMarker?.textContent).toBe('⚠');
+  });
 });

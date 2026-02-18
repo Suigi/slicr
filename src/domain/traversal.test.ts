@@ -28,7 +28,8 @@ describe('traversal', () => {
   const parsed: Parsed = {
     sliceName: 'Test',
     nodes,
-    edges
+    edges,
+    warnings: []
   };
 
   it('finds related nodes and edges for a middle node', () => {
