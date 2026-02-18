@@ -456,7 +456,8 @@ export const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocCh
             border: '1px solid var(--border)',
             borderRadius: '10px',
             boxShadow: '0 14px 32px rgb(0 0 0 / 45%)',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            zIndex: '4000'
           },
           '.cm-tooltip.cm-tooltip-autocomplete > ul': {
             fontFamily: "'JetBrains Mono', monospace",
