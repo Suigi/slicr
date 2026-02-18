@@ -22,3 +22,7 @@ dev:
 
 deploy:
   vercel deploy
+
+ship-it:
+  just check
+  vercel deploy --prod
