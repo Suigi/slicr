@@ -7,6 +7,42 @@ import { slicr } from './slicrLanguage';
 export type Range = { from: number; to: number };
 export type EditorWarning = { range: Range; message: string };
 
+export function getNewLineIndent(previousLineText: string): string {
+  const baseIndent = previousLineText.match(/^\s*/)?.[0] ?? '';
+  if (previousLineText.trimEnd().endsWith(':')) {
+    return `${baseIndent}  `;
+  }
+  return baseIndent;
+}
+
+export function insertNewLineWithIndent(view: EditorView): boolean {
+  const { state } = view;
+  const main = state.selection.main;
+  const line = state.doc.lineAt(main.from);
+  if (line.text.trim().length === 0) {
+    view.dispatch({
+      changes: { from: line.from, to: line.to, insert: '\n' },
+      selection: {
+        anchor: line.from + 1
+      }
+    });
+    return true;
+  }
+
+  const linePrefix = line.text.slice(0, main.from - line.from);
+  const indent = getNewLineIndent(linePrefix);
+  const insert = `\n${indent}`;
+
+  view.dispatch({
+    changes: { from: main.from, to: main.to, insert },
+    selection: {
+      anchor: main.from + insert.length
+    }
+  });
+
+  return true;
+}
+
 const setHighlight = StateEffect.define<Range | null>();
 const setWarnings = StateEffect.define<EditorWarning[]>();
 
@@ -614,21 +650,41 @@ export function useDslEditor({
         }
       };
 
+      const onEnterKeyDown = (event: KeyboardEvent) => {
+        if (event.key !== 'Enter') {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+
+        insertNewLineWithIndent(editorView);
+      };
+
       const onWindowKeyDown = (event: KeyboardEvent) => {
-        if (event.key !== 'Tab') {
+        if (event.key !== 'Tab' && event.key !== 'Enter') {
           return;
         }
         if (!editorView.hasFocus) {
           return;
         }
-        onTabKeyDown(event);
+        if (event.key === 'Tab') {
+          onTabKeyDown(event);
+        } else {
+          onEnterKeyDown(event);
+        }
       };
 
       const onDomKeyDown = (event: KeyboardEvent) => onTabKeyDown(event);
       const onContentDomKeyDown = (event: KeyboardEvent) => onTabKeyDown(event);
+      const onDomEnterKeyDown = (event: KeyboardEvent) => onEnterKeyDown(event);
+      const onContentDomEnterKeyDown = (event: KeyboardEvent) => onEnterKeyDown(event);
 
       editorView.dom.addEventListener('keydown', onDomKeyDown, { capture: true });
       editorView.contentDOM.addEventListener('keydown', onContentDomKeyDown, { capture: true });
+      editorView.dom.addEventListener('keydown', onDomEnterKeyDown, { capture: true });
+      editorView.contentDOM.addEventListener('keydown', onContentDomEnterKeyDown, { capture: true });
       window.addEventListener('keydown', onWindowKeyDown, { capture: true });
       editorView.dispatch({
         effects: setWarnings.of(warningsRef.current)
@@ -637,6 +693,8 @@ export function useDslEditor({
       return () => {
         editorView.dom.removeEventListener('keydown', onDomKeyDown, { capture: true });
         editorView.contentDOM.removeEventListener('keydown', onContentDomKeyDown, { capture: true });
+        editorView.dom.removeEventListener('keydown', onDomEnterKeyDown, { capture: true });
+        editorView.contentDOM.removeEventListener('keydown', onContentDomEnterKeyDown, { capture: true });
         window.removeEventListener('keydown', onWindowKeyDown, { capture: true });
         editorView.dom.querySelector('.cm-warning-tooltip')?.remove();
         editorView.destroy();
