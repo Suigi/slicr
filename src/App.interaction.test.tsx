@@ -222,4 +222,11 @@ rm:persisted-view`;
     expect(localStorage.getItem('slicr.theme')).toBe('light');
     expect(document.querySelector('button[aria-label="Switch to dark theme"]')).not.toBeNull();
   });
+
+  it('shows an Expand all action in the DSL toolbar', () => {
+    renderApp();
+
+    const expandAll = document.querySelector('button[aria-label="Expand all regions"]');
+    expect(expandAll).not.toBeNull();
+  });
 });

@@ -1,6 +1,6 @@
 import { Dispatch, RefObject, SetStateAction, useEffect, useRef } from 'react';
 import { EditorSelection, EditorState, Prec, RangeSet, RangeSetBuilder, StateEffect, StateField } from '@codemirror/state';
-import { foldGutter, codeFolding, foldEffect, foldable } from '@codemirror/language';
+import { foldGutter, codeFolding, foldEffect, foldable, unfoldAll } from '@codemirror/language';
 import { EditorView, Decoration, DecorationSet, GutterMarker, gutterLineClass, keymap } from '@codemirror/view';
 import { acceptCompletion, completionStatus, currentCompletions, moveCompletionSelection, selectedCompletion, selectedCompletionIndex, setSelectedCompletion } from '@codemirror/autocomplete';
 import { history, undo, redo } from '@codemirror/commands';
@@ -625,6 +625,15 @@ export function useDslEditor({
     }
   };
 
+  const expandAllRegions = () => {
+    const editorView = editorViewRef.current as EditorView | null;
+    if (!editorView) {
+      return;
+    }
+
+    unfoldAll(editorView);
+  };
+
   useEffect(() => {
     const editorView = editorViewRef.current;
     if (!editorView || !(editorView instanceof EditorView)) {
@@ -791,5 +800,5 @@ export function useDslEditor({
     });
   }, [dsl]);
 
-  return { collapseAllDataRegions, collapseAllRegions };
+  return { collapseAllDataRegions, collapseAllRegions, expandAllRegions };
 }
