@@ -2,10 +2,67 @@ import { Dispatch, RefObject, SetStateAction, useEffect, useRef } from 'react';
 import { EditorSelection, EditorState, Prec, RangeSet, RangeSetBuilder, StateEffect, StateField } from '@codemirror/state';
 import { foldGutter, codeFolding, foldEffect, foldable } from '@codemirror/language';
 import { EditorView, Decoration, DecorationSet, GutterMarker, gutterLineClass, keymap } from '@codemirror/view';
+import { acceptCompletion, completionStatus, currentCompletions, moveCompletionSelection, selectedCompletion, selectedCompletionIndex, setSelectedCompletion } from '@codemirror/autocomplete';
+import { getDependencySuggestions } from './domain/dslAutocomplete';
 import { slicr } from './slicrLanguage';
 
 export type Range = { from: number; to: number };
 export type EditorWarning = { range: Range; message: string };
+
+function runHistoryAction(view: EditorView, inputType: 'historyUndo' | 'historyRedo'): boolean {
+  const hasInputEvent = typeof InputEvent === 'function';
+  const event = hasInputEvent
+    ? new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType })
+    : new Event('beforeinput', { bubbles: true, cancelable: true });
+
+  if (!hasInputEvent) {
+    Object.defineProperty(event, 'inputType', { value: inputType });
+  }
+
+  return !view.contentDOM.dispatchEvent(event);
+}
+
+function acceptActiveCompletion(view: EditorView): boolean {
+  if (acceptCompletion(view)) {
+    return true;
+  }
+
+  const options = currentCompletions(view.state);
+  if (options.length === 0) {
+    return false;
+  }
+
+  if (selectedCompletionIndex(view.state) === null) {
+    if (!moveCompletionSelection(true)(view)) {
+      view.dispatch({ effects: setSelectedCompletion(0) });
+    }
+  }
+
+  return acceptCompletion(view);
+}
+
+function acceptCompletionFallback(view: EditorView): boolean {
+  const { state } = view;
+  const main = state.selection.main;
+  const doc = state.doc.toString();
+
+  let from = main.from;
+  while (from > 0 && /[\w:@#-]/.test(doc[from - 1])) {
+    from -= 1;
+  }
+
+  const picked = selectedCompletion(state);
+  const label = (typeof picked?.label === 'string' ? picked.label : null) ?? getDependencySuggestions(doc, main.from)[0];
+  if (!label) {
+    return false;
+  }
+
+  view.dispatch({
+    changes: { from, to: main.to, insert: label },
+    selection: { anchor: from + label.length }
+  });
+  return true;
+}
 
 export function getNewLineIndent(previousLineText: string): string {
   const baseIndent = previousLineText.match(/^\s*/)?.[0] ?? '';
@@ -318,8 +375,9 @@ const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocChanged }
         }),
         Prec.highest(
           keymap.of([
-            { key: 'Tab', run: indentCurrentLineByTwo, preventDefault: true },
-            { key: 'Shift-Tab', run: unindentCurrentLineByTwo, preventDefault: true }
+            { key: 'Mod-z', run: (view) => runHistoryAction(view, 'historyUndo') },
+            { key: 'Mod-Shift-z', run: (view) => runHistoryAction(view, 'historyRedo') },
+            { key: 'Mod-y', run: (view) => runHistoryAction(view, 'historyRedo') }
           ])
         ),
         EditorView.lineWrapping,
@@ -638,6 +696,21 @@ export function useDslEditor({
         if (event.key !== 'Tab') {
           return;
         }
+        if (completionStatus(editorView.state) !== null) {
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation();
+          if (!acceptActiveCompletion(editorView) && !acceptCompletionFallback(editorView)) {
+            queueMicrotask(() => {
+              if (completionStatus(editorView.state) !== null) {
+                if (!acceptActiveCompletion(editorView)) {
+                  acceptCompletionFallback(editorView);
+                }
+              }
+            });
+          }
+          return;
+        }
 
         event.preventDefault();
         event.stopPropagation();
@@ -651,6 +724,9 @@ export function useDslEditor({
 
       const onEnterKeyDown = (event: KeyboardEvent) => {
         if (event.key !== 'Enter') {
+          return;
+        }
+        if (completionStatus(editorView.state) !== null) {
           return;
         }
 
