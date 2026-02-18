@@ -31,6 +31,17 @@
     --exc-border: #7a1f1f;
 
     --arrow:      #3a3a52;
+    --ui-color:   #a78bfa;
+    --ui-bg:      #1c1a2e;
+    --ui-border:  #3c3660;
+    --lane-divider: #1e1e2c;
+    --node-fields-divider: rgba(255, 255, 255, 0.1);
+    --node-field-key: rgba(255, 255, 255, 0.45);
+    --node-field-value: rgba(255, 255, 255, 0.9);
+    --node-shadow-rm: 0 0 0 2px var(--rm), 0 6px 20px rgba(34, 197, 94, 0.15);
+    --node-shadow-cmd: 0 0 0 2px var(--cmd), 0 6px 20px rgba(59, 130, 246, 0.15);
+    --node-shadow-evt: 0 0 0 2px var(--evt), 0 6px 20px rgba(249, 115, 22, 0.15);
+    --node-shadow-exc: 0 0 0 2px var(--exc), 0 6px 20px rgba(239, 68, 68, 0.15);
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -232,7 +243,7 @@
     position: absolute;
     left: 0;
     width: 100%;
-    border-top: 1px solid #1e1e2c;
+    border-top: 1px solid var(--lane-divider);
     pointer-events: none;
   }
 
@@ -280,7 +291,7 @@
   .node-fields {
     margin-top: 6px;
     padding-top: 6px;
-    border-top: 1px solid rgba(255,255,255,0.1);
+    border-top: 1px solid var(--node-fields-divider);
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -295,12 +306,12 @@
   }
 
   .node-field-key {
-    color: rgba(255,255,255,0.45);
+    color: var(--node-field-key);
     flex-shrink: 0;
   }
 
   .node-field-val {
-    color: rgba(255,255,255,0.9);
+    color: var(--node-field-value);
     font-weight: 500;
   }
 
@@ -308,12 +319,12 @@
   .node.cmd { background: var(--cmd-bg); border-color: var(--cmd-border); color: var(--cmd); }
   .node.evt { background: var(--evt-bg); border-color: var(--evt-border); color: var(--evt); }
   .node.exc { background: var(--exc-bg); border-color: var(--exc-border); color: var(--exc); }
-  .node.ui  { background: #1c1a2e;       border-color: #3c3660;           color: #a78bfa; }
+  .node.ui  { background: var(--ui-bg);  border-color: var(--ui-border);  color: var(--ui-color); }
 
-  .node.rm:hover  { box-shadow: 0 0 0 2px var(--rm),  0 6px 20px rgba(34,197,94,0.15); }
-  .node.cmd:hover { box-shadow: 0 0 0 2px var(--cmd), 0 6px 20px rgba(59,130,246,0.15); }
-  .node.evt:hover { box-shadow: 0 0 0 2px var(--evt), 0 6px 20px rgba(249,115,22,0.15); }
-  .node.exc:hover { box-shadow: 0 0 0 2px var(--exc), 0 6px 20px rgba(239,68,68,0.15); }
+  .node.rm:hover  { box-shadow: var(--node-shadow-rm); }
+  .node.cmd:hover { box-shadow: var(--node-shadow-cmd); }
+  .node.evt:hover { box-shadow: var(--node-shadow-evt); }
+  .node.exc:hover { box-shadow: var(--node-shadow-exc); }
 
   #arrows {
     position: absolute;
@@ -718,7 +729,7 @@ function render(dsl) {
   const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
   defs.innerHTML = `
     <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-      <path d="M0,0 L0,6 L8,3 z" fill="#3a3a52"/>
+      <path d="M0,0 L0,6 L8,3 z" fill="var(--arrow)"/>
     </marker>`;
   svg.appendChild(defs);
 

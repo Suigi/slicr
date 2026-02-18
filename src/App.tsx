@@ -369,7 +369,7 @@ function App() {
                 <svg id="arrows" width={layoutResult.w} height={layoutResult.h}>
                   <defs>
                     <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-                      <path d="M0,0 L0,6 L8,3 z" fill="#3a3a52" />
+                      <path d="M0,0 L0,6 L8,3 z" fill="var(--arrow)" />
                     </marker>
                     <marker id="arr-related" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
                       <path d="M0,0 L0,6 L8,3 z" fill="var(--text)" />
