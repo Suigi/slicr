@@ -279,6 +279,86 @@ const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocChanged }
             border: 'none',
             color: '#8a8aa0',
             fontWeight: '600'
+          },
+          '.cm-tooltip.cm-tooltip-autocomplete': {
+            backgroundColor: 'var(--surface)',
+            color: 'var(--text)',
+            border: '1px solid var(--border)',
+            borderRadius: '10px',
+            boxShadow: '0 14px 32px rgb(0 0 0 / 45%)',
+            overflow: 'hidden'
+          },
+          '.cm-tooltip.cm-tooltip-autocomplete > ul': {
+            fontFamily: "'JetBrains Mono', monospace",
+            maxHeight: '280px',
+            padding: '4px'
+          },
+          '.cm-tooltip.cm-tooltip-autocomplete > ul > li': {
+            color: 'var(--text)',
+            borderRadius: '6px',
+            padding: '4px 8px'
+          },
+          '.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected]': {
+            backgroundColor: 'rgb(249 115 22 / 22%)',
+            color: '#fff'
+          },
+          '.cm-completionIcon': {
+            color: '#9ca3af',
+            opacity: '0.9'
+          },
+          '.cm-completionLabel': {
+            color: 'var(--text)'
+          },
+          '.cm-completionIcon-evt': {
+            color: 'var(--evt)'
+          },
+          '.cm-completionIcon-cmd': {
+            color: 'var(--command-color)'
+          },
+          '.cm-completionIcon-rm': {
+            color: 'var(--rm)'
+          },
+          '.cm-completionIcon-ui': {
+            color: 'var(--ui-color)'
+          },
+          '.cm-completionIcon-exc': {
+            color: 'var(--exc)'
+          },
+          '.cm-completionIcon-aut': {
+            color: '#14b8a6'
+          },
+          '.cm-completionIcon-ext': {
+            color: '#c084fc'
+          },
+          '.cm-completionIcon-evt + .cm-completionLabel': {
+            color: 'var(--evt)'
+          },
+          '.cm-completionIcon-cmd + .cm-completionLabel': {
+            color: 'var(--command-color)'
+          },
+          '.cm-completionIcon-rm + .cm-completionLabel': {
+            color: 'var(--rm)'
+          },
+          '.cm-completionIcon-ui + .cm-completionLabel': {
+            color: 'var(--ui-color)'
+          },
+          '.cm-completionIcon-exc + .cm-completionLabel': {
+            color: 'var(--exc)'
+          },
+          '.cm-completionIcon-aut + .cm-completionLabel': {
+            color: '#14b8a6'
+          },
+          '.cm-completionIcon-ext + .cm-completionLabel': {
+            color: '#c084fc'
+          },
+          '.cm-completionDetail': {
+            color: 'var(--muted)',
+            fontStyle: 'normal'
+          },
+          '.cm-completionMatchedText': {
+            color: '#fb923c',
+            textDecoration: 'none',
+            fontWeight: '700'
           }
         }),
         EditorView.updateListener.of((update) => {

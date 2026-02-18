@@ -8,8 +8,42 @@ import {
   syntaxHighlighting,
   syntaxTree
 } from "@codemirror/language"
+import { autocompletion } from "@codemirror/autocomplete"
 import {styleTags, tags as t} from "@lezer/highlight"
 import {parser} from "./slicr.parser.js"
+import { getDependencySuggestions } from "./domain/dslAutocomplete"
+
+type CompletionContextLike = {
+  state: { doc: { toString: () => string } }
+  pos: number
+  matchBefore: (pattern: RegExp) => { from: number; to: number; text: string } | null
+}
+
+function slicrCompletionSource(context: CompletionContextLike) {
+  const doc = context.state.doc.toString()
+  const suggestions = getDependencySuggestions(doc, context.pos)
+  if (suggestions.length === 0) {
+    return null
+  }
+
+  const token = context.matchBefore(/[\w:@#-]*/)
+  const from = token ? token.from : context.pos
+  return {
+    from,
+    options: suggestions.map((label) => ({
+      label,
+      type: completionTypeForLabel(label)
+    }))
+  }
+}
+
+function completionTypeForLabel(label: string) {
+  const type = label.split(":", 1)[0]
+  if (type === "evt" || type === "cmd" || type === "rm" || type === "ui" || type === "exc" || type === "aut" || type === "ext") {
+    return type
+  }
+  return "variable"
+}
 
 export const slicrHighlightStyle = HighlightStyle.define([
   { tag: t.keyword, class: "dsl-tok-keyword" },
@@ -76,7 +110,8 @@ export const slicrLanguage = LRLanguage.define({
   }),
   languageData: {
     closeBrackets: { brackets: ["(", "[", "{", "'", '"'] },
-    indentOnInput: /^\s*[}\]]$/
+    indentOnInput: /^\s*[}\]]$/,
+    autocomplete: slicrCompletionSource
   }
 })
 
@@ -115,6 +150,10 @@ export function slicr() {
         return null
       })
     ]),
-    syntaxHighlighting(slicrHighlightStyle)
+    syntaxHighlighting(slicrHighlightStyle),
+    autocompletion({
+      activateOnTyping: true,
+      override: [slicrCompletionSource]
+    })
   ]
 }
