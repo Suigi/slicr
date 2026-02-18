@@ -22,6 +22,16 @@ type YamlEntry = {
   text: string;
 };
 
+type ParseCursor = {
+  type: { id: number };
+  from: number;
+  to: number;
+  firstChild: () => boolean;
+  nextSibling: () => boolean;
+  parent: () => boolean;
+  next: () => boolean;
+};
+
 export function parseDsl(src: string): Parsed {
   const tree = parser.parse(src);
   const lines = src.split('\n');
@@ -33,12 +43,12 @@ export function parseDsl(src: string): Parsed {
   let sliceName = '';
   const specs: NodeSpec[] = [];
 
-  const cursor: any = tree.cursor();
+  const cursor: ParseCursor = tree.cursor();
   do {
-    if (cursor.type.id === terms.SliceStatement) {
+    if (cursorTypeId(cursor) === terms.SliceStatement) {
       cursor.firstChild(); // Move to kw<"slice">
       const movedToSliceName = cursor.nextSibling();
-      if (movedToSliceName && cursor.type.id === terms.String) {
+      if (movedToSliceName && cursorTypeId(cursor) === terms.String) {
         const raw = src.slice(cursor.from, cursor.to);
         sliceName = raw.slice(1, -1); // Remove quotes
       }
@@ -46,7 +56,7 @@ export function parseDsl(src: string): Parsed {
       continue;
     }
 
-    if (cursor.type.id === terms.NodeStatement) {
+    if (cursorTypeId(cursor) === terms.NodeStatement) {
       // Ensure the node is at the start of a line (no leading whitespace in DSL for top-level nodes)
       const lineIndex = getLineIndexAtPos(lineStarts, cursor.from);
       const lineStart = lineStarts[lineIndex];
@@ -133,7 +143,7 @@ export function parseDsl(src: string): Parsed {
   return { sliceName, nodes, edges, warnings };
 }
 
-function parseNodeStatement(cursor: any, src: string) {
+function parseNodeStatement(cursor: ParseCursor, src: string) {
   cursor.firstChild(); // Move to ArtifactRef
   const target = parseArtifactRef(cursor, src);
   if (!target) {
@@ -142,10 +152,10 @@ function parseNodeStatement(cursor: any, src: string) {
   }
 
   const incoming: ArtifactRef[] = [];
-  if (cursor.nextSibling() && cursor.type.id === terms.IncomingClause) {
+  if (cursor.nextSibling() && cursorTypeId(cursor) === terms.IncomingClause) {
     cursor.firstChild(); // Move to DependsArrow
     while (cursor.nextSibling()) {
-      if (cursor.type.id === terms.ArtifactRef) {
+      if (cursorTypeId(cursor) === terms.ArtifactRef) {
         const ref = parseArtifactRef(cursor, src);
         if (ref) {
           incoming.push(ref);
@@ -159,13 +169,13 @@ function parseNodeStatement(cursor: any, src: string) {
   return { target, incoming };
 }
 
-function parseArtifactRef(cursor: any, src: string): ArtifactRef | null {
-  if (cursor.type.id !== terms.ArtifactRef) {
+function parseArtifactRef(cursor: ParseCursor, src: string): ArtifactRef | null {
+  if (cursorTypeId(cursor) !== terms.ArtifactRef) {
     return null;
   }
 
   cursor.firstChild(); // Move to specific ref (RmRef, UiRef, etc.)
-  const typeId = cursor.type.id;
+  const typeId = cursorTypeId(cursor);
 
   let type = '';
   if (typeId === terms.RmRef) type = 'rm';
@@ -192,7 +202,7 @@ function parseArtifactRef(cursor: any, src: string): ArtifactRef | null {
   // Traverse children of the specific ref to find Name and Version
   cursor.firstChild();
   do {
-    const tid = cursor.type.id;
+    const tid = cursorTypeId(cursor);
     if (
       tid === terms.RmName ||
       tid === terms.UiName ||
@@ -217,6 +227,10 @@ function parseArtifactRef(cursor: any, src: string): ArtifactRef | null {
 
 function toRefId(type: string, name: string) {
   return `${type}:${name}`;
+}
+
+function cursorTypeId(cursor: ParseCursor) {
+  return cursor.type.id;
 }
 
 function shouldWarnUnresolvedDependency(fromRef: string, toRef: string) {
