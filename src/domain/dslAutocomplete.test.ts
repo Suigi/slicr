@@ -36,4 +36,31 @@ evt:order-created <- `;
 
     expect(suggestions).not.toContain('evt:order-created');
   });
+
+  it('suggests existing refs for inline forward arrows and excludes the source node', () => {
+    const dsl = `slice "Rooms"
+
+evt:room-booked
+rm:available-rooms
+evt:room-booked -> `;
+
+    const suggestions = getDependencySuggestions(dsl, dsl.length);
+
+    expect(suggestions).toContain('rm:available-rooms');
+    expect(suggestions).not.toContain('evt:room-booked');
+  });
+
+  it('suggests existing refs for forward arrows on separate indented lines', () => {
+    const dsl = `slice "Rooms"
+
+evt:room-booked
+rm:available-rooms
+evt:room-booked
+  -> `;
+
+    const suggestions = getDependencySuggestions(dsl, dsl.length);
+
+    expect(suggestions).toContain('rm:available-rooms');
+    expect(suggestions).not.toContain('evt:room-booked');
+  });
 });

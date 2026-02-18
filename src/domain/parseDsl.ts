@@ -7,6 +7,7 @@ type NodeSpec = {
   type: string;
   name: string;
   incoming: ArtifactRef[];
+  outgoing: ArtifactRef[];
   data: NodeData;
   srcRange: { from: number; to: number };
   dataEndPos?: number;
@@ -32,6 +33,14 @@ type ParseCursor = {
   next: () => boolean;
 };
 
+type EdgeClauseSpec = {
+  line: number;
+  incoming: ArtifactRef[];
+  outgoing: ArtifactRef[];
+  from: number;
+  to: number;
+};
+
 export function parseDsl(src: string): Parsed {
   const tree = parser.parse(src);
   const lines = src.split('\n');
@@ -42,6 +51,7 @@ export function parseDsl(src: string): Parsed {
   const warnings: ParseWarning[] = [];
   let sliceName = '';
   const specs: NodeSpec[] = [];
+  const edgeClauses: EdgeClauseSpec[] = [];
 
   const cursor: ParseCursor = tree.cursor();
   do {
@@ -75,18 +85,39 @@ export function parseDsl(src: string): Parsed {
         type: parsed.target.type,
         name: parsed.target.name,
         incoming: parsed.incoming,
+        outgoing: parsed.outgoing,
         data: null,
         srcRange: { from: cursor.from, to: cursor.to }
       });
+      continue;
+    }
+
+    if (cursorTypeId(cursor) === terms.EdgeStatement) {
+      const parsed = parseEdgeStatement(cursor, src);
+      if (!parsed) {
+        continue;
+      }
+
+      const lineIndex = getLineIndexAtPos(lineStarts, cursor.from);
+      edgeClauses.push({
+        line: lineIndex,
+        incoming: parsed.incoming,
+        outgoing: parsed.outgoing,
+        from: cursor.from,
+        to: cursor.to
+      });
     }
   } while (cursor.next());
+
+  attachStandaloneEdgeClauses(specs, edgeClauses);
 
   attachDataBlocks(lines, specs, lineStarts);
 
   const refToKey = new Map<string, string>();
   const refToSpec = new Map<string, NodeSpec>();
   const usedKeys = new Set<string>();
-  const unresolvedEdges: Array<{ fromRef: string; toRef: string }> = [];
+  const unresolvedEdges: Array<{ fromRef: string; toRef: string; range: { from: number; to: number } }> = [];
+  const unresolvedEdgeSet = new Set<string>();
 
   for (const spec of specs) {
     const ref = toRefId(spec.type, spec.name);
@@ -121,7 +152,23 @@ export function parseDsl(src: string): Parsed {
     }
 
     for (const from of spec.incoming) {
-      unresolvedEdges.push({ fromRef: toRefId(from.type, from.name), toRef: ref });
+      const fromRef = toRefId(from.type, from.name);
+      const edgeKey = `${fromRef}->${ref}`;
+      if (unresolvedEdgeSet.has(edgeKey)) {
+        continue;
+      }
+      unresolvedEdgeSet.add(edgeKey);
+      unresolvedEdges.push({ fromRef, toRef: ref, range: spec.srcRange });
+    }
+
+    for (const to of spec.outgoing) {
+      const toRef = toRefId(to.type, to.name);
+      const edgeKey = `${ref}->${toRef}`;
+      if (unresolvedEdgeSet.has(edgeKey)) {
+        continue;
+      }
+      unresolvedEdgeSet.add(edgeKey);
+      unresolvedEdges.push({ fromRef: ref, toRef, range: spec.srcRange });
     }
   }
 
@@ -131,11 +178,9 @@ export function parseDsl(src: string): Parsed {
     if (from && to) {
       edges.push({ from, to, label: null });
     } else if (shouldWarnUnresolvedDependency(edge.fromRef, edge.toRef)) {
-      const targetSpec = refToSpec.get(edge.toRef);
-      const range = targetSpec?.srcRange ?? { from: 0, to: 0 };
       warnings.push({
         message: `Unresolved dependency: ${edge.fromRef} -> ${edge.toRef}`,
-        range
+        range: edge.range
       });
     }
   }
@@ -152,21 +197,66 @@ function parseNodeStatement(cursor: ParseCursor, src: string) {
   }
 
   const incoming: ArtifactRef[] = [];
-  if (cursor.nextSibling() && cursorTypeId(cursor) === terms.IncomingClause) {
-    cursor.firstChild(); // Move to DependsArrow
-    while (cursor.nextSibling()) {
-      if (cursorTypeId(cursor) === terms.ArtifactRef) {
-        const ref = parseArtifactRef(cursor, src);
-        if (ref) {
-          incoming.push(ref);
-        }
-      }
-    }
-    cursor.parent();
-  }
+  const outgoing: ArtifactRef[] = [];
 
   cursor.parent();
-  return { target, incoming };
+  return { target, incoming, outgoing };
+}
+
+function parseEdgeStatement(cursor: ParseCursor, src: string) {
+  if (!cursor.firstChild()) {
+    return null;
+  }
+
+  const incoming: ArtifactRef[] = [];
+  const outgoing: ArtifactRef[] = [];
+  if (cursorTypeId(cursor) === terms.IncomingClause) {
+    incoming.push(...parseClauseRefs(cursor, src));
+  } else if (cursorTypeId(cursor) === terms.OutgoingClause) {
+    outgoing.push(...parseClauseRefs(cursor, src));
+  }
+  cursor.parent();
+  return { incoming, outgoing };
+}
+
+function parseClauseRefs(cursor: ParseCursor, src: string): ArtifactRef[] {
+  const refs: ArtifactRef[] = [];
+  cursor.firstChild(); // Arrow token
+  while (cursor.nextSibling()) {
+    if (cursorTypeId(cursor) !== terms.ArtifactRef) {
+      continue;
+    }
+    const ref = parseArtifactRef(cursor, src);
+    if (ref) {
+      refs.push(ref);
+    }
+  }
+  cursor.parent();
+  return refs;
+}
+
+function attachStandaloneEdgeClauses(specs: NodeSpec[], edgeClauses: EdgeClauseSpec[]) {
+  if (specs.length === 0 || edgeClauses.length === 0) {
+    return;
+  }
+
+  let specIndex = 0;
+  for (const clause of edgeClauses) {
+    while (specIndex + 1 < specs.length && specs[specIndex + 1].line <= clause.line) {
+      specIndex += 1;
+    }
+
+    if (specs[specIndex].line > clause.line) {
+      continue;
+    }
+
+    const owner = specs[specIndex];
+    owner.incoming.push(...clause.incoming);
+    owner.outgoing.push(...clause.outgoing);
+    if (owner.line === clause.line) {
+      owner.srcRange.to = Math.max(owner.srcRange.to, clause.to);
+    }
+  }
 }
 
 function parseArtifactRef(cursor: ParseCursor, src: string): ArtifactRef | null {

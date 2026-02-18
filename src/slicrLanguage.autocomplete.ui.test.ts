@@ -163,4 +163,37 @@ cmd:create-order <- evt:order-c`;
 
     expect(nextLabels).toEqual(['evt:order-cancelled']);
   });
+
+  it('opens completion suggestions while editing forward-arrow dependencies', async () => {
+    const doc = `slice "Rooms"
+
+evt:room-booked
+rm:available-rooms
+evt:room-booked
+  -> rm:`;
+
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    view = new EditorView({
+      state: EditorState.create({
+        doc,
+        selection: { anchor: doc.length },
+        extensions: [slicr()]
+      }),
+      parent: host
+    });
+    view.focus();
+
+    const pos = doc.length;
+    const started = startCompletion(view);
+    expect(started).toBe(true);
+    expect(completionStatus(view.state)).not.toBeNull();
+
+    const source = getAutocompleteSource(view.state, pos);
+    expect(source).toBeDefined();
+    const result = source ? await source(new CompletionContext(view.state, pos, true, view)) : null;
+    const labels = result?.options.map((option) => option.label) ?? [];
+    expect(labels).toContain('rm:available-rooms');
+    expect(labels).not.toContain('evt:room-booked');
+  });
 });

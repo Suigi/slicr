@@ -3,6 +3,7 @@
 Statement {
   SliceStatement |
   NodeStatement |
+  EdgeStatement |
   DataStatement
 }
 
@@ -11,11 +12,20 @@ SliceStatement {
 }
 
 NodeStatement {
-  ArtifactRef IncomingClause?
+  ArtifactRef
 }
 
 IncomingClause {
   DependsArrow ArtifactRef (Comma ArtifactRef)*
+}
+
+OutgoingClause {
+  ForwardArrow ArtifactRef (Comma ArtifactRef)*
+}
+
+EdgeStatement {
+  IncomingClause |
+  OutgoingClause
 }
 
 ArtifactRef {
@@ -47,6 +57,7 @@ DataStatement {
   Number { $[0-9]+ ("." $[0-9]+)? }
   
   DependsArrow { "<-" }
+  ForwardArrow { "->" }
   Colon { ":" }
   At { "@" }
   BracketL { "[" }

@@ -201,4 +201,114 @@ rm:available-concerts <- evt:concert-scheduled`;
     expect(parsed.warnings).toEqual([]);
     expect(parsed.edges).toEqual([{ from: 'concert-scheduled', to: 'available-concerts', label: null }]);
   });
+
+  it('parses backwards arrows when the incoming clause is on a separate line', () => {
+    const input = `slice "Book Room"
+
+evt:room-booked
+  data:
+    some: value
+
+rm:available-rooms
+  <- evt:room-booked
+  data:
+    some: value
+
+rm:pending-bookings
+  <- evt:room-booked
+  data:
+    some: value`;
+
+    const parsed = parseDsl(input);
+
+    expect(parsed.warnings).toEqual([]);
+    expect(parsed.edges).toEqual([
+      { from: 'room-booked', to: 'available-rooms', label: null },
+      { from: 'room-booked', to: 'pending-bookings', label: null }
+    ]);
+  });
+
+  it('parses forward arrows on separate lines as outgoing edges from the current node', () => {
+    const input = `slice "Book Room"
+
+evt:room-booked
+  -> rm:available-rooms
+  -> rm:pending-bookings
+  data:
+    some: value
+
+rm:available-rooms
+  data:
+    some: value
+
+rm:pending-bookings
+  data:
+    some: value`;
+
+    const parsed = parseDsl(input);
+
+    expect(parsed.warnings).toEqual([]);
+    expect(parsed.edges).toEqual([
+      { from: 'room-booked', to: 'available-rooms', label: null },
+      { from: 'room-booked', to: 'pending-bookings', label: null }
+    ]);
+  });
+
+  it('treats inline <-, multiline <-, and multiline -> notations as equivalent edge definitions', () => {
+    const inlineInput = `slice "Book Room"
+
+evt:room-booked
+  data:
+    some: value
+
+rm:available-rooms <- evt:room-booked
+  data:
+    some: value
+
+rm:pending-bookings <- evt:room-booked
+  data:
+    some: value`;
+
+    const multilineBackwardInput = `slice "Book Room"
+
+evt:room-booked
+  data:
+    some: value
+
+rm:available-rooms
+  <- evt:room-booked
+  data:
+    some: value
+
+rm:pending-bookings
+  <- evt:room-booked
+  data:
+    some: value`;
+
+    const multilineForwardInput = `slice "Book Room"
+
+evt:room-booked
+  -> rm:available-rooms
+  -> rm:pending-bookings
+  data:
+    some: value
+
+rm:available-rooms
+  <- evt:room-booked
+  data:
+    some: value
+
+rm:pending-bookings
+  <- evt:room-booked
+  data:
+    some: value`;
+
+    const inlineParsed = parseDsl(inlineInput);
+    const multilineBackwardParsed = parseDsl(multilineBackwardInput);
+    const multilineForwardParsed = parseDsl(multilineForwardInput);
+
+    expect(multilineBackwardParsed.edges).toEqual(inlineParsed.edges);
+    expect(multilineForwardParsed.edges).toEqual(inlineParsed.edges);
+    expect(multilineForwardParsed.warnings).toEqual([]);
+  });
 });

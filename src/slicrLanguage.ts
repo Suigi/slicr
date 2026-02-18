@@ -95,7 +95,7 @@ export const slicrLanguage = LRLanguage.define({
         "Identifier": t.variableName,
         "String": t.string,
         "Number": t.number,
-        "DependsArrow": t.operator,
+        "DependsArrow ForwardArrow": t.operator,
         "Colon Comma At": t.punctuation,
         "BracketL BracketR": t.bracket,
         "BraceL BraceR": t.bracket,
