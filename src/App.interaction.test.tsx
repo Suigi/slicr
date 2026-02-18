@@ -27,6 +27,7 @@ afterEach(() => {
   root = null;
   host = null;
   document.body.innerHTML = '';
+  delete document.documentElement.dataset.theme;
   localStorage.clear();
 });
 
@@ -204,5 +205,21 @@ rm:persisted-view`;
 
     const warningCell = document.querySelector('.cm-foldGutter .cm-gutterElement.cm-warning-line');
     expect(warningCell).not.toBeNull();
+  });
+
+  it('toggles and persists light/dark theme from header button', () => {
+    renderApp();
+
+    const toggle = document.querySelector('button[aria-label="Switch to light theme"]');
+    expect(document.documentElement.dataset.theme).toBe('dark');
+    expect(toggle).not.toBeNull();
+
+    act(() => {
+      toggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(document.documentElement.dataset.theme).toBe('light');
+    expect(localStorage.getItem('slicr.theme')).toBe('light');
+    expect(document.querySelector('button[aria-label="Switch to dark theme"]')).not.toBeNull();
   });
 });

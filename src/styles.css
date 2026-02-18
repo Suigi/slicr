@@ -57,6 +57,60 @@
   --scrollbar-thumb-active: #5f5f86;
 }
 
+:root[data-theme='light'] {
+  --bg: #f5f7fb;
+  --surface: #ffffff;
+  --border: #d7dcea;
+  --text: #101828;
+  --muted: #5d667a;
+
+  --rm: #15803d;
+  --rm-bg: #e8f5ec;
+  --rm-border: #8dcfa5;
+
+  --command-color: #2563eb;
+  --command-color-rgb: 37 99 235;
+  --cmd-bg: #e9f0ff;
+  --cmd-border: #9cb9f9;
+
+  --evt: #c2410c;
+  --event-color: #c2410c;
+  --event-color-rgb: 194 65 12;
+  --evt-bg: #fff1e8;
+  --evt-border: #f5b896;
+
+  --exc: #dc2626;
+  --exc-bg: #feecec;
+  --exc-border: #f2b4b4;
+
+  --arrow: #5f6b80;
+  --ui-color: #6d28d9;
+  --ui-color-rgb: 109 40 217;
+  --ui-bg: #f2ecff;
+  --ui-border: #cdb9f8;
+  --lane-divider: #e1e6f2;
+  --editor-keyword: #a16207;
+  --editor-type-name: #1d4ed8;
+  --editor-string: #0f766e;
+  --editor-json-key: #64748b;
+  --editor-number: #b45309;
+  --panel-action-hover-border: rgb(16 24 40 / 35%);
+  --panel-action-hover-bg: rgb(16 24 40 / 6%);
+  --node-highlight-bg: rgb(194 65 12 / 12%);
+  --node-fields-divider: rgb(2 6 23 / 10%);
+  --node-field-value: rgb(2 6 23 / 85%);
+  --node-field-key: rgb(2 6 23 / 50%);
+  --node-shadow-rm: 0 0 0 2px var(--rm), 0 6px 20px rgb(21 128 61 / 14%);
+  --node-shadow-cmd: 0 0 0 2px var(--cmd), 0 6px 20px rgb(37 99 235 / 14%);
+  --node-shadow-evt: 0 0 0 2px var(--evt), 0 6px 20px rgb(194 65 12 / 14%);
+  --node-shadow-exc: 0 0 0 2px var(--exc), 0 6px 20px rgb(220 38 38 / 14%);
+  --node-shadow-ui: 0 0 0 2px var(--ui-color), 0 6px 20px rgb(109 40 217 / 14%);
+  --scrollbar-track: #eef1f8;
+  --scrollbar-thumb: #c4cad8;
+  --scrollbar-thumb-hover: #adb5c8;
+  --scrollbar-thumb-active: #919cb5;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -172,6 +226,25 @@ header h1 {
 }
 
 .slice-new:hover {
+  border-color: var(--text);
+  color: var(--text);
+}
+
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.theme-toggle:hover {
   border-color: var(--text);
   color: var(--text);
 }

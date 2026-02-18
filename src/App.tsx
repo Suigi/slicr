@@ -24,9 +24,19 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 const NODE_VERSION_SUFFIX = /@\d+$/;
+const THEME_STORAGE_KEY = 'slicr.theme';
+type ThemeMode = 'dark' | 'light';
 
 function App() {
   const [library, setLibrary] = useState(loadSliceLibrary);
+  const [theme, setTheme] = useState<ThemeMode>(() => {
+    try {
+      const saved = localStorage.getItem(THEME_STORAGE_KEY);
+      return saved === 'light' ? 'light' : 'dark';
+    } catch {
+      return 'dark';
+    }
+  });
   const [editorOpen, setEditorOpen] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
@@ -159,6 +169,15 @@ function App() {
     document.title = `Slicer - ${currentSliceName}`;
   }, [currentSliceName]);
 
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch {
+      // Ignore storage failures (e.g. restricted environments).
+    }
+  }, [theme]);
+
   const renderDataLine = (line: string, index: number) => {
     const match = line.match(/^(\s*(?:-\s*)?)([^:\n]+:)(.*)$/);
     if (!match) {
@@ -233,6 +252,49 @@ function App() {
             New
           </button>
         </div>
+        <button
+          type="button"
+          className="theme-toggle"
+          aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+          title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+          onClick={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
+        >
+          {theme === 'dark' ? (
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="12" r="4" />
+              <line x1="12" y1="2" x2="12" y2="5" />
+              <line x1="12" y1="19" x2="12" y2="22" />
+              <line x1="2" y1="12" x2="5" y2="12" />
+              <line x1="19" y1="12" x2="22" y2="12" />
+              <line x1="4.93" y1="4.93" x2="7.05" y2="7.05" />
+              <line x1="16.95" y1="16.95" x2="19.07" y2="19.07" />
+              <line x1="16.95" y1="7.05" x2="19.07" y2="4.93" />
+              <line x1="4.93" y1="19.07" x2="7.05" y2="16.95" />
+            </svg>
+          ) : (
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+            </svg>
+          )}
+        </button>
 
         <button
           ref={toggleRef}
