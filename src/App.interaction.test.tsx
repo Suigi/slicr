@@ -191,7 +191,7 @@ rm:persisted-view`;
     expect(errorBar?.textContent).toContain('Unresolved dependency: evt:missing -> rm:orders');
   });
 
-  it('shows a warning icon in the editor gutter for unresolved dependencies', () => {
+  it('shows a warning-highlighted gutter cell for unresolved dependencies', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -202,8 +202,7 @@ rm:persisted-view`;
 
     renderApp();
 
-    const warningMarker = document.querySelector('.cm-warning-marker');
-    expect(warningMarker).not.toBeNull();
-    expect(warningMarker?.textContent).toBe('⚠');
+    const warningCell = document.querySelector('.cm-foldGutter .cm-gutterElement.cm-warning-line');
+    expect(warningCell).not.toBeNull();
   });
 });

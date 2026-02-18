@@ -7,7 +7,7 @@ import { parseDsl } from './domain/parseDsl';
 import { getRelatedElements } from './domain/traversal';
 import type { Parsed } from './domain/types';
 import { addNewSlice, getSliceNameFromDsl, loadSliceLibrary, saveSliceLibrary, selectSlice, updateSelectedSliceDsl } from './sliceLibrary';
-import { Range, useDslEditor } from './useDslEditor';
+import { EditorWarning, Range, useDslEditor } from './useDslEditor';
 
 type ParseResult =
   | { parsed: Parsed; error: ''; warnings: Parsed['warnings'] }
@@ -74,7 +74,10 @@ function App() {
     onRangeHover: setHoveredEditorRange,
     editorMountRef,
     highlightRange,
-    warningRanges: parseResult.warnings.map((warning) => warning.range)
+    warnings: parseResult.warnings.map<EditorWarning>((warning) => ({
+      range: warning.range,
+      message: warning.message
+    }))
   });
 
   useEffect(() => {

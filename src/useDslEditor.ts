@@ -1,13 +1,14 @@
 import { Dispatch, RefObject, SetStateAction, useEffect, useRef } from 'react';
 import { EditorState, RangeSet, RangeSetBuilder, StateEffect, StateField } from '@codemirror/state';
 import { foldGutter, codeFolding, foldEffect, foldable } from '@codemirror/language';
-import { EditorView, Decoration, DecorationSet, GutterMarker, gutter } from '@codemirror/view';
+import { EditorView, Decoration, DecorationSet, GutterMarker, gutterLineClass } from '@codemirror/view';
 import { slicr } from './slicrLanguage';
 
 export type Range = { from: number; to: number };
+export type EditorWarning = { range: Range; message: string };
 
 const setHighlight = StateEffect.define<Range | null>();
-const setWarnings = StateEffect.define<Range[]>();
+const setWarnings = StateEffect.define<EditorWarning[]>();
 
 const highlightField = StateField.define<DecorationSet>({
   create() {
@@ -37,16 +38,25 @@ const highlightField = StateField.define<DecorationSet>({
   provide: (f) => EditorView.decorations.from(f)
 });
 
-const warningMarker = new (class extends GutterMarker {
+class WarningMarker extends GutterMarker {
+  readonly elementClass = 'cm-warning-line';
+
+  constructor(private readonly message: string) {
+    super();
+  }
+
+  eq(other: WarningMarker) {
+    return this.message === other.message;
+  }
+
   toDOM() {
     const marker = document.createElement('span');
-    marker.className = 'cm-warning-marker';
-    marker.textContent = '⚠';
-    marker.title = 'Warning';
-    marker.setAttribute('aria-label', 'Warning');
+    marker.className = 'cm-warning-line-marker';
+    marker.setAttribute('aria-label', this.message);
     return marker;
   }
-})();
+
+}
 
 const warningGutterField = StateField.define<RangeSet<GutterMarker>>({
   create() {
@@ -61,20 +71,46 @@ const warningGutterField = StateField.define<RangeSet<GutterMarker>>({
 
       const builder = new RangeSetBuilder<GutterMarker>();
       const seenLineStarts = new Set<number>();
-      for (const range of effect.value) {
-        if (range.from < 0 || range.from > tr.state.doc.length) {
+      for (const warning of effect.value) {
+        if (warning.range.from < 0 || warning.range.from > tr.state.doc.length) {
           continue;
         }
-        const line = tr.state.doc.lineAt(range.from);
+        const line = tr.state.doc.lineAt(warning.range.from);
         if (seenLineStarts.has(line.from)) {
           continue;
         }
         seenLineStarts.add(line.from);
-        builder.add(line.from, line.from, warningMarker);
+        builder.add(line.from, line.from, new WarningMarker(warning.message));
       }
       markers = builder.finish();
     }
     return markers;
+  },
+  provide: (field) => gutterLineClass.from(field)
+});
+
+const warningMessagesField = StateField.define<Map<number, string>>({
+  create() {
+    return new Map();
+  },
+  update(messages, tr) {
+    for (const effect of tr.effects) {
+      if (!effect.is(setWarnings)) {
+        continue;
+      }
+
+      const next = new Map<number, string>();
+      for (const warning of effect.value) {
+        if (warning.range.from < 0 || warning.range.from > tr.state.doc.length) {
+          continue;
+        }
+        const lineFrom = tr.state.doc.lineAt(warning.range.from).from;
+        const previous = next.get(lineFrom);
+        next.set(lineFrom, previous ? `${previous}\n${warning.message}` : warning.message);
+      }
+      return next;
+    }
+    return messages;
   }
 });
 
@@ -126,14 +162,39 @@ const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocChanged }
       extensions: [
         slicr(),
         highlightField,
-        foldGutter({
-          markerDOM: (open) => createFoldMarker(open)
-        }),
         warningGutterField,
-        gutter({
-          class: 'cm-warning-gutter',
-          markers: (view) => view.state.field(warningGutterField),
-          initialSpacer: () => warningMarker
+        warningMessagesField,
+        foldGutter({
+          markerDOM: (open) => createFoldMarker(open),
+          domEventHandlers: {
+            mousemove: (view, line, event) => {
+              const message = view.state.field(warningMessagesField).get(line.from);
+              const tooltip = view.dom.querySelector('.cm-warning-tooltip') as HTMLDivElement | null;
+              if (!message || !(event instanceof MouseEvent)) {
+                tooltip?.remove();
+                return false;
+              }
+
+              const rootRect = view.dom.getBoundingClientRect();
+              const left = Math.min(event.clientX - rootRect.left + 10, rootRect.width - 340);
+              const top = Math.max(8, event.clientY - rootRect.top - 8);
+
+              let nextTooltip = tooltip;
+              if (!nextTooltip) {
+                nextTooltip = document.createElement('div');
+                nextTooltip.className = 'cm-warning-tooltip';
+                view.dom.appendChild(nextTooltip);
+              }
+              nextTooltip.textContent = message;
+              nextTooltip.style.left = `${left}px`;
+              nextTooltip.style.top = `${top}px`;
+              return false;
+            },
+            mouseleave: (view) => {
+              view.dom.querySelector('.cm-warning-tooltip')?.remove();
+              return false;
+            }
+          }
         }),
         codeFolding({
           placeholderText: '...',
@@ -141,6 +202,7 @@ const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocChanged }
         EditorView.lineWrapping,
         EditorView.theme({
           '&': {
+            position: 'relative',
             height: '100%',
             backgroundColor: 'transparent'
           },
@@ -173,16 +235,22 @@ const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocChanged }
           '.cm-foldGutter .cm-gutterElement:hover': {
             color: '#b8b8c7'
           },
-          '.cm-warning-gutter': {
-            width: '16px'
+          '.cm-foldGutter .cm-gutterElement.cm-warning-line': {
+            backgroundColor: 'rgb(239 68 68 / 30%)'
           },
-          '.cm-warning-marker': {
-            color: '#f59e0b',
-            display: 'inline-block',
-            width: '100%',
-            textAlign: 'center',
-            fontSize: '10px',
-            lineHeight: '1'
+          '.cm-warning-tooltip': {
+            position: 'absolute',
+            zIndex: '1000',
+            maxWidth: '320px',
+            padding: '8px 10px',
+            borderRadius: '8px',
+            backgroundColor: '#1f2937',
+            color: '#f9fafb',
+            border: '1px solid rgb(239 68 68 / 55%)',
+            boxShadow: '0 8px 24px rgb(0 0 0 / 40%)',
+            fontSize: '12px',
+            lineHeight: '1.4',
+            pointerEvents: 'none'
           },
           '.cm-scroller': {
             overflow: 'auto',
@@ -231,7 +299,7 @@ export function useDslEditor({
   onRangeHover,
   editorMountRef,
   highlightRange,
-  warningRanges = [],
+  warnings = [],
   createEditorView = defaultCreateEditorView
 }: {
   dsl: string;
@@ -239,14 +307,14 @@ export function useDslEditor({
   onRangeHover?: (range: Range | null) => void;
   editorMountRef: RefObject<HTMLDivElement>;
   highlightRange?: Range | null;
-  warningRanges?: Range[];
+  warnings?: EditorWarning[];
   createEditorView?: CreateEditorView;
 }) {
   const editorViewRef = useRef<EditorViewLike | null>(null);
   const initialDslRef = useRef(dsl);
   const onDocChangedRef = useRef(onDslChange);
   const onRangeHoverRef = useRef(onRangeHover);
-  const warningRangesRef = useRef(warningRanges);
+  const warningsRef = useRef(warnings);
 
   useEffect(() => {
     onDocChangedRef.current = onDslChange;
@@ -257,8 +325,8 @@ export function useDslEditor({
   }, [onRangeHover]);
 
   useEffect(() => {
-    warningRangesRef.current = warningRanges;
-  }, [warningRanges]);
+    warningsRef.current = warnings;
+  }, [warnings]);
 
   const collapseAllDataRegions = () => {
     const editorView = editorViewRef.current as EditorView | null;
@@ -328,9 +396,9 @@ export function useDslEditor({
     }
 
     editorView.dispatch({
-      effects: setWarnings.of(warningRanges)
+      effects: setWarnings.of(warnings)
     });
-  }, [warningRanges]);
+  }, [warnings]);
 
   useEffect(() => {
     if (!editorMountRef.current || editorViewRef.current) {
@@ -364,8 +432,14 @@ export function useDslEditor({
 
     if (editorView instanceof EditorView) {
       editorView.dispatch({
-        effects: setWarnings.of(warningRangesRef.current)
+        effects: setWarnings.of(warningsRef.current)
       });
+
+      return () => {
+        editorView.dom.querySelector('.cm-warning-tooltip')?.remove();
+        editorView.destroy();
+        editorViewRef.current = null;
+      };
     }
 
     return () => {

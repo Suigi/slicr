@@ -22,8 +22,6 @@ type YamlEntry = {
   text: string;
 };
 
-type ParseCursor = ReturnType<ReturnType<typeof parser.parse>['cursor']>;
-
 export function parseDsl(src: string): Parsed {
   const tree = parser.parse(src);
   const lines = src.split('\n');
@@ -35,7 +33,7 @@ export function parseDsl(src: string): Parsed {
   let sliceName = '';
   const specs: NodeSpec[] = [];
 
-  const cursor = tree.cursor();
+  const cursor: any = tree.cursor();
   do {
     if (cursor.type.id === terms.SliceStatement) {
       cursor.firstChild(); // Move to kw<"slice">
@@ -135,7 +133,7 @@ export function parseDsl(src: string): Parsed {
   return { sliceName, nodes, edges, warnings };
 }
 
-function parseNodeStatement(cursor: ParseCursor, src: string) {
+function parseNodeStatement(cursor: any, src: string) {
   cursor.firstChild(); // Move to ArtifactRef
   const target = parseArtifactRef(cursor, src);
   if (!target) {
@@ -161,7 +159,7 @@ function parseNodeStatement(cursor: ParseCursor, src: string) {
   return { target, incoming };
 }
 
-function parseArtifactRef(cursor: ParseCursor, src: string): ArtifactRef | null {
+function parseArtifactRef(cursor: any, src: string): ArtifactRef | null {
   if (cursor.type.id !== terms.ArtifactRef) {
     return null;
   }
@@ -226,11 +224,9 @@ function shouldWarnUnresolvedDependency(fromRef: string, toRef: string) {
   const toType = toRef.split(':', 1)[0];
 
   // Commands can originate outside the slice and trigger an event entrypoint.
-  if (fromType === 'cmd' && toType === 'evt') {
-    return false;
-  }
+  return !(fromType === 'cmd' && toType === 'evt');
 
-  return true;
+
 }
 
 function pickNodeKey(spec: NodeSpec, usedKeys: Set<string>) {

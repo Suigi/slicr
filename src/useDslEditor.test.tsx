@@ -21,7 +21,7 @@ type TestEditor = {
 type HarnessProps = {
   dsl: string;
   onDslChange: Dispatch<SetStateAction<string>>;
-  warningRanges?: Array<{ from: number; to: number }>;
+  warnings?: Array<{ range: { from: number; to: number }; message: string }>;
   createEditorView: (args: {
     parent: HTMLDivElement;
     doc: string;
@@ -34,7 +34,7 @@ function Harness(props: HarnessProps) {
   useDslEditor({
     dsl: props.dsl,
     onDslChange: props.onDslChange,
-    warningRanges: props.warningRanges,
+    warnings: props.warnings,
     editorMountRef,
     createEditorView: props.createEditorView
   });
@@ -241,7 +241,7 @@ describe('useDslEditor', () => {
         <Harness
           dsl={'slice "A"'}
           onDslChange={onDslChange}
-          warningRanges={[{ from: 0, to: 1 }]}
+          warnings={[{ range: { from: 0, to: 1 }, message: 'warning A' }]}
           createEditorView={createEditorView}
         />
       );
@@ -256,7 +256,7 @@ describe('useDslEditor', () => {
         <Harness
           dsl={'slice "A"'}
           onDslChange={onDslChange}
-          warningRanges={[{ from: 2, to: 3 }]}
+          warnings={[{ range: { from: 2, to: 3 }, message: 'warning B' }]}
           createEditorView={createEditorView}
         />
       );
