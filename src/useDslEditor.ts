@@ -246,6 +246,7 @@ export function useDslEditor({
   const initialDslRef = useRef(dsl);
   const onDocChangedRef = useRef(onDslChange);
   const onRangeHoverRef = useRef(onRangeHover);
+  const warningRangesRef = useRef(warningRanges);
 
   useEffect(() => {
     onDocChangedRef.current = onDslChange;
@@ -254,6 +255,10 @@ export function useDslEditor({
   useEffect(() => {
     onRangeHoverRef.current = onRangeHover;
   }, [onRangeHover]);
+
+  useEffect(() => {
+    warningRangesRef.current = warningRanges;
+  }, [warningRanges]);
 
   const collapseAllDataRegions = () => {
     const editorView = editorViewRef.current as EditorView | null;
@@ -359,7 +364,7 @@ export function useDslEditor({
 
     if (editorView instanceof EditorView) {
       editorView.dispatch({
-        effects: setWarnings.of(warningRanges)
+        effects: setWarnings.of(warningRangesRef.current)
       });
     }
 

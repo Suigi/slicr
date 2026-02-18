@@ -22,6 +22,8 @@ type YamlEntry = {
   text: string;
 };
 
+type ParseCursor = ReturnType<ReturnType<typeof parser.parse>['cursor']>;
+
 export function parseDsl(src: string): Parsed {
   const tree = parser.parse(src);
   const lines = src.split('\n');
@@ -37,8 +39,8 @@ export function parseDsl(src: string): Parsed {
   do {
     if (cursor.type.id === terms.SliceStatement) {
       cursor.firstChild(); // Move to kw<"slice">
-      // @ts-ignore cursor is being modified by cursor.nextSibling()
-      if (cursor.nextSibling() && cursor.type.id === terms.String) {
+      const movedToSliceName = cursor.nextSibling();
+      if (movedToSliceName && cursor.type.id === terms.String) {
         const raw = src.slice(cursor.from, cursor.to);
         sliceName = raw.slice(1, -1); // Remove quotes
       }
@@ -133,7 +135,7 @@ export function parseDsl(src: string): Parsed {
   return { sliceName, nodes, edges, warnings };
 }
 
-function parseNodeStatement(cursor: any, src: string) {
+function parseNodeStatement(cursor: ParseCursor, src: string) {
   cursor.firstChild(); // Move to ArtifactRef
   const target = parseArtifactRef(cursor, src);
   if (!target) {
@@ -159,7 +161,7 @@ function parseNodeStatement(cursor: any, src: string) {
   return { target, incoming };
 }
 
-function parseArtifactRef(cursor: any, src: string): ArtifactRef | null {
+function parseArtifactRef(cursor: ParseCursor, src: string): ArtifactRef | null {
   if (cursor.type.id !== terms.ArtifactRef) {
     return null;
   }

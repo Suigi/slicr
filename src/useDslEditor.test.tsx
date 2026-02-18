@@ -21,6 +21,7 @@ type TestEditor = {
 type HarnessProps = {
   dsl: string;
   onDslChange: Dispatch<SetStateAction<string>>;
+  warningRanges?: Array<{ from: number; to: number }>;
   createEditorView: (args: {
     parent: HTMLDivElement;
     doc: string;
@@ -33,6 +34,7 @@ function Harness(props: HarnessProps) {
   useDslEditor({
     dsl: props.dsl,
     onDslChange: props.onDslChange,
+    warningRanges: props.warningRanges,
     editorMountRef,
     createEditorView: props.createEditorView
   });
@@ -199,6 +201,65 @@ describe('useDslEditor', () => {
 
     act(() => {
       root?.render(<Harness dsl={'slice "Edited"'} onDslChange={onDslChangeB} createEditorView={createEditorView} />);
+    });
+
+    expect(createEditorView).toHaveBeenCalledTimes(1);
+    expect(editorRef.current?.state.doc.toString()).toBe('slice "Edited"');
+  });
+
+  it('does not recreate editor when warning ranges change', () => {
+    const editorRef: { current: TestEditor | null } = { current: null };
+    const onDslChange: Dispatch<SetStateAction<string>> = () => undefined;
+    const createEditorView = vi.fn(({ doc }) => {
+      let text = doc;
+      editorRef.current = {
+        state: {
+          doc: {
+            toString: () => text,
+            get length() {
+              return text.length;
+            }
+          }
+        },
+        dispatch: ({ changes }) => {
+          if (changes) {
+            text = changes.insert;
+          }
+        },
+        destroy: () => undefined,
+        emitDocChanged: () => undefined
+      };
+      return editorRef.current;
+    });
+
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = ReactDOM.createRoot(host);
+
+    act(() => {
+      root?.render(
+        <Harness
+          dsl={'slice "A"'}
+          onDslChange={onDslChange}
+          warningRanges={[{ from: 0, to: 1 }]}
+          createEditorView={createEditorView}
+        />
+      );
+    });
+
+    act(() => {
+      editorRef.current?.dispatch({ changes: { from: 0, to: editorRef.current.state.doc.length, insert: 'slice "Edited"' } });
+    });
+
+    act(() => {
+      root?.render(
+        <Harness
+          dsl={'slice "A"'}
+          onDslChange={onDslChange}
+          warningRanges={[{ from: 2, to: 3 }]}
+          createEditorView={createEditorView}
+        />
+      );
     });
 
     expect(createEditorView).toHaveBeenCalledTimes(1);
