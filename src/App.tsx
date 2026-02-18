@@ -64,8 +64,7 @@ function App() {
   }, [currentDsl]);
 
   const parsed = parseResult.parsed;
-  const errorText =
-    parseResult.error || parseResult.warnings.map((warning) => `⚠ ${warning.message}`).join(' · ');
+  const errorText = parseResult.error;
   const currentSliceName = getSliceNameFromDsl(currentDsl);
 
   const { collapseAllDataRegions, collapseAllRegions } = useDslEditor({
@@ -285,7 +284,7 @@ function App() {
             </button>
           </div>
           <div ref={editorMountRef} className="dsl-editor" />
-          <div className="error-bar">{errorText}</div>
+          {errorText && <div className="error-bar">{errorText}</div>}
         </div>
 
         <div className="canvas-panel">

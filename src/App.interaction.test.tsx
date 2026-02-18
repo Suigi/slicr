@@ -176,7 +176,7 @@ rm:persisted-view`;
     expect(panel?.classList.contains('open')).toBe(true);
   });
 
-  it('shows a warning in the error bar for unresolved dependencies', () => {
+  it('does not show unresolved dependency warnings in the bottom error bar', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -188,7 +188,7 @@ rm:persisted-view`;
     renderApp();
 
     const errorBar = document.querySelector('.error-bar');
-    expect(errorBar?.textContent).toContain('Unresolved dependency: evt:missing -> rm:orders');
+    expect(errorBar).toBeNull();
   });
 
   it('shows a warning-highlighted gutter cell for unresolved dependencies', () => {
