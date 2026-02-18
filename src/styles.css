@@ -31,6 +31,11 @@
   --rm-color-rgb: 34 197 94;
   --ui-color: #a78bfa;
   --ui-color-rgb: 167 139 250;
+
+  --scrollbar-track: #14141c;
+  --scrollbar-thumb: #323247;
+  --scrollbar-thumb-hover: #454562;
+  --scrollbar-thumb-active: #5f5f86;
 }
 
 * {
@@ -326,6 +331,8 @@ header h1 {
 
 .dsl-editor .cm-scroller {
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
 .dsl-editor .dsl-tok-keyword {
@@ -439,6 +446,41 @@ header h1 {
   overflow: auto;
   background: var(--bg);
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+.dsl-editor .cm-scroller::-webkit-scrollbar,
+.canvas-panel::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.dsl-editor .cm-scroller::-webkit-scrollbar-track,
+.canvas-panel::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+.dsl-editor .cm-scroller::-webkit-scrollbar-thumb,
+.canvas-panel::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 999px;
+  border: 2px solid var(--scrollbar-track);
+}
+
+.dsl-editor .cm-scroller::-webkit-scrollbar-thumb:hover,
+.canvas-panel::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+.dsl-editor .cm-scroller::-webkit-scrollbar-thumb:active,
+.canvas-panel::-webkit-scrollbar-thumb:active {
+  background: var(--scrollbar-thumb-active);
+}
+
+.dsl-editor .cm-scroller::-webkit-scrollbar-corner,
+.canvas-panel::-webkit-scrollbar-corner {
+  background: var(--scrollbar-track);
 }
 
 #canvas {
