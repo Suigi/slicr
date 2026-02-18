@@ -3,24 +3,12 @@ import { EditorSelection, EditorState, Prec, RangeSet, RangeSetBuilder, StateEff
 import { foldGutter, codeFolding, foldEffect, foldable } from '@codemirror/language';
 import { EditorView, Decoration, DecorationSet, GutterMarker, gutterLineClass, keymap } from '@codemirror/view';
 import { acceptCompletion, completionStatus, currentCompletions, moveCompletionSelection, selectedCompletion, selectedCompletionIndex, setSelectedCompletion } from '@codemirror/autocomplete';
+import { history, undo, redo } from '@codemirror/commands';
 import { getDependencySuggestions } from './domain/dslAutocomplete';
 import { slicr } from './slicrLanguage';
 
 export type Range = { from: number; to: number };
 export type EditorWarning = { range: Range; message: string };
-
-function runHistoryAction(view: EditorView, inputType: 'historyUndo' | 'historyRedo'): boolean {
-  const hasInputEvent = typeof InputEvent === 'function';
-  const event = hasInputEvent
-    ? new InputEvent('beforeinput', { bubbles: true, cancelable: true, inputType })
-    : new Event('beforeinput', { bubbles: true, cancelable: true });
-
-  if (!hasInputEvent) {
-    Object.defineProperty(event, 'inputType', { value: inputType });
-  }
-
-  return !view.contentDOM.dispatchEvent(event);
-}
 
 function acceptActiveCompletion(view: EditorView): boolean {
   if (acceptCompletion(view)) {
@@ -329,12 +317,13 @@ const createFoldMarker = (open: boolean) => {
   return marker;
 };
 
-const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocChanged }) =>
-  (new EditorView({
+export const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocChanged }) => {
+  return (new EditorView({
     state: EditorState.create({
       doc,
       extensions: [
         slicr(),
+        history(),
         highlightField,
         warningGutterField,
         warningMessagesField,
@@ -375,9 +364,9 @@ const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocChanged }
         }),
         Prec.highest(
           keymap.of([
-            { key: 'Mod-z', run: (view) => runHistoryAction(view, 'historyUndo') },
-            { key: 'Mod-Shift-z', run: (view) => runHistoryAction(view, 'historyRedo') },
-            { key: 'Mod-y', run: (view) => runHistoryAction(view, 'historyRedo') }
+            { key: 'Mod-z', run: undo, preventDefault: true },
+            { key: 'Mod-Shift-z', run: redo, preventDefault: true },
+            { key: 'Mod-y', run: redo, preventDefault: true }
           ])
         ),
         EditorView.lineWrapping,
@@ -547,12 +536,14 @@ const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocChanged }
             return;
           }
 
-          onDocChanged(update.state.doc.toString());
+          const nextDoc = update.state.doc.toString();
+          onDocChanged(nextDoc);
         })
       ]
     }),
     parent
   }) as unknown as EditorViewLike);
+};
 
 export function useDslEditor({
   dsl,
