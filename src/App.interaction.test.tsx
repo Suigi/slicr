@@ -52,6 +52,7 @@ describe('App interactions', () => {
     const defaultName = DEFAULT_DSL.match(/^\s*slice\s+"([^"]+)"/m)?.[1];
 
     expect(sliceTitle?.textContent).toBe(defaultName);
+    expect(document.title).toBe(`Slicer - ${defaultName}`);
     expect(localStorage.getItem(SLICES_STORAGE_KEY)).not.toBeNull();
     expect(localStorage.getItem('slicr.dsl')).toBeNull();
     const stored = readStoredLibrary();
@@ -97,6 +98,7 @@ rm:persisted-view`;
     });
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Beta');
+    expect(document.title).toBe('Slicer - Beta');
   });
 
   it('derives dropdown labels from DSL, ignoring stale stored names', () => {

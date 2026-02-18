@@ -80,6 +80,7 @@ function App() {
 
   const parsed = parseResult.parsed;
   const errorText = parseResult.error;
+  const currentSliceName = getSliceNameFromDsl(currentDsl);
 
   const layoutResult = useMemo(() => {
     if (!parsed || parsed.nodes.size === 0) {
@@ -148,6 +149,10 @@ function App() {
     document.addEventListener('pointerdown', deselectOnCanvasClick);
     return () => document.removeEventListener('pointerdown', deselectOnCanvasClick);
   }, []);
+
+  useEffect(() => {
+    document.title = `Slicer - ${currentSliceName}`;
+  }, [currentSliceName]);
 
   const renderDataLine = (line: string, index: number) => {
     const match = line.match(/^(\s*(?:-\s*)?)([^:\n]+:)(.*)$/);
