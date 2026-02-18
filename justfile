@@ -10,6 +10,13 @@ lint:
 build:
   npm run build
 
+check:
+  just lint test build
+
+install-hooks:
+  git config core.hooksPath .githooks
+  chmod +x .githooks/pre-commit
+
 dev:
   npm run dev
 
