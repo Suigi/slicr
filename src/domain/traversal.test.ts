@@ -8,6 +8,7 @@ describe('traversal', () => {
     key,
     type: 'rm',
     name: key,
+    alias: null,
     data: null,
     srcRange: { from: 0, to: 0 }
   } as VisualNode);

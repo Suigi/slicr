@@ -12,7 +12,7 @@ SliceStatement {
 }
 
 NodeStatement {
-  ArtifactRef
+  ArtifactRef String?
 }
 
 IncomingClause {

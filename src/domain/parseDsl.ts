@@ -6,6 +6,7 @@ type NodeSpec = {
   line: number;
   type: string;
   name: string;
+  alias: string | null;
   incoming: ArtifactRef[];
   outgoing: ArtifactRef[];
   data: NodeData;
@@ -84,6 +85,7 @@ export function parseDsl(src: string): Parsed {
         line: lineIndex,
         type: parsed.target.type,
         name: parsed.target.name,
+        alias: parsed.alias,
         incoming: parsed.incoming,
         outgoing: parsed.outgoing,
         data: null,
@@ -139,15 +141,21 @@ export function parseDsl(src: string): Parsed {
       nodes.set(key, {
         type: spec.type,
         name: spec.name,
+        alias: spec.alias,
         key,
         data: spec.data,
         srcRange: finalRange
       });
-    } else if (spec.data) {
+    } else if (spec.data || spec.alias) {
       const existing = nodes.get(key);
       if (existing) {
-        existing.data = spec.data;
-        existing.srcRange = finalRange;
+        if (!existing.alias && spec.alias) {
+          existing.alias = spec.alias;
+        }
+        if (spec.data) {
+          existing.data = spec.data;
+          existing.srcRange = finalRange;
+        }
       }
     }
 
@@ -189,8 +197,23 @@ export function parseDsl(src: string): Parsed {
 }
 
 function parseNodeStatement(cursor: ParseCursor, src: string) {
-  cursor.firstChild(); // Move to ArtifactRef
-  const target = parseArtifactRef(cursor, src);
+  if (!cursor.firstChild()) {
+    return null;
+  }
+
+  let target: ArtifactRef | null = null;
+  let alias: string | null = null;
+  do {
+    const typeId = cursorTypeId(cursor);
+    if (typeId === terms.ArtifactRef && !target) {
+      target = parseArtifactRef(cursor, src);
+      continue;
+    }
+    if (typeId === terms.String && alias === null) {
+      alias = unquote(src.slice(cursor.from, cursor.to));
+    }
+  } while (cursor.nextSibling());
+
   if (!target) {
     cursor.parent();
     return null;
@@ -200,7 +223,7 @@ function parseNodeStatement(cursor: ParseCursor, src: string) {
   const outgoing: ArtifactRef[] = [];
 
   cursor.parent();
-  return { target, incoming, outgoing };
+  return { target, alias, incoming, outgoing };
 }
 
 function parseEdgeStatement(cursor: ParseCursor, src: string) {
@@ -317,6 +340,17 @@ function parseArtifactRef(cursor: ParseCursor, src: string): ArtifactRef | null 
 
 function toRefId(type: string, name: string) {
   return `${type}:${name}`;
+}
+
+function unquote(value: string) {
+  if (value.startsWith('"') && value.endsWith('"') && value.length >= 2) {
+    try {
+      return JSON.parse(value) as string;
+    } catch {
+      return value.slice(1, -1);
+    }
+  }
+  return value;
 }
 
 function cursorTypeId(cursor: ParseCursor) {

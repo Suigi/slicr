@@ -207,6 +207,24 @@ rm:persisted-view`;
     expect(warningCell).not.toBeNull();
   });
 
+  it('renders node aliases as display names in the canvas', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{ id: 'a', dsl: 'slice "Aliases"\n\nrm:my-rm "My Read Model"\nui:my-ui "My UI"\n  <- rm:my-rm' }]
+      })
+    );
+
+    renderApp();
+
+    const labels = [...document.querySelectorAll('.node .node-header span:last-child')]
+      .map((node) => node.textContent?.trim())
+      .filter(Boolean);
+    expect(labels).toContain('My Read Model');
+    expect(labels).toContain('My UI');
+  });
+
   it('toggles and persists light/dark theme from header button', () => {
     renderApp();
 

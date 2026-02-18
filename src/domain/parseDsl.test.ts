@@ -311,4 +311,30 @@ rm:pending-bookings
     expect(multilineForwardParsed.edges).toEqual(inlineParsed.edges);
     expect(multilineForwardParsed.warnings).toEqual([]);
   });
+
+  it('parses optional quoted aliases and keeps dependency refs canonical', () => {
+    const input = `slice "Aliases"
+
+rm:my-rm "My Read Model"
+ui:my-ui "My UI"
+  <- rm:my-rm`;
+
+    const parsed = parseDsl(input);
+
+    expect(parsed.nodes.get('my-rm')?.name).toBe('my-rm');
+    expect(parsed.nodes.get('my-rm')?.alias).toBe('My Read Model');
+    expect(parsed.nodes.get('my-ui')?.name).toBe('my-ui');
+    expect(parsed.nodes.get('my-ui')?.alias).toBe('My UI');
+    expect(parsed.edges).toEqual([{ from: 'my-rm', to: 'my-ui', label: null }]);
+  });
+
+  it('decodes escaped quotes and backslashes in quoted aliases', () => {
+    const input = `slice "Aliases"
+
+rm:item "My \\"Label\\" and \\\\ path"`;
+
+    const parsed = parseDsl(input);
+
+    expect(parsed.nodes.get('item')?.alias).toBe('My "Label" and \\ path');
+  });
 });

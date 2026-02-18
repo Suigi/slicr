@@ -63,4 +63,17 @@ evt:room-booked
     expect(suggestions).toContain('rm:available-rooms');
     expect(suggestions).not.toContain('evt:room-booked');
   });
+
+  it('supports dependency suggestions when node declarations include aliases', () => {
+    const dsl = `slice "Aliases"
+
+rm:my-rm "My Read Model"
+ui:my-ui "My UI"
+  <- `;
+
+    const suggestions = getDependencySuggestions(dsl, dsl.length);
+
+    expect(suggestions).toContain('rm:my-rm');
+    expect(suggestions).not.toContain('ui:my-ui');
+  });
 });

@@ -6,6 +6,7 @@ function makeNode(key: string, type: string): VisualNode {
   return {
     key,
     name: key,
+    alias: null,
     type,
     data: null,
     srcRange: {from: 0, to: 0},

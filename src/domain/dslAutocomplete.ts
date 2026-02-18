@@ -1,4 +1,4 @@
-const NODE_REF_LINE = /^([a-zA-Z][\w-]*):([^\s<]+)\s*(?:(?:<-|->).*)?$/;
+const NODE_REF_LINE = /^([a-zA-Z][\w-]*):([^\s<"]+)(?:\s+"(?:[^"\\]|\\.)*")?\s*(?:(?:<-|->).*)?$/;
 const ARROW_RE = /(<-|->)/;
 
 export function getDependencySuggestions(dsl: string, cursorPos: number): string[] {

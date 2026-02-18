@@ -5,6 +5,7 @@ export type NodeData = Record<string, unknown> | null;
 export type VisualNode = {
   type: NodeType;
   name: string;
+  alias: string | null;
   key: string;
   data: NodeData;
   srcRange: { from: number; to: number };

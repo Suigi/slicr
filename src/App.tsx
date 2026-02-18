@@ -445,7 +445,7 @@ function App() {
                     >
                       <div className="node-header">
                         <span className="node-prefix">{TYPE_LABEL[node.type] ?? node.type}:</span>
-                        <span>{node.name.replace(NODE_VERSION_SUFFIX, '')}</span>
+                        <span>{node.alias ?? node.name.replace(NODE_VERSION_SUFFIX, '')}</span>
                       </div>
 
                       {node.data && (
