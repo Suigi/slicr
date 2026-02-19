@@ -202,6 +202,34 @@ rm:available-concerts <- evt:concert-scheduled`;
     expect(parsed.edges).toEqual([{ from: 'concert-scheduled', to: 'available-concerts', label: null }]);
   });
 
+  it('reports missing required data keys across direct predecessor edges', () => {
+    const input = `slice "Data Integrity"
+
+ui:my-ui "UI"
+data:
+   alpha: value
+
+cmd:my-cmd "Command"
+<- ui:my-ui
+data:
+  alpha: value
+  bravo: other-value
+
+evt:my-evt "Event"
+<- cmd:my-cmd
+data:
+  alpha: alpha-value
+  bravo: bravo-value
+  charlie: charlie-value`;
+
+    const parsed = parseDsl(input);
+
+    expect(parsed.warnings.map((warning) => warning.message)).toEqual([
+      'Missing data source for key "bravo" for node cmd:my-cmd',
+      'Missing data source for key "charlie" for node evt:my-evt'
+    ]);
+  });
+
   it('parses backwards arrows when the incoming clause is on a separate line', () => {
     const input = `slice "Book Room"
 

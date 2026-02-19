@@ -1,5 +1,6 @@
 import { parser } from '../slicr.parser';
 import * as terms from '../slicr.parser.terms';
+import { validateDataIntegrity } from './dataIntegrity';
 import { Edge, NodeData, Parsed, ParseWarning, SliceBoundary, VisualNode } from './types';
 
 type NodeSpec = {
@@ -219,6 +220,7 @@ export function parseDsl(src: string): Parsed {
     }
   }
 
+  warnings.push(...validateDataIntegrity({ nodes, edges }));
   boundaries.push(...resolveBoundaries(specs, boundaryLines, refToKey));
 
   return { sliceName, nodes, edges, warnings, boundaries };

@@ -2,7 +2,7 @@
 [X] Aliases
 [ ] Broken data flow
   [ ] Mark fields as [supplied]
-[ ] "Query" objects
+[ ] "Query" nodes (for reading, similar to how commands are for writing)
 [ ] zoom/pan
   [X] pan with left mouse button
   [ ] zoom (somehow)
