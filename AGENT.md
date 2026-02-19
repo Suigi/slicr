@@ -45,7 +45,9 @@ nix-shell --run 'npm test'
 - While iterating, focused tests are OK for speed, but before closing a task:
   - run lint,
   - run full tests,
-  - run build.
+  - run `npx tsc -b`.
+- Before any commit, run full production build once:
+  - run `npm run build`.
 - Commit discipline:
   - Commit after each completed task/milestone.
   - Use clear commit messages describing behavioral outcome.

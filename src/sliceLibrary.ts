@@ -2,6 +2,7 @@ import { DEFAULT_DSL } from './defaultDsl';
 
 export const SLICES_STORAGE_KEY = 'slicr.slices';
 export const LEGACY_DSL_STORAGE_KEY = 'slicr.dsl';
+export const SLICES_LAYOUT_STORAGE_KEY = 'slicr.sliceLayout';
 
 export type StoredSlice = {
   id: string;
@@ -12,6 +13,111 @@ export type SliceLibrary = {
   selectedSliceId: string;
   slices: StoredSlice[];
 };
+
+export type SliceLayoutPoint = { x: number; y: number };
+export type SliceLayoutOverrides = {
+  nodes: Record<string, SliceLayoutPoint>;
+  edges: Record<string, SliceLayoutPoint[]>;
+};
+type StoredSliceLayoutMap = Record<string, SliceLayoutOverrides>;
+
+function emptyLayoutOverrides(): SliceLayoutOverrides {
+  return { nodes: {}, edges: {} };
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function asLayoutPoint(value: unknown): SliceLayoutPoint | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const point = value as { x?: unknown; y?: unknown };
+  if (!isFiniteNumber(point.x) || !isFiniteNumber(point.y)) {
+    return null;
+  }
+  return { x: point.x, y: point.y };
+}
+
+function asSliceLayoutOverrides(value: unknown): SliceLayoutOverrides | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const maybe = value as { nodes?: unknown; edges?: unknown };
+  if (!maybe.nodes || typeof maybe.nodes !== 'object' || !maybe.edges || typeof maybe.edges !== 'object') {
+    return null;
+  }
+
+  const nodes: Record<string, SliceLayoutPoint> = {};
+  for (const [key, rawPos] of Object.entries(maybe.nodes as Record<string, unknown>)) {
+    const parsedPoint = asLayoutPoint(rawPos);
+    if (parsedPoint) {
+      nodes[key] = parsedPoint;
+    }
+  }
+
+  const edges: Record<string, SliceLayoutPoint[]> = {};
+  for (const [key, rawPoints] of Object.entries(maybe.edges as Record<string, unknown>)) {
+    if (!Array.isArray(rawPoints)) {
+      continue;
+    }
+    const points = rawPoints
+      .map((rawPoint) => asLayoutPoint(rawPoint))
+      .filter((point): point is SliceLayoutPoint => point !== null);
+    if (points.length > 0) {
+      edges[key] = points;
+    }
+  }
+
+  return { nodes, edges };
+}
+
+function loadLayoutMap(): StoredSliceLayoutMap {
+  try {
+    const raw = localStorage.getItem(SLICES_LAYOUT_STORAGE_KEY);
+    if (!raw) {
+      return {};
+    }
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') {
+      return {};
+    }
+    const map: StoredSliceLayoutMap = {};
+    for (const [sliceId, rawOverrides] of Object.entries(parsed as Record<string, unknown>)) {
+      const overrides = asSliceLayoutOverrides(rawOverrides);
+      if (overrides) {
+        map[sliceId] = overrides;
+      }
+    }
+    return map;
+  } catch {
+    return {};
+  }
+}
+
+function hasLayoutOverrides(overrides: SliceLayoutOverrides): boolean {
+  return Object.keys(overrides.nodes).length > 0 || Object.keys(overrides.edges).length > 0;
+}
+
+export function loadSliceLayoutOverrides(sliceId: string): SliceLayoutOverrides {
+  const map = loadLayoutMap();
+  return map[sliceId] ?? emptyLayoutOverrides();
+}
+
+export function saveSliceLayoutOverrides(sliceId: string, overrides: SliceLayoutOverrides): void {
+  try {
+    const map = loadLayoutMap();
+    if (hasLayoutOverrides(overrides)) {
+      map[sliceId] = overrides;
+    } else {
+      delete map[sliceId];
+    }
+    localStorage.setItem(SLICES_LAYOUT_STORAGE_KEY, JSON.stringify(map));
+  } catch {
+    // Ignore storage failures and keep in-memory state.
+  }
+}
 
 export function getSliceNameFromDsl(dsl: string): string {
   const match = dsl.match(/^\s*slice\s+"([^"]+)"/m);

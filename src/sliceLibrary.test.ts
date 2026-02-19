@@ -5,10 +5,13 @@ import { DEFAULT_DSL } from './defaultDsl';
 import {
   addNewSlice,
   LEGACY_DSL_STORAGE_KEY,
+  loadSliceLayoutOverrides,
   loadSliceLibrary,
+  saveSliceLayoutOverrides,
   saveSliceLibrary,
   selectSlice,
   SLICES_STORAGE_KEY,
+  SLICES_LAYOUT_STORAGE_KEY,
   updateSelectedSliceDsl
 } from './sliceLibrary';
 
@@ -92,5 +95,59 @@ describe('sliceLibrary', () => {
 
     expect(updated.slices[0].dsl).toContain('rm:updated');
     expect(updated.slices[1].dsl).toBe(base.slices[1].dsl);
+  });
+
+  it('stores and loads layout overrides per slice', () => {
+    saveSliceLayoutOverrides('slice-a', {
+      nodes: { 'node-a': { x: 120, y: 80 } },
+      edges: { 'a->b#0': [{ x: 1, y: 2 }, { x: 3, y: 4 }] }
+    });
+    saveSliceLayoutOverrides('slice-b', {
+      nodes: { 'node-b': { x: 300, y: 200 } },
+      edges: {}
+    });
+
+    expect(loadSliceLayoutOverrides('slice-a')).toEqual({
+      nodes: { 'node-a': { x: 120, y: 80 } },
+      edges: { 'a->b#0': [{ x: 1, y: 2 }, { x: 3, y: 4 }] }
+    });
+    expect(loadSliceLayoutOverrides('slice-b')).toEqual({
+      nodes: { 'node-b': { x: 300, y: 200 } },
+      edges: {}
+    });
+  });
+
+  it('returns empty layout overrides for missing or invalid storage payloads', () => {
+    expect(loadSliceLayoutOverrides('missing')).toEqual({ nodes: {}, edges: {} });
+
+    localStorage.setItem(SLICES_LAYOUT_STORAGE_KEY, '{bad-json');
+    expect(loadSliceLayoutOverrides('missing')).toEqual({ nodes: {}, edges: {} });
+
+    localStorage.setItem(
+      SLICES_LAYOUT_STORAGE_KEY,
+      JSON.stringify({
+        missing: {
+          nodes: { 'bad-node': { x: 'oops', y: 12 } },
+          edges: { 'bad-edge': [{ x: 1, y: 'oops' }] }
+        }
+      })
+    );
+    expect(loadSliceLayoutOverrides('missing')).toEqual({ nodes: {}, edges: {} });
+  });
+
+  it('removes stored entry when overrides are empty for a slice', () => {
+    saveSliceLayoutOverrides('slice-a', {
+      nodes: { 'node-a': { x: 12, y: 34 } },
+      edges: {}
+    });
+    saveSliceLayoutOverrides('slice-a', {
+      nodes: {},
+      edges: {}
+    });
+
+    const raw = localStorage.getItem(SLICES_LAYOUT_STORAGE_KEY);
+    expect(raw).not.toBeNull();
+    expect(raw).toBe('{}');
+    expect(loadSliceLayoutOverrides('slice-a')).toEqual({ nodes: {}, edges: {} });
   });
 });

@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 
-import { act } from 'react';
+import { StrictMode, act } from 'react';
 import ReactDOM from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import App from './App';
 import { DEFAULT_DSL } from './defaultDsl';
-import { SLICES_STORAGE_KEY } from './sliceLibrary';
+import { SLICES_LAYOUT_STORAGE_KEY, SLICES_STORAGE_KEY } from './sliceLibrary';
 
 let root: ReactDOM.Root | null = null;
 let host: HTMLDivElement | null = null;
@@ -37,6 +37,19 @@ function renderApp() {
   root = ReactDOM.createRoot(host);
   act(() => {
     root?.render(<App />);
+  });
+}
+
+function renderAppStrict() {
+  host = document.createElement('div');
+  document.body.appendChild(host);
+  root = ReactDOM.createRoot(host);
+  act(() => {
+    root?.render(
+      <StrictMode>
+        <App />
+      </StrictMode>
+    );
   });
 }
 
@@ -121,9 +134,9 @@ rm:persisted-view`;
     renderApp();
 
     const select = document.querySelector('select[aria-label="Select slice"]') as HTMLSelectElement | null;
-    const newButton = [...document.querySelectorAll('button')].find((button) => button.textContent?.trim() === 'New');
+    const newButton = document.querySelector('button[aria-label="Create new slice"]') as HTMLButtonElement | null;
     expect(select).not.toBeNull();
-    expect(newButton).not.toBeUndefined();
+    expect(newButton).not.toBeNull();
     expect(select?.options.length).toBe(1);
 
     act(() => {
@@ -303,5 +316,101 @@ rm:persisted-view`;
 
     const expandAll = document.querySelector('button[aria-label="Expand all regions"]');
     expect(expandAll).not.toBeNull();
+  });
+
+  it('restores saved manual node positions for the selected slice on render', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{ id: 'a', dsl: 'slice "A"\n\nevt:simple-event' }]
+      })
+    );
+    localStorage.setItem(
+      SLICES_LAYOUT_STORAGE_KEY,
+      JSON.stringify({
+        a: {
+          nodes: { 'simple-event': { x: 315, y: 265 } },
+          edges: {}
+        }
+      })
+    );
+
+    renderApp();
+
+    const eventNode = document.querySelector('.node.evt') as HTMLElement | null;
+    expect(eventNode).not.toBeNull();
+    expect(eventNode?.style.left).toBe('315px');
+    expect(eventNode?.style.top).toBe('265px');
+  });
+
+  it('loads saved manual node positions when switching slices', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [
+          { id: 'a', dsl: 'slice "A"\n\nevt:simple-event' },
+          { id: 'b', dsl: 'slice "B"\n\nevt:simple-event' }
+        ]
+      })
+    );
+    localStorage.setItem(
+      SLICES_LAYOUT_STORAGE_KEY,
+      JSON.stringify({
+        a: {
+          nodes: { 'simple-event': { x: 115, y: 95 } },
+          edges: {}
+        },
+        b: {
+          nodes: { 'simple-event': { x: 445, y: 355 } },
+          edges: {}
+        }
+      })
+    );
+
+    renderApp();
+
+    const select = document.querySelector('select[aria-label="Select slice"]') as HTMLSelectElement | null;
+    const eventNodeBefore = document.querySelector('.node.evt') as HTMLElement | null;
+    expect(eventNodeBefore?.style.left).toBe('115px');
+    expect(eventNodeBefore?.style.top).toBe('95px');
+
+    act(() => {
+      if (select) {
+        select.value = 'b';
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+
+    const eventNodeAfter = document.querySelector('.node.evt') as HTMLElement | null;
+    expect(eventNodeAfter?.style.left).toBe('445px');
+    expect(eventNodeAfter?.style.top).toBe('355px');
+  });
+
+  it('does not wipe saved geometry on StrictMode refresh', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{ id: 'a', dsl: 'slice "A"\n\nevt:simple-event' }]
+      })
+    );
+    localStorage.setItem(
+      SLICES_LAYOUT_STORAGE_KEY,
+      JSON.stringify({
+        a: {
+          nodes: { 'simple-event': { x: 315, y: 265 } },
+          edges: {}
+        }
+      })
+    );
+
+    renderAppStrict();
+
+    const eventNode = document.querySelector('.node.evt') as HTMLElement | null;
+    expect(eventNode?.style.left).toBe('315px');
+    expect(eventNode?.style.top).toBe('265px');
+    expect(localStorage.getItem(SLICES_LAYOUT_STORAGE_KEY)).toContain('"simple-event"');
   });
 });

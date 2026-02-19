@@ -299,6 +299,83 @@ header h1 {
   }
 }
 
+.route-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  padding: 6px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.route-toggle:hover {
+  border-color: var(--text);
+  color: var(--text);
+}
+
+.route-menu {
+  position: relative;
+}
+
+.route-menu-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 130px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgb(0 0 0 / 16%);
+  z-index: 40;
+}
+
+.route-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 6px 8px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.route-menu-item:hover {
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.route-menu-check {
+  width: 12px;
+  color: var(--text);
+}
+
+.route-menu-separator {
+  height: 1px;
+  margin: 2px 4px;
+  background: var(--border);
+}
+
 .main {
   display: flex;
   flex: 1;
@@ -556,6 +633,11 @@ header h1 {
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
+.canvas-panel.panning {
+  cursor: grabbing;
+  user-select: none;
+}
+
 .dsl-editor .cm-scroller::-webkit-scrollbar,
 .canvas-panel::-webkit-scrollbar {
   width: 10px;
@@ -593,6 +675,22 @@ header h1 {
   position: absolute;
   top: 0;
   left: 0;
+}
+
+.drag-tooltip {
+  position: fixed;
+  z-index: 1200;
+  pointer-events: none;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 94%, black 6%);
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 18%);
 }
 
 .lane-band {
@@ -771,6 +869,17 @@ header h1 {
   left: 0;
   pointer-events: none;
   overflow: visible;
+}
+
+.edge-segment-handle {
+  stroke: transparent;
+  stroke-width: 12;
+  pointer-events: all;
+  cursor: grab;
+}
+
+.edge-segment-handle:active {
+  cursor: grabbing;
 }
 
 .arrow-path {
