@@ -1,6 +1,7 @@
 import ELK from 'elkjs/lib/elk.bundled.js';
 import type { ElkNode } from 'elkjs/lib/elk-api';
 import { DiagramEdgeGeometry, routeForwardEdge } from './diagramRouting';
+import { applyBoundaryFloorPass, applyLaneGapPass, applySuccessorGapPass, normalizeLeftPadding } from './elkPostLayout';
 import { nodeHeight, PAD_X, rowFor } from './layoutGraph';
 import type { Parsed, Position } from './types';
 
@@ -186,92 +187,17 @@ export async function computeElkLayout(parsed: Parsed): Promise<ElkComputedLayou
     laneKeys.set(lane, list);
   }
 
-  const applySuccessorGap = () => {
-    let changed = false;
-    for (const edge of parsed.edges) {
-      const sourceOrder = topoOrder.get(edge.from) ?? 0;
-      const targetOrder = topoOrder.get(edge.to) ?? 0;
-      if (sourceOrder >= targetOrder) {
-        continue;
-      }
-      const source = nodesById[edge.from];
-      const target = nodesById[edge.to];
-      if (!source || !target) {
-        continue;
-      }
-      const requiredTargetX = source.x + minSuccessorGap;
-      if (target.x < requiredTargetX) {
-        target.x = requiredTargetX;
-        changed = true;
-      }
-    }
-    return changed;
-  };
-  const applyLaneGap = () => {
-    let changed = false;
-    for (const keys of laneKeys.values()) {
-      keys.sort((a, b) => (nodesById[a]?.x ?? 0) - (nodesById[b]?.x ?? 0));
-      let nextMinX = Number.NEGATIVE_INFINITY;
-      for (const key of keys) {
-        const position = nodesById[key];
-        if (!position) {
-          continue;
-        }
-        if (position.x < nextMinX) {
-          position.x = nextMinX;
-          changed = true;
-        }
-        nextMinX = position.x + position.w + minLaneGap;
-      }
-    }
-    return changed;
-  };
-  const applyBoundaryFloors = () => {
-    let changed = false;
-    for (const [key, orderIndex] of dslOrder.entries()) {
-      const position = nodesById[key];
-      if (!position) {
-        continue;
-      }
-      let minX = Number.NEGATIVE_INFINITY;
-      for (const boundary of boundarySpecs) {
-        if (boundary.afterIndex >= orderIndex) {
-          break;
-        }
-        const anchor = nodesById[boundary.afterKey];
-        if (!anchor) {
-          continue;
-        }
-        minX = Math.max(minX, anchor.x + anchor.w + 40 + PAD_X);
-      }
-      if (position.x < minX) {
-        position.x = minX;
-        changed = true;
-      }
-    }
-    return changed;
-  };
   const maxPasses = Math.max(6, parsed.edges.length * 3);
   for (let pass = 0; pass < maxPasses; pass += 1) {
-    const movedBySuccessorGap = applySuccessorGap();
-    const movedByBoundaryFloors = applyBoundaryFloors();
-    const movedByLaneGap = applyLaneGap();
+    const movedBySuccessorGap = applySuccessorGapPass(parsed.edges, topoOrder, nodesById, minSuccessorGap);
+    const movedByBoundaryFloors = applyBoundaryFloorPass(dslOrder, boundarySpecs, nodesById);
+    const movedByLaneGap = applyLaneGapPass(laneKeys, nodesById, minLaneGap);
     if (!movedBySuccessorGap && !movedByBoundaryFloors && !movedByLaneGap) {
       break;
     }
   }
 
-  const leftLayoutPadding = 50;
-  let minX = Number.POSITIVE_INFINITY;
-  for (const node of Object.values(nodesById)) {
-    minX = Math.min(minX, node.x);
-  }
-  if (Number.isFinite(minX) && minX > leftLayoutPadding) {
-    const shiftX = minX - leftLayoutPadding;
-    for (const node of Object.values(nodesById)) {
-      node.x -= shiftX;
-    }
-  }
+  normalizeLeftPadding(nodesById, 50);
 
   const laneGapY = 40;
   const laneBottomPadding = 40;
