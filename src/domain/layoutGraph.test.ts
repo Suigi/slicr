@@ -17,6 +17,7 @@ function makeNode(key: string, type: string, stream: string | null = null): Visu
 describe('layoutGraph', () => {
   it('assigns rows based on node type', () => {
     expect(rowFor('ui')).toBe(0);
+    expect(rowFor('generic')).toBe(0);
     expect(rowFor('evt')).toBe(2);
     expect(rowFor('cmd')).toBe(1);
   });

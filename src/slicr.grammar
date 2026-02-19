@@ -45,7 +45,7 @@ EvtRef { kw_evt Colon EvtName Version? }
 ExcRef { kw_exc Colon Identifier Version? }
 AutRef { kw_aut Colon Identifier Version? }
 ExtRef { kw_ext Colon Identifier Version? }
-GenericRef { Identifier Colon Identifier Version? }
+GenericRef { Identifier Version? }
 
 RmName { Identifier }
 UiName { Identifier }

@@ -89,4 +89,16 @@ rm:read-model <- `;
     expect(suggestions).toContain('evt:first-event');
     expect(suggestions).not.toContain('stream:first');
   });
+
+  it('suggests unprefixed generic refs in dependency clauses', () => {
+    const dsl = `slice "Generic"
+
+checkout-screen
+cmd:place-order <- `;
+
+    const suggestions = getDependencySuggestions(dsl, dsl.length);
+
+    expect(suggestions).toContain('checkout-screen');
+    expect(suggestions).not.toContain('cmd:place-order');
+  });
 });

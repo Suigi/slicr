@@ -238,6 +238,23 @@ rm:persisted-view`;
     expect(labels).toContain('My UI');
   });
 
+  it('renders generic nodes without a type prefix and with generic styling class', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{ id: 'a', dsl: 'slice "Generic"\n\ncheckout-screen\ncmd:place-order <- checkout-screen' }]
+      })
+    );
+
+    renderApp();
+
+    const genericNode = document.querySelector('.node.generic');
+    expect(genericNode).not.toBeNull();
+    expect(genericNode?.querySelector('.node-prefix')).toBeNull();
+    expect(genericNode?.querySelector('.node-header span:last-child')?.textContent?.trim()).toBe('checkout-screen');
+  });
+
   it('renders a slice divider for --- boundaries in the DSL', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,

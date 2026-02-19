@@ -22,7 +22,7 @@ export function nodeHeight(node: VisualNode): number {
 }
 
 export function rowFor(type: string): number {
-  if (type === 'ui') {
+  if (type === 'ui' || type === 'generic') {
     return 0;
   }
   if (type === 'evt') {
@@ -284,7 +284,7 @@ function buildRowAssignments(nodes: Map<string, VisualNode>, nodeOrder: string[]
       continue;
     }
 
-    if (node.type === 'ui') {
+    if (node.type === 'ui' || node.type === 'generic') {
       rowByKey[key] = 0;
       continue;
     }

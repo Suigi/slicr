@@ -328,6 +328,19 @@ ui:my-ui "My UI"
     expect(parsed.edges).toEqual([{ from: 'my-rm', to: 'my-ui', label: null }]);
   });
 
+  it('parses unprefixed generic nodes and places them in dependencies', () => {
+    const input = `slice "Generic"
+
+checkout-screen
+cmd:place-order <- checkout-screen`;
+
+    const parsed = parseDsl(input);
+
+    expect(parsed.nodes.get('checkout-screen')?.type).toBe('generic');
+    expect(parsed.nodes.get('place-order')?.type).toBe('cmd');
+    expect(parsed.edges).toEqual([{ from: 'checkout-screen', to: 'place-order', label: null }]);
+  });
+
   it('decodes escaped quotes and backslashes in quoted aliases', () => {
     const input = `slice "Aliases"
 

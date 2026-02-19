@@ -416,11 +416,7 @@ function parseArtifactRef(cursor: ParseCursor, src: string): ArtifactRef | null 
   else if (typeId === terms.ExcRef) type = 'exc';
   else if (typeId === terms.AutRef) type = 'aut';
   else if (typeId === terms.ExtRef) type = 'ext';
-  else if (typeId === terms.GenericRef) {
-    cursor.firstChild();
-    type = src.slice(cursor.from, cursor.to);
-    cursor.parent();
-  }
+  else if (typeId === terms.GenericRef) type = 'generic';
 
   if (!type) {
     cursor.parent();

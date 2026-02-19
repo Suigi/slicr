@@ -33,6 +33,9 @@
   --ui-color-rgb: 167 139 250;
   --ui-bg: #1c1a2e;
   --ui-border: #3c3660;
+  --generic: #9ca3af;
+  --generic-bg: #1f232b;
+  --generic-border: #3b4250;
   --lane-divider: #35354b;
   --slice-divider: #7f7fa4;
   --editor-keyword: #eab308;
@@ -51,6 +54,7 @@
   --node-shadow-evt: 0 0 0 2px var(--evt), 0 6px 20px rgb(249 115 22 / 15%);
   --node-shadow-exc: 0 0 0 2px var(--exc), 0 6px 20px rgb(239 68 68 / 15%);
   --node-shadow-ui: 0 0 0 2px var(--ui-color), 0 6px 20px rgb(167 139 250 / 15%);
+  --node-shadow-generic: 0 0 0 2px var(--generic), 0 6px 20px rgb(156 163 175 / 12%);
 
   --scrollbar-track: #14141c;
   --scrollbar-thumb: #323247;
@@ -89,6 +93,9 @@
   --ui-color-rgb: 109 40 217;
   --ui-bg: #f2ecff;
   --ui-border: #cdb9f8;
+  --generic: #4b5563;
+  --generic-bg: #eef1f5;
+  --generic-border: #cfd6df;
   --lane-divider: #bec8de;
   --slice-divider: #7b8aad;
   --editor-keyword: #a16207;
@@ -107,6 +114,7 @@
   --node-shadow-evt: 0 0 0 2px var(--evt), 0 6px 20px rgb(194 65 12 / 14%);
   --node-shadow-exc: 0 0 0 2px var(--exc), 0 6px 20px rgb(220 38 38 / 14%);
   --node-shadow-ui: 0 0 0 2px var(--ui-color), 0 6px 20px rgb(109 40 217 / 14%);
+  --node-shadow-generic: 0 0 0 2px var(--generic), 0 6px 20px rgb(75 85 99 / 14%);
   --scrollbar-track: #eef1f8;
   --scrollbar-thumb: #c4cad8;
   --scrollbar-thumb-hover: #adb5c8;
@@ -672,9 +680,14 @@ header h1 {
 }
 
 #canvas {
-  position: absolute;
-  top: 0;
-  left: 0;
+  position: relative;
+}
+
+.canvas-world {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-origin: 0 0;
 }
 
 .drag-tooltip {
@@ -816,6 +829,12 @@ header h1 {
   color: var(--ui-color);
 }
 
+.node.generic {
+  background: var(--generic-bg);
+  border-color: var(--generic-border);
+  color: var(--generic);
+}
+
 .node.rm:hover {
   box-shadow: var(--node-shadow-rm);
 }
@@ -837,6 +856,13 @@ header h1 {
 .node.selected,
 .node.related {
   box-shadow: var(--node-shadow-ui);
+}
+
+.node.generic:hover,
+.node.generic.highlighted,
+.node.generic.selected,
+.node.generic.related {
+  box-shadow: var(--node-shadow-generic);
 }
 
 .node.rm.highlighted,

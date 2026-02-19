@@ -22,6 +22,7 @@ const TYPE_LABEL: Record<string, string> = {
   evt: 'evt',
   exc: 'exc',
   ui: 'ui',
+  generic: '',
   aut: 'aut',
   ext: 'ext'
 };
@@ -29,6 +30,7 @@ const TYPE_LABEL: Record<string, string> = {
 const NODE_VERSION_SUFFIX = /@\d+$/;
 const THEME_STORAGE_KEY = 'slicr.theme';
 const ROUTE_MODE_STORAGE_KEY = 'slicr.routeMode';
+const CANVAS_MARGIN = 900;
 type ThemeMode = 'dark' | 'light';
 type RouteMode = DiagramEngineId;
 type EdgeGeometry = DiagramEdgeGeometry;
@@ -78,6 +80,7 @@ function App() {
   const [manualEdgePoints, setManualEdgePoints] = useState<Record<string, DiagramPoint[]>>(
     initialSnapshot.overrides.edges
   );
+  const initializedViewportKeyRef = useRef<string | null>(null);
   const showDevDiagramControls = shouldShowDevDiagramControls(window.location.hostname);
   const currentSlice =
     library.slices.find((slice) => slice.id === library.selectedSliceId) ?? library.slices[0];
@@ -264,6 +267,60 @@ function App() {
     return { usedRows, rowY, rowStreamLabels, height: activeLayout.h };
   }, [parsed, activeLayout, routeMode, engineLayout, displayedPos]);
 
+  const canvasViewport = useMemo(() => {
+    if (!activeLayout) {
+      return null;
+    }
+
+    let minX = 0;
+    let minY = 0;
+    let maxX = activeLayout.w;
+    let maxY = activeLayout.h;
+
+    for (const position of Object.values(displayedPos)) {
+      minX = Math.min(minX, position.x);
+      minY = Math.min(minY, position.y);
+      maxX = Math.max(maxX, position.x + position.w);
+      maxY = Math.max(maxY, position.y + position.h);
+    }
+
+    for (const rendered of renderedEdges) {
+      const points = rendered.geometry.points;
+      if (!points) {
+        continue;
+      }
+      for (const point of points) {
+        minX = Math.min(minX, point.x);
+        minY = Math.min(minY, point.y);
+        maxX = Math.max(maxX, point.x);
+        maxY = Math.max(maxY, point.y);
+      }
+    }
+
+    const contentWidth = Math.max(1, maxX - minX);
+    const contentHeight = Math.max(1, maxY - minY);
+    return {
+      width: contentWidth + CANVAS_MARGIN * 2,
+      height: contentHeight + CANVAS_MARGIN * 2,
+      offsetX: CANVAS_MARGIN - minX,
+      offsetY: CANVAS_MARGIN - minY
+    };
+  }, [activeLayout, displayedPos, renderedEdges]);
+
+  useEffect(() => {
+    const panel = canvasPanelRef.current;
+    if (!panel || !canvasViewport) {
+      return;
+    }
+    const viewportKey = `${library.selectedSliceId}:${routeMode}`;
+    if (initializedViewportKeyRef.current === viewportKey) {
+      return;
+    }
+    panel.scrollLeft = Math.max(0, canvasViewport.offsetX - 80);
+    panel.scrollTop = Math.max(0, canvasViewport.offsetY - 80);
+    initializedViewportKeyRef.current = viewportKey;
+  }, [canvasPanelRef, canvasViewport, library.selectedSliceId, routeMode]);
+
   const activeNodeKeyFromEditor = useMemo(() => {
     if (!hoveredEditorRange || !parsed) {
       return null;
@@ -313,10 +370,12 @@ function App() {
       if (!(target instanceof Node)) return;
 
       const canvas = document.getElementById('canvas');
-      const isCanvasClick = canvas?.contains(target) && target === canvas;
-      const isNodeClick = (target as HTMLElement).closest('.node');
+      const targetElement = target as HTMLElement;
+      const isCanvasClick = canvas?.contains(target) ?? false;
+      const isNodeClick = targetElement.closest('.node');
+      const isEdgeHandleClick = targetElement.closest('.edge-segment-handle');
 
-      if (isCanvasClick && !isNodeClick) {
+      if (isCanvasClick && !isNodeClick && !isEdgeHandleClick) {
         setSelectedNodeKey(null);
       }
     };
@@ -727,8 +786,8 @@ function App() {
           <div
             id="canvas"
             style={{
-              width: activeLayout ? `${activeLayout.w}px` : undefined,
-              height: activeLayout ? `${activeLayout.h}px` : undefined
+              width: canvasViewport ? `${canvasViewport.width}px` : undefined,
+              height: canvasViewport ? `${canvasViewport.height}px` : undefined
             }}
           >
             {dragTooltip && (
@@ -742,8 +801,11 @@ function App() {
                 {dragTooltip.text}
               </div>
             )}
-            {parsed && activeLayout && (
-              <>
+            {parsed && activeLayout && canvasViewport && (
+              <div
+                className="canvas-world"
+                style={{ transform: `translate(${canvasViewport.offsetX}px, ${canvasViewport.offsetY}px)` }}
+              >
                 {laneOverlay?.usedRows.map((row, i) => {
                   const bandTop = laneOverlay.rowY[row] - 28;
                   const bandHeight =
@@ -772,12 +834,16 @@ function App() {
                   if (!afterPos) {
                     return null;
                   }
+                  const topLaneRow = laneOverlay?.usedRows[0];
+                  const topLaneY = topLaneRow === undefined ? 0 : (laneOverlay?.rowY[topLaneRow] ?? 0);
+                  const dividerTop = (topLaneY - 28) - 40;
+                  const dividerHeight = activeLayout.h - dividerTop;
                   const x = afterPos.x + afterPos.w + 40;
                   return (
                     <div
                       key={`slice-divider-${index}-${boundary.after}`}
                       className="slice-divider"
-                      style={{ left: `${x}px`, height: `${activeLayout.h}px` }}
+                      style={{ left: `${x}px`, top: `${dividerTop}px`, height: `${dividerHeight}px` }}
                     />
                   );
                 })}
@@ -793,6 +859,7 @@ function App() {
                   if (!position) {
                     return null;
                   }
+                  const nodePrefix = TYPE_LABEL[node.type] ?? node.type;
 
                   const isHighlighted = activeNodeKeyFromEditor === node.key;
                   const isSelected = selectedNodeKey === node.key;
@@ -817,7 +884,7 @@ function App() {
                       onPointerDown={(event) => beginNodeDrag(event, node.key)}
                     >
                       <div className="node-header">
-                        <span className="node-prefix">{TYPE_LABEL[node.type] ?? node.type}:</span>
+                        {nodePrefix ? <span className="node-prefix">{nodePrefix}:</span> : null}
                         <span>{node.alias ?? node.name.replace(NODE_VERSION_SUFFIX, '')}</span>
                       </div>
 
@@ -894,7 +961,7 @@ function App() {
                     );
                   })}
                 </svg>
-              </>
+              </div>
             )}
           </div>
         </div>

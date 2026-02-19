@@ -1,4 +1,4 @@
-const NODE_REF_LINE = /^([a-zA-Z][\w-]*):([^\s<"]+)(?:\s+"(?:[^"\\]|\\.)*")?\s*(?:(?:<-|->).*)?$/;
+const NODE_REF_LINE = /^(?:([a-zA-Z][\w-]*):)?([^\s<"]+)(?:\s+"(?:[^"\\]|\\.)*")?\s*(?:(?:<-|->).*)?$/;
 const ARROW_RE = /(<-|->)/;
 
 export function getDependencySuggestions(dsl: string, cursorPos: number): string[] {
@@ -75,7 +75,9 @@ function parseRef(line: string): string | null {
     return null;
   }
 
-  return `${match[1]}:${match[2]}`;
+  const prefix = match[1];
+  const name = match[2];
+  return prefix ? `${prefix}:${name}` : name;
 }
 
 function clamp(value: number, min: number, max: number) {
