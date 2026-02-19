@@ -1,6 +1,4 @@
-import { edgePath } from '../domain/edgePath';
-import { computeElkLayout } from '../domain/elkLayout';
-import { layoutGraph } from '../domain/layoutGraph';
+import { computeDiagramLayout, DiagramEngineId, routeDiagramEdge } from '../domain/diagramEngine';
 import { parseDsl } from '../domain/parseDsl';
 import type { Edge, LayoutResult, Parsed, Position } from '../domain/types';
 
@@ -54,7 +52,7 @@ export type DiagramMatchOptions = {
 };
 
 export type GeometryHarnessOptions = {
-  engine?: 'classic' | 'elk';
+  engine?: DiagramEngineId;
   layoutFn?: (parsed: Parsed) => LayoutResult;
   edgeRouteFn?: (from: Position, to: Position, edge: Edge, index: number) => { d: string };
 };
@@ -62,13 +60,13 @@ export type GeometryHarnessOptions = {
 export async function computeDiagramGeometry(dsl: string, options: GeometryHarnessOptions = {}): Promise<DiagramGeometry> {
   const parsed = parseDsl(dsl);
   const engine = options.engine ?? 'elk';
-  const elk = engine === 'elk' ? await computeElkLayout(parsed) : null;
-  const layout = elk
-    ? ({ pos: elk.pos, w: elk.w, h: elk.h, rowY: {}, usedRows: [], rowStreamLabels: {} } as LayoutResult)
-    : options.layoutFn
-      ? options.layoutFn(parsed)
-      : layoutGraph(parsed.nodes, parsed.edges, parsed.boundaries);
-  const edgeRouteFn = options.edgeRouteFn ?? ((from: Position, to: Position) => edgePath(from, to));
+  const computed = options.layoutFn
+    ? { layout: options.layoutFn(parsed), laneByKey: new Map<string, number>(), rowStreamLabels: {} as Record<number, string> }
+    : await computeDiagramLayout(parsed, engine);
+  const layout = computed.layout;
+  const edgeRouteFn = options.edgeRouteFn ?? ((from: Position, to: Position, _edge: Edge, index: number) =>
+    routeDiagramEdge(engine, from, to, { routeIndex: index })
+  );
 
   const nodes: DiagramNodeRect[] = [...parsed.nodes.values()]
     .map((node) => {
@@ -87,8 +85,8 @@ export async function computeDiagramGeometry(dsl: string, options: GeometryHarne
       if (!from || !to) {
         throw new Error(`Missing layout position for edge "${edge.from}->${edge.to}"`);
       }
-      const elkRoute = elk?.edges[`${edge.from}->${edge.to}#${index}`];
-      const route = elkRoute ?? edgeRouteFn(from, to, edge, index);
+      const precomputed = computed.precomputedEdges?.[`${edge.from}->${edge.to}#${index}`];
+      const route = precomputed ?? edgeRouteFn(from, to, edge, index);
       return {
         key: `${edge.from}->${edge.to}#${index}`,
         from: edge.from,

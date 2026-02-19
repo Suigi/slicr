@@ -1,14 +1,13 @@
 import { Dispatch, SetStateAction, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react';
-import type { ElkPoint } from 'elkjs/lib/elk-api';
 import { DEFAULT_DSL } from './defaultDsl';
-import { buildElkLaneMeta, computeElkLayout, middlePoint, routeForwardEdge, routePolyline } from './domain/elkLayout';
-import { edgePath } from './domain/edgePath';
+import { computeClassicDiagramLayout, computeDiagramLayout, DiagramEngineId, DiagramEngineLayout, routeDiagramEdge, supportsEditableEdgePoints } from './domain/diagramEngine';
+import { DiagramEdgeGeometry, DiagramPoint, middlePoint, routePolyline } from './domain/diagramRouting';
 import { formatNodeData } from './domain/formatNodeData';
-import { layoutGraph, PAD_X, rowFor } from './domain/layoutGraph';
+import { PAD_X, rowFor } from './domain/layoutGraph';
 import { parseDsl } from './domain/parseDsl';
 import { shouldShowDevDiagramControls } from './domain/runtimeFlags';
 import { getRelatedElements } from './domain/traversal';
-import type { LayoutResult, Parsed, Position } from './domain/types';
+import type { Parsed, Position } from './domain/types';
 import { addNewSlice, getSliceNameFromDsl, loadSliceLayoutOverrides, loadSliceLibrary, saveSliceLayoutOverrides, saveSliceLibrary, selectSlice, SliceLibrary, updateSelectedSliceDsl } from './sliceLibrary';
 import { EditorWarning, Range, useDslEditor } from './useDslEditor';
 
@@ -30,13 +29,8 @@ const NODE_VERSION_SUFFIX = /@\d+$/;
 const THEME_STORAGE_KEY = 'slicr.theme';
 const ROUTE_MODE_STORAGE_KEY = 'slicr.routeMode';
 type ThemeMode = 'dark' | 'light';
-type RouteMode = 'classic' | 'elk';
-type EdgeGeometry = { d: string; labelX: number; labelY: number; points?: ElkPoint[] };
-type ElkLayoutResult = {
-  pos: Record<string, Position>;
-  w: number;
-  h: number;
-};
+type RouteMode = DiagramEngineId;
+type EdgeGeometry = DiagramEdgeGeometry;
 type DragTooltipState = {
   text: string;
   clientX: number;
@@ -87,12 +81,12 @@ function App() {
       return 'classic';
     }
   });
-  const [elkLayoutResult, setElkLayoutResult] = useState<ElkLayoutResult | null>(null);
+  const [diagramEngineLayout, setDiagramEngineLayout] = useState<DiagramEngineLayout | null>(null);
   const [routeMenuOpen, setRouteMenuOpen] = useState(false);
   const [manualNodePositions, setManualNodePositions] = useState<Record<string, { x: number; y: number }>>(
     initialSnapshot.overrides.nodes
   );
-  const [manualEdgePoints, setManualEdgePoints] = useState<Record<string, ElkPoint[]>>(
+  const [manualEdgePoints, setManualEdgePoints] = useState<Record<string, DiagramPoint[]>>(
     initialSnapshot.overrides.edges
   );
   const [dragTooltip, setDragTooltip] = useState<DragTooltipState | null>(null);
@@ -166,41 +160,39 @@ function App() {
     }
   }, [library.selectedSliceId, manualNodePositions, manualEdgePoints]);
 
-  const layoutResult = useMemo(() => {
+  const classicEngineLayout = useMemo(() => {
     if (!parsed || parsed.nodes.size === 0) {
       return null;
     }
-    return layoutGraph(parsed.nodes, parsed.edges, parsed.boundaries);
+    return computeClassicDiagramLayout(parsed);
   }, [parsed]);
-  const elkLaneMeta = useMemo(() => (parsed ? buildElkLaneMeta(parsed) : null), [parsed]);
 
   useEffect(() => {
-    if (routeMode !== 'elk' || !parsed) {
+    if (routeMode !== 'elk' || !parsed || parsed.nodes.size === 0) {
       return;
     }
-
     let active = true;
-    computeElkLayout(parsed)
+    computeDiagramLayout(parsed, 'elk')
       .then((result) => {
         if (!active) {
           return;
         }
-        setElkLayoutResult({ pos: result.pos, w: result.w, h: result.h });
+        setDiagramEngineLayout(result);
       })
       .catch(() => {
         if (!active) {
           return;
         }
-        setElkLayoutResult(null);
+        setDiagramEngineLayout(null);
       });
 
     return () => {
       active = false;
     };
-  }, [routeMode, parsed, elkLaneMeta]);
+  }, [routeMode, parsed]);
 
-  const activeLayout: LayoutResult | ElkLayoutResult | null =
-    routeMode === 'elk' && elkLayoutResult ? elkLayoutResult : layoutResult;
+  const engineLayout = routeMode === 'elk' ? diagramEngineLayout : classicEngineLayout;
+  const activeLayout = engineLayout?.layout ?? null;
 
   const displayedPos = useMemo(() => {
     if (!activeLayout) {
@@ -242,28 +234,23 @@ function App() {
       }
 
       let geometry: EdgeGeometry;
-      if (routeMode === 'elk') {
-        const base = routeForwardEdge(from, to, {
-          sourceAttachmentCount: attachmentCounts.get(edge.from) ?? 1,
-          targetAttachmentCount: attachmentCounts.get(edge.to) ?? 1,
-          routeIndex: index
-        });
-        const overridden = manualEdgePoints[edgeKey];
-        if (overridden && overridden.length === base.points?.length) {
-          const points = overridden.map((point) => ({ ...point }));
-          const label = middlePoint(points);
-          geometry = {
-            d: routePolyline(points),
-            labelX: label.x,
-            labelY: label.y - 7,
-            points
-          };
-        } else {
-          geometry = base;
-        }
+      const base = routeDiagramEdge(routeMode, from, to, {
+        sourceAttachmentCount: attachmentCounts.get(edge.from) ?? 1,
+        targetAttachmentCount: attachmentCounts.get(edge.to) ?? 1,
+        routeIndex: index
+      });
+      const overridden = manualEdgePoints[edgeKey];
+      if (overridden && overridden.length === base.points?.length) {
+        const points = overridden.map((point) => ({ ...point }));
+        const label = middlePoint(points);
+        geometry = {
+          d: routePolyline(points),
+          labelX: label.x,
+          labelY: label.y - 7,
+          points
+        };
       } else {
-        const path = edgePath(from, to);
-        geometry = { d: path.d, labelX: path.labelX, labelY: path.labelY };
+        geometry = base;
       }
 
       return { key: `${edge.from}-${edge.to}-${index}`, edgeKey, edge, geometry };
@@ -275,17 +262,17 @@ function App() {
       return null;
     }
 
-    if (layoutResult && routeMode !== 'elk') {
+    if (routeMode === 'classic') {
       return {
-        usedRows: layoutResult.usedRows,
-        rowY: layoutResult.rowY,
-        rowStreamLabels: layoutResult.rowStreamLabels,
-        height: layoutResult.h
+        usedRows: activeLayout.usedRows,
+        rowY: activeLayout.rowY,
+        rowStreamLabels: activeLayout.rowStreamLabels,
+        height: activeLayout.h
       };
     }
 
     const rowBuckets = new Map<number, { minY: number; streamLabel: string }>();
-    const laneByKey = elkLaneMeta?.laneByKey ?? new Map<string, number>();
+    const laneByKey = engineLayout?.laneByKey ?? new Map<string, number>();
     for (const node of parsed.nodes.values()) {
       const position = displayedPos[node.key];
       if (!position) {
@@ -293,7 +280,7 @@ function App() {
       }
       const row = laneByKey.get(node.key) ?? rowFor(node.type);
       const existing = rowBuckets.get(row);
-      const streamLabel = elkLaneMeta?.rowStreamLabels[row] ?? existing?.streamLabel ?? '';
+      const streamLabel = engineLayout?.rowStreamLabels[row] ?? existing?.streamLabel ?? '';
       rowBuckets.set(row, {
         minY: existing ? Math.min(existing.minY, position.y) : position.y,
         streamLabel
@@ -315,7 +302,7 @@ function App() {
     }
 
     return { usedRows, rowY, rowStreamLabels, height: activeLayout.h };
-  }, [parsed, activeLayout, layoutResult, routeMode, elkLaneMeta, displayedPos]);
+  }, [parsed, activeLayout, routeMode, engineLayout, displayedPos]);
 
   const activeNodeKeyFromEditor = useMemo(() => {
     if (!hoveredEditorRange || !parsed) {
@@ -469,7 +456,7 @@ function App() {
           affectsTarget
         };
       })
-      .filter((value): value is { edgeKey: string; points: ElkPoint[]; affectsSource: boolean; affectsTarget: boolean } => Boolean(value));
+      .filter((value): value is { edgeKey: string; points: DiagramPoint[]; affectsSource: boolean; affectsTarget: boolean } => Boolean(value));
 
     const onMove = (moveEvent: PointerEvent) => {
       const dx = moveEvent.clientX - startX;
@@ -529,7 +516,7 @@ function App() {
     window.addEventListener('pointerup', onUp);
   };
 
-  const beginEdgeSegmentDrag = (event: ReactPointerEvent, edgeKey: string, segmentIndex: number, points: ElkPoint[]) => {
+  const beginEdgeSegmentDrag = (event: ReactPointerEvent, edgeKey: string, segmentIndex: number, points: DiagramPoint[]) => {
     if (event.button !== 0) {
       return;
     }
@@ -1107,7 +1094,7 @@ function App() {
                             [{edge.label}]
                           </text>
                         )}
-                        {routeMode === 'elk' &&
+                        {supportsEditableEdgePoints(routeMode) &&
                           geometry.points?.map((point, pointIndex) => {
                             const nextPoint = geometry.points?.[pointIndex + 1];
                             if (!nextPoint) {
