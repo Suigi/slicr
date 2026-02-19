@@ -1,7 +1,7 @@
-import { Dispatch, SetStateAction, PointerEvent as ReactPointerEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { Dispatch, SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
 import { DEFAULT_DSL } from './defaultDsl';
-import { computeClassicDiagramLayout, computeDiagramLayout, DiagramEngineId, DiagramEngineLayout, routeDiagramEdge, supportsEditableEdgePoints } from './domain/diagramEngine';
-import { DiagramEdgeGeometry, DiagramPoint, middlePoint, routePolyline } from './domain/diagramRouting';
+import { buildRenderedEdges, computeClassicDiagramLayout, computeDiagramLayout, DiagramEngineId, DiagramEngineLayout, supportsEditableEdgePoints } from './domain/diagramEngine';
+import { DiagramEdgeGeometry, DiagramPoint } from './domain/diagramRouting';
 import { formatNodeData } from './domain/formatNodeData';
 import { PAD_X, rowFor } from './domain/layoutGraph';
 import { parseDsl } from './domain/parseDsl';
@@ -10,6 +10,7 @@ import { getRelatedElements } from './domain/traversal';
 import type { Parsed, Position } from './domain/types';
 import { addNewSlice, getSliceNameFromDsl, loadSliceLayoutOverrides, loadSliceLibrary, saveSliceLayoutOverrides, saveSliceLibrary, selectSlice, SliceLibrary, updateSelectedSliceDsl } from './sliceLibrary';
 import { EditorWarning, Range, useDslEditor } from './useDslEditor';
+import { useDiagramInteractions } from './useDiagramInteractions';
 
 type ParseResult =
   | { parsed: Parsed; error: ''; warnings: Parsed['warnings'] }
@@ -31,17 +32,6 @@ const ROUTE_MODE_STORAGE_KEY = 'slicr.routeMode';
 type ThemeMode = 'dark' | 'light';
 type RouteMode = DiagramEngineId;
 type EdgeGeometry = DiagramEdgeGeometry;
-type DragTooltipState = {
-  text: string;
-  clientX: number;
-  clientY: number;
-};
-
-const DRAG_GRID_SIZE = 5;
-
-function snapToGrid(value: number): number {
-  return Math.round(value / DRAG_GRID_SIZE) * DRAG_GRID_SIZE;
-}
 
 function App() {
   const [initialSnapshot] = useState<{
@@ -66,7 +56,6 @@ function App() {
   const [editorOpen, setEditorOpen] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const routeMenuRef = useRef<HTMLDivElement>(null);
-  const canvasPanelRef = useRef<HTMLDivElement>(null);
   const skipNextLayoutSaveRef = useRef(false);
   const editorRef = useRef<HTMLDivElement>(null);
   const editorMountRef = useRef<HTMLDivElement>(null);
@@ -89,8 +78,6 @@ function App() {
   const [manualEdgePoints, setManualEdgePoints] = useState<Record<string, DiagramPoint[]>>(
     initialSnapshot.overrides.edges
   );
-  const [dragTooltip, setDragTooltip] = useState<DragTooltipState | null>(null);
-  const [isPanning, setIsPanning] = useState(false);
   const showDevDiagramControls = shouldShowDevDiagramControls(window.location.hostname);
   const currentSlice =
     library.slices.find((slice) => slice.id === library.selectedSliceId) ?? library.slices[0];
@@ -208,54 +195,27 @@ function App() {
     return next;
   }, [activeLayout, manualNodePositions]);
 
-  const attachmentCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    if (!parsed) {
-      return counts;
-    }
-    for (const edge of parsed.edges) {
-      counts.set(edge.from, (counts.get(edge.from) ?? 0) + 1);
-      counts.set(edge.to, (counts.get(edge.to) ?? 0) + 1);
-    }
-    return counts;
-  }, [parsed]);
-
   const renderedEdges = useMemo(() => {
-    if (!parsed || !activeLayout) {
+    if (!parsed) {
       return [] as Array<{ key: string; edgeKey: string; edge: Parsed['edges'][number]; geometry: EdgeGeometry }>;
     }
+    return buildRenderedEdges(parsed, displayedPos, routeMode, manualEdgePoints);
+  }, [parsed, displayedPos, routeMode, manualEdgePoints]);
 
-    return parsed.edges.map((edge, index) => {
-      const edgeKey = `${edge.from}->${edge.to}#${index}`;
-      const from = displayedPos[edge.from];
-      const to = displayedPos[edge.to];
-      if (!from || !to) {
-        return null;
-      }
-
-      let geometry: EdgeGeometry;
-      const base = routeDiagramEdge(routeMode, from, to, {
-        sourceAttachmentCount: attachmentCounts.get(edge.from) ?? 1,
-        targetAttachmentCount: attachmentCounts.get(edge.to) ?? 1,
-        routeIndex: index
-      });
-      const overridden = manualEdgePoints[edgeKey];
-      if (overridden && overridden.length === base.points?.length) {
-        const points = overridden.map((point) => ({ ...point }));
-        const label = middlePoint(points);
-        geometry = {
-          d: routePolyline(points),
-          labelX: label.x,
-          labelY: label.y - 7,
-          points
-        };
-      } else {
-        geometry = base;
-      }
-
-      return { key: `${edge.from}-${edge.to}-${index}`, edgeKey, edge, geometry };
-    }).filter((value): value is { key: string; edgeKey: string; edge: Parsed['edges'][number]; geometry: EdgeGeometry } => Boolean(value));
-  }, [parsed, activeLayout, displayedPos, routeMode, attachmentCounts, manualEdgePoints]);
+  const {
+    canvasPanelRef,
+    dragTooltip,
+    isPanning,
+    beginNodeDrag,
+    beginEdgeSegmentDrag,
+    beginCanvasPan
+  } = useDiagramInteractions({
+    displayedPos,
+    renderedEdges,
+    manualEdgePoints,
+    setManualNodePositions,
+    setManualEdgePoints
+  });
 
   const laneOverlay = useMemo(() => {
     if (!parsed || !activeLayout) {
@@ -426,152 +386,6 @@ function App() {
     );
   };
 
-  const beginNodeDrag = (event: ReactPointerEvent, nodeKey: string) => {
-    if (event.button !== 0) {
-      return;
-    }
-    event.preventDefault();
-    const pointerId = event.pointerId;
-    const startX = event.clientX;
-    const startY = event.clientY;
-    const origin = displayedPos[nodeKey];
-    if (!origin) {
-      return;
-    }
-    const overriddenEdges = renderedEdges
-      .map(({ edgeKey, edge }) => {
-        const points = manualEdgePoints[edgeKey];
-        if (!points || points.length < 2) {
-          return null;
-        }
-        const affectsSource = edge.from === nodeKey;
-        const affectsTarget = edge.to === nodeKey;
-        if (!affectsSource && !affectsTarget) {
-          return null;
-        }
-        return {
-          edgeKey,
-          points: points.map((point) => ({ ...point })),
-          affectsSource,
-          affectsTarget
-        };
-      })
-      .filter((value): value is { edgeKey: string; points: DiagramPoint[]; affectsSource: boolean; affectsTarget: boolean } => Boolean(value));
-
-    const onMove = (moveEvent: PointerEvent) => {
-      const dx = moveEvent.clientX - startX;
-      const dy = moveEvent.clientY - startY;
-      const nextX = snapToGrid(origin.x + dx);
-      const nextY = snapToGrid(origin.y + dy);
-      const snappedDx = nextX - origin.x;
-      const snappedDy = nextY - origin.y;
-      setManualNodePositions((current) => ({
-        ...current,
-        [nodeKey]: {
-          x: nextX,
-          y: nextY
-        }
-      }));
-      setDragTooltip({
-        text: `${nodeKey}: (${Math.round(nextX)}, ${Math.round(nextY)})`,
-        clientX: moveEvent.clientX,
-        clientY: moveEvent.clientY
-      });
-      if (overriddenEdges.length > 0) {
-        setManualEdgePoints((current) => {
-          const next = { ...current };
-          for (const edge of overriddenEdges) {
-            const base = edge.points.map((point) => ({ ...point }));
-            const lastIndex = base.length - 1;
-            if (edge.affectsSource) {
-              base[0] = { x: base[0].x + snappedDx, y: base[0].y + snappedDy };
-              if (lastIndex >= 1) {
-                // Keep manually adjusted corner Y stable when moving the attached node vertically.
-                base[1] = { x: base[1].x + snappedDx, y: base[1].y };
-              }
-            }
-            if (edge.affectsTarget) {
-              base[lastIndex] = { x: base[lastIndex].x + snappedDx, y: base[lastIndex].y + snappedDy };
-              if (lastIndex - 1 >= 0) {
-                // Keep manually adjusted corner Y stable when moving the attached node vertically.
-                base[lastIndex - 1] = { x: base[lastIndex - 1].x + snappedDx, y: base[lastIndex - 1].y };
-              }
-            }
-            next[edge.edgeKey] = base;
-          }
-          return next;
-        });
-      }
-    };
-    const onUp = (upEvent: PointerEvent) => {
-      if (upEvent.pointerId !== pointerId) {
-        return;
-      }
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-      setDragTooltip(null);
-    };
-
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-  };
-
-  const beginEdgeSegmentDrag = (event: ReactPointerEvent, edgeKey: string, segmentIndex: number, points: DiagramPoint[]) => {
-    if (event.button !== 0) {
-      return;
-    }
-    event.preventDefault();
-    const pointerId = event.pointerId;
-    const startX = event.clientX;
-    const startY = event.clientY;
-    const p1 = points[segmentIndex];
-    const p2 = points[segmentIndex + 1];
-    if (!p1 || !p2) {
-      return;
-    }
-    const horizontal = Math.abs(p1.x - p2.x) >= Math.abs(p1.y - p2.y);
-    const basePoints = points.map((point) => ({ ...point }));
-
-    const onMove = (moveEvent: PointerEvent) => {
-      const dx = moveEvent.clientX - startX;
-      const dy = moveEvent.clientY - startY;
-      setManualEdgePoints((current) => {
-        const next = current[edgeKey] ? current[edgeKey].map((point) => ({ ...point })) : basePoints.map((point) => ({ ...point }));
-        const a = next[segmentIndex];
-        const b = next[segmentIndex + 1];
-        if (!a || !b) {
-          return current;
-        }
-        if (horizontal) {
-          const snappedY = snapToGrid(p1.y + dy);
-          a.y = snappedY;
-          b.y = snapToGrid(p2.y + dy);
-        } else {
-          const snappedX = snapToGrid(p1.x + dx);
-          a.x = snappedX;
-          b.x = snapToGrid(p2.x + dx);
-        }
-        setDragTooltip({
-          text: `p${segmentIndex}: (${Math.round(a.x)}, ${Math.round(a.y)})  p${segmentIndex + 1}: (${Math.round(b.x)}, ${Math.round(b.y)})`,
-          clientX: moveEvent.clientX,
-          clientY: moveEvent.clientY
-        });
-        return { ...current, [edgeKey]: next };
-      });
-    };
-    const onUp = (upEvent: PointerEvent) => {
-      if (upEvent.pointerId !== pointerId) {
-        return;
-      }
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-      setDragTooltip(null);
-    };
-
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-  };
-
   const printDiagramGeometry = async () => {
     if (!parsed || !activeLayout) {
       return;
@@ -633,52 +447,6 @@ function App() {
     skipNextLayoutSaveRef.current = true;
     setManualNodePositions(overrides.nodes);
     setManualEdgePoints(overrides.edges);
-  };
-
-  const beginCanvasPan = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0) {
-      return;
-    }
-    const target = event.target;
-    if (target instanceof Element && (target.closest('.node') || target.closest('.edge-segment-handle'))) {
-      return;
-    }
-    const panel = canvasPanelRef.current;
-    if (!panel) {
-      return;
-    }
-    event.preventDefault();
-    const pointerId = event.pointerId;
-    const startX = event.clientX;
-    const startY = event.clientY;
-    const startScrollLeft = panel.scrollLeft;
-    const startScrollTop = panel.scrollTop;
-    let didMove = false;
-    setIsPanning(true);
-
-    const onMove = (moveEvent: PointerEvent) => {
-      if ((moveEvent.buttons & 1) === 0) {
-        return;
-      }
-      const dx = moveEvent.clientX - startX;
-      const dy = moveEvent.clientY - startY;
-      if (!didMove && (Math.abs(dx) > 2 || Math.abs(dy) > 2)) {
-        didMove = true;
-      }
-      panel.scrollLeft = startScrollLeft - dx;
-      panel.scrollTop = startScrollTop - dy;
-    };
-    const onUp = (upEvent: PointerEvent) => {
-      if (upEvent.pointerId !== pointerId) {
-        return;
-      }
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-      setIsPanning(false);
-    };
-
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
   };
 
   return (

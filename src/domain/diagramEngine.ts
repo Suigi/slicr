@@ -1,5 +1,5 @@
 import { edgePath } from './edgePath';
-import { DiagramEdgeGeometry, routeForwardEdge } from './diagramRouting';
+import { DiagramEdgeGeometry, middlePoint, routeForwardEdge, routePolyline } from './diagramRouting';
 import { buildElkLaneMeta, computeElkLayout } from './elkLayout';
 import { layoutGraph } from './layoutGraph';
 import type { LayoutResult, Parsed, Position } from './types';
@@ -11,6 +11,13 @@ export type DiagramEngineLayout = {
   laneByKey: Map<string, number>;
   rowStreamLabels: Record<number, string>;
   precomputedEdges?: Record<string, DiagramEdgeGeometry>;
+};
+
+export type RenderedDiagramEdge = {
+  key: string;
+  edgeKey: string;
+  edge: Parsed['edges'][number];
+  geometry: DiagramEdgeGeometry;
 };
 
 export async function computeDiagramLayout(parsed: Parsed, engine: DiagramEngineId): Promise<DiagramEngineLayout> {
@@ -58,4 +65,43 @@ export function routeDiagramEdge(
 
 export function supportsEditableEdgePoints(engine: DiagramEngineId): boolean {
   return engine === 'elk';
+}
+
+export function buildRenderedEdges(
+  parsed: Parsed,
+  pos: Record<string, Position>,
+  engine: DiagramEngineId,
+  overrides?: Record<string, Array<{ x: number; y: number }>>
+): RenderedDiagramEdge[] {
+  const attachmentCounts = new Map<string, number>();
+  for (const edge of parsed.edges) {
+    attachmentCounts.set(edge.from, (attachmentCounts.get(edge.from) ?? 0) + 1);
+    attachmentCounts.set(edge.to, (attachmentCounts.get(edge.to) ?? 0) + 1);
+  }
+
+  return parsed.edges
+    .map((edge, index) => {
+      const edgeKey = `${edge.from}->${edge.to}#${index}`;
+      const from = pos[edge.from];
+      const to = pos[edge.to];
+      if (!from || !to) {
+        return null;
+      }
+      const base = routeDiagramEdge(engine, from, to, {
+        sourceAttachmentCount: attachmentCounts.get(edge.from) ?? 1,
+        targetAttachmentCount: attachmentCounts.get(edge.to) ?? 1,
+        routeIndex: index
+      });
+      const overridden = overrides?.[edgeKey];
+      const geometry = overridden && overridden.length === base.points?.length
+        ? {
+          d: routePolyline(overridden),
+          labelX: middlePoint(overridden).x,
+          labelY: middlePoint(overridden).y - 7,
+          points: overridden.map((point) => ({ ...point }))
+        }
+        : base;
+      return { key: `${edge.from}-${edge.to}-${index}`, edgeKey, edge, geometry };
+    })
+    .filter((value): value is RenderedDiagramEdge => Boolean(value));
 }
