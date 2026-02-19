@@ -1,16 +1,33 @@
-import { Dispatch, SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
-import { DEFAULT_DSL } from './defaultDsl';
-import { buildRenderedEdges, computeClassicDiagramLayout, computeDiagramLayout, DiagramEngineId, DiagramEngineLayout, supportsEditableEdgePoints } from './domain/diagramEngine';
-import { DiagramEdgeGeometry, DiagramPoint } from './domain/diagramRouting';
-import { formatNodeData } from './domain/formatNodeData';
-import { PAD_X, rowFor } from './domain/layoutGraph';
-import { parseDsl } from './domain/parseDsl';
-import { shouldShowDevDiagramControls } from './domain/runtimeFlags';
-import { getRelatedElements } from './domain/traversal';
-import type { Parsed, Position } from './domain/types';
-import { addNewSlice, getSliceNameFromDsl, loadSliceLayoutOverrides, loadSliceLibrary, saveSliceLayoutOverrides, saveSliceLibrary, selectSlice, SliceLibrary, updateSelectedSliceDsl } from './sliceLibrary';
-import { EditorWarning, Range, useDslEditor } from './useDslEditor';
-import { useDiagramInteractions } from './useDiagramInteractions';
+import {Dispatch, SetStateAction, useEffect, useMemo, useRef, useState} from 'react';
+import {DEFAULT_DSL} from './defaultDsl';
+import {
+  buildRenderedEdges,
+  computeClassicDiagramLayout,
+  computeDiagramLayout,
+  DiagramEngineId,
+  DiagramEngineLayout,
+  supportsEditableEdgePoints
+} from './domain/diagramEngine';
+import {DiagramEdgeGeometry, DiagramPoint} from './domain/diagramRouting';
+import {formatNodeData} from './domain/formatNodeData';
+import {PAD_X, rowFor} from './domain/layoutGraph';
+import {parseDsl} from './domain/parseDsl';
+import {shouldShowDevDiagramControls} from './domain/runtimeFlags';
+import {getRelatedElements} from './domain/traversal';
+import type {Parsed, Position} from './domain/types';
+import {
+  addNewSlice,
+  getSliceNameFromDsl,
+  loadSliceLayoutOverrides,
+  loadSliceLibrary,
+  saveSliceLayoutOverrides,
+  saveSliceLibrary,
+  selectSlice,
+  SliceLibrary,
+  updateSelectedSliceDsl
+} from './sliceLibrary';
+import {EditorWarning, Range, useDslEditor} from './useDslEditor';
+import {useDiagramInteractions} from './useDiagramInteractions';
 
 type ParseResult =
   | { parsed: Parsed; error: ''; warnings: Parsed['warnings'] }
