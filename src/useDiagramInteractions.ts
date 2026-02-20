@@ -22,6 +22,8 @@ type UseDiagramInteractionsArgs = {
   manualEdgePoints: Record<string, DiagramPoint[]>;
   setManualNodePositions: Dispatch<SetStateAction<Record<string, { x: number; y: number }>>>;
   setManualEdgePoints: Dispatch<SetStateAction<Record<string, DiagramPoint[]>>>;
+  onNodeDragCommit?: (nodeKey: string, point: { x: number; y: number }) => void;
+  onEdgeDragCommit?: (edgeKey: string, points: DiagramPoint[]) => void;
 };
 
 function snapToGrid(value: number): number {
@@ -33,7 +35,9 @@ export function useDiagramInteractions({
   renderedEdges,
   manualEdgePoints,
   setManualNodePositions,
-  setManualEdgePoints
+  setManualEdgePoints,
+  onNodeDragCommit,
+  onEdgeDragCommit
 }: UseDiagramInteractionsArgs): {
   canvasPanelRef: RefObject<HTMLDivElement>;
   dragTooltip: DragTooltipState | null;
@@ -77,6 +81,9 @@ export function useDiagramInteractions({
         };
       })
       .filter((value): value is { edgeKey: string; points: DiagramPoint[]; affectsSource: boolean; affectsTarget: boolean } => Boolean(value));
+    let latestNodePoint = { x: origin.x, y: origin.y };
+    const latestEdgePoints = new Map<string, DiagramPoint[]>();
+    let moved = false;
 
     const onMove = (moveEvent: PointerEvent) => {
       const dx = moveEvent.clientX - startX;
@@ -85,6 +92,8 @@ export function useDiagramInteractions({
       const nextY = snapToGrid(origin.y + dy);
       const snappedDx = nextX - origin.x;
       const snappedDy = nextY - origin.y;
+      latestNodePoint = { x: nextX, y: nextY };
+      moved = moved || nextX !== origin.x || nextY !== origin.y;
       setManualNodePositions((current) => ({
         ...current,
         [nodeKey]: {
@@ -116,6 +125,7 @@ export function useDiagramInteractions({
               }
             }
             next[edge.edgeKey] = base;
+            latestEdgePoints.set(edge.edgeKey, base.map((point) => ({ ...point })));
           }
           return next;
         });
@@ -128,6 +138,12 @@ export function useDiagramInteractions({
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       setDragTooltip(null);
+      if (moved) {
+        onNodeDragCommit?.(nodeKey, latestNodePoint);
+        for (const [edgeKey, points] of latestEdgePoints.entries()) {
+          onEdgeDragCommit?.(edgeKey, points.map((point) => ({ ...point })));
+        }
+      }
     };
 
     window.addEventListener('pointermove', onMove);
@@ -149,6 +165,8 @@ export function useDiagramInteractions({
     }
     const horizontal = Math.abs(p1.x - p2.x) >= Math.abs(p1.y - p2.y);
     const basePoints = points.map((point) => ({ ...point }));
+    let latestPoints = basePoints.map((point) => ({ ...point }));
+    let moved = false;
 
     const onMove = (moveEvent: PointerEvent) => {
       const dx = moveEvent.clientX - startX;
@@ -169,6 +187,8 @@ export function useDiagramInteractions({
           a.x = snappedX;
           b.x = snapToGrid(p2.x + dx);
         }
+        latestPoints = next.map((point) => ({ ...point }));
+        moved = true;
         setDragTooltip({
           text: `p${segmentIndex}: (${Math.round(a.x)}, ${Math.round(a.y)})  p${segmentIndex + 1}: (${Math.round(b.x)}, ${Math.round(b.y)})`,
           clientX: moveEvent.clientX,
@@ -184,6 +204,9 @@ export function useDiagramInteractions({
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       setDragTooltip(null);
+      if (moved) {
+        onEdgeDragCommit?.(edgeKey, latestPoints.map((point) => ({ ...point })));
+      }
     };
 
     window.addEventListener('pointermove', onMove);

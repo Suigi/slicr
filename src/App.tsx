@@ -18,6 +18,9 @@ import {getRelatedElements} from './domain/traversal';
 import type {Parsed, Position} from './domain/types';
 import {
   addNewSlice,
+  appendSliceEdgeMovedEvent,
+  appendSliceLayoutResetEvent,
+  appendSliceNodeMovedEvent,
   getSliceNameFromDsl,
   loadSliceLayoutOverrides,
   loadSliceLibrary,
@@ -162,7 +165,7 @@ function App() {
       saveSliceLayoutOverrides(library.selectedSliceId, {
         nodes: manualNodePositions,
         edges: manualEdgePoints
-      });
+      }, { emitEvents: false });
     } catch {
       // Ignore storage failures (e.g. restricted environments).
     }
@@ -235,7 +238,13 @@ function App() {
     renderedEdges,
     manualEdgePoints,
     setManualNodePositions,
-    setManualEdgePoints
+    setManualEdgePoints,
+    onNodeDragCommit: (nodeKey, point) => {
+      appendSliceNodeMovedEvent(library.selectedSliceId, nodeKey, point);
+    },
+    onEdgeDragCommit: (edgeKey, points) => {
+      appendSliceEdgeMovedEvent(library.selectedSliceId, edgeKey, points);
+    }
   });
 
   const laneOverlay = useMemo(() => {
@@ -520,6 +529,7 @@ function App() {
   const resetManualLayout = () => {
     setManualNodePositions({});
     setManualEdgePoints({});
+    appendSliceLayoutResetEvent(library.selectedSliceId);
   };
 
   const applySelectedSliceOverrides = (sliceId: string) => {
@@ -561,10 +571,11 @@ function App() {
             aria-label="Select slice"
             value={library.selectedSliceId}
             onChange={(event) => {
+              const selectedId = event.target.value;
               setSelectedNodeKey(null);
               setHighlightRange(null);
               setLibrary((currentLibrary) => {
-                const nextLibrary = selectSlice(currentLibrary, event.target.value);
+                const nextLibrary = selectSlice(currentLibrary, selectedId);
                 if (nextLibrary.selectedSliceId !== currentLibrary.selectedSliceId) {
                   applySelectedSliceOverrides(nextLibrary.selectedSliceId);
                 }

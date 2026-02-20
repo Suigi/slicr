@@ -6,6 +6,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import App from './App';
 import { DEFAULT_DSL } from './defaultDsl';
 import { SLICES_LAYOUT_STORAGE_KEY, SLICES_STORAGE_KEY } from './sliceLibrary';
+import { hydrateSliceProjection } from './sliceEventStore';
 
 let root: ReactDOM.Root | null = null;
 let host: HTMLDivElement | null = null;
@@ -54,8 +55,32 @@ function renderAppStrict() {
 }
 
 function readStoredLibrary() {
-  const raw = localStorage.getItem(SLICES_STORAGE_KEY);
-  return raw ? (JSON.parse(raw) as { selectedSliceId: string; slices: Array<{ id: string; dsl: string }> }) : null;
+  const indexRaw = localStorage.getItem('slicr.es.v1.index');
+  if (!indexRaw) {
+    return null;
+  }
+  const parsed = JSON.parse(indexRaw) as { sliceIds?: unknown };
+  if (!parsed || !Array.isArray(parsed.sliceIds) || parsed.sliceIds.length === 0) {
+    return null;
+  }
+  const sliceIds = parsed.sliceIds.filter((id): id is string => typeof id === 'string' && id.length > 0);
+  if (sliceIds.length === 0) {
+    return null;
+  }
+  const appStreamRaw = localStorage.getItem('slicr.es.v1.stream.app');
+  const appEvents = appStreamRaw ? (JSON.parse(appStreamRaw) as Array<{ version?: number; payload?: { selectedSliceId?: string } }>) : [];
+  const selectedEvents = appEvents
+    .filter((event): event is { version: number; payload: { selectedSliceId: string } } => (
+      typeof event.version === 'number'
+      && typeof event.payload?.selectedSliceId === 'string'
+      && event.payload.selectedSliceId.length > 0
+    ))
+    .sort((a, b) => a.version - b.version);
+  const selectedSliceId = selectedEvents[selectedEvents.length - 1]?.payload.selectedSliceId ?? sliceIds[0];
+  return {
+    selectedSliceId,
+    slices: sliceIds.map((id) => ({ id, dsl: hydrateSliceProjection(id).dsl }))
+  };
 }
 
 describe('App interactions', () => {
@@ -67,7 +92,7 @@ describe('App interactions', () => {
 
     expect(sliceTitle?.textContent).toBe(defaultName);
     expect(document.title).toBe(`Slicer - ${defaultName}`);
-    expect(localStorage.getItem(SLICES_STORAGE_KEY)).not.toBeNull();
+    expect(localStorage.getItem('slicr.es.v1.index')).not.toBeNull();
     expect(localStorage.getItem('slicr.dsl')).toBeNull();
     const stored = readStoredLibrary();
     expect(stored?.slices[0]?.dsl).toBe(DEFAULT_DSL);
@@ -113,6 +138,10 @@ rm:persisted-view`;
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Beta');
     expect(document.title).toBe('Slicer - Beta');
+    const streamRaw = localStorage.getItem('slicr.es.v1.stream.app');
+    expect(streamRaw).not.toBeNull();
+    const events = JSON.parse(streamRaw ?? '[]') as Array<{ type: string; payload?: { selectedSliceId?: string } }>;
+    expect(events.some((event) => event.type === 'slice-selected' && event.payload?.selectedSliceId === 'b')).toBe(true);
   });
 
   it('derives dropdown labels from DSL, ignoring stale stored names', () => {
@@ -149,6 +178,10 @@ rm:persisted-view`;
     expect(stored).not.toBeNull();
     const selected = stored?.slices.find((slice) => slice.id === stored.selectedSliceId);
     expect(selected?.dsl).toContain('slice "Untitled"');
+    const streamRaw = localStorage.getItem(`slicr.es.v1.stream.${stored?.selectedSliceId ?? ''}`);
+    expect(streamRaw).not.toBeNull();
+    const events = JSON.parse(streamRaw ?? '[]') as Array<{ type: string }>;
+    expect(events.some((event) => event.type === 'slice-created')).toBe(true);
   });
 
   it('opens and closes the editor panel via toggle and outside click', () => {
@@ -494,5 +527,79 @@ maps:
     expect(eventNode?.style.left).toBe('315px');
     expect(eventNode?.style.top).toBe('265px');
     expect(localStorage.getItem(SLICES_LAYOUT_STORAGE_KEY)).toContain('"simple-event"');
+  });
+
+  it('appends node-moved events on drag end', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{ id: 'a', dsl: 'slice "A"\n\nevt:simple-event' }]
+      })
+    );
+
+    renderApp();
+
+    const node = document.querySelector('.node.evt') as HTMLElement | null;
+    expect(node).not.toBeNull();
+
+    const beforeRaw = localStorage.getItem('slicr.es.v1.stream.a');
+    const beforeEvents = beforeRaw ? (JSON.parse(beforeRaw) as Array<{ type: string }>) : [];
+    const beforeNodeMoveCount = beforeEvents.filter((event) => event.type === 'node-moved').length;
+
+    const PointerCtor = window.PointerEvent ?? window.MouseEvent;
+    act(() => {
+      node?.dispatchEvent(new PointerCtor('pointerdown', { bubbles: true, button: 0, clientX: 100, clientY: 100, pointerId: 1 }));
+      window.dispatchEvent(new PointerCtor('pointermove', { bubbles: true, buttons: 1, clientX: 180, clientY: 180, pointerId: 1 }));
+    });
+
+    const midRaw = localStorage.getItem('slicr.es.v1.stream.a');
+    const midEvents = midRaw ? (JSON.parse(midRaw) as Array<{ type: string }>) : [];
+    const midNodeMoveCount = midEvents.filter((event) => event.type === 'node-moved').length;
+    expect(midNodeMoveCount).toBe(beforeNodeMoveCount);
+
+    act(() => {
+      window.dispatchEvent(new PointerCtor('pointerup', { bubbles: true, button: 0, clientX: 180, clientY: 180, pointerId: 1 }));
+    });
+
+    const afterRaw = localStorage.getItem('slicr.es.v1.stream.a');
+    const afterEvents = afterRaw ? (JSON.parse(afterRaw) as Array<{ type: string }>) : [];
+    const afterNodeMoveCount = afterEvents.filter((event) => event.type === 'node-moved').length;
+    expect(afterNodeMoveCount).toBe(beforeNodeMoveCount + 1);
+  });
+
+  it('appends layout-reset events when resetting positions from route menu', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{ id: 'a', dsl: 'slice "A"\n\nevt:simple-event' }]
+      })
+    );
+
+    renderApp();
+
+    const menuToggle = document.querySelector('button[aria-label="Select render mode"]') as HTMLButtonElement | null;
+    expect(menuToggle).not.toBeNull();
+
+    const beforeRaw = localStorage.getItem('slicr.es.v1.stream.a');
+    const beforeEvents = beforeRaw ? (JSON.parse(beforeRaw) as Array<{ type: string }>) : [];
+    const beforeResetCount = beforeEvents.filter((event) => event.type === 'layout-reset').length;
+
+    act(() => {
+      menuToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const resetButton = [...document.querySelectorAll('button')].find((button) => button.textContent?.includes('Reset positions'));
+    expect(resetButton).toBeDefined();
+
+    act(() => {
+      resetButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const afterRaw = localStorage.getItem('slicr.es.v1.stream.a');
+    const afterEvents = afterRaw ? (JSON.parse(afterRaw) as Array<{ type: string }>) : [];
+    const afterResetCount = afterEvents.filter((event) => event.type === 'layout-reset').length;
+    expect(afterResetCount).toBe(beforeResetCount + 1);
   });
 });

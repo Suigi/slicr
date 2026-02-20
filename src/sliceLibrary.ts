@@ -1,8 +1,11 @@
 import { DEFAULT_DSL } from './defaultDsl';
+import { appendSliceEvent, hydrateSliceProjection, loadSliceEvents } from './sliceEventStore';
 
 export const SLICES_STORAGE_KEY = 'slicr.slices';
 export const LEGACY_DSL_STORAGE_KEY = 'slicr.dsl';
 export const SLICES_LAYOUT_STORAGE_KEY = 'slicr.sliceLayout';
+export const SLICES_EVENT_INDEX_STORAGE_KEY = 'slicr.es.v1.index';
+export const APP_SELECTION_STREAM_STORAGE_KEY = 'slicr.es.v1.stream.app';
 
 export type StoredSlice = {
   id: string;
@@ -19,7 +22,23 @@ export type SliceLayoutOverrides = {
   nodes: Record<string, SliceLayoutPoint>;
   edges: Record<string, SliceLayoutPoint[]>;
 };
+type SaveLayoutOptions = {
+  emitEvents?: boolean;
+};
 type StoredSliceLayoutMap = Record<string, SliceLayoutOverrides>;
+type StoredEventIndex = {
+  selectedSliceId?: string;
+  sliceIds: string[];
+};
+type AppSelectionEvent = {
+  id: string;
+  version: number;
+  at: string;
+  type: 'slice-selected';
+  payload: {
+    selectedSliceId: string;
+  };
+};
 
 function emptyLayoutOverrides(): SliceLayoutOverrides {
   return { nodes: {}, edges: {} };
@@ -100,22 +119,207 @@ function hasLayoutOverrides(overrides: SliceLayoutOverrides): boolean {
   return Object.keys(overrides.nodes).length > 0 || Object.keys(overrides.edges).length > 0;
 }
 
-export function loadSliceLayoutOverrides(sliceId: string): SliceLayoutOverrides {
-  const map = loadLayoutMap();
-  return map[sliceId] ?? emptyLayoutOverrides();
+function hasLayoutEvents(sliceId: string): boolean {
+  return loadSliceEvents(sliceId).some(
+    (event) => event.type === 'node-moved' || event.type === 'edge-moved' || event.type === 'layout-reset'
+  );
 }
 
-export function saveSliceLayoutOverrides(sliceId: string, overrides: SliceLayoutOverrides): void {
-  try {
-    const map = loadLayoutMap();
-    if (hasLayoutOverrides(overrides)) {
-      map[sliceId] = overrides;
-    } else {
-      delete map[sliceId];
+function migrateLegacyLayoutOverrides(sliceId: string): SliceLayoutOverrides | null {
+  const map = loadLayoutMap();
+  const legacy = map[sliceId];
+  if (!legacy || !hasLayoutOverrides(legacy)) {
+    return null;
+  }
+
+  appendSliceLayoutResetEvent(sliceId);
+  for (const [nodeKey, point] of Object.entries(legacy.nodes)) {
+    appendSliceNodeMovedEvent(sliceId, nodeKey, point);
+  }
+  for (const [edgeKey, points] of Object.entries(legacy.edges)) {
+    appendSliceEdgeMovedEvent(sliceId, edgeKey, points);
+  }
+  return legacy;
+}
+
+function equalPoints(a: SliceLayoutPoint[] | undefined, b: SliceLayoutPoint[] | undefined): boolean {
+  if (!a || !b || a.length !== b.length) {
+    return false;
+  }
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i].x !== b[i].x || a[i].y !== b[i].y) {
+      return false;
     }
-    localStorage.setItem(SLICES_LAYOUT_STORAGE_KEY, JSON.stringify(map));
+  }
+  return true;
+}
+
+export function loadSliceLayoutOverrides(sliceId: string): SliceLayoutOverrides {
+  if (hasLayoutEvents(sliceId)) {
+    const projection = hydrateSliceProjection(sliceId);
+    return {
+      nodes: projection.manualNodePositions,
+      edges: projection.manualEdgePoints
+    };
+  }
+  const migrated = migrateLegacyLayoutOverrides(sliceId);
+  if (migrated) {
+    return migrated;
+  }
+  return emptyLayoutOverrides();
+}
+
+export function appendSliceNodeMovedEvent(sliceId: string, nodeKey: string, point: SliceLayoutPoint): void {
+  appendSliceEvent(sliceId, {
+    type: 'node-moved',
+    payload: { nodeKey, x: point.x, y: point.y }
+  });
+}
+
+export function appendSliceEdgeMovedEvent(sliceId: string, edgeKey: string, points: SliceLayoutPoint[]): void {
+  appendSliceEvent(sliceId, {
+    type: 'edge-moved',
+    payload: { edgeKey, points }
+  });
+}
+
+export function appendSliceLayoutResetEvent(sliceId: string): void {
+  appendSliceEvent(sliceId, { type: 'layout-reset', payload: {} });
+}
+
+export function appendSliceCreatedEvent(sliceId: string, initialDsl: string): void {
+  appendSliceEvent(sliceId, {
+    type: 'slice-created',
+    payload: { initialDsl }
+  });
+}
+
+export function appendSliceSelectedEvent(sliceId: string): void {
+  appendSliceEvent(sliceId, {
+    type: 'slice-selected',
+    payload: { selectedSliceId: sliceId }
+  });
+}
+
+function asAppSelectionEvent(value: unknown): AppSelectionEvent | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const maybe = value as {
+    id?: unknown;
+    version?: unknown;
+    at?: unknown;
+    type?: unknown;
+    payload?: unknown;
+  };
+  if (
+    typeof maybe.id !== 'string'
+    || !isFiniteNumber(maybe.version)
+    || typeof maybe.at !== 'string'
+    || maybe.type !== 'slice-selected'
+    || !maybe.payload
+    || typeof maybe.payload !== 'object'
+  ) {
+    return null;
+  }
+  const payload = maybe.payload as { selectedSliceId?: unknown };
+  if (typeof payload.selectedSliceId !== 'string' || payload.selectedSliceId.length === 0) {
+    return null;
+  }
+  return {
+    id: maybe.id,
+    version: maybe.version,
+    at: maybe.at,
+    type: 'slice-selected',
+    payload: {
+      selectedSliceId: payload.selectedSliceId
+    }
+  };
+}
+
+function loadAppSelectedEvents(): AppSelectionEvent[] {
+  try {
+    const raw = localStorage.getItem(APP_SELECTION_STREAM_STORAGE_KEY);
+    if (!raw) {
+      return [];
+    }
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed
+      .map((event) => asAppSelectionEvent(event))
+      .filter((event): event is AppSelectionEvent => event !== null)
+      .sort((a, b) => a.version - b.version);
   } catch {
-    // Ignore storage failures and keep in-memory state.
+    return [];
+  }
+}
+
+function makeEventId(): string {
+  if ('randomUUID' in crypto) {
+    return crypto.randomUUID();
+  }
+  return `evt-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+export function appendAppSelectedEvent(sliceId: string): void {
+  const existing = loadAppSelectedEvents();
+  const nextVersion = existing.length === 0 ? 1 : existing[existing.length - 1].version + 1;
+  const event: AppSelectionEvent = {
+    id: makeEventId(),
+    version: nextVersion,
+    at: new Date().toISOString(),
+    type: 'slice-selected',
+    payload: {
+      selectedSliceId: sliceId
+    }
+  };
+  localStorage.setItem(APP_SELECTION_STREAM_STORAGE_KEY, JSON.stringify([...existing, event]));
+}
+
+export function saveSliceLayoutOverrides(
+  sliceId: string,
+  overrides: SliceLayoutOverrides,
+  options: SaveLayoutOptions = {}
+): void {
+  if (options.emitEvents === false) {
+    return;
+  }
+
+  const currentProjection = hydrateSliceProjection(sliceId);
+  const currentOverrides = {
+    nodes: currentProjection.manualNodePositions,
+    edges: currentProjection.manualEdgePoints
+  };
+  const desiredHasOverrides = hasLayoutOverrides(overrides);
+  const currentHasOverrides = hasLayoutOverrides(currentOverrides);
+
+  const removedNodeKeys = Object.keys(currentOverrides.nodes).filter((key) => !Object.prototype.hasOwnProperty.call(overrides.nodes, key));
+  const removedEdgeKeys = Object.keys(currentOverrides.edges).filter((key) => !Object.prototype.hasOwnProperty.call(overrides.edges, key));
+  if ((removedNodeKeys.length > 0 || removedEdgeKeys.length > 0) && desiredHasOverrides) {
+    appendSliceLayoutResetEvent(sliceId);
+    for (const [nodeKey, point] of Object.entries(overrides.nodes)) {
+      appendSliceNodeMovedEvent(sliceId, nodeKey, point);
+    }
+    for (const [edgeKey, points] of Object.entries(overrides.edges)) {
+      appendSliceEdgeMovedEvent(sliceId, edgeKey, points);
+    }
+  } else if (!desiredHasOverrides && currentHasOverrides) {
+    appendSliceLayoutResetEvent(sliceId);
+  } else if (desiredHasOverrides) {
+    for (const [nodeKey, point] of Object.entries(overrides.nodes)) {
+      const current = currentOverrides.nodes[nodeKey];
+      if (!current || current.x !== point.x || current.y !== point.y) {
+        appendSliceNodeMovedEvent(sliceId, nodeKey, point);
+      }
+    }
+    for (const [edgeKey, points] of Object.entries(overrides.edges)) {
+      const current = currentOverrides.edges[edgeKey];
+      if (!equalPoints(current, points)) {
+        appendSliceEdgeMovedEvent(sliceId, edgeKey, points);
+      }
+    }
   }
 }
 
@@ -172,6 +376,132 @@ function asLibrary(value: unknown): SliceLibrary | null {
   return { selectedSliceId, slices };
 }
 
+function asEventIndex(value: unknown): StoredEventIndex | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const maybe = value as { selectedSliceId?: unknown; sliceIds?: unknown };
+  if (!Array.isArray(maybe.sliceIds) || maybe.sliceIds.length === 0) {
+    return null;
+  }
+  const sliceIds = maybe.sliceIds.filter((id): id is string => typeof id === 'string' && id.length > 0);
+  if (sliceIds.length === 0) {
+    return null;
+  }
+  return {
+    selectedSliceId: typeof maybe.selectedSliceId === 'string' ? maybe.selectedSliceId : undefined,
+    sliceIds
+  };
+}
+
+function deriveSelectedSliceIdFromLegacySliceEvents(sliceIds: string[]): string | null {
+  let latest: { selectedSliceId: string; at: string; version: number } | null = null;
+
+  for (const sliceId of sliceIds) {
+    const selectedEvents = loadSliceEvents(sliceId).filter((event) => event.type === 'slice-selected');
+    for (const event of selectedEvents) {
+      if (!latest) {
+        latest = { selectedSliceId: event.payload.selectedSliceId, at: event.at, version: event.version };
+        continue;
+      }
+
+      const prevTs = Number.isNaN(Date.parse(latest.at)) ? 0 : Date.parse(latest.at);
+      const nextTs = Number.isNaN(Date.parse(event.at)) ? 0 : Date.parse(event.at);
+      if (nextTs > prevTs || (nextTs === prevTs && event.version >= latest.version)) {
+        latest = { selectedSliceId: event.payload.selectedSliceId, at: event.at, version: event.version };
+      }
+    }
+  }
+
+  return latest?.selectedSliceId ?? null;
+}
+
+function deriveSelectedSliceIdFromAppEvents(sliceIds: string[]): string | null {
+  const validIds = new Set(sliceIds);
+  const latestSelected = [...loadAppSelectedEvents()]
+    .reverse()
+    .find((event) => validIds.has(event.payload.selectedSliceId));
+  return latestSelected?.payload.selectedSliceId ?? null;
+}
+
+function deriveSelectedSliceId(sliceIds: string[]): string | null {
+  const selectedFromAppStream = deriveSelectedSliceIdFromAppEvents(sliceIds);
+  if (selectedFromAppStream) {
+    return selectedFromAppStream;
+  }
+  return deriveSelectedSliceIdFromLegacySliceEvents(sliceIds);
+}
+
+function writeEventIndex(sliceIds: string[]): void {
+  localStorage.setItem(
+    SLICES_EVENT_INDEX_STORAGE_KEY,
+    JSON.stringify({
+      sliceIds
+    })
+  );
+}
+
+function migrateLegacyLibraryToEvents(library: SliceLibrary): void {
+  localStorage.removeItem(SLICES_STORAGE_KEY);
+  localStorage.removeItem(LEGACY_DSL_STORAGE_KEY);
+  writeEventIndex(library.slices.map((slice) => slice.id));
+
+  for (const slice of library.slices) {
+    const events = loadSliceEvents(slice.id);
+    if (!events.some((event) => event.type === 'slice-created')) {
+      appendSliceCreatedEvent(slice.id, slice.dsl);
+    }
+    if (!events.some((event) => event.type === 'text-edited')) {
+      appendSliceEvent(slice.id, {
+        type: 'text-edited',
+        payload: { dsl: slice.dsl }
+      });
+    }
+  }
+
+  const selectedFromEvents = deriveSelectedSliceId(library.slices.map((slice) => slice.id));
+  if (selectedFromEvents !== library.selectedSliceId) {
+    appendAppSelectedEvent(library.selectedSliceId);
+  }
+}
+
+function loadSliceLibraryFromEventIndex(): SliceLibrary | null {
+  try {
+    const raw = localStorage.getItem(SLICES_EVENT_INDEX_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+    const index = asEventIndex(JSON.parse(raw));
+    if (!index) {
+      return null;
+    }
+
+    const slices = index.sliceIds
+      .map((sliceId) => {
+        const events = loadSliceEvents(sliceId);
+        if (events.length === 0) {
+          return null;
+        }
+        const projection = hydrateSliceProjection(sliceId);
+        return { id: sliceId, dsl: projection.dsl };
+      })
+      .filter((slice): slice is StoredSlice => Boolean(slice));
+
+    if (slices.length === 0) {
+      return null;
+    }
+
+    const selectedFromEvents = deriveSelectedSliceId(slices.map((slice) => slice.id));
+    const selectedSliceId = selectedFromEvents && slices.some((slice) => slice.id === selectedFromEvents)
+      ? selectedFromEvents
+      : slices[0].id;
+
+    return { selectedSliceId, slices };
+  } catch {
+    return null;
+  }
+}
+
 export function createInitialLibrary(defaultDsl = DEFAULT_DSL): SliceLibrary {
   const id = makeSliceId();
   return {
@@ -181,12 +511,21 @@ export function createInitialLibrary(defaultDsl = DEFAULT_DSL): SliceLibrary {
 }
 
 export function loadSliceLibrary(defaultDsl = DEFAULT_DSL): SliceLibrary {
+  const eventLibrary = loadSliceLibraryFromEventIndex();
+  if (eventLibrary) {
+    return eventLibrary;
+  }
+
   try {
     const stored = localStorage.getItem(SLICES_STORAGE_KEY);
     if (stored) {
       const parsed = asLibrary(JSON.parse(stored));
       if (parsed) {
-        return parsed;
+        migrateLegacyLibraryToEvents(parsed);
+        const migrated = loadSliceLibraryFromEventIndex();
+        if (migrated) {
+          return migrated;
+        }
       }
     }
   } catch {
@@ -196,7 +535,13 @@ export function loadSliceLibrary(defaultDsl = DEFAULT_DSL): SliceLibrary {
   try {
     const legacyDsl = localStorage.getItem(LEGACY_DSL_STORAGE_KEY);
     if (legacyDsl) {
-      return createInitialLibrary(legacyDsl);
+      const migrated = createInitialLibrary(legacyDsl);
+      migrateLegacyLibraryToEvents(migrated);
+      const fromEvents = loadSliceLibraryFromEventIndex();
+      if (fromEvents) {
+        return fromEvents;
+      }
+      return migrated;
     }
   } catch {
     // Ignore storage errors and fall back.
@@ -206,8 +551,27 @@ export function loadSliceLibrary(defaultDsl = DEFAULT_DSL): SliceLibrary {
 }
 
 export function saveSliceLibrary(library: SliceLibrary): void {
-  localStorage.setItem(SLICES_STORAGE_KEY, JSON.stringify(library));
+  localStorage.removeItem(SLICES_STORAGE_KEY);
   localStorage.removeItem(LEGACY_DSL_STORAGE_KEY);
+  writeEventIndex(library.slices.map((slice) => slice.id));
+  for (const slice of library.slices) {
+    const events = loadSliceEvents(slice.id);
+    if (!events.some((event) => event.type === 'slice-created')) {
+      appendSliceCreatedEvent(slice.id, slice.dsl);
+    }
+    const projection = hydrateSliceProjection(slice.id);
+    if (projection.dsl !== slice.dsl) {
+      appendSliceEvent(slice.id, {
+        type: 'text-edited',
+        payload: { dsl: slice.dsl }
+      });
+    }
+  }
+
+  const selectedFromEvents = deriveSelectedSliceId(library.slices.map((slice) => slice.id));
+  if (selectedFromEvents !== library.selectedSliceId) {
+    appendAppSelectedEvent(library.selectedSliceId);
+  }
 }
 
 function nextUntitledName(existingNames: string[]): string {
