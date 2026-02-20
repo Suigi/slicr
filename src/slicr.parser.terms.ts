@@ -53,4 +53,6 @@ export const
   _true = 51,
   _false = 52,
   _null = 53,
-  BraceR = 54
+  BraceR = 54,
+  MapsStatement = 55,
+  maps = 56

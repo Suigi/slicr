@@ -1,5 +1,6 @@
 import { parser } from '../slicr.parser';
 import * as terms from '../slicr.parser.terms';
+import { applyMappingsToNodes, parseMapsBlocks } from './dataMapping';
 import { validateDataIntegrity } from './dataIntegrity';
 import { Edge, NodeData, Parsed, ParseWarning, SliceBoundary, VisualNode } from './types';
 
@@ -54,6 +55,7 @@ export function parseDsl(src: string): Parsed {
   const lines = src.split('\n');
   const lineStarts = buildLineStarts(lines);
   const boundaryLines = collectBoundaryLines(lines);
+  const mappingsByRef = parseMapsBlocks(src);
 
   const nodes = new Map<string, VisualNode>();
   const edges: Edge[] = [];
@@ -220,6 +222,7 @@ export function parseDsl(src: string): Parsed {
     }
   }
 
+  warnings.push(...applyMappingsToNodes({ nodes, edges, mappingsByRef }));
   warnings.push(...validateDataIntegrity({ nodes, edges }));
   boundaries.push(...resolveBoundaries(specs, boundaryLines, refToKey));
 

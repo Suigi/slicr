@@ -230,6 +230,50 @@ data:
     ]);
   });
 
+  it('applies maps block values into node data', () => {
+    const input = `slice "Mapped RM"
+
+evt:alpha-updated
+data:
+  alpha: A-1
+
+evt:bravo-updated
+data:
+  bravo: B-2
+
+rm:combined-view
+<- evt:alpha-updated
+<- evt:bravo-updated
+maps:
+  alpha
+  bravo <- bravo`;
+
+    const parsed = parseDsl(input);
+    expect(parsed.nodes.get('combined-view')?.data).toEqual({
+      alpha: 'A-1',
+      bravo: 'B-2'
+    });
+  });
+
+  it('warns when a mapped key cannot be sourced from direct predecessors', () => {
+    const input = `slice "Mapped Warnings"
+
+ui:my-ui
+data:
+  alpha: value
+
+cmd:my-cmd
+<- ui:my-ui
+maps:
+  alpha
+  bravo <- bravo`;
+
+    const parsed = parseDsl(input);
+    expect(parsed.warnings.map((warning) => warning.message)).toContain(
+      'Missing data source for key "bravo" for node cmd:my-cmd'
+    );
+  });
+
   it('parses backwards arrows when the incoming clause is on a separate line', () => {
     const input = `slice "Book Room"
 
