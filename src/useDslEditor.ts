@@ -90,6 +90,21 @@ export function insertNewLineWithIndent(view: EditorView): boolean {
 const setHighlight = StateEffect.define<Range | null>();
 const setWarnings = StateEffect.define<EditorWarning[]>();
 
+function normalizeWarnings(warnings: EditorWarning[], docLength: number) {
+  return warnings
+    .filter((warning) => warning.range.from >= 0 && warning.range.from <= docLength)
+    .slice()
+    .sort((a, b) => {
+      if (a.range.from !== b.range.from) {
+        return a.range.from - b.range.from;
+      }
+      if (a.range.to !== b.range.to) {
+        return a.range.to - b.range.to;
+      }
+      return a.message.localeCompare(b.message);
+    });
+}
+
 const highlightField = StateField.define<DecorationSet>({
   create() {
     return Decoration.none;
@@ -151,10 +166,8 @@ const warningGutterField = StateField.define<RangeSet<GutterMarker>>({
 
       const builder = new RangeSetBuilder<GutterMarker>();
       const seenLineStarts = new Set<number>();
-      for (const warning of effect.value) {
-        if (warning.range.from < 0 || warning.range.from > tr.state.doc.length) {
-          continue;
-        }
+      const normalized = normalizeWarnings(effect.value, tr.state.doc.length);
+      for (const warning of normalized) {
         const line = tr.state.doc.lineAt(warning.range.from);
         if (seenLineStarts.has(line.from)) {
           continue;
@@ -180,10 +193,8 @@ const warningMessagesField = StateField.define<Map<number, string>>({
       }
 
       const next = new Map<number, string>();
-      for (const warning of effect.value) {
-        if (warning.range.from < 0 || warning.range.from > tr.state.doc.length) {
-          continue;
-        }
+      const normalized = normalizeWarnings(effect.value, tr.state.doc.length);
+      for (const warning of normalized) {
         const lineFrom = tr.state.doc.lineAt(warning.range.from).from;
         const previous = next.get(lineFrom);
         next.set(lineFrom, previous ? `${previous}\n${warning.message}` : warning.message);
@@ -348,7 +359,14 @@ export const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocCh
                 nextTooltip.className = 'cm-warning-tooltip';
                 view.dom.appendChild(nextTooltip);
               }
-              nextTooltip.textContent = message;
+              nextTooltip.replaceChildren();
+              const lines = message.split('\n').filter((value) => value.trim().length > 0);
+              for (const lineText of lines) {
+                const line = document.createElement('div');
+                line.className = 'cm-warning-tooltip-line';
+                line.textContent = lineText;
+                nextTooltip.appendChild(line);
+              }
               nextTooltip.style.left = `${left}px`;
               nextTooltip.style.top = `${top}px`;
               return false;
@@ -421,6 +439,14 @@ export const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocCh
             fontSize: '12px',
             lineHeight: '1.4',
             pointerEvents: 'none'
+          },
+          '.cm-warning-tooltip-line': {
+            whiteSpace: 'pre-wrap'
+          },
+          '.cm-warning-tooltip-line + .cm-warning-tooltip-line': {
+            marginTop: '6px',
+            paddingTop: '6px',
+            borderTop: '1px solid rgb(248 113 113 / 35%)'
           },
           '.cm-scroller': {
             overflow: 'auto',
@@ -590,7 +616,7 @@ export function useDslEditor({
     const effects: StateEffect<unknown>[] = [];
     for (let lineNumber = 1; lineNumber <= editorView.state.doc.lines; lineNumber++) {
       const line = editorView.state.doc.line(lineNumber);
-      if (!/^\s*data:\s*$/.test(line.text)) {
+      if (!/^\s*(data|maps):\s*$/.test(line.text)) {
         continue;
       }
 

@@ -55,6 +55,7 @@ export function parseDsl(src: string): Parsed {
   const lines = src.split('\n');
   const lineStarts = buildLineStarts(lines);
   const boundaryLines = collectBoundaryLines(lines);
+  const mapsBodyLines = collectMapsBodyLines(lines);
   const mappingsByRef = parseMapsBlocks(src);
 
   const nodes = new Map<string, VisualNode>();
@@ -114,6 +115,9 @@ export function parseDsl(src: string): Parsed {
       }
 
       const lineIndex = getLineIndexAtPos(lineStarts, cursor.from);
+      if (mapsBodyLines.has(lineIndex)) {
+        continue;
+      }
       edgeClauses.push({
         line: lineIndex,
         incoming: parsed.incoming,
@@ -237,6 +241,30 @@ function collectBoundaryLines(lines: string[]) {
     }
   }
   return boundaryLines;
+}
+
+function collectMapsBodyLines(lines: string[]) {
+  const mapLines = new Set<number>();
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    const line = lines[lineIndex];
+    if (!line.trim().startsWith('maps:')) {
+      continue;
+    }
+
+    const mapsIndent = (line.match(/^(\s*)/)?.[1] ?? '').length;
+    for (let next = lineIndex + 1; next < lines.length; next += 1) {
+      const nextLine = lines[next];
+      if (!nextLine.trim()) {
+        continue;
+      }
+      const nextIndent = (nextLine.match(/^(\s*)/)?.[1] ?? '').length;
+      if (nextIndent <= mapsIndent) {
+        break;
+      }
+      mapLines.add(next);
+    }
+  }
+  return mapLines;
 }
 
 function resolveBoundaries(specs: NodeSpec[], boundaryLines: number[], refToKey: Map<string, string>): SliceBoundary[] {

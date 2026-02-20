@@ -8,6 +8,7 @@ import {
   DiagramEngineLayout,
   supportsEditableEdgePoints
 } from './domain/diagramEngine';
+import {MISSING_DATA_VALUE} from './domain/dataMapping';
 import {DiagramEdgeGeometry, DiagramPoint} from './domain/diagramRouting';
 import {formatNodeData} from './domain/formatNodeData';
 import {PAD_X, rowFor} from './domain/layoutGraph';
@@ -453,11 +454,14 @@ function App() {
       );
     }
 
+    const value = match[3];
+    const isMissing = value.trim() === MISSING_DATA_VALUE;
+
     return (
-      <div key={index} className="node-field-line">
+      <div key={index} className={`node-field-line${isMissing ? ' missing' : ''}`}>
         {match[1]}
         <span className="node-field-key">{match[2]}</span>
-        <span className="node-field-val">{match[3]}</span>
+        <span className="node-field-val">{value}</span>
       </div>
     );
   };

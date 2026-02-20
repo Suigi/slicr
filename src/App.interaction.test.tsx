@@ -220,6 +220,71 @@ rm:persisted-view`;
     expect(warningCell).not.toBeNull();
   });
 
+  it('renders missing mapped data values in red with <missing> marker', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{
+          id: 'a',
+          dsl: `slice "Mapped Missing"
+
+ui:my-ui
+data:
+  alpha: value
+
+cmd:my-cmd
+<- ui:my-ui
+maps:
+  alpha
+  bravo <- bravo`
+        }]
+      })
+    );
+
+    renderApp();
+
+    const missingLine = document.querySelector('.node-field-line.missing');
+    expect(missingLine).not.toBeNull();
+    expect(missingLine?.querySelector('.node-field-key')?.textContent).toBe('bravo:');
+    expect(missingLine?.querySelector('.node-field-val')?.textContent?.trim()).toBe('<missing>');
+  });
+
+  it('does not crash when warnings arrive out of order while typing malformed maps/data blocks', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{
+          id: 'a',
+          dsl: `slice "Read Model from Two Events"
+
+evt:alpha-updated "Alpha Updated"
+data:
+  alpha: alpha-value
+
+evt:bravo-updated "Bravo Updated"
+data:
+  bravo: bravo-value
+
+rm:combined-view "Combined View"
+<- evt:alpha-updated
+<- evt:bravo-updated
+d
+maps:
+  alpha
+  bravo <- bravo
+  charlie`
+        }]
+      })
+    );
+
+    renderApp();
+
+    expect(document.querySelector('.slice-title')?.textContent).toBe('Read Model from Two Events');
+    expect(document.querySelector('#canvas')).not.toBeNull();
+  });
+
   it('renders node aliases as display names in the canvas', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,

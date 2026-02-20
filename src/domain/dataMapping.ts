@@ -5,6 +5,8 @@ export type MappingEntry = {
   sourcePath: string;
 };
 
+export const MISSING_DATA_VALUE = '<missing>';
+
 export function parseMapsBlocks(dsl: string): Map<string, MappingEntry[]> {
   const lines = dsl.split('\n');
   const result = new Map<string, MappingEntry[]>();
@@ -64,9 +66,19 @@ export function applyMappingsToNodes(input: {
     }
 
     const mappedData: Record<string, unknown> = {};
+    const baseData = isRecord(targetNode.data) ? targetNode.data : {};
     for (const mapping of mappings) {
+      if (mapping.targetKey in baseData) {
+        warnings.push({
+          message: `Duplicate data key "${mapping.targetKey}" in node ${targetRef} (declared in both data and maps)`,
+          range: targetNode.srcRange
+        });
+        continue;
+      }
+
       const value = resolveMappingValue(input.nodes, input.edges, targetNode.key, mapping.sourcePath);
       if (value === undefined) {
+        mappedData[mapping.targetKey] = MISSING_DATA_VALUE;
         warnings.push({
           message: `Missing data source for key "${mapping.targetKey}" for node ${targetRef}`,
           range: targetNode.srcRange
@@ -76,8 +88,7 @@ export function applyMappingsToNodes(input: {
       mappedData[mapping.targetKey] = value;
     }
 
-    const baseData = isRecord(targetNode.data) ? targetNode.data : {};
-    const mergedData = { ...baseData, ...mappedData };
+    const mergedData = { ...mappedData, ...baseData };
     targetNode.data = Object.keys(mergedData).length > 0 ? mergedData : null;
   }
 

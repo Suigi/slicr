@@ -38,7 +38,7 @@
   --generic-border: #3b4250;
   --lane-divider: #35354b;
   --slice-divider: #7f7fa4;
-  --editor-keyword: #eab308;
+  --editor-keyword: #22d3ee;
   --editor-type-name: #60a5fa;
   --editor-string: #14b8a6;
   --editor-json-key: #ababab;
@@ -49,6 +49,7 @@
   --node-fields-divider: rgb(255 255 255 / 10%);
   --node-field-value: rgb(255 255 255 / 90%);
   --node-field-key: rgb(255 255 255 / 45%);
+  --node-field-missing: #f87171;
   --node-shadow-rm: 0 0 0 2px var(--rm), 0 6px 20px rgb(34 197 94 / 15%);
   --node-shadow-cmd: 0 0 0 2px var(--cmd), 0 6px 20px rgb(59 130 246 / 15%);
   --node-shadow-evt: 0 0 0 2px var(--evt), 0 6px 20px rgb(249 115 22 / 15%);
@@ -98,7 +99,7 @@
   --generic-border: #cfd6df;
   --lane-divider: #bec8de;
   --slice-divider: #7b8aad;
-  --editor-keyword: #a16207;
+  --editor-keyword: #72b4c2;
   --editor-type-name: #1d4ed8;
   --editor-string: #0f766e;
   --editor-json-key: #64748b;
@@ -109,6 +110,7 @@
   --node-fields-divider: rgb(2 6 23 / 10%);
   --node-field-value: rgb(2 6 23 / 85%);
   --node-field-key: rgb(2 6 23 / 50%);
+  --node-field-missing: #dc2626;
   --node-shadow-rm: 0 0 0 2px var(--rm), 0 6px 20px rgb(21 128 61 / 14%);
   --node-shadow-cmd: 0 0 0 2px var(--cmd), 0 6px 20px rgb(37 99 235 / 14%);
   --node-shadow-evt: 0 0 0 2px var(--evt), 0 6px 20px rgb(194 65 12 / 14%);
@@ -588,7 +590,7 @@ header h1 {
 }
 
 .dsl-editor .dsl-tok-operator {
-  color: var(--ui-color);
+  color: var(--editor-keyword);
 }
 
 .dsl-editor .dsl-tok-string {
@@ -609,7 +611,7 @@ header h1 {
 }
 
 .dsl-editor .dsl-tok-punctuation {
-  color: var(--muted);
+  color: var(--editor-keyword);
 }
 
 .cm-node-highlight {
@@ -797,6 +799,11 @@ header h1 {
 
 .node-field-key {
   color: var(--node-field-key);
+}
+
+.node-field-line.missing .node-field-key,
+.node-field-line.missing .node-field-val {
+  color: var(--node-field-missing);
 }
 
 .node.rm {

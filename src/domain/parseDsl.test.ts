@@ -269,8 +269,79 @@ maps:
   bravo <- bravo`;
 
     const parsed = parseDsl(input);
+    expect(parsed.nodes.get('my-cmd')?.data).toEqual({
+      alpha: 'value',
+      bravo: '<missing>'
+    });
     expect(parsed.warnings.map((warning) => warning.message)).toContain(
       'Missing data source for key "bravo" for node cmd:my-cmd'
+    );
+  });
+
+  it('keeps explicit data values when the same key is also mapped', () => {
+    const input = `slice "Mapped Priority"
+
+evt:alpha-updated
+data:
+  alpha: from-event
+
+rm:combined-view
+<- evt:alpha-updated
+data:
+  alpha: from-data
+maps:
+  alpha`;
+
+    const parsed = parseDsl(input);
+    expect(parsed.nodes.get('combined-view')?.data).toEqual({
+      alpha: 'from-data'
+    });
+  });
+
+  it('warns when a key is declared in both data and maps', () => {
+    const input = `slice "Mapped Duplicate Key"
+
+evt:alpha-updated
+data:
+  alpha: from-event
+
+rm:combined-view
+<- evt:alpha-updated
+data:
+  alpha: from-data
+maps:
+  alpha`;
+
+    const parsed = parseDsl(input);
+    expect(parsed.warnings.map((warning) => warning.message)).toContain(
+      'Duplicate data key "alpha" in node rm:combined-view (declared in both data and maps)'
+    );
+  });
+
+  it('does not treat maps lines as generic dependency edges', () => {
+    const input = `slice "Read Model from Two Events"
+
+evt:alpha-updated "Alpha Updated"
+data:
+  alpha: alpha-value
+
+evt:bravo-updated "Bravo Updated"
+data:
+  bravo: bravo-value
+
+rm:combined-view "Combined View"
+<- evt:alpha-updated
+<- evt:bravo-updated
+data:
+  charlie: blub
+maps:
+  alpha
+  bravo <- bravo
+  charlie`;
+
+    const parsed = parseDsl(input);
+    expect(parsed.warnings.map((warning) => warning.message)).not.toContain(
+      'Unresolved dependency: generic:bravo -> rm:combined-view'
     );
   });
 
