@@ -10,6 +10,7 @@ import {
 } from './domain/diagramEngine';
 import {MISSING_DATA_VALUE} from './domain/dataMapping';
 import {DiagramEdgeGeometry, DiagramPoint} from './domain/diagramRouting';
+import { routeRoundedPolyline } from './domain/diagramRouting';
 import {formatNodeData} from './domain/formatNodeData';
 import {PAD_X, rowFor} from './domain/layoutGraph';
 import {parseDsl} from './domain/parseDsl';
@@ -1039,6 +1040,7 @@ function App() {
                     </defs>
 
                     {renderedEdges.map(({ key, edgeKey, edge, geometry }) => {
+                      const edgePath = geometry.points ? routeRoundedPolyline(geometry.points, 5) : geometry.d;
                       const isHovered = hoveredEdgeKey === edgeKey;
                       const isRelated = relatedElements.edges.has(`${edge.from}->${edge.to}`) || isHovered;
                       const handleEdgeHoverEnter = () => setHoveredEdgeKey(edgeKey);
@@ -1049,7 +1051,7 @@ function App() {
                       return (
                         <g key={key} className={`${isRelated ? 'related ' : ''}${isHovered ? 'hovered' : ''}`.trim()}>
                           <path
-                            d={geometry.d}
+                            d={edgePath}
                             className="edge-hover-target"
                             onPointerEnter={handleEdgeHoverEnter}
                             onPointerLeave={handleEdgeHoverLeave}
@@ -1057,7 +1059,7 @@ function App() {
                             onMouseLeave={handleEdgeHoverLeave}
                           />
                           <path
-                            d={geometry.d}
+                            d={edgePath}
                             className="arrow-path"
                             markerEnd={isRelated ? "url(#arr-related)" : "url(#arr)"}
                             onPointerEnter={handleEdgeHoverEnter}

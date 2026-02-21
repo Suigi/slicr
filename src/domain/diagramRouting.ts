@@ -490,6 +490,59 @@ export function routePolyline(points: DiagramPoint[]): string {
   return commands.join(' ');
 }
 
+export function routeRoundedPolyline(points: DiagramPoint[], radius = 10): string {
+  if (points.length === 0) {
+    return '';
+  }
+  if (points.length === 1) {
+    return `M ${points[0].x} ${points[0].y}`;
+  }
+
+  const commands: string[] = [`M ${points[0].x} ${points[0].y}`];
+
+  for (let index = 1; index < points.length - 1; index += 1) {
+    const previous = points[index - 1];
+    const current = points[index];
+    const next = points[index + 1];
+    const inDx = current.x - previous.x;
+    const inDy = current.y - previous.y;
+    const outDx = next.x - current.x;
+    const outDy = next.y - current.y;
+    const inLength = Math.hypot(inDx, inDy);
+    const outLength = Math.hypot(outDx, outDy);
+
+    if (inLength < 0.001 || outLength < 0.001) {
+      commands.push(`L ${current.x} ${current.y}`);
+      continue;
+    }
+
+    const inUnitX = inDx / inLength;
+    const inUnitY = inDy / inLength;
+    const outUnitX = outDx / outLength;
+    const outUnitY = outDy / outLength;
+
+    // No corner to round if direction does not change.
+    const sameDirection = Math.abs(inUnitX - outUnitX) < 0.0001 && Math.abs(inUnitY - outUnitY) < 0.0001;
+    if (sameDirection) {
+      commands.push(`L ${current.x} ${current.y}`);
+      continue;
+    }
+
+    const cornerRadius = Math.min(radius, inLength / 2, outLength / 2);
+    const cornerStartX = current.x - inUnitX * cornerRadius;
+    const cornerStartY = current.y - inUnitY * cornerRadius;
+    const cornerEndX = current.x + outUnitX * cornerRadius;
+    const cornerEndY = current.y + outUnitY * cornerRadius;
+
+    commands.push(`L ${cornerStartX} ${cornerStartY}`);
+    commands.push(`Q ${current.x} ${current.y} ${cornerEndX} ${cornerEndY}`);
+  }
+
+  const last = points[points.length - 1];
+  commands.push(`L ${last.x} ${last.y}`);
+  return commands.join(' ');
+}
+
 export function middlePoint(points: DiagramPoint[]): DiagramPoint {
   if (points.length === 0) {
     return { x: 0, y: 0 };
