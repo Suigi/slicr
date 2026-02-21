@@ -85,6 +85,7 @@ function App() {
   const [highlightRange, setHighlightRange] = useState<Range | null>(null);
   const [hoveredEditorRange, setHoveredEditorRange] = useState<Range | null>(null);
   const [selectedNodeKey, setSelectedNodeKey] = useState<string | null>(null);
+  const [hoveredEdgeKey, setHoveredEdgeKey] = useState<string | null>(null);
   const [routeMode, setRouteMode] = useState<RouteMode>(() => {
     try {
       const saved = localStorage.getItem(ROUTE_MODE_STORAGE_KEY);
@@ -365,6 +366,17 @@ function App() {
     if (!parsed) return { nodes: new Set<string>(), edges: new Set<string>() };
     return getRelatedElements(parsed, selectedNodeKey);
   }, [parsed, selectedNodeKey]);
+
+  const hoveredEdgeNodeKeys = useMemo(() => {
+    if (!hoveredEdgeKey) {
+      return new Set<string>();
+    }
+    const hoveredEdge = renderedEdges.find(({ edgeKey }) => edgeKey === hoveredEdgeKey);
+    if (!hoveredEdge) {
+      return new Set<string>();
+    }
+    return new Set<string>([hoveredEdge.edge.from, hoveredEdge.edge.to]);
+  }, [hoveredEdgeKey, renderedEdges]);
 
   useEffect(() => {
     const closeOnOutside = (event: PointerEvent) => {
@@ -895,7 +907,7 @@ function App() {
 
                   const isHighlighted = activeNodeKeyFromEditor === node.key;
                   const isSelected = selectedNodeKey === node.key;
-                  const isRelated = relatedElements.nodes.has(node.key);
+                  const isRelated = relatedElements.nodes.has(node.key) || hoveredEdgeNodeKeys.has(node.key);
 
                   return (
                     <div
@@ -935,56 +947,81 @@ function App() {
                   );
                 })}
 
-                <svg id="arrows" width={activeLayout.w} height={activeLayout.h}>
-                  <defs>
-                    <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-                      <path d="M0,0 L0,6 L8,3 z" fill="var(--arrow)" />
-                    </marker>
-                    <marker id="arr-related" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-                      <path d="M0,0 L0,6 L8,3 z" fill="var(--text)" />
-                    </marker>
-                  </defs>
+                  <svg id="arrows" width={activeLayout.w} height={activeLayout.h}>
+                    <defs>
+                      <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+                        <path d="M0,0 L0,6 L8,3 z" fill="var(--arrow)" />
+                      </marker>
+                      <marker id="arr-related" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+                        <path d="M0,0 L0,6 L8,3 z" fill="var(--edge-highlight)" />
+                      </marker>
+                    </defs>
 
-                  {renderedEdges.map(({ key, edgeKey, edge, geometry }) => {
-                    const isRelated = relatedElements.edges.has(`${edge.from}->${edge.to}`);
+                    {renderedEdges.map(({ key, edgeKey, edge, geometry }) => {
+                      const isHovered = hoveredEdgeKey === edgeKey;
+                      const isRelated = relatedElements.edges.has(`${edge.from}->${edge.to}`) || isHovered;
+                      const handleEdgeHoverEnter = () => setHoveredEdgeKey(edgeKey);
+                      const handleEdgeHoverLeave = () => {
+                        setHoveredEdgeKey((current) => (current === edgeKey ? null : current));
+                      };
 
-                    return (
-                      <g key={key} className={isRelated ? 'related' : ''}>
-                        <path d={geometry.d} className="arrow-path" markerEnd={isRelated ? "url(#arr-related)" : "url(#arr)"} />
-                        {edge.label && (
-                          <text
-                            className="arrow-label"
-                            textAnchor="middle"
-                            x={geometry.labelX}
-                            y={geometry.labelY}
-                          >
-                            [{edge.label}]
-                          </text>
-                        )}
-                        {supportsEditableEdgePoints(routeMode) &&
-                          geometry.points?.map((point, pointIndex) => {
-                            const nextPoint = geometry.points?.[pointIndex + 1];
-                            if (!nextPoint) {
-                              return null;
-                            }
-                            const segmentCount = geometry.points!.length - 1;
-                            const middleIndex = Math.max(0, Math.floor((segmentCount - 1) / 2));
-                            const draggableSegmentIndices = new Set<number>([
-                              0,
-                              middleIndex,
-                              segmentCount - 1
-                            ]);
-                            if (!draggableSegmentIndices.has(pointIndex)) {
-                              return null;
-                            }
-                            return (
-                              <line
-                                key={`${edgeKey}-segment-handle-${pointIndex}`}
-                                x1={point.x}
-                                y1={point.y}
+                      return (
+                        <g key={key} className={`${isRelated ? 'related ' : ''}${isHovered ? 'hovered' : ''}`.trim()}>
+                          <path
+                            d={geometry.d}
+                            className="edge-hover-target"
+                            onPointerEnter={handleEdgeHoverEnter}
+                            onPointerLeave={handleEdgeHoverLeave}
+                            onMouseEnter={handleEdgeHoverEnter}
+                            onMouseLeave={handleEdgeHoverLeave}
+                          />
+                          <path
+                            d={geometry.d}
+                            className="arrow-path"
+                            markerEnd={isRelated ? "url(#arr-related)" : "url(#arr)"}
+                            onPointerEnter={handleEdgeHoverEnter}
+                            onPointerLeave={handleEdgeHoverLeave}
+                            onMouseEnter={handleEdgeHoverEnter}
+                            onMouseLeave={handleEdgeHoverLeave}
+                          />
+                          {edge.label && (
+                            <text
+                              className="arrow-label"
+                              textAnchor="middle"
+                              x={geometry.labelX}
+                              y={geometry.labelY}
+                            >
+                              [{edge.label}]
+                            </text>
+                          )}
+                          {supportsEditableEdgePoints(routeMode) &&
+                            geometry.points?.map((point, pointIndex) => {
+                              const nextPoint = geometry.points?.[pointIndex + 1];
+                              if (!nextPoint) {
+                                return null;
+                              }
+                              const segmentCount = geometry.points!.length - 1;
+                              const middleIndex = Math.max(0, Math.floor((segmentCount - 1) / 2));
+                              const draggableSegmentIndices = new Set<number>([
+                                0,
+                                middleIndex,
+                                segmentCount - 1
+                              ]);
+                              if (!draggableSegmentIndices.has(pointIndex)) {
+                                return null;
+                              }
+                              return (
+                                <line
+                                  key={`${edgeKey}-segment-handle-${pointIndex}`}
+                                  x1={point.x}
+                                  y1={point.y}
                                 x2={nextPoint.x}
                                 y2={nextPoint.y}
                                 className="edge-segment-handle"
+                                onPointerEnter={handleEdgeHoverEnter}
+                                onPointerLeave={handleEdgeHoverLeave}
+                                onMouseEnter={handleEdgeHoverEnter}
+                                onMouseLeave={handleEdgeHoverLeave}
                                 onPointerDown={(event) => beginEdgeSegmentDrag(event, edgeKey, pointIndex, geometry.points!)}
                               />
                             );

@@ -354,6 +354,41 @@ maps:
     expect(genericNode?.querySelector('.node-header span:last-child')?.textContent?.trim()).toBe('checkout-screen');
   });
 
+  it('highlights both connected nodes when hovering an edge', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{ id: 'a', dsl: 'slice "Edge Hover"\n\ncmd:start\n\nevt:finish <- cmd:start' }]
+      })
+    );
+
+    renderApp();
+
+    const fromNode = document.querySelector('.node.cmd');
+    const toNode = document.querySelector('.node.evt');
+    const edgePath = document.querySelector('.edge-hover-target');
+    expect(fromNode).not.toBeNull();
+    expect(toNode).not.toBeNull();
+    expect(edgePath).not.toBeNull();
+    expect(fromNode?.classList.contains('related')).toBe(false);
+    expect(toNode?.classList.contains('related')).toBe(false);
+
+    act(() => {
+      edgePath?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+    });
+
+    expect(fromNode?.classList.contains('related')).toBe(true);
+    expect(toNode?.classList.contains('related')).toBe(true);
+
+    act(() => {
+      edgePath?.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+    });
+
+    expect(fromNode?.classList.contains('related')).toBe(false);
+    expect(toNode?.classList.contains('related')).toBe(false);
+  });
+
   it('renders a slice divider for --- boundaries in the DSL', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,

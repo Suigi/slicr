@@ -24,6 +24,8 @@
   --exc-border: #7a1f1f;
 
   --arrow: #3a3a52;
+  --edge-highlight: #7dd3fc;
+  --edge-highlight-glow: rgb(125 211 252 / 40%);
   --command-color: #3b82f6;
   --command-color-rgb: 59 130 246;
   --event-color: #f97316;
@@ -90,6 +92,8 @@
   --exc-border: #f2b4b4;
 
   --arrow: #5f6b80;
+  --edge-highlight: #72b4c2;
+  --edge-highlight-glow: rgb(3 105 161 / 22%);
   --ui-color: #6d28d9;
   --ui-color-rgb: 109 40 217;
   --ui-bg: #f2ecff;
@@ -919,17 +923,28 @@ header h1 {
   fill: none;
   stroke: var(--arrow);
   stroke-width: 1.5;
+  pointer-events: none;
   transition: stroke 0.15s, stroke-width 0.15s;
 }
 
 g.related .arrow-path {
-  stroke: var(--text);
+  stroke: var(--edge-highlight);
+  filter: drop-shadow(0 0 3px var(--edge-highlight-glow));
+}
+
+.edge-hover-target {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 14;
+  pointer-events: stroke;
+  cursor: pointer;
 }
 
 .arrow-label {
   font-family: 'JetBrains Mono', monospace;
   font-size: 10px;
   fill: var(--muted);
+  pointer-events: none;
 }
 
 .slice-title {
