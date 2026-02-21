@@ -1,5 +1,5 @@
 import { edgePath } from './edgePath';
-import { DiagramEdgeGeometry, middlePoint, routeForwardEdge, routePolyline } from './diagramRouting';
+import { DiagramEdgeGeometry, middlePoint, routeElkEdges, routeForwardEdge, routePolyline } from './diagramRouting';
 import { buildElkLaneMeta, computeElkLayout } from './elkLayout';
 import { layoutGraph } from './layoutGraph';
 import type { LayoutResult, Parsed, Position } from './types';
@@ -73,25 +73,37 @@ export function buildRenderedEdges(
   engine: DiagramEngineId,
   overrides?: Record<string, Array<{ x: number; y: number }>>
 ): RenderedDiagramEdge[] {
+  const keyedEdges = parsed.edges.map((edge, index) => ({
+    edge,
+    index,
+    edgeKey: `${edge.from}->${edge.to}#${index}`
+  }));
   const attachmentCounts = new Map<string, number>();
   for (const edge of parsed.edges) {
     attachmentCounts.set(edge.from, (attachmentCounts.get(edge.from) ?? 0) + 1);
     attachmentCounts.set(edge.to, (attachmentCounts.get(edge.to) ?? 0) + 1);
   }
+  const elkRouted = engine === 'elk'
+    ? routeElkEdges(
+      keyedEdges.map(({ edge, edgeKey }) => ({ key: edgeKey, from: edge.from, to: edge.to })),
+      pos
+    )
+    : null;
 
-  return parsed.edges
-    .map((edge, index) => {
-      const edgeKey = `${edge.from}->${edge.to}#${index}`;
+  return keyedEdges
+    .map(({ edge, index, edgeKey }) => {
       const from = pos[edge.from];
       const to = pos[edge.to];
       if (!from || !to) {
         return null;
       }
-      const base = routeDiagramEdge(engine, from, to, {
-        sourceAttachmentCount: attachmentCounts.get(edge.from) ?? 1,
-        targetAttachmentCount: attachmentCounts.get(edge.to) ?? 1,
-        routeIndex: index
-      });
+      const base =
+        elkRouted?.[edgeKey] ??
+        routeDiagramEdge(engine, from, to, {
+          sourceAttachmentCount: attachmentCounts.get(edge.from) ?? 1,
+          targetAttachmentCount: attachmentCounts.get(edge.to) ?? 1,
+          routeIndex: index
+        });
       const overridden = overrides?.[edgeKey];
       const geometry = overridden && overridden.length === base.points?.length
         ? {

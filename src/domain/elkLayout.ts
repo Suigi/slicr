@@ -1,6 +1,6 @@
 import ELK from 'elkjs/lib/elk.bundled.js';
 import type { ElkNode } from 'elkjs/lib/elk-api';
-import { DiagramEdgeGeometry, routeForwardEdge } from './diagramRouting';
+import { DiagramEdgeGeometry, routeElkEdges } from './diagramRouting';
 import { applyBoundaryFloorPass, applyLaneGapPass, applySuccessorGapPass, normalizeLeftPadding } from './elkPostLayout';
 import { nodeHeight, PAD_X, rowFor } from './layoutGraph';
 import type { Parsed, Position } from './types';
@@ -14,12 +14,51 @@ export type ElkComputedLayout = {
   rowStreamLabels: Record<number, string>;
 };
 
+function applyEdgeDensityGapPass(
+  parsed: Parsed,
+  topoOrder: Map<string, number>,
+  nodesById: Record<string, Position>
+): boolean {
+  const outgoingCount = new Map<string, number>();
+  const incomingCount = new Map<string, number>();
+  for (const edge of parsed.edges) {
+    outgoingCount.set(edge.from, (outgoingCount.get(edge.from) ?? 0) + 1);
+    incomingCount.set(edge.to, (incomingCount.get(edge.to) ?? 0) + 1);
+  }
+
+  let changed = false;
+  for (const edge of parsed.edges) {
+    const source = nodesById[edge.from];
+    const target = nodesById[edge.to];
+    if (!source || !target) {
+      continue;
+    }
+    const sourceOrder = topoOrder.get(edge.from) ?? 0;
+    const targetOrder = topoOrder.get(edge.to) ?? 0;
+    if (sourceOrder >= targetOrder) {
+      continue;
+    }
+    const density = Math.max(outgoingCount.get(edge.from) ?? 1, incomingCount.get(edge.to) ?? 1);
+    const requiredGap = 40 + Math.max(0, density - 1) * 12;
+    const minTargetX = source.x + requiredGap;
+    if (target.x < minTargetX) {
+      target.x = minTargetX;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 function buildTopoOrder(parsed: Parsed): Map<string, number> {
   const nodeKeys = [...parsed.nodes.keys()];
+  const dslOrder = new Map<string, number>();
+  nodeKeys.forEach((key, index) => dslOrder.set(key, index));
   const incomingCount = new Map<string, number>();
+  const incoming = new Map<string, string[]>();
   const outgoing = new Map<string, string[]>();
   nodeKeys.forEach((key) => {
     incomingCount.set(key, 0);
+    incoming.set(key, []);
     outgoing.set(key, []);
   });
 
@@ -28,12 +67,46 @@ function buildTopoOrder(parsed: Parsed): Map<string, number> {
       continue;
     }
     outgoing.get(edge.from)?.push(edge.to);
+    incoming.get(edge.to)?.push(edge.from);
     incomingCount.set(edge.to, (incomingCount.get(edge.to) ?? 0) + 1);
   }
 
-  const queue = nodeKeys.filter((key) => (incomingCount.get(key) ?? 0) === 0);
+  const compareReadyNodes = (left: string, right: string) => {
+    const leftTargets = outgoing.get(left) ?? [];
+    const rightTargets = outgoing.get(right) ?? [];
+    const leftMinTarget = leftTargets.reduce(
+      (min, key) => Math.min(min, dslOrder.get(key) ?? Number.MAX_SAFE_INTEGER),
+      Number.MAX_SAFE_INTEGER
+    );
+    const rightMinTarget = rightTargets.reduce(
+      (min, key) => Math.min(min, dslOrder.get(key) ?? Number.MAX_SAFE_INTEGER),
+      Number.MAX_SAFE_INTEGER
+    );
+    if (leftMinTarget !== rightMinTarget) {
+      return leftMinTarget - rightMinTarget;
+    }
+
+    const leftSources = incoming.get(left) ?? [];
+    const rightSources = incoming.get(right) ?? [];
+    const leftMinSource = leftSources.reduce(
+      (min, key) => Math.min(min, dslOrder.get(key) ?? Number.MAX_SAFE_INTEGER),
+      Number.MAX_SAFE_INTEGER
+    );
+    const rightMinSource = rightSources.reduce(
+      (min, key) => Math.min(min, dslOrder.get(key) ?? Number.MAX_SAFE_INTEGER),
+      Number.MAX_SAFE_INTEGER
+    );
+    if (leftMinSource !== rightMinSource) {
+      return leftMinSource - rightMinSource;
+    }
+
+    return (dslOrder.get(left) ?? Number.MAX_SAFE_INTEGER) - (dslOrder.get(right) ?? Number.MAX_SAFE_INTEGER);
+  };
+
+  const queue = nodeKeys.filter((key) => (incomingCount.get(key) ?? 0) === 0).sort(compareReadyNodes);
   const ordered: string[] = [];
   while (queue.length > 0) {
+    queue.sort(compareReadyNodes);
     const current = queue.shift() as string;
     ordered.push(current);
     for (const next of outgoing.get(current) ?? []) {
@@ -207,8 +280,6 @@ export async function computeElkLayout(parsed: Parsed): Promise<ElkComputedLayou
     }
   }
 
-  normalizeLeftPadding(nodesById, 50);
-
   const laneGapY = 40;
   const laneBottomPadding = 40;
   const orderedLanes = [...laneKeys.keys()].sort((a, b) => a - b);
@@ -233,32 +304,34 @@ export async function computeElkLayout(parsed: Parsed): Promise<ElkComputedLayou
     laneTop += laneHeight + laneBottomPadding + laneGapY;
   }
 
+  for (let pass = 0; pass < 4; pass += 1) {
+    const movedByDensityGap = applyEdgeDensityGapPass(parsed, topoOrder, nodesById);
+    const movedBySuccessorGap = applySuccessorGapPass(parsed.edges, topoOrder, nodesById, minSuccessorGap);
+    const movedByBoundaryFloors = applyBoundaryFloorPass(dslOrder, boundarySpecs, nodesById);
+    const movedByLaneGap = applyLaneGapPass(laneKeys, nodesById, minLaneGap);
+    if (!movedByDensityGap && !movedBySuccessorGap && !movedByBoundaryFloors && !movedByLaneGap) {
+      break;
+    }
+  }
+
+  normalizeLeftPadding(nodesById, 50);
+
   let maxX = 0;
   let maxY = 0;
-  const attachmentCounts = new Map<string, number>();
-  for (const edge of parsed.edges) {
-    attachmentCounts.set(edge.from, (attachmentCounts.get(edge.from) ?? 0) + 1);
-    attachmentCounts.set(edge.to, (attachmentCounts.get(edge.to) ?? 0) + 1);
-  }
   for (const node of Object.values(nodesById)) {
     maxX = Math.max(maxX, node.x + node.w);
     maxY = Math.max(maxY, node.y + node.h);
   }
 
-  const edges: Record<string, DiagramEdgeGeometry> = {};
-  parsed.edges.forEach((edge, index) => {
-    const source = nodesById[edge.from];
-    const target = nodesById[edge.to];
-    if (!source || !target) {
-      return;
-    }
-    const key = `${edge.from}->${edge.to}#${index}`;
-    const geometry = routeForwardEdge(source, target, {
-      sourceAttachmentCount: attachmentCounts.get(edge.from) ?? 1,
-      targetAttachmentCount: attachmentCounts.get(edge.to) ?? 1,
-      routeIndex: index
-    });
-    edges[key] = geometry;
+  const edges: Record<string, DiagramEdgeGeometry> = routeElkEdges(
+    parsed.edges.map((edge, index) => ({
+      key: `${edge.from}->${edge.to}#${index}`,
+      from: edge.from,
+      to: edge.to
+    })),
+    nodesById
+  );
+  Object.values(edges).forEach((geometry) => {
     const points = geometry.d
       .split(/[ML ]+/)
       .map((value) => value.trim())
