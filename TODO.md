@@ -14,3 +14,4 @@
 [ ] autocomplete for node names without node type
     [ ] if there's a node evt:concert-scheduled, I want `conc` to autocomplete to evt:concert-scheduled
     [ ] if there's also a node rm:concerts-scheduled, I want `conc` to offer both nodes for autocompletion
+[ ] fix edges detaching from nodes when edge was manually edited and the height of the node then changes (e.g. because data was added or removed)
