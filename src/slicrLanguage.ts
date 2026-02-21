@@ -72,7 +72,8 @@ export const slicrHighlightStyle = HighlightStyle.define([
   { tag: t.inserted, class: "dsl-tok-rmName" },
   { tag: t.changed, class: "dsl-tok-uiName" },
   { tag: t.function(t.variableName), class: "dsl-tok-cmdName" },
-  { tag: t.constant(t.variableName), class: "dsl-tok-evtName" }
+  { tag: t.constant(t.variableName), class: "dsl-tok-evtName" },
+  { tag: t.special(t.variableName), class: "dsl-tok-autName" }
 ])
 
 export const slicrLanguage = LRLanguage.define({
@@ -94,6 +95,7 @@ export const slicrLanguage = LRLanguage.define({
         "UiName/Identifier": t.changed,
         "CmdName/Identifier": t.function(t.variableName),
         "EvtName/Identifier": t.constant(t.variableName),
+        "AutRef/Identifier": t.special(t.variableName),
         "Identifier": t.variableName,
         "String": t.string,
         "Number": t.number,

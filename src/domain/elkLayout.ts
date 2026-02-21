@@ -61,10 +61,20 @@ export function buildElkLaneMeta(parsed: Parsed) {
   const eventsByStream = new Map<string, string[]>();
 
   for (const node of parsed.nodes.values()) {
-    if (node.type === 'ui' || node.type === 'generic') {
+    if (node.type === 'ui' || node.type === 'aut' || node.type === 'ext' || node.type === 'generic') {
       laneByKey.set(node.key, 0);
       continue;
     }
+    if (node.type === 'exc') {
+      const list = eventsByStream.get('default');
+      if (list) {
+        list.push(node.key);
+      } else {
+        eventsByStream.set('default', [node.key]);
+      }
+      continue;
+    }
+
     if (node.type !== 'evt') {
       laneByKey.set(node.key, 1);
       continue;

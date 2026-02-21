@@ -541,13 +541,13 @@ export const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocCh
             color: 'var(--ui-color)'
           },
           '.cm-completionIcon-exc': {
-            color: 'var(--exc)'
+            color: 'var(--editor-exc)'
           },
           '.cm-completionIcon-aut': {
-            color: '#14b8a6'
+            color: 'var(--automation-color)'
           },
           '.cm-completionIcon-ext': {
-            color: '#c084fc'
+            color: 'var(--editor-ext)'
           },
           '.cm-completionIcon-evt + .cm-completionLabel': {
             color: 'var(--evt)'
@@ -562,13 +562,13 @@ export const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocCh
             color: 'var(--ui-color)'
           },
           '.cm-completionIcon-exc + .cm-completionLabel': {
-            color: 'var(--exc)'
+            color: 'var(--editor-exc)'
           },
           '.cm-completionIcon-aut + .cm-completionLabel': {
-            color: '#14b8a6'
+            color: 'var(--automation-color)'
           },
           '.cm-completionIcon-ext + .cm-completionLabel': {
-            color: '#c084fc'
+            color: 'var(--editor-ext)'
           },
           '.cm-completionDetail': {
             color: 'var(--muted)',

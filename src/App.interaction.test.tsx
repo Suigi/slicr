@@ -224,6 +224,90 @@ rm:persisted-view`;
     expect(panel?.classList.contains('open')).toBe(true);
   });
 
+  it('toggles the documentation panel from the header', () => {
+    renderApp();
+
+    const docsToggle = document.querySelector('button[aria-label="Toggle documentation panel"]');
+    expect(docsToggle).not.toBeNull();
+    expect(document.querySelector('.docs-panel-shell')).toBeNull();
+
+    act(() => {
+      docsToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const docsShell = document.querySelector('.docs-panel-shell');
+    expect(document.querySelector('.docs-panel')).not.toBeNull();
+    expect(docsShell?.classList.contains('hidden')).toBe(false);
+    expect(document.querySelectorAll('.doc-feature-card').length).toBeGreaterThan(0);
+    expect(document.querySelector('.docs-panel')).not.toBeNull();
+    expect(document.querySelector('.canvas-panel')).not.toBeNull();
+    expect(document.querySelector('.canvas-panel')?.classList.contains('hidden')).toBe(true);
+  });
+
+  it('preserves canvas scroll position when opening and closing documentation panel', () => {
+    renderApp();
+
+    const docsToggle = document.querySelector('button[aria-label="Toggle documentation panel"]');
+    const canvasPanel = document.querySelector('.canvas-panel') as HTMLDivElement | null;
+    expect(docsToggle).not.toBeNull();
+    expect(canvasPanel).not.toBeNull();
+
+    act(() => {
+      if (canvasPanel) {
+        canvasPanel.scrollLeft = 260;
+        canvasPanel.scrollTop = 140;
+      }
+    });
+
+    act(() => {
+      docsToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(canvasPanel?.classList.contains('hidden')).toBe(true);
+
+    act(() => {
+      docsToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(canvasPanel?.classList.contains('hidden')).toBe(false);
+    expect(canvasPanel?.scrollLeft).toBe(260);
+    expect(canvasPanel?.scrollTop).toBe(140);
+  });
+
+  it('preserves documentation scroll position when closing and reopening documentation panel', () => {
+    renderApp();
+
+    const docsToggle = document.querySelector('button[aria-label="Toggle documentation panel"]');
+    expect(docsToggle).not.toBeNull();
+    expect(document.querySelector('.docs-panel')).toBeNull();
+
+    act(() => {
+      docsToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const docsPanel = document.querySelector('.docs-panel') as HTMLDivElement | null;
+    const docsShell = document.querySelector('.docs-panel-shell');
+    expect(docsPanel).not.toBeNull();
+    expect(docsShell?.classList.contains('hidden')).toBe(false);
+
+    act(() => {
+      if (docsPanel) {
+        docsPanel.scrollTop = 220;
+      }
+    });
+
+    act(() => {
+      docsToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(docsShell?.classList.contains('hidden')).toBe(true);
+
+    act(() => {
+      docsToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(docsShell?.classList.contains('hidden')).toBe(false);
+    expect(docsPanel?.scrollTop).toBe(220);
+  });
+
   it('does not show unresolved dependency warnings in the bottom error bar', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,

@@ -32,6 +32,7 @@ import {
 } from './sliceLibrary';
 import {EditorWarning, Range, useDslEditor} from './useDslEditor';
 import {useDiagramInteractions} from './useDiagramInteractions';
+import { DocumentationPanel } from './DocumentationPanel';
 
 type ParseResult =
   | { parsed: Parsed; error: ''; warnings: Parsed['warnings'] }
@@ -94,6 +95,8 @@ function App() {
       return 'classic';
     }
   });
+  const [docsOpen, setDocsOpen] = useState(false);
+  const [hasOpenedDocs, setHasOpenedDocs] = useState(false);
   const [diagramEngineLayout, setDiagramEngineLayout] = useState<DiagramEngineLayout | null>(null);
   const [routeMenuOpen, setRouteMenuOpen] = useState(false);
   const [manualNodePositions, setManualNodePositions] = useState<Record<string, { x: number; y: number }>>(
@@ -551,6 +554,16 @@ function App() {
     setManualEdgePoints(overrides.edges);
   };
 
+  const toggleDocumentationPanel = () => {
+    setDocsOpen((value) => {
+      const next = !value;
+      if (next) {
+        setHasOpenedDocs(true);
+      }
+      return next;
+    });
+  };
+
   return (
     <>
       <header>
@@ -702,6 +715,32 @@ function App() {
           </svg>
           DSL
         </button>
+        <button
+          type="button"
+          className="docs-toggle"
+          aria-label="Toggle documentation panel"
+          onClick={toggleDocumentationPanel}
+          style={{
+            color: docsOpen ? 'var(--text)' : undefined,
+            borderColor: docsOpen ? 'var(--text)' : undefined
+          }}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+            <path d="M4 4.5A2.5 2.5 0 0 1 6.5 7H20" />
+            <path d="M6.5 7v10" />
+          </svg>
+          Docs
+        </button>
         {showDevDiagramControls && (
           <>
             <div className="route-menu" ref={routeMenuRef}>
@@ -824,8 +863,9 @@ function App() {
 
         <div
           ref={canvasPanelRef}
-          className={`canvas-panel ${isPanning ? 'panning' : ''}`}
+          className={`canvas-panel ${isPanning ? 'panning' : ''} ${docsOpen ? 'hidden' : ''}`}
           onPointerDown={beginCanvasPan}
+          aria-hidden={docsOpen}
         >
           <div
             id="canvas"
@@ -929,7 +969,7 @@ function App() {
                     >
                       <div className="node-header">
                         {nodePrefix ? <span className="node-prefix">{nodePrefix}:</span> : null}
-                        <span>{node.alias ?? node.name.replace(NODE_VERSION_SUFFIX, '')}</span>
+                        <span className="node-title">{node.alias ?? node.name.replace(NODE_VERSION_SUFFIX, '')}</span>
                       </div>
 
                       {node.data && (
@@ -1026,14 +1066,19 @@ function App() {
                               />
                             );
                           })}
-                      </g>
-                    );
-                  })}
-                </svg>
+                        </g>
+                      );
+                    })}
+                  </svg>
               </div>
             )}
           </div>
         </div>
+        {(hasOpenedDocs || docsOpen) && (
+          <div className={`docs-panel-shell ${docsOpen ? '' : 'hidden'}`} aria-hidden={!docsOpen}>
+            <DocumentationPanel />
+          </div>
+        )}
       </div>
     </>
   );

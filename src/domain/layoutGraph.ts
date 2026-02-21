@@ -6,6 +6,13 @@ const NODE_W = 180;
 const NODE_H_BASE = 42;
 const NODE_FIELD_H = 16;
 const NODE_FIELD_PAD = 10;
+const NODE_PAD_X = 14;
+const HEADER_GAP = 8;
+const HEADER_TEXT_CHAR_W = 7;
+const HEADER_PREFIX_CHAR_W = 6;
+const HEADER_EXTRA_LINE_H = 14;
+const HEADER_MIN_CHARS_PER_LINE = 4;
+const NODE_VERSION_SUFFIX = /@\d+$/;
 const COL_GAP = 80;
 export const PAD_X = 40;
 const PAD_TOP = 16;
@@ -13,19 +20,22 @@ const ROW_GAP = 120;
 const MIN_SUCCESSOR_X_OFFSET = EDGE_ANCHOR_OFFSET * 4;
 
 export function nodeHeight(node: VisualNode): number {
+  const headerLines = headerLineCount(node);
+  const headerHeight = NODE_H_BASE + Math.max(0, headerLines - 1) * HEADER_EXTRA_LINE_H;
+
   if (!node.data) {
-    return NODE_H_BASE;
+    return headerHeight;
   }
 
   const lines = countNodeDataLines(node.data);
-  return NODE_H_BASE + NODE_FIELD_PAD + lines * NODE_FIELD_H;
+  return headerHeight + NODE_FIELD_PAD + lines * NODE_FIELD_H;
 }
 
 export function rowFor(type: string): number {
-  if (type === 'ui' || type === 'generic') {
+  if (type === 'ui' || type === 'aut' || type === 'ext' || type === 'generic') {
     return 0;
   }
-  if (type === 'evt') {
+  if (type === 'evt' || type === 'exc') {
     return 2;
   }
   return 1;
@@ -154,8 +164,19 @@ export function layoutGraph(nodes: Map<string, VisualNode>, edges: Edge[], bound
   col = applyBoundaryColumnFloors(col, nodeOrder, boundarySpecs, nodeOrderIndex, rowByKey);
 
   const rowY: Record<number, number> = {};
-  usedRows.forEach((row, i) => {
-    rowY[row] = PAD_TOP + 32 + i * (NODE_H_BASE + ROW_GAP);
+  const rowHeights: Record<number, number> = {};
+  nodes.forEach((node, key) => {
+    const row = rowByKey[key];
+    if (row === undefined) {
+      return;
+    }
+    const height = nodeHeight(node);
+    rowHeights[row] = Math.max(rowHeights[row] ?? 0, height);
+  });
+  let nextRowY = PAD_TOP + 32;
+  usedRows.forEach((row) => {
+    rowY[row] = nextRowY;
+    nextRowY += (rowHeights[row] ?? NODE_H_BASE) + ROW_GAP;
   });
 
   const numCols = Math.max(...Object.values(col)) + 1;
@@ -238,6 +259,32 @@ function applyBoundaryColumnFloors(
   return adjusted;
 }
 
+function headerLineCount(node: VisualNode): number {
+  const title = (node.alias ?? node.name.replace(NODE_VERSION_SUFFIX, '')).trim();
+  if (!title) {
+    return 1;
+  }
+
+  const contentWidth = NODE_W - NODE_PAD_X * 2;
+  const prefix = node.type === 'generic' ? '' : node.type.trim();
+  const prefixWidth = prefix ? (prefix.length + 1) * HEADER_PREFIX_CHAR_W + HEADER_GAP : 0;
+  const firstLineWidth = Math.max(contentWidth - prefixWidth, HEADER_MIN_CHARS_PER_LINE * HEADER_TEXT_CHAR_W);
+  const firstLineChars = Math.max(Math.floor(firstLineWidth / HEADER_TEXT_CHAR_W), HEADER_MIN_CHARS_PER_LINE);
+  const baseLineChars = Math.max(Math.floor(contentWidth / HEADER_TEXT_CHAR_W), HEADER_MIN_CHARS_PER_LINE);
+
+  let remainingChars = title.length - firstLineChars;
+  if (remainingChars <= 0) {
+    return 1;
+  }
+
+  let extraLines = 0;
+  while (remainingChars > 0) {
+    remainingChars -= baseLineChars;
+    extraLines += 1;
+  }
+  return 1 + extraLines;
+}
+
 function applyBoundaryXFloors(
   pos: LayoutResult['pos'],
   nodeOrder: string[],
@@ -284,10 +331,20 @@ function buildRowAssignments(nodes: Map<string, VisualNode>, nodeOrder: string[]
       continue;
     }
 
-    if (node.type === 'ui' || node.type === 'generic') {
+    if (node.type === 'ui' || node.type === 'aut' || node.type === 'ext' || node.type === 'generic') {
       rowByKey[key] = 0;
       continue;
     }
+    if (node.type === 'exc') {
+      const keys = eventsByStream.get('default');
+      if (keys) {
+        keys.push(key);
+      } else {
+        eventsByStream.set('default', [key]);
+      }
+      continue;
+    }
+
     if (node.type !== 'evt') {
       rowByKey[key] = 1;
       continue;
