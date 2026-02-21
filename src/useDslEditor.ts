@@ -315,15 +315,34 @@ const createFoldMarker = (open: boolean) => {
   svg.setAttribute('height', '10');
   svg.setAttribute('aria-hidden', 'true');
 
-  const path = document.createElementNS(svgNS, 'path');
-  path.setAttribute('fill', 'none');
-  path.setAttribute('stroke', 'currentColor');
-  path.setAttribute('stroke-width', '1.6');
-  path.setAttribute('stroke-linecap', 'round');
-  path.setAttribute('stroke-linejoin', 'round');
-  path.setAttribute('d', open ? 'M2 4 Q6 9 10 4' : 'M4 2 Q9 6 4 10');
+  const box = document.createElementNS(svgNS, 'rect');
+  box.setAttribute('x', '1.5');
+  box.setAttribute('y', '1.5');
+  box.setAttribute('width', '9');
+  box.setAttribute('height', '9');
+  box.setAttribute('rx', '1');
+  box.setAttribute('fill', 'none');
+  box.setAttribute('stroke', 'currentColor');
+  box.setAttribute('stroke-width', '1.2');
 
-  svg.appendChild(path);
+  const horizontal = document.createElementNS(svgNS, 'path');
+  horizontal.setAttribute('fill', 'none');
+  horizontal.setAttribute('stroke', 'currentColor');
+  horizontal.setAttribute('stroke-width', '1.4');
+  horizontal.setAttribute('stroke-linecap', 'round');
+  horizontal.setAttribute('d', 'M4 6 L8 6');
+
+  svg.appendChild(box);
+  svg.appendChild(horizontal);
+  if (!open) {
+    const vertical = document.createElementNS(svgNS, 'path');
+    vertical.setAttribute('fill', 'none');
+    vertical.setAttribute('stroke', 'currentColor');
+    vertical.setAttribute('stroke-width', '1.4');
+    vertical.setAttribute('stroke-linecap', 'round');
+    vertical.setAttribute('d', 'M6 4 L6 8');
+    svg.appendChild(vertical);
+  }
   marker.appendChild(svg);
   return marker;
 };
@@ -426,6 +445,9 @@ export const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocCh
           '.cm-foldGutter .cm-gutterElement.cm-warning-line': {
             backgroundColor: 'rgb(239 68 68 / 30%)'
           },
+          'span.cm-warning-line-marker' : {
+            padding: 0
+          },
           '.cm-warning-tooltip': {
             position: 'absolute',
             zIndex: '1000',
@@ -453,7 +475,7 @@ export const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocCh
             fontFamily: "'JetBrains Mono', monospace",
             fontSize: '13px',
             lineHeight: '1.7',
-            padding: '16px'
+            padding: '6px'
           },
           '.cm-content': {
             caretColor: '#f97316'
