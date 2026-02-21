@@ -171,7 +171,7 @@ describe('sliceLibrary', () => {
     expect(localStorage.getItem(SLICES_LAYOUT_STORAGE_KEY)).toBeNull();
   });
 
-  it('appends a text-edited event for each slice when saving the library', () => {
+  it('does not append text-edited when slice-created already carries the same DSL', () => {
     const library = {
       selectedSliceId: 'slice-a',
       slices: [{ id: 'slice-a', dsl: 'slice "A"\n\nevt:start' }]
@@ -182,9 +182,8 @@ describe('sliceLibrary', () => {
     const raw = localStorage.getItem('slicr.es.v1.stream.slice-a');
     expect(raw).not.toBeNull();
     const events = JSON.parse(raw ?? '[]') as Array<{ type: string; version: number; payload: { dsl: string } }>;
-    expect(events.some((event) => event.type === 'text-edited')).toBe(true);
-    const textEdited = events.find((event) => event.type === 'text-edited');
-    expect(textEdited?.payload.dsl).toBe('slice "A"\n\nevt:start');
+    expect(events.some((event) => event.type === 'slice-created')).toBe(true);
+    expect(events.some((event) => event.type === 'text-edited')).toBe(false);
 
     saveSliceLibrary(library);
     const second = JSON.parse(localStorage.getItem('slicr.es.v1.stream.slice-a') ?? '[]') as Array<unknown>;

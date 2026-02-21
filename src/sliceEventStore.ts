@@ -407,7 +407,14 @@ export function applySliceEvent(projection: SliceProjection, event: SliceEvent):
     };
   }
 
-  if (event.type === 'slice-created' || event.type === 'slice-selected') {
+  if (event.type === 'slice-created') {
+    return {
+      ...projection,
+      dsl: event.payload.initialDsl
+    };
+  }
+
+  if (event.type === 'slice-selected') {
     return projection;
   }
 

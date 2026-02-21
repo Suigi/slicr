@@ -182,6 +182,7 @@ rm:persisted-view`;
     expect(streamRaw).not.toBeNull();
     const events = JSON.parse(streamRaw ?? '[]') as Array<{ type: string }>;
     expect(events.some((event) => event.type === 'slice-created')).toBe(true);
+    expect(events.some((event) => event.type === 'text-edited')).toBe(false);
   });
 
   it('opens and closes the editor panel via toggle and outside click', () => {

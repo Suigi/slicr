@@ -448,10 +448,10 @@ function migrateLegacyLibraryToEvents(library: SliceLibrary): void {
 
   for (const slice of library.slices) {
     const events = loadSliceEvents(slice.id);
+    const projection = hydrateSliceProjection(slice.id);
     if (!events.some((event) => event.type === 'slice-created')) {
-      appendSliceCreatedEvent(slice.id, slice.dsl);
-    }
-    if (!events.some((event) => event.type === 'text-edited')) {
+      appendSliceCreatedEvent(slice.id, projection.dsl || slice.dsl);
+    } else if (!events.some((event) => event.type === 'text-edited') && !projection.dsl) {
       appendSliceEvent(slice.id, {
         type: 'text-edited',
         payload: { dsl: slice.dsl }
@@ -556,11 +556,14 @@ export function saveSliceLibrary(library: SliceLibrary): void {
   writeEventIndex(library.slices.map((slice) => slice.id));
   for (const slice of library.slices) {
     const events = loadSliceEvents(slice.id);
-    if (!events.some((event) => event.type === 'slice-created')) {
-      appendSliceCreatedEvent(slice.id, slice.dsl);
-    }
     const projection = hydrateSliceProjection(slice.id);
-    if (projection.dsl !== slice.dsl) {
+    let projectedDsl = projection.dsl;
+    if (!events.some((event) => event.type === 'slice-created')) {
+      const initialDsl = projectedDsl || slice.dsl;
+      appendSliceCreatedEvent(slice.id, initialDsl);
+      projectedDsl = initialDsl;
+    }
+    if (projectedDsl !== slice.dsl) {
       appendSliceEvent(slice.id, {
         type: 'text-edited',
         payload: { dsl: slice.dsl }

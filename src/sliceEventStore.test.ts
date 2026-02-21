@@ -230,4 +230,20 @@ describe('sliceEventStore', () => {
     expect(projection.manualNodePositions).toEqual({ a: { x: 100, y: 100 } });
     expect(projection.manualEdgePoints).toEqual({ 'a->b#0': [{ x: 10, y: 10 }, { x: 20, y: 20 }] });
   });
+
+  it('uses slice-created initialDsl as the projection dsl', () => {
+    const events: SliceEvent[] = [
+      {
+        id: 'e-1',
+        sliceId: 'slice-a',
+        version: 1,
+        at: '2026-01-01T00:00:01.000Z',
+        type: 'slice-created',
+        payload: { initialDsl: 'slice "Created"\n\nevt:created' }
+      }
+    ];
+
+    const projection = foldSliceEvents(events);
+    expect(projection.dsl).toBe('slice "Created"\n\nevt:created');
+  });
 });
