@@ -248,7 +248,15 @@ header h1 {
   gap: 8px;
 }
 
-.slice-select {
+.slice-menu {
+  position: relative;
+}
+
+.slice-select-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -259,6 +267,63 @@ header h1 {
   min-width: 170px;
   max-width: 260px;
   padding: 6px 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.slice-select-toggle:hover {
+  border-color: var(--text);
+}
+
+.slice-select-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slice-menu-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 170px;
+  max-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgb(0 0 0 / 16%);
+  z-index: 40;
+}
+
+.slice-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 6px 8px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.slice-menu-item:hover {
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.slice-menu-check {
+  width: 12px;
+  color: var(--text);
 }
 
 .slice-new {
@@ -308,7 +373,12 @@ header h1 {
     gap: 10px;
   }
 
-  .slice-select {
+  .slice-select-toggle {
+    min-width: 130px;
+    max-width: 170px;
+  }
+
+  .slice-menu-panel {
     min-width: 130px;
     max-width: 170px;
   }

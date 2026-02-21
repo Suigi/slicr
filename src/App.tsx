@@ -79,6 +79,7 @@ function App() {
   });
   const [editorOpen, setEditorOpen] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
+  const sliceMenuRef = useRef<HTMLDivElement>(null);
   const routeMenuRef = useRef<HTMLDivElement>(null);
   const skipNextLayoutSaveRef = useRef(false);
   const editorRef = useRef<HTMLDivElement>(null);
@@ -98,6 +99,7 @@ function App() {
   const [docsOpen, setDocsOpen] = useState(false);
   const [hasOpenedDocs, setHasOpenedDocs] = useState(false);
   const [diagramEngineLayout, setDiagramEngineLayout] = useState<DiagramEngineLayout | null>(null);
+  const [sliceMenuOpen, setSliceMenuOpen] = useState(false);
   const [routeMenuOpen, setRouteMenuOpen] = useState(false);
   const [manualNodePositions, setManualNodePositions] = useState<Record<string, { x: number; y: number }>>(
     initialSnapshot.overrides.nodes
@@ -449,6 +451,27 @@ function App() {
 
   useEffect(() => {
     const closeOnOutside = (event: PointerEvent) => {
+      if (!sliceMenuOpen) {
+        return;
+      }
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+      const clickedMenu = sliceMenuRef.current?.contains(target) ?? false;
+      if (!clickedMenu) {
+        setSliceMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', closeOnOutside);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutside);
+    };
+  }, [sliceMenuOpen]);
+
+  useEffect(() => {
+    const closeOnOutside = (event: PointerEvent) => {
       if (!routeMenuOpen) {
         return;
       }
@@ -574,12 +597,12 @@ function App() {
             <span>command</span>
           </div>
           <div className="legend-item">
-            <div className="legend-dot" style={{ background: 'var(--rm)' }} />
-            <span>read model</span>
-          </div>
-          <div className="legend-item">
             <div className="legend-dot" style={{ background: 'var(--evt)' }} />
             <span>event</span>
+          </div>
+          <div className="legend-item">
+            <div className="legend-dot" style={{ background: 'var(--rm)' }} />
+            <span>read model</span>
           </div>
           <div className="legend-item">
             <div className="legend-dot" style={{ background: 'var(--exc)' }} />
@@ -587,33 +610,51 @@ function App() {
           </div>
         </div>
         <div className="slice-controls">
-          <label className="sr-only" htmlFor="slice-select">
-            Select slice
-          </label>
-          <select
-            id="slice-select"
-            className="slice-select"
-            aria-label="Select slice"
-            value={library.selectedSliceId}
-            onChange={(event) => {
-              const selectedId = event.target.value;
-              setSelectedNodeKey(null);
-              setHighlightRange(null);
-              setLibrary((currentLibrary) => {
-                const nextLibrary = selectSlice(currentLibrary, selectedId);
-                if (nextLibrary.selectedSliceId !== currentLibrary.selectedSliceId) {
-                  applySelectedSliceOverrides(nextLibrary.selectedSliceId);
-                }
-                return nextLibrary;
-              });
-            }}
-          >
-            {library.slices.map((slice) => (
-              <option key={slice.id} value={slice.id}>
-                {getSliceNameFromDsl(slice.dsl)}
-              </option>
-            ))}
-          </select>
+          <div className="slice-menu" ref={sliceMenuRef}>
+            <button
+              type="button"
+              className="slice-select-toggle"
+              aria-label="Select slice"
+              title="Select slice"
+              onClick={() => setSliceMenuOpen((current) => !current)}
+            >
+              <span className="slice-select-label">{currentSliceName}</span>
+              <span aria-hidden="true">▾</span>
+            </button>
+            {sliceMenuOpen && (
+              <div className="slice-menu-panel" role="menu" aria-label="Slice list">
+                {library.slices.map((slice) => {
+                  const sliceName = getSliceNameFromDsl(slice.dsl);
+                  return (
+                    <button
+                      key={slice.id}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={library.selectedSliceId === slice.id}
+                      className="slice-menu-item"
+                      onClick={() => {
+                        setSelectedNodeKey(null);
+                        setHighlightRange(null);
+                        setLibrary((currentLibrary) => {
+                          const nextLibrary = selectSlice(currentLibrary, slice.id);
+                          if (nextLibrary.selectedSliceId !== currentLibrary.selectedSliceId) {
+                            applySelectedSliceOverrides(nextLibrary.selectedSliceId);
+                          }
+                          return nextLibrary;
+                        });
+                        setSliceMenuOpen(false);
+                      }}
+                    >
+                      <span className="slice-menu-check" aria-hidden="true">
+                        {library.selectedSliceId === slice.id ? '✓' : ''}
+                      </span>
+                      <span>{sliceName}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
           <button
             type="button"
             className="slice-new"

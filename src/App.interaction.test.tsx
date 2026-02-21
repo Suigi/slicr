@@ -83,6 +83,26 @@ function readStoredLibrary() {
   };
 }
 
+function openSliceMenu() {
+  if (document.querySelector('.slice-menu-panel')) {
+    return;
+  }
+  const menuToggle = document.querySelector('button[aria-label="Select slice"]') as HTMLButtonElement | null;
+  expect(menuToggle).not.toBeNull();
+  act(() => {
+    menuToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+}
+
+function clickSliceMenuItem(label: string) {
+  const item = [...document.querySelectorAll('.slice-menu-item')]
+    .find((button) => button.textContent?.includes(label)) as HTMLButtonElement | undefined;
+  expect(item).toBeDefined();
+  act(() => {
+    item?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+}
+
 describe('App interactions', () => {
   it('loads default DSL when storage is empty and persists it', () => {
     renderApp();
@@ -124,17 +144,11 @@ rm:persisted-view`;
 
     renderApp();
 
-    const select = document.querySelector('select[aria-label="Select slice"]') as HTMLSelectElement | null;
-    expect(select).not.toBeNull();
-    expect(select?.options.length).toBe(2);
+    openSliceMenu();
+    expect(document.querySelectorAll('.slice-menu-item').length).toBe(2);
     expect(document.querySelector('.slice-title')?.textContent).toBe('Alpha');
 
-    act(() => {
-      if (select) {
-        select.value = 'b';
-        select.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-    });
+    clickSliceMenuItem('Beta');
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Beta');
     expect(document.title).toBe('Slicer - Beta');
@@ -155,25 +169,26 @@ rm:persisted-view`;
 
     renderApp();
 
-    const select = document.querySelector('select[aria-label="Select slice"]') as HTMLSelectElement | null;
-    expect(select?.selectedOptions[0]?.textContent).toBe('Fresh Name');
+    const menuToggle = document.querySelector('button[aria-label="Select slice"]') as HTMLButtonElement | null;
+    expect(menuToggle?.textContent).toContain('Fresh Name');
   });
 
   it('creates and selects a new slice from header button', () => {
     renderApp();
 
-    const select = document.querySelector('select[aria-label="Select slice"]') as HTMLSelectElement | null;
     const newButton = document.querySelector('button[aria-label="Create new slice"]') as HTMLButtonElement | null;
-    expect(select).not.toBeNull();
     expect(newButton).not.toBeNull();
-    expect(select?.options.length).toBe(1);
+    openSliceMenu();
+    expect(document.querySelectorAll('.slice-menu-item').length).toBe(1);
 
     act(() => {
       newButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    expect(select?.options.length).toBe(2);
-    expect(select?.selectedOptions[0]?.textContent).toBe('Untitled');
+    const menuToggle = document.querySelector('button[aria-label="Select slice"]') as HTMLButtonElement | null;
+    expect(menuToggle?.textContent).toContain('Untitled');
+    openSliceMenu();
+    expect(document.querySelectorAll('.slice-menu-item').length).toBe(2);
     const stored = readStoredLibrary();
     expect(stored).not.toBeNull();
     const selected = stored?.slices.find((slice) => slice.id === stored.selectedSliceId);
@@ -606,17 +621,12 @@ maps:
 
     renderApp();
 
-    const select = document.querySelector('select[aria-label="Select slice"]') as HTMLSelectElement | null;
     const eventNodeBefore = document.querySelector('.node.evt') as HTMLElement | null;
     expect(eventNodeBefore?.style.left).toBe('115px');
     expect(eventNodeBefore?.style.top).toBe('95px');
 
-    act(() => {
-      if (select) {
-        select.value = 'b';
-        select.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-    });
+    openSliceMenu();
+    clickSliceMenuItem('B');
 
     const eventNodeAfter = document.querySelector('.node.evt') as HTMLElement | null;
     expect(eventNodeAfter?.style.left).toBe('445px');
