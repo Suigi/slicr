@@ -21,6 +21,7 @@ type NodeSpec = {
 type ArtifactRef = {
   type: string;
   name: string;
+  range: { from: number; to: number };
 };
 
 type YamlEntry = {
@@ -202,7 +203,7 @@ export function parseDsl(src: string): Parsed {
         continue;
       }
       unresolvedEdgeSet.add(edgeKey);
-      unresolvedEdges.push({ fromRef, toRef: ref, range: spec.srcRange });
+      unresolvedEdges.push({ fromRef, toRef: ref, range: from.range });
     }
 
     for (const to of spec.outgoing) {
@@ -212,7 +213,7 @@ export function parseDsl(src: string): Parsed {
         continue;
       }
       unresolvedEdgeSet.add(edgeKey);
-      unresolvedEdges.push({ fromRef: ref, toRef, range: spec.srcRange });
+      unresolvedEdges.push({ fromRef: ref, toRef, range: to.range });
     }
   }
 
@@ -222,8 +223,9 @@ export function parseDsl(src: string): Parsed {
     if (from && to) {
       edges.push({ from, to, label: null });
     } else if (shouldWarnUnresolvedDependency(edge.fromRef, edge.toRef)) {
+      const unknownRef = !from ? edge.fromRef : edge.toRef;
       warnings.push({
-        message: `Unresolved dependency: ${edge.fromRef} -> ${edge.toRef}`,
+        message: `Unresolved dependency: ${formatUnknownRefName(unknownRef)}`,
         range: edge.range,
         level: 'error'
       });
@@ -441,6 +443,7 @@ function parseArtifactRef(cursor: ParseCursor, src: string): ArtifactRef | null 
   if (cursorTypeId(cursor) !== terms.ArtifactRef) {
     return null;
   }
+  const range = { from: cursor.from, to: cursor.to };
 
   cursor.firstChild(); // Move to specific ref (RmRef, UiRef, etc.)
   const typeId = cursorTypeId(cursor);
@@ -486,7 +489,7 @@ function parseArtifactRef(cursor: ParseCursor, src: string): ArtifactRef | null 
   cursor.parent(); // Back to specific ref
   cursor.parent(); // Back to ArtifactRef
 
-  return { type, name: name + version };
+  return { type, name: name + version, range };
 }
 
 function toRefId(type: string, name: string) {
@@ -516,6 +519,11 @@ function shouldWarnUnresolvedDependency(fromRef: string, toRef: string) {
   return !(fromType === 'cmd' && toType === 'evt');
 
 
+}
+
+function formatUnknownRefName(ref: string) {
+  const separatorIndex = ref.indexOf(':');
+  return separatorIndex === -1 ? ref : ref.slice(separatorIndex + 1);
 }
 
 function pickNodeKey(spec: NodeSpec, usedKeys: Set<string>) {

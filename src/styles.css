@@ -75,6 +75,8 @@
   --node-shadow-ui: 0 0 0 2px var(--ui-color), 0 6px 20px rgb(67 56 202 / 15%);
   --node-shadow-aut: 0 0 0 2px var(--aut-color), 0 6px 20px rgb(167 139 250 / 15%);
   --node-shadow-generic: 0 0 0 2px var(--generic), 0 6px 20px rgb(156 163 175 / 12%);
+  --warning-tooltip-border: #6b7280;
+  --warning-tooltip-shadow: 0 8px 24px rgb(0 0 0 / 35%);
 
   --scrollbar-track: #14141c;
   --scrollbar-thumb: #323247;
@@ -155,6 +157,8 @@
   --node-shadow-ui: 0 0 0 2px var(--ui-color), 0 6px 20px rgb(67 56 202 / 14%);
   --node-shadow-aut: 0 0 0 2px var(--aut-color), 0 6px 20px rgb(109 40 217 / 14%);
   --node-shadow-generic: 0 0 0 2px var(--generic), 0 6px 20px rgb(75 85 99 / 14%);
+  --warning-tooltip-border: #374151;
+  --warning-tooltip-shadow: 0 8px 22px rgb(15 23 42 / 16%);
   --scrollbar-track: #eef1f8;
   --scrollbar-thumb: #c4cad8;
   --scrollbar-thumb-hover: #adb5c8;
@@ -1439,6 +1443,11 @@ header h1 {
 
 :root[data-theme='light'] .node.ui .node-field-val {
   color: rgb(17 24 39 / 92%);
+}
+
+:root[data-theme='light'] .node.ui .node-field-line.missing .node-field-key,
+:root[data-theme='light'] .node.ui .node-field-line.missing .node-field-val {
+  color: var(--node-field-missing);
 }
 
 .node.aut {

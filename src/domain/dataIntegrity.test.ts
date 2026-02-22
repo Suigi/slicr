@@ -28,8 +28,8 @@ describe('validateDataIntegrity', () => {
     ];
 
     expect(validateDataIntegrity({ nodes, edges }).map((warning) => warning.message)).toEqual([
-      'Missing data source for key "bravo" for node cmd:my-cmd',
-      'Missing data source for key "charlie" for node evt:my-evt'
+      'Missing data source for key "bravo"',
+      'Missing data source for key "charlie"'
     ]);
   });
 

@@ -1,5 +1,5 @@
 import { Dispatch, RefObject, SetStateAction, useEffect, useRef } from 'react';
-import { EditorSelection, EditorState, Prec, RangeSet, RangeSetBuilder, StateEffect, StateField } from '@codemirror/state';
+import { EditorSelection, EditorState, Prec, Range as CMRange, RangeSet, RangeSetBuilder, StateEffect, StateField } from '@codemirror/state';
 import { foldGutter, codeFolding, foldEffect, foldable, unfoldAll } from '@codemirror/language';
 import { EditorView, Decoration, DecorationSet, GutterMarker, gutterLineClass, keymap } from '@codemirror/view';
 import { acceptCompletion, completionStatus, currentCompletions, moveCompletionSelection, selectedCompletion, selectedCompletionIndex, setSelectedCompletion } from '@codemirror/autocomplete';
@@ -10,7 +10,8 @@ import { slicr } from './slicrLanguage';
 export type Range = { from: number; to: number };
 export type WarningLevel = 'warning' | 'error';
 export type EditorWarning = { range: Range; message: string; level?: WarningLevel };
-type LineWarningInfo = { message: string; level: WarningLevel };
+type LineWarningItem = { message: string; level: WarningLevel };
+type LineWarningInfo = { entries: LineWarningItem[]; level: WarningLevel };
 
 function acceptActiveCompletion(view: EditorView): boolean {
   if (acceptCompletion(view)) {
@@ -168,15 +169,24 @@ const warningGutterField = StateField.define<RangeSet<GutterMarker>>({
       }
 
       const builder = new RangeSetBuilder<GutterMarker>();
-      const seenLineStarts = new Set<number>();
+      const warningsByLine = new Map<number, { level: WarningLevel; messages: string[] }>();
       const normalized = normalizeWarnings(effect.value, tr.state.doc.length);
       for (const warning of normalized) {
         const line = tr.state.doc.lineAt(warning.range.from);
-        if (seenLineStarts.has(line.from)) {
+        const level = warning.level ?? 'error';
+        const previous = warningsByLine.get(line.from);
+        if (!previous) {
+          warningsByLine.set(line.from, { level, messages: [warning.message] });
           continue;
         }
-        seenLineStarts.add(line.from);
-        builder.add(line.from, line.from, new WarningMarker(warning.message, warning.level ?? 'error'));
+        warningsByLine.set(line.from, {
+          level: previous.level === 'error' || level === 'error' ? 'error' : 'warning',
+          messages: [...previous.messages, warning.message]
+        });
+      }
+
+      for (const [lineFrom, info] of warningsByLine) {
+        builder.add(lineFrom, lineFrom, new WarningMarker(info.messages.join('\n'), info.level));
       }
       markers = builder.finish();
     }
@@ -202,11 +212,11 @@ const warningMessagesField = StateField.define<Map<number, LineWarningInfo>>({
         const level = warning.level ?? 'error';
         const previous = next.get(lineFrom);
         if (!previous) {
-          next.set(lineFrom, { message: warning.message, level });
+          next.set(lineFrom, { entries: [{ message: warning.message, level }], level });
           continue;
         }
         next.set(lineFrom, {
-          message: `${previous.message}\n${warning.message}`,
+          entries: [...previous.entries, { message: warning.message, level }],
           level: previous.level === 'error' || level === 'error' ? 'error' : 'warning'
         });
       }
@@ -214,6 +224,39 @@ const warningMessagesField = StateField.define<Map<number, LineWarningInfo>>({
     }
     return messages;
   }
+});
+
+const warningLineDecorationsField = StateField.define<DecorationSet>({
+  create() {
+    return Decoration.none;
+  },
+  update(decorations, tr) {
+    decorations = decorations.map(tr.changes);
+    for (const effect of tr.effects) {
+      if (!effect.is(setWarnings)) {
+        continue;
+      }
+
+      const decos: CMRange<Decoration>[] = [];
+      const levelsByLine = new Map<number, WarningLevel>();
+      const normalized = normalizeWarnings(effect.value, tr.state.doc.length);
+      for (const warning of normalized) {
+        const line = tr.state.doc.lineAt(warning.range.from);
+        const level = warning.level ?? 'error';
+        const previous = levelsByLine.get(line.from);
+        if (!previous || previous === 'warning' && level === 'error') {
+          levelsByLine.set(line.from, level);
+        }
+      }
+
+      for (const [lineFrom, level] of levelsByLine) {
+        decos.push(Decoration.line({ class: `cm-warning-line-${level}` }).range(lineFrom));
+      }
+      decorations = Decoration.set(decos, true);
+    }
+    return decorations;
+  },
+  provide: (field) => EditorView.decorations.from(field)
 });
 
 export function indentCurrentLineByTwo(view: EditorView): boolean {
@@ -359,6 +402,8 @@ const createFoldMarker = (open: boolean) => {
 };
 
 export const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocChanged }) => {
+  let pinnedWarningLineFrom: number | null = null;
+
   return (new EditorView({
     state: EditorState.create({
       doc,
@@ -368,13 +413,20 @@ export const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocCh
         highlightField,
         warningGutterField,
         warningMessagesField,
+        warningLineDecorationsField,
         foldGutter({
           markerDOM: (open) => createFoldMarker(open),
           domEventHandlers: {
             mousemove: (view, line, event) => {
               const warning = view.state.field(warningMessagesField).get(line.from);
               const tooltip = view.dom.querySelector('.cm-warning-tooltip') as HTMLDivElement | null;
+              if (pinnedWarningLineFrom !== null && line.from !== pinnedWarningLineFrom) {
+                return false;
+              }
               if (!warning || !(event instanceof MouseEvent)) {
+                if (pinnedWarningLineFrom !== null) {
+                  return false;
+                }
                 tooltip?.remove();
                 return false;
               }
@@ -397,11 +449,13 @@ export const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocCh
               }
               nextTooltip.className = `cm-warning-tooltip cm-warning-tooltip-${warning.level}`;
               nextTooltip.replaceChildren();
-              const lines = warning.message.split('\n').filter((value) => value.trim().length > 0);
-              for (const lineText of lines) {
+              for (const entry of warning.entries) {
+                if (entry.message.trim().length === 0) {
+                  continue;
+                }
                 const line = document.createElement('div');
-                line.className = 'cm-warning-tooltip-line';
-                line.textContent = lineText;
+                line.className = `cm-warning-tooltip-line cm-warning-tooltip-line-${entry.level}`;
+                line.textContent = entry.message;
                 nextTooltip.appendChild(line);
               }
               nextTooltip.style.left = `${left}px`;
@@ -409,7 +463,58 @@ export const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocCh
               nextTooltip.style.top = `${top}px`;
               return false;
             },
+            mousedown: (view, line, event) => {
+              const warning = view.state.field(warningMessagesField).get(line.from);
+              const tooltip = view.dom.querySelector('.cm-warning-tooltip') as HTMLDivElement | null;
+              if (!warning || !(event instanceof MouseEvent)) {
+                pinnedWarningLineFrom = null;
+                tooltip?.remove();
+                return false;
+              }
+
+              if (pinnedWarningLineFrom === line.from) {
+                pinnedWarningLineFrom = null;
+                tooltip?.remove();
+                return false;
+              }
+
+              pinnedWarningLineFrom = line.from;
+              const rootRect = view.dom.getBoundingClientRect();
+              const scroller = view.scrollDOM;
+              const scrollerRect = scroller.getBoundingClientRect();
+              const contentRect = view.contentDOM.getBoundingClientRect();
+              const horizontalInset = 20;
+              const textAreaLeft = Math.max(0, contentRect.left - rootRect.left);
+              const textAreaWidth = Math.max(0, scrollerRect.right - contentRect.left);
+              const left = textAreaLeft + horizontalInset;
+              const width = Math.max(160, textAreaWidth - (horizontalInset * 2));
+              const top = Math.max(8, event.clientY - rootRect.top - 8);
+
+              let nextTooltip = tooltip;
+              if (!nextTooltip) {
+                nextTooltip = document.createElement('div');
+                view.dom.appendChild(nextTooltip);
+              }
+              nextTooltip.className = `cm-warning-tooltip cm-warning-tooltip-${warning.level}`;
+              nextTooltip.replaceChildren();
+              for (const entry of warning.entries) {
+                if (entry.message.trim().length === 0) {
+                  continue;
+                }
+                const messageLine = document.createElement('div');
+                messageLine.className = `cm-warning-tooltip-line cm-warning-tooltip-line-${entry.level}`;
+                messageLine.textContent = entry.message;
+                nextTooltip.appendChild(messageLine);
+              }
+              nextTooltip.style.left = `${left}px`;
+              nextTooltip.style.width = `${width}px`;
+              nextTooltip.style.top = `${top}px`;
+              return false;
+            },
             mouseleave: (view) => {
+              if (pinnedWarningLineFrom !== null) {
+                return false;
+              }
               view.dom.querySelector('.cm-warning-tooltip')?.remove();
               return false;
             }
@@ -475,6 +580,12 @@ export const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocCh
             paddingBottom: '1px',
             backgroundClip: 'content-box'
           },
+          '.cm-line.cm-warning-line-warning': {
+            backgroundColor: 'rgb(234 179 8 / 16%)'
+          },
+          '.cm-line.cm-warning-line-error': {
+            backgroundColor: 'rgb(220 38 38 / 14%)'
+          },
           'span.cm-warning-line-marker' : {
             padding: 0
           },
@@ -482,29 +593,33 @@ export const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocCh
             position: 'absolute',
             zIndex: '1000',
             boxSizing: 'border-box',
-            padding: '8px 10px',
             borderRadius: '8px',
-            backgroundColor: '#1f2937',
-            color: '#f9fafb',
-            border: '1px solid rgb(239 68 68 / 70%)',
-            boxShadow: '0 8px 24px rgb(0 0 0 / 40%)',
-            fontSize: '12px',
+            overflow: 'hidden',
+            backgroundColor: 'var(--surface)',
+            color: 'var(--text)',
+            border: '1px solid var(--warning-tooltip-border)',
+            boxShadow: 'var(--warning-tooltip-shadow)',
+            fontSize: '13px',
             lineHeight: '1.4',
             pointerEvents: 'none'
           },
-          '.cm-warning-tooltip.cm-warning-tooltip-warning': {
-            border: '1px solid rgb(245 158 11 / 78%)'
-          },
           '.cm-warning-tooltip-line': {
-            whiteSpace: 'pre-wrap'
+            whiteSpace: 'pre-wrap',
+            padding: '8px 10px 8px 12px',
+            borderLeft: '3px solid transparent'
+          },
+          '.cm-warning-tooltip-line.cm-warning-tooltip-line-error': {
+            color: 'var(--exc)',
+            backgroundColor: 'rgb(var(--exc-rgb) / 18%)',
+            borderLeftColor: 'var(--exc)'
+          },
+          '.cm-warning-tooltip-line.cm-warning-tooltip-line-warning': {
+            color: '#b45309',
+            backgroundColor: 'rgb(245 158 11 / 24%)',
+            borderLeftColor: '#d97706'
           },
           '.cm-warning-tooltip-line + .cm-warning-tooltip-line': {
-            marginTop: '6px',
-            paddingTop: '6px',
-            borderTop: '1px solid rgb(248 113 113 / 52%)'
-          },
-          '.cm-warning-tooltip.cm-warning-tooltip-warning .cm-warning-tooltip-line + .cm-warning-tooltip-line': {
-            borderTop: '1px solid rgb(245 158 11 / 58%)'
+            borderTop: '1px solid rgb(107 114 128 / 30%)'
           },
           '.cm-scroller': {
             overflow: 'auto',

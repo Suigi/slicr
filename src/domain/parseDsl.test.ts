@@ -184,11 +184,27 @@ rm:orders <- evt:missing`;
     expect(parsed.edges).toEqual([]);
     expect(parsed.warnings).toEqual([
       {
-        message: 'Unresolved dependency: evt:missing -> rm:orders',
-        range: { from: input.indexOf('rm:orders'), to: input.indexOf('rm:orders') + 'rm:orders <- evt:missing'.length },
+        message: 'Unresolved dependency: missing',
+        range: { from: input.indexOf('evt:missing'), to: input.indexOf('evt:missing') + 'evt:missing'.length },
         level: 'error'
       }
     ]);
+  });
+
+  it('reports unresolved dependency warnings at the referenced unknown node token', () => {
+    const input = `slice "Warnings"
+
+cmd:command
+
+evt:event
+<- cmd:command
+<- ui:unknown`;
+
+    const parsed = parseDsl(input);
+    const warning = parsed.warnings.find((value) => value.message === 'Unresolved dependency: unknown');
+    expect(warning).toBeDefined();
+    expect(warning?.range.from).toBe(input.indexOf('ui:unknown'));
+    expect(warning?.range.to).toBe(input.indexOf('ui:unknown') + 'ui:unknown'.length);
   });
 
   it('does not warn for command-to-event entry dependencies when command is not declared', () => {
@@ -226,8 +242,8 @@ data:
     const parsed = parseDsl(input);
 
     expect(parsed.warnings.map((warning) => warning.message)).toEqual([
-      'Missing data source for key "bravo" for node cmd:my-cmd',
-      'Missing data source for key "charlie" for node evt:my-evt'
+      'Missing data source for key "bravo"',
+      'Missing data source for key "charlie"'
     ]);
     expect(parsed.warnings.map((warning) => warning.range.from)).toEqual([
       input.indexOf('bravo: other-value'),
@@ -279,8 +295,14 @@ maps:
       bravo: '<missing>'
     });
     expect(parsed.warnings.map((warning) => warning.message)).toContain(
-      'Missing data source for key "bravo" for node cmd:my-cmd'
+      'Missing data source for key "bravo"'
     );
+    expect(
+      parsed.warnings.filter((warning) => warning.message === 'Missing data source for key "bravo"')
+    ).toHaveLength(1);
+    expect(
+      parsed.warnings.find((warning) => warning.message === 'Missing data source for key "bravo"')?.range.from
+    ).toBe(input.indexOf('bravo <- bravo'));
   });
 
   it('keeps explicit data values when the same key is also mapped', () => {
@@ -346,7 +368,7 @@ maps:
 
     const parsed = parseDsl(input);
     expect(parsed.warnings.map((warning) => warning.message)).not.toContain(
-      'Unresolved dependency: generic:bravo -> rm:combined-view'
+      'Unresolved dependency: bravo'
     );
   });
 

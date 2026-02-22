@@ -1,4 +1,5 @@
 import { Edge, ParseWarning, VisualNode } from './types';
+import { MISSING_DATA_VALUE } from './dataMapping';
 
 export function validateDataIntegrity(input: { nodes: Map<string, VisualNode>; edges: Edge[] }): ParseWarning[] {
   const warnings: ParseWarning[] = [];
@@ -31,11 +32,14 @@ export function validateDataIntegrity(input: { nodes: Map<string, VisualNode>; e
     }
 
     for (const key of Object.keys(targetNode.data ?? {})) {
+      if (targetNode.data?.[key] === MISSING_DATA_VALUE) {
+        continue;
+      }
       if (suppliedKeys.has(key)) {
         continue;
       }
       warnings.push({
-        message: `Missing data source for key "${key}" for node ${toNodeRef(targetNode)}`,
+        message: `Missing data source for key "${key}"`,
         range: targetNode.dataKeyRanges?.[key] ?? targetNode.srcRange,
         level: 'warning'
       });
@@ -43,11 +47,4 @@ export function validateDataIntegrity(input: { nodes: Map<string, VisualNode>; e
   }
 
   return warnings;
-}
-
-function toNodeRef(node: VisualNode): string {
-  if (node.type === 'generic') {
-    return node.name;
-  }
-  return `${node.type}:${node.name}`;
 }

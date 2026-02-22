@@ -3,12 +3,14 @@ import { Edge, ParseWarning, VisualNode } from './types';
 export type MappingEntry = {
   targetKey: string;
   sourcePath: string;
+  range: { from: number; to: number };
 };
 
 export const MISSING_DATA_VALUE = '<missing>';
 
 export function parseMapsBlocks(dsl: string): Map<string, MappingEntry[]> {
   const lines = dsl.split('\n');
+  const lineStarts = buildLineStarts(lines);
   const result = new Map<string, MappingEntry[]>();
   let currentNodeRef: string | null = null;
 
@@ -36,7 +38,7 @@ export function parseMapsBlocks(dsl: string): Map<string, MappingEntry[]> {
         break;
       }
 
-      const mapping = parseMappingLine(nextTrimmed);
+      const mapping = parseMappingLine(nextLine, lineStarts[next]);
       if (mapping) {
         mappings.push(mapping);
       }
@@ -71,7 +73,7 @@ export function applyMappingsToNodes(input: {
       if (mapping.targetKey in baseData) {
         warnings.push({
           message: `Duplicate data key "${mapping.targetKey}" in node ${targetRef} (declared in both data and maps)`,
-          range: targetNode.srcRange,
+          range: mapping.range,
           level: 'warning'
         });
         continue;
@@ -81,8 +83,8 @@ export function applyMappingsToNodes(input: {
       if (value === undefined) {
         mappedData[mapping.targetKey] = MISSING_DATA_VALUE;
         warnings.push({
-          message: `Missing data source for key "${mapping.targetKey}" for node ${targetRef}`,
-          range: targetNode.srcRange,
+          message: `Missing data source for key "${mapping.targetKey}"`,
+          range: mapping.range,
           level: 'warning'
         });
         continue;
@@ -117,25 +119,45 @@ function resolveMappingValue(
   return undefined;
 }
 
-function parseMappingLine(line: string): MappingEntry | null {
-  const arrowIndex = line.indexOf('<-');
+function parseMappingLine(line: string, lineStart: number): MappingEntry | null {
+  const contentStart = line.search(/\S/);
+  if (contentStart === -1) {
+    return null;
+  }
+  const content = line.slice(contentStart);
+  const arrowIndex = content.indexOf('<-');
   if (arrowIndex === -1) {
-    const key = line.trim();
+    const key = content.trim();
     if (!key) {
       return null;
     }
-    return { targetKey: key, sourcePath: key };
+    return {
+      targetKey: key,
+      sourcePath: key,
+      range: {
+        from: lineStart + contentStart,
+        to: lineStart + contentStart + key.length
+      }
+    };
   }
 
-  const targetKey = line.slice(0, arrowIndex).trim();
-  const sourcePath = line.slice(arrowIndex + 2).trim();
+  const targetPart = content.slice(0, arrowIndex);
+  const targetKey = targetPart.trim();
+  const sourcePath = content.slice(arrowIndex + 2).trim();
   if (!targetKey) {
     return null;
   }
 
+  const targetStartOffset = targetPart.length - targetPart.trimStart().length;
+  const targetEndOffset = targetPart.trimEnd().length;
+
   return {
     targetKey,
-    sourcePath: sourcePath || targetKey
+    sourcePath: sourcePath || targetKey,
+    range: {
+      from: lineStart + contentStart + targetStartOffset,
+      to: lineStart + contentStart + targetEndOffset
+    }
   };
 }
 
@@ -161,6 +183,16 @@ function getPathValue(data: Record<string, unknown>, path: string): unknown {
 
 function getIndent(line: string): number {
   return (line.match(/^(\s*)/)?.[1] ?? '').length;
+}
+
+function buildLineStarts(lines: string[]) {
+  const starts: number[] = [];
+  let offset = 0;
+  for (const line of lines) {
+    starts.push(offset);
+    offset += line.length + 1;
+  }
+  return starts;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

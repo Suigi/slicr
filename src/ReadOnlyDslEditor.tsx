@@ -14,6 +14,7 @@ export function ReadOnlyDslEditor({
 }) {
   const mountRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const initialValueRef = useRef(value);
 
   const copy = async () => {
     try {
@@ -32,7 +33,7 @@ export function ReadOnlyDslEditor({
     const view = new EditorView({
       parent: mount,
       state: EditorState.create({
-        doc: value,
+        doc: initialValueRef.current,
         extensions: [slicr(), EditorState.readOnly.of(true), EditorView.editable.of(false)]
       })
     });
