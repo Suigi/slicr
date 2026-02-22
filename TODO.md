@@ -32,6 +32,9 @@
   [ ] Do it across slices
 [ ] Better autocomplete / live snippet support for adding nodes that have been added to other slices before
 [ ] Offer visualization of how a particular node is used across slices
+[ ] Layout: horizontally move nodes on separate lanes when edges collide with them (see Ted's "Buy Ticket" diagram)
+[ ] Add a "project" layer for grouping slices
+  [ ] "Across slice" features would use that project for context
 
 ## DONE
 
