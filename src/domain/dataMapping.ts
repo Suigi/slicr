@@ -68,6 +68,7 @@ export function applyMappingsToNodes(input: {
     }
 
     const mappedData: Record<string, unknown> = {};
+    const mappedKeys = new Set<string>();
     const baseData = isRecord(targetNode.data) ? targetNode.data : {};
     for (const mapping of mappings) {
       if (mapping.targetKey in baseData) {
@@ -82,6 +83,7 @@ export function applyMappingsToNodes(input: {
       const value = resolveMappingValue(input.nodes, input.edges, targetNode.key, mapping.sourcePath);
       if (value === undefined) {
         mappedData[mapping.targetKey] = MISSING_DATA_VALUE;
+        mappedKeys.add(mapping.targetKey);
         warnings.push({
           message: `Missing data source for key "${mapping.targetKey}"`,
           range: mapping.range,
@@ -90,10 +92,12 @@ export function applyMappingsToNodes(input: {
         continue;
       }
       mappedData[mapping.targetKey] = value;
+      mappedKeys.add(mapping.targetKey);
     }
 
     const mergedData = { ...mappedData, ...baseData };
     targetNode.data = Object.keys(mergedData).length > 0 ? mergedData : null;
+    targetNode.mappedDataKeys = mappedKeys.size > 0 ? mappedKeys : undefined;
   }
 
   return warnings;

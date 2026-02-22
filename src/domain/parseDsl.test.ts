@@ -274,6 +274,7 @@ maps:
       alpha: 'A-1',
       bravo: 'B-2'
     });
+    expect(parsed.nodes.get('combined-view')?.mappedDataKeys).toEqual(new Set(['alpha', 'bravo']));
   });
 
   it('warns when a mapped key cannot be sourced from direct predecessors', () => {
@@ -294,6 +295,7 @@ maps:
       alpha: 'value',
       bravo: '<missing>'
     });
+    expect(parsed.nodes.get('my-cmd')?.mappedDataKeys).toEqual(new Set(['alpha', 'bravo']));
     expect(parsed.warnings.map((warning) => warning.message)).toContain(
       'Missing data source for key "bravo"'
     );
@@ -323,6 +325,7 @@ maps:
     expect(parsed.nodes.get('combined-view')?.data).toEqual({
       alpha: 'from-data'
     });
+    expect(parsed.nodes.get('combined-view')?.mappedDataKeys).toBeUndefined();
   });
 
   it('warns when a key is declared in both data and maps', () => {

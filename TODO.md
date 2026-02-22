@@ -28,6 +28,10 @@
 [ ] Fix mobile view
 [ ] Add named UI lanes
 [ ] Add Event Modeling given-when-thens (GWTs)
+[ ] Add data backtracking from `maps`/`uses` to the original `data`
+  [ ] Do it across slices
+[ ] Better autocomplete / live snippet support for adding nodes that have been added to other slices before
+[ ] Offer visualization of how a particular node is used across slices
 
 ## DONE
 

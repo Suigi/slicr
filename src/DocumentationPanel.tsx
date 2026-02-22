@@ -49,11 +49,14 @@ function renderDataLine(line: string, index: number) {
 
   const value = match[3];
   const isMissing = value.trim() === MISSING_DATA_VALUE;
+  const keyWithColon = match[2];
+  const key = keyWithColon.endsWith(':') ? keyWithColon.slice(0, -1) : keyWithColon;
 
   return (
     <div key={index} className={`node-field-line${isMissing ? ' missing' : ''}`}>
       {match[1]}
-      <span className="node-field-key">{match[2]}</span>
+      <span className="node-field-key">{key}</span>
+      <span className="node-field-colon">:</span>
       <span className="node-field-val">{value}</span>
     </div>
   );
@@ -209,7 +212,10 @@ function FeatureCard({ feature }: { feature: DocumentationFeature }) {
                     {node.data && (
                       <div className="node-fields">
                         {formatNodeData(node.data).map((field) => (
-                          <div key={`${feature.id}-${node.key}-${field.key}`} className="node-field">
+                          <div
+                            key={`${feature.id}-${node.key}-${field.key}`}
+                            className={`node-field${node.mappedDataKeys?.has(field.key) ? ' mapped' : ''}`}
+                          >
                             <div className="node-field-lines">
                               {field.text.split('\n').map((line, index) => renderDataLine(line, index))}
                             </div>

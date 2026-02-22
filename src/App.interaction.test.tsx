@@ -411,8 +411,43 @@ maps:
 
     const missingLine = document.querySelector('.node-field-line.missing');
     expect(missingLine).not.toBeNull();
-    expect(missingLine?.querySelector('.node-field-key')?.textContent).toBe('bravo:');
+    expect(missingLine?.querySelector('.node-field-key')?.textContent).toBe('bravo');
     expect(missingLine?.querySelector('.node-field-val')?.textContent?.trim()).toBe('<missing>');
+
+    const mappedField = missingLine?.closest('.node-field');
+    expect(mappedField?.classList.contains('mapped')).toBe(true);
+  });
+
+  it('applies mapped styling only to fields coming from maps', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{
+          id: 'a',
+          dsl: `slice "Mapped Styling"
+
+ui:source
+data:
+  alpha: from-source
+
+cmd:target
+<- ui:source
+data:
+  local: from-data
+maps:
+  alpha`
+        }]
+      })
+    );
+
+    renderApp();
+
+    const allFields = [...document.querySelectorAll('.node-field')];
+    const mapped = allFields.filter((field) => field.classList.contains('mapped'));
+    expect(mapped).toHaveLength(1);
+    expect(mapped[0]?.textContent).toContain('alpha:');
+    expect(mapped[0]?.textContent).not.toContain('local:');
   });
 
   it('does not crash when warnings arrive out of order while typing malformed maps/data blocks', () => {

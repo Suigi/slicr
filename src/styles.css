@@ -1375,6 +1375,12 @@ header h1 {
   line-height: 1.5;
 }
 
+.node-field.mapped .node-field-key {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
 .node-field-lines {
   display: flex;
   flex-direction: column;
@@ -1393,7 +1399,12 @@ header h1 {
   color: var(--node-field-key);
 }
 
+.node-field-colon {
+  color: var(--node-field-key);
+}
+
 .node-field-line.missing .node-field-key,
+.node-field-line.missing .node-field-colon,
 .node-field-line.missing .node-field-val {
   color: var(--node-field-missing);
 }

@@ -9,6 +9,7 @@ export type VisualNode = {
   stream: string | null;
   key: string;
   data: NodeData;
+  mappedDataKeys?: Set<string>;
   srcRange: { from: number; to: number };
   dataKeyRanges?: Record<string, { from: number; to: number }>;
 };
