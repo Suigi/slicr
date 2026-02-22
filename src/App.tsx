@@ -82,6 +82,7 @@ function App() {
   const toggleRef = useRef<HTMLButtonElement>(null);
   const sliceMenuRef = useRef<HTMLDivElement>(null);
   const routeMenuRef = useRef<HTMLDivElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
   const skipNextLayoutSaveRef = useRef(false);
   const editorRef = useRef<HTMLDivElement>(null);
   const editorMountRef = useRef<HTMLDivElement>(null);
@@ -102,6 +103,7 @@ function App() {
   const [diagramEngineLayout, setDiagramEngineLayout] = useState<DiagramEngineLayout | null>(null);
   const [sliceMenuOpen, setSliceMenuOpen] = useState(false);
   const [routeMenuOpen, setRouteMenuOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [manualNodePositions, setManualNodePositions] = useState<Record<string, { x: number; y: number }>>(
     initialSnapshot.overrides.nodes
   );
@@ -497,6 +499,27 @@ function App() {
     };
   }, [routeMenuOpen]);
 
+  useEffect(() => {
+    const closeOnOutside = (event: PointerEvent) => {
+      if (!mobileMenuOpen) {
+        return;
+      }
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+      const clickedMenu = mobileMenuRef.current?.contains(target) ?? false;
+      if (!clickedMenu) {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', closeOnOutside);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutside);
+    };
+  }, [mobileMenuOpen]);
+
   const renderDataLine = (line: string, index: number) => {
     const match = line.match(/^(\s*(?:-\s*)?)([^:\n]+:)(.*)$/);
     if (!match) {
@@ -695,7 +718,7 @@ function App() {
         </div>
         <button
           type="button"
-          className="theme-toggle"
+          className="theme-toggle desktop-only"
           aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
           title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
           onClick={() => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))}
@@ -764,7 +787,7 @@ function App() {
         </button>
         <button
           type="button"
-          className="docs-toggle"
+          className="docs-toggle desktop-only"
           aria-label="Toggle documentation panel"
           onClick={toggleDocumentationPanel}
           style={{
@@ -788,9 +811,100 @@ function App() {
           </svg>
           Docs
         </button>
+        <div className="mobile-menu" ref={mobileMenuRef}>
+          <button
+            type="button"
+            className="mobile-menu-toggle"
+            aria-label="Open more actions"
+            title="More actions"
+            onClick={() => setMobileMenuOpen((current) => !current)}
+            style={{
+              color: mobileMenuOpen ? 'var(--text)' : undefined,
+              borderColor: mobileMenuOpen ? 'var(--text)' : undefined
+            }}
+          >
+            ⋯
+          </button>
+          {mobileMenuOpen && (
+            <div className="mobile-menu-panel" role="menu" aria-label="More actions">
+              <button
+                type="button"
+                role="menuitem"
+                className="mobile-menu-item"
+                onClick={() => {
+                  setTheme((current) => (current === 'dark' ? 'light' : 'dark'));
+                  setMobileMenuOpen(false);
+                }}
+              >
+                Theme: {theme === 'dark' ? 'Dark' : 'Light'}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="mobile-menu-item"
+                onClick={() => {
+                  toggleDocumentationPanel();
+                  setMobileMenuOpen(false);
+                }}
+              >
+                {docsOpen ? 'Hide Docs' : 'Show Docs'}
+              </button>
+              {showDevDiagramControls && (
+                <>
+                  <button
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={routeMode === 'elk'}
+                    className="mobile-menu-item"
+                    onClick={() => {
+                      setRouteMode('elk');
+                      setMobileMenuOpen(false);
+                    }}
+                  >
+                    Render: ELK {routeMode === 'elk' ? '✓' : ''}
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={routeMode === 'classic'}
+                    className="mobile-menu-item"
+                    onClick={() => {
+                      setRouteMode('classic');
+                      setMobileMenuOpen(false);
+                    }}
+                  >
+                    Render: Classic {routeMode === 'classic' ? '✓' : ''}
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="mobile-menu-item"
+                    onClick={() => {
+                      resetManualLayout();
+                      setMobileMenuOpen(false);
+                    }}
+                  >
+                    Reset positions
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="mobile-menu-item"
+                    onClick={() => {
+                      printDiagramGeometry();
+                      setMobileMenuOpen(false);
+                    }}
+                  >
+                    Geometry
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
         {showDevDiagramControls && (
           <>
-            <div className="route-menu" ref={routeMenuRef}>
+            <div className="route-menu desktop-only" ref={routeMenuRef}>
               <button
                 type="button"
                 className="route-toggle"
@@ -836,7 +950,7 @@ function App() {
             </div>
             <button
               type="button"
-              className="route-toggle"
+              className="route-toggle desktop-only"
               aria-label="Print diagram geometry"
               title="Print current node/edge geometry to console (and clipboard when available)"
               onClick={printDiagramGeometry}
