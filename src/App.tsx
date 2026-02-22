@@ -152,7 +152,8 @@ function App() {
     highlightRange,
     warnings: parseResult.warnings.map<EditorWarning>((warning) => ({
       range: warning.range,
-      message: warning.message
+      message: warning.message,
+      level: warning.level
     }))
   });
 

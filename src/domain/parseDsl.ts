@@ -221,7 +221,8 @@ export function parseDsl(src: string): Parsed {
     } else if (shouldWarnUnresolvedDependency(edge.fromRef, edge.toRef)) {
       warnings.push({
         message: `Unresolved dependency: ${edge.fromRef} -> ${edge.toRef}`,
-        range: edge.range
+        range: edge.range,
+        level: 'error'
       });
     }
   }

@@ -21,6 +21,7 @@ export type Edge = {
 export type ParseWarning = {
   message: string;
   range: { from: number; to: number };
+  level: 'warning' | 'error';
 };
 
 export type SliceBoundary = {

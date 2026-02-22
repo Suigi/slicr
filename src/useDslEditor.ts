@@ -8,7 +8,9 @@ import { getDependencySuggestions } from './domain/dslAutocomplete';
 import { slicr } from './slicrLanguage';
 
 export type Range = { from: number; to: number };
-export type EditorWarning = { range: Range; message: string };
+export type WarningLevel = 'warning' | 'error';
+export type EditorWarning = { range: Range; message: string; level?: WarningLevel };
+type LineWarningInfo = { message: string; level: WarningLevel };
 
 function acceptActiveCompletion(view: EditorView): boolean {
   if (acceptCompletion(view)) {
@@ -134,14 +136,15 @@ const highlightField = StateField.define<DecorationSet>({
 });
 
 class WarningMarker extends GutterMarker {
-  readonly elementClass = 'cm-warning-line';
+  readonly elementClass: string;
 
-  constructor(private readonly message: string) {
+  constructor(private readonly message: string, private readonly level: WarningLevel) {
     super();
+    this.elementClass = `cm-warning-line cm-warning-line-${level}`;
   }
 
   eq(other: WarningMarker) {
-    return this.message === other.message;
+    return this.message === other.message && this.level === other.level;
   }
 
   toDOM() {
@@ -173,7 +176,7 @@ const warningGutterField = StateField.define<RangeSet<GutterMarker>>({
           continue;
         }
         seenLineStarts.add(line.from);
-        builder.add(line.from, line.from, new WarningMarker(warning.message));
+        builder.add(line.from, line.from, new WarningMarker(warning.message, warning.level ?? 'error'));
       }
       markers = builder.finish();
     }
@@ -182,7 +185,7 @@ const warningGutterField = StateField.define<RangeSet<GutterMarker>>({
   provide: (field) => gutterLineClass.from(field)
 });
 
-const warningMessagesField = StateField.define<Map<number, string>>({
+const warningMessagesField = StateField.define<Map<number, LineWarningInfo>>({
   create() {
     return new Map();
   },
@@ -192,12 +195,20 @@ const warningMessagesField = StateField.define<Map<number, string>>({
         continue;
       }
 
-      const next = new Map<number, string>();
+      const next = new Map<number, LineWarningInfo>();
       const normalized = normalizeWarnings(effect.value, tr.state.doc.length);
       for (const warning of normalized) {
         const lineFrom = tr.state.doc.lineAt(warning.range.from).from;
+        const level = warning.level ?? 'error';
         const previous = next.get(lineFrom);
-        next.set(lineFrom, previous ? `${previous}\n${warning.message}` : warning.message);
+        if (!previous) {
+          next.set(lineFrom, { message: warning.message, level });
+          continue;
+        }
+        next.set(lineFrom, {
+          message: `${previous.message}\n${warning.message}`,
+          level: previous.level === 'error' || level === 'error' ? 'error' : 'warning'
+        });
       }
       return next;
     }
@@ -361,9 +372,9 @@ export const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocCh
           markerDOM: (open) => createFoldMarker(open),
           domEventHandlers: {
             mousemove: (view, line, event) => {
-              const message = view.state.field(warningMessagesField).get(line.from);
+              const warning = view.state.field(warningMessagesField).get(line.from);
               const tooltip = view.dom.querySelector('.cm-warning-tooltip') as HTMLDivElement | null;
-              if (!message || !(event instanceof MouseEvent)) {
+              if (!warning || !(event instanceof MouseEvent)) {
                 tooltip?.remove();
                 return false;
               }
@@ -375,11 +386,11 @@ export const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocCh
               let nextTooltip = tooltip;
               if (!nextTooltip) {
                 nextTooltip = document.createElement('div');
-                nextTooltip.className = 'cm-warning-tooltip';
                 view.dom.appendChild(nextTooltip);
               }
+              nextTooltip.className = `cm-warning-tooltip cm-warning-tooltip-${warning.level}`;
               nextTooltip.replaceChildren();
-              const lines = message.split('\n').filter((value) => value.trim().length > 0);
+              const lines = warning.message.split('\n').filter((value) => value.trim().length > 0);
               for (const lineText of lines) {
                 const line = document.createElement('div');
                 line.className = 'cm-warning-tooltip-line';
@@ -442,8 +453,11 @@ export const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocCh
           '.cm-foldGutter .cm-gutterElement:hover': {
             color: '#b8b8c7'
           },
-          '.cm-foldGutter .cm-gutterElement.cm-warning-line': {
-            backgroundColor: 'rgb(239 68 68 / 30%)'
+          '.cm-foldGutter .cm-gutterElement.cm-warning-line-warning': {
+            backgroundColor: 'rgb(234 179 8 / 52%)'
+          },
+          '.cm-foldGutter .cm-gutterElement.cm-warning-line-error': {
+            backgroundColor: 'rgb(220 38 38 / 58%)'
           },
           'span.cm-warning-line-marker' : {
             padding: 0
@@ -456,11 +470,14 @@ export const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocCh
             borderRadius: '8px',
             backgroundColor: '#1f2937',
             color: '#f9fafb',
-            border: '1px solid rgb(239 68 68 / 55%)',
+            border: '1px solid rgb(239 68 68 / 70%)',
             boxShadow: '0 8px 24px rgb(0 0 0 / 40%)',
             fontSize: '12px',
             lineHeight: '1.4',
             pointerEvents: 'none'
+          },
+          '.cm-warning-tooltip.cm-warning-tooltip-warning': {
+            border: '1px solid rgb(245 158 11 / 78%)'
           },
           '.cm-warning-tooltip-line': {
             whiteSpace: 'pre-wrap'
@@ -468,7 +485,10 @@ export const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocCh
           '.cm-warning-tooltip-line + .cm-warning-tooltip-line': {
             marginTop: '6px',
             paddingTop: '6px',
-            borderTop: '1px solid rgb(248 113 113 / 35%)'
+            borderTop: '1px solid rgb(248 113 113 / 52%)'
+          },
+          '.cm-warning-tooltip.cm-warning-tooltip-warning .cm-warning-tooltip-line + .cm-warning-tooltip-line': {
+            borderTop: '1px solid rgb(245 158 11 / 58%)'
           },
           '.cm-scroller': {
             overflow: 'auto',

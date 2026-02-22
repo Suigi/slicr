@@ -71,7 +71,8 @@ export function applyMappingsToNodes(input: {
       if (mapping.targetKey in baseData) {
         warnings.push({
           message: `Duplicate data key "${mapping.targetKey}" in node ${targetRef} (declared in both data and maps)`,
-          range: targetNode.srcRange
+          range: targetNode.srcRange,
+          level: 'warning'
         });
         continue;
       }
@@ -81,7 +82,8 @@ export function applyMappingsToNodes(input: {
         mappedData[mapping.targetKey] = MISSING_DATA_VALUE;
         warnings.push({
           message: `Missing data source for key "${mapping.targetKey}" for node ${targetRef}`,
-          range: targetNode.srcRange
+          range: targetNode.srcRange,
+          level: 'warning'
         });
         continue;
       }

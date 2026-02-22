@@ -185,7 +185,8 @@ rm:orders <- evt:missing`;
     expect(parsed.warnings).toEqual([
       {
         message: 'Unresolved dependency: evt:missing -> rm:orders',
-        range: { from: input.indexOf('rm:orders'), to: input.indexOf('rm:orders') + 'rm:orders <- evt:missing'.length }
+        range: { from: input.indexOf('rm:orders'), to: input.indexOf('rm:orders') + 'rm:orders <- evt:missing'.length },
+        level: 'error'
       }
     ]);
   });

@@ -342,7 +342,7 @@ rm:persisted-view`;
     expect(errorBar).toBeNull();
   });
 
-  it('shows a warning-highlighted gutter cell for unresolved dependencies', () => {
+  it('shows a red gutter cell for unresolved dependencies', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -353,7 +353,35 @@ rm:persisted-view`;
 
     renderApp();
 
-    const warningCell = document.querySelector('.cm-foldGutter .cm-gutterElement.cm-warning-line');
+    const warningCell = document.querySelector('.cm-foldGutter .cm-gutterElement.cm-warning-line-error');
+    expect(warningCell).not.toBeNull();
+  });
+
+  it('shows an orange gutter cell for data integrity warnings', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{
+          id: 'a',
+          dsl: `slice "Data Integrity"
+
+ui:my-ui
+data:
+  alpha: value
+
+cmd:my-cmd
+<- ui:my-ui
+data:
+  alpha: value
+  bravo: other-value`
+        }]
+      })
+    );
+
+    renderApp();
+
+    const warningCell = document.querySelector('.cm-foldGutter .cm-gutterElement.cm-warning-line-warning');
     expect(warningCell).not.toBeNull();
   });
 

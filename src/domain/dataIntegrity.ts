@@ -36,7 +36,8 @@ export function validateDataIntegrity(input: { nodes: Map<string, VisualNode>; e
       }
       warnings.push({
         message: `Missing data source for key "${key}" for node ${toNodeRef(targetNode)}`,
-        range: targetNode.srcRange
+        range: targetNode.srcRange,
+        level: 'warning'
       });
     }
   }
