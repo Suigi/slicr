@@ -5,6 +5,10 @@ import ReactDOM from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import App from './App';
 import { DEFAULT_DSL } from './defaultDsl';
+import {
+  DRAG_AND_DROP_FLAG_STORAGE_KEY,
+  RENDER_ENGINE_DROPDOWN_FLAG_STORAGE_KEY
+} from './domain/runtimeFlags';
 import { SLICES_LAYOUT_STORAGE_KEY, SLICES_STORAGE_KEY } from './sliceLibrary';
 import { hydrateSliceProjection } from './sliceEventStore';
 
@@ -568,6 +572,23 @@ maps:
     expect(expandAll).not.toBeNull();
   });
 
+  it('defaults render engine dropdown flag on and persists it on localhost', () => {
+    renderApp();
+
+    const menuToggle = document.querySelector('button[aria-label="Select render mode"]');
+    expect(menuToggle).not.toBeNull();
+    expect(localStorage.getItem(RENDER_ENGINE_DROPDOWN_FLAG_STORAGE_KEY)).toBe('true');
+  });
+
+  it('hides render engine dropdown when persisted flag is disabled', () => {
+    localStorage.setItem(RENDER_ENGINE_DROPDOWN_FLAG_STORAGE_KEY, 'false');
+
+    renderApp();
+
+    const menuToggle = document.querySelector('button[aria-label="Select render mode"]');
+    expect(menuToggle).toBeNull();
+  });
+
   it('restores saved manual node positions for the selected slice on render', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
@@ -696,6 +717,38 @@ maps:
     const afterEvents = afterRaw ? (JSON.parse(afterRaw) as Array<{ type: string }>) : [];
     const afterNodeMoveCount = afterEvents.filter((event) => event.type === 'node-moved').length;
     expect(afterNodeMoveCount).toBe(beforeNodeMoveCount + 1);
+  });
+
+  it('does not drag nodes when drag-and-drop flag is disabled', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{ id: 'a', dsl: 'slice "A"\n\nevt:simple-event' }]
+      })
+    );
+    localStorage.setItem(DRAG_AND_DROP_FLAG_STORAGE_KEY, 'false');
+
+    renderApp();
+
+    const node = document.querySelector('.node.evt') as HTMLElement | null;
+    expect(node).not.toBeNull();
+
+    const beforeRaw = localStorage.getItem('slicr.es.v1.stream.a');
+    const beforeEvents = beforeRaw ? (JSON.parse(beforeRaw) as Array<{ type: string }>) : [];
+    const beforeNodeMoveCount = beforeEvents.filter((event) => event.type === 'node-moved').length;
+
+    const PointerCtor = window.PointerEvent ?? window.MouseEvent;
+    act(() => {
+      node?.dispatchEvent(new PointerCtor('pointerdown', { bubbles: true, button: 0, clientX: 100, clientY: 100, pointerId: 1 }));
+      window.dispatchEvent(new PointerCtor('pointermove', { bubbles: true, buttons: 1, clientX: 180, clientY: 180, pointerId: 1 }));
+      window.dispatchEvent(new PointerCtor('pointerup', { bubbles: true, button: 0, clientX: 180, clientY: 180, pointerId: 1 }));
+    });
+
+    const afterRaw = localStorage.getItem('slicr.es.v1.stream.a');
+    const afterEvents = afterRaw ? (JSON.parse(afterRaw) as Array<{ type: string }>) : [];
+    const afterNodeMoveCount = afterEvents.filter((event) => event.type === 'node-moved').length;
+    expect(afterNodeMoveCount).toBe(beforeNodeMoveCount);
   });
 
   it('appends layout-reset events when resetting positions from route menu', () => {

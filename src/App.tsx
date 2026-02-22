@@ -14,7 +14,7 @@ import { routeRoundedPolyline } from './domain/diagramRouting';
 import {formatNodeData} from './domain/formatNodeData';
 import {PAD_X, rowFor} from './domain/layoutGraph';
 import {parseDsl} from './domain/parseDsl';
-import {shouldShowDevDiagramControls} from './domain/runtimeFlags';
+import {isDragAndDropEnabled, shouldShowDevDiagramControls} from './domain/runtimeFlags';
 import {getRelatedElements} from './domain/traversal';
 import type {Parsed, Position} from './domain/types';
 import {
@@ -92,9 +92,9 @@ function App() {
   const [routeMode, setRouteMode] = useState<RouteMode>(() => {
     try {
       const saved = localStorage.getItem(ROUTE_MODE_STORAGE_KEY);
-      return saved === 'elk' ? 'elk' : 'classic';
+      return saved === 'classic' ? 'classic' : 'elk';
     } catch {
-      return 'classic';
+      return 'elk';
     }
   });
   const [docsOpen, setDocsOpen] = useState(false);
@@ -110,6 +110,7 @@ function App() {
   );
   const initializedViewportKeyRef = useRef<string | null>(null);
   const showDevDiagramControls = shouldShowDevDiagramControls(window.location.hostname);
+  const dragAndDropEnabled = isDragAndDropEnabled(window.location.hostname);
   const currentSlice =
     library.slices.find((slice) => slice.id === library.selectedSliceId) ?? library.slices[0];
   const currentDsl = currentSlice?.dsl ?? DEFAULT_DSL;
@@ -209,7 +210,9 @@ function App() {
     };
   }, [routeMode, parsed]);
 
-  const engineLayout = routeMode === 'elk' ? diagramEngineLayout : classicEngineLayout;
+  const engineLayout = routeMode === 'elk'
+    ? (diagramEngineLayout ?? classicEngineLayout)
+    : classicEngineLayout;
   const activeLayout = engineLayout?.layout ?? null;
 
   const displayedPos = useMemo(() => {
@@ -241,6 +244,7 @@ function App() {
     beginEdgeSegmentDrag,
     beginCanvasPan
   } = useDiagramInteractions({
+    dragAndDropEnabled,
     displayedPos,
     renderedEdges,
     manualEdgePoints,
@@ -1007,7 +1011,7 @@ function App() {
                         e.stopPropagation();
                         setSelectedNodeKey(node.key);
                       }}
-                      onPointerDown={(event) => beginNodeDrag(event, node.key)}
+                      onPointerDown={dragAndDropEnabled ? (event) => beginNodeDrag(event, node.key) : undefined}
                     >
                       <div className="node-header">
                         {nodePrefix ? <span className="node-prefix">{nodePrefix}:</span> : null}
@@ -1077,7 +1081,8 @@ function App() {
                               [{edge.label}]
                             </text>
                           )}
-                          {supportsEditableEdgePoints(routeMode) &&
+                          {dragAndDropEnabled &&
+                            supportsEditableEdgePoints(routeMode) &&
                             geometry.points?.map((point, pointIndex) => {
                               const nextPoint = geometry.points?.[pointIndex + 1];
                               if (!nextPoint) {

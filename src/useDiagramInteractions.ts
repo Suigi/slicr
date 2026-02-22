@@ -17,6 +17,7 @@ type RenderedEdgeRef = {
 };
 
 type UseDiagramInteractionsArgs = {
+  dragAndDropEnabled: boolean;
   displayedPos: Record<string, Position>;
   renderedEdges: RenderedEdgeRef[];
   manualEdgePoints: Record<string, DiagramPoint[]>;
@@ -31,6 +32,7 @@ function snapToGrid(value: number): number {
 }
 
 export function useDiagramInteractions({
+  dragAndDropEnabled,
   displayedPos,
   renderedEdges,
   manualEdgePoints,
@@ -51,6 +53,9 @@ export function useDiagramInteractions({
   const [isPanning, setIsPanning] = useState(false);
 
   const beginNodeDrag = (event: ReactPointerEvent, nodeKey: string) => {
+    if (!dragAndDropEnabled) {
+      return;
+    }
     if (event.button !== 0) {
       return;
     }
@@ -151,6 +156,9 @@ export function useDiagramInteractions({
   };
 
   const beginEdgeSegmentDrag = (event: ReactPointerEvent, edgeKey: string, segmentIndex: number, points: DiagramPoint[]) => {
+    if (!dragAndDropEnabled) {
+      return;
+    }
     if (event.button !== 0) {
       return;
     }

@@ -32,6 +32,7 @@ function Harness({ onEdgeDragCommit }: { onEdgeDragCommit: (edgeKey: string, poi
   const {
     beginEdgeSegmentDrag
   } = useDiagramInteractions({
+    dragAndDropEnabled: true,
     displayedPos,
     renderedEdges,
     manualEdgePoints,
