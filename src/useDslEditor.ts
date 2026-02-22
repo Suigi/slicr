@@ -454,10 +454,18 @@ export const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocCh
             color: '#b8b8c7'
           },
           '.cm-foldGutter .cm-gutterElement.cm-warning-line-warning': {
-            backgroundColor: 'rgb(234 179 8 / 52%)'
+            backgroundColor: 'rgb(234 179 8 / 52%)',
+            boxSizing: 'border-box',
+            paddingTop: '1px',
+            paddingBottom: '1px',
+            backgroundClip: 'content-box'
           },
           '.cm-foldGutter .cm-gutterElement.cm-warning-line-error': {
-            backgroundColor: 'rgb(220 38 38 / 58%)'
+            backgroundColor: 'rgb(220 38 38 / 58%)',
+            boxSizing: 'border-box',
+            paddingTop: '1px',
+            paddingBottom: '1px',
+            backgroundClip: 'content-box'
           },
           'span.cm-warning-line-marker' : {
             padding: 0

@@ -15,6 +15,7 @@ type NodeSpec = {
   data: NodeData;
   srcRange: { from: number; to: number };
   dataEndPos?: number;
+  dataKeyRanges?: Record<string, { from: number; to: number }>;
 };
 
 type ArtifactRef = {
@@ -174,7 +175,8 @@ export function parseDsl(src: string): Parsed {
         stream: spec.stream,
         key,
         data: spec.data,
-        srcRange: finalRange
+        srcRange: finalRange,
+        dataKeyRanges: spec.dataKeyRanges
       });
     } else if (spec.data || spec.alias || spec.stream) {
       const existing = nodes.get(key);
@@ -188,6 +190,7 @@ export function parseDsl(src: string): Parsed {
         if (spec.data) {
           existing.data = spec.data;
           existing.srcRange = finalRange;
+          existing.dataKeyRanges = spec.dataKeyRanges;
         }
       }
     }
@@ -612,9 +615,70 @@ function attachDataBlocks(lines: string[], specs: NodeSpec[], lineStarts: number
     const parsedYaml = parseYamlBlock(blockLines);
     if (parsedYaml) {
       specs[lastSpecIndex].data = parsedYaml;
+      specs[lastSpecIndex].dataKeyRanges = collectTopLevelYamlKeyRanges({
+        lines,
+        lineStarts,
+        blockLineIndices: collectLineIndices(lineIndex + 1, lastNonEmptyNext)
+      });
       specs[lastSpecIndex].dataEndPos = lineStarts[lastNonEmptyNext] + lines[lastNonEmptyNext].length;
     }
   }
+}
+
+function collectLineIndices(from: number, to: number): number[] {
+  const result: number[] = [];
+  for (let index = from; index <= to; index += 1) {
+    result.push(index);
+  }
+  return result;
+}
+
+function collectTopLevelYamlKeyRanges(input: {
+  lines: string[];
+  lineStarts: number[];
+  blockLineIndices: number[];
+}): Record<string, { from: number; to: number }> | undefined {
+  const entries = input.blockLineIndices
+    .map((lineIndex) => {
+      const line = input.lines[lineIndex];
+      return {
+        lineIndex,
+        line,
+        trimmed: line.trim(),
+        indent: (line.match(/^(\s*)/)?.[1] ?? '').length
+      };
+    })
+    .filter((entry) => entry.trimmed.length > 0);
+
+  if (entries.length === 0) {
+    return undefined;
+  }
+
+  const baseIndent = Math.min(...entries.map((entry) => entry.indent));
+  const keyRanges: Record<string, { from: number; to: number }> = {};
+
+  for (const entry of entries) {
+    if (entry.indent !== baseIndent || entry.trimmed.startsWith('- ')) {
+      continue;
+    }
+
+    const match = entry.trimmed.match(/^([^:]+):(.*)$/);
+    if (!match) {
+      continue;
+    }
+
+    const key = match[1].trim();
+    if (!key) {
+      continue;
+    }
+
+    const trimmedOffset = entry.line.length - entry.trimmed.length;
+    const keyOffset = entry.trimmed.indexOf(match[1]);
+    const from = input.lineStarts[entry.lineIndex] + trimmedOffset + Math.max(0, keyOffset);
+    keyRanges[key] = { from, to: from + key.length };
+  }
+
+  return Object.keys(keyRanges).length > 0 ? keyRanges : undefined;
 }
 
 function parseYamlBlock(lines: string[]) {

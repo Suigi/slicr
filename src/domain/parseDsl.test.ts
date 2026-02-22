@@ -229,6 +229,10 @@ data:
       'Missing data source for key "bravo" for node cmd:my-cmd',
       'Missing data source for key "charlie" for node evt:my-evt'
     ]);
+    expect(parsed.warnings.map((warning) => warning.range.from)).toEqual([
+      input.indexOf('bravo: other-value'),
+      input.indexOf('charlie: charlie-value')
+    ]);
   });
 
   it('applies maps block values into node data', () => {
