@@ -751,6 +751,29 @@ maps:
     expect(afterNodeMoveCount).toBe(beforeNodeMoveCount);
   });
 
+  it('still highlights editor lines when hovering nodes with drag-and-drop disabled', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{ id: 'a', dsl: 'slice "A"\n\nevt:simple-event' }]
+      })
+    );
+    localStorage.setItem(DRAG_AND_DROP_FLAG_STORAGE_KEY, 'false');
+
+    renderApp();
+
+    const node = document.querySelector('.node.evt') as HTMLElement | null;
+    expect(node).not.toBeNull();
+    expect(document.querySelector('.cm-node-highlight')).toBeNull();
+
+    act(() => {
+      node?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+    });
+
+    expect(document.querySelector('.cm-node-highlight')).not.toBeNull();
+  });
+
   it('appends layout-reset events when resetting positions from route menu', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,

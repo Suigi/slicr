@@ -1011,7 +1011,7 @@ function App() {
                         e.stopPropagation();
                         setSelectedNodeKey(node.key);
                       }}
-                      onPointerDown={dragAndDropEnabled ? (event) => beginNodeDrag(event, node.key) : undefined}
+                      onPointerDown={(event) => beginNodeDrag(event, node.key)}
                     >
                       <div className="node-header">
                         {nodePrefix ? <span className="node-prefix">{nodePrefix}:</span> : null}
