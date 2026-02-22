@@ -380,7 +380,14 @@ export const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocCh
               }
 
               const rootRect = view.dom.getBoundingClientRect();
-              const left = Math.min(event.clientX - rootRect.left + 10, rootRect.width - 340);
+              const scroller = view.scrollDOM;
+              const scrollerRect = scroller.getBoundingClientRect();
+              const contentRect = view.contentDOM.getBoundingClientRect();
+              const horizontalInset = 20;
+              const textAreaLeft = Math.max(0, contentRect.left - rootRect.left);
+              const textAreaWidth = Math.max(0, scrollerRect.right - contentRect.left);
+              const left = textAreaLeft + horizontalInset;
+              const width = Math.max(160, textAreaWidth - (horizontalInset * 2));
               const top = Math.max(8, event.clientY - rootRect.top - 8);
 
               let nextTooltip = tooltip;
@@ -398,6 +405,7 @@ export const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocCh
                 nextTooltip.appendChild(line);
               }
               nextTooltip.style.left = `${left}px`;
+              nextTooltip.style.width = `${width}px`;
               nextTooltip.style.top = `${top}px`;
               return false;
             },
@@ -473,7 +481,7 @@ export const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocCh
           '.cm-warning-tooltip': {
             position: 'absolute',
             zIndex: '1000',
-            maxWidth: '320px',
+            boxSizing: 'border-box',
             padding: '8px 10px',
             borderRadius: '8px',
             backgroundColor: '#1f2937',
