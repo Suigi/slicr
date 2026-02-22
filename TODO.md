@@ -27,6 +27,7 @@
 [ ] Move the Slice header to the right of the first slice divider (if present)
 [ ] Fix mobile view
 [ ] Add named UI lanes
+[ ] Add Event Modeling given-when-thens (GWTs)
 
 ## DONE
 
