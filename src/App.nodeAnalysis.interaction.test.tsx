@@ -585,6 +585,41 @@ describe('App node analysis interactions', () => {
     expect(document.querySelectorAll('.cross-slice-trace-hop-node').length).toBe(2);
   });
 
+  it('shows data trace results for each node version with the selected uses key', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [
+          {
+            id: 'a',
+            dsl: 'slice "Alpha"\n\nevt:seed@1 "Seed One"\ndata:\n  alpha: "a1"\n\nevt:seed@2 "Seed Two"\ndata:\n  alpha: "a2"\n\ncmd:buy@1 "Buy One"\n<- evt:seed@1\nuses:\n  alpha\n\ncmd:buy@2 "Buy Two"\n<- evt:seed@2\nuses:\n  alpha\n'
+          }
+        ]
+      })
+    );
+
+    renderApp();
+    const buyOneNode = [...document.querySelectorAll('.node.cmd')]
+      .find((el) => el.querySelector('.node-title')?.textContent?.trim() === 'Buy One') as HTMLElement | undefined;
+    expect(buyOneNode).toBeDefined();
+    act(() => {
+      buyOneNode?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const traceTab = [...document.querySelectorAll('.cross-slice-panel-tab')]
+      .find((button) => button.textContent?.trim() === 'Data Trace') as HTMLButtonElement | undefined;
+    expect(traceTab).toBeDefined();
+    act(() => {
+      traceTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const sources = [...document.querySelectorAll('.cross-slice-trace-source')]
+      .map((el) => el.textContent?.trim());
+    expect(sources).toContain('source: a1');
+    expect(sources).toContain('source: a2');
+  });
+
   it('highlights trace-hop node when hovering over Data Trace list entry', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,

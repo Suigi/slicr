@@ -522,23 +522,36 @@ function App() {
     );
   }, [library.slices, selectedNodeAnalysisRef]);
 
-  const selectedTraceNodeKey = useMemo(() => {
-    if (!selectedTraceKey || selectedNodeAnalysisNodes.length === 0) {
-      return selectedNode?.key ?? null;
+  const selectedTraceNodeKeys = useMemo(() => {
+    if (selectedNodeAnalysisNodes.length === 0) {
+      return selectedNode ? [selectedNode.key] : [];
     }
-    const nodeForKey = selectedNodeAnalysisNodes.find((node) => {
-      const mappings = usesMappingsByRef.get(toNodeRef(node)) ?? [];
-      return mappings.some((mapping) => mapping.targetKey === selectedTraceKey);
-    });
-    return nodeForKey?.key ?? selectedNode?.key ?? null;
+    if (!selectedTraceKey) {
+      return selectedNode ? [selectedNode.key] : [];
+    }
+    const matching = selectedNodeAnalysisNodes
+      .filter((node) => {
+        const mappings = usesMappingsByRef.get(toNodeRef(node)) ?? [];
+        return mappings.some((mapping) => mapping.targetKey === selectedTraceKey);
+      })
+      .map((node) => node.key);
+    if (matching.length > 0) {
+      return matching;
+    }
+    return selectedNode ? [selectedNode.key] : [];
   }, [selectedNode, selectedNodeAnalysisNodes, selectedTraceKey, usesMappingsByRef]);
 
-  const selectedNodeTraceResult = useMemo(() => {
-    if (!parsed || !selectedTraceKey || !selectedTraceNodeKey) {
-      return null;
+  const selectedNodeTraceResults = useMemo(() => {
+    if (!parsed || !selectedTraceKey) {
+      return [];
     }
-    return traceData({ dsl: currentDsl, nodes: parsed.nodes, edges: parsed.edges }, selectedTraceNodeKey, selectedTraceKey);
-  }, [currentDsl, parsed, selectedTraceKey, selectedTraceNodeKey]);
+    return selectedTraceNodeKeys
+      .map((nodeKey) => ({
+        nodeKey,
+        result: traceData({ dsl: currentDsl, nodes: parsed.nodes, edges: parsed.edges }, nodeKey, selectedTraceKey)
+      }))
+      .filter((entry): entry is { nodeKey: string; result: NonNullable<ReturnType<typeof traceData>> } => entry.result !== null);
+  }, [currentDsl, parsed, selectedTraceKey, selectedTraceNodeKeys]);
 
   const crossSliceUsageEntries = useMemo(() => {
     return crossSliceUsage.map((usage) => {
@@ -1668,12 +1681,15 @@ function App() {
                     ))}
                   </select>
                 )}
-                {selectedNodeTraceResult && (
-                  <div className="cross-slice-trace-result">
+                {selectedNodeTraceResults.map((entry) => (
+                  <div key={`${selectedNodeAnalysisRef}:${entry.nodeKey}`} className="cross-slice-trace-result">
+                    {selectedNodeTraceResults.length > 1 && (
+                      <div className="cross-slice-trace-version">{entry.nodeKey}</div>
+                    )}
                     <div className="cross-slice-trace-hops">
-                      {selectedNodeTraceResult.hops.map((hop, index) => (
+                      {entry.result.hops.map((hop, index) => (
                         <div
-                          key={`${hop.nodeKey}:${hop.key}:${index}`}
+                          key={`${entry.nodeKey}:${hop.nodeKey}:${hop.key}:${index}`}
                           className={`cross-slice-trace-hop ${parsed?.nodes.get(hop.nodeKey)?.type ?? 'generic'}`}
                           onMouseOver={() => setHoveredTraceNodeKey(hop.nodeKey)}
                           onMouseOut={() => setHoveredTraceNodeKey((current) => (current === hop.nodeKey ? null : current))}
@@ -1685,10 +1701,10 @@ function App() {
                       ))}
                     </div>
                     <div className="cross-slice-trace-source">
-                      source: {String(selectedNodeTraceResult.source)}
+                      source: {String(entry.result.source)}
                     </div>
                   </div>
-                )}
+                ))}
               </div>
             )}
           </aside>

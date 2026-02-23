@@ -1298,6 +1298,13 @@ header h1 {
   padding: 8px;
 }
 
+.cross-slice-trace-version {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--fg);
+  margin-bottom: 8px;
+}
+
 .cross-slice-trace-hops {
   display: flex;
   flex-direction: column;
