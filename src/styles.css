@@ -1075,6 +1075,11 @@ header h1 {
   border-color: var(--fg);
 }
 
+.cross-slice-panel-tab.has-missing-source {
+  background: rgb(220 38 38 / 12%);
+  border-color: rgb(220 38 38 / 35%);
+}
+
 .cross-slice-usage-node {
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
@@ -1314,6 +1319,11 @@ header h1 {
   border-radius: 8px;
 }
 
+.cross-slice-trace-key-section.missing-source {
+  background: rgb(220 38 38 / 8%);
+  border-color: rgb(220 38 38 / 35%);
+}
+
 .cross-slice-trace-key-toggle {
   appearance: none;
   background: transparent;
@@ -1358,6 +1368,17 @@ header h1 {
   flex-direction: column;
   gap: 8px;
   padding: 8px;
+}
+
+.cross-slice-trace-issue-code {
+  color: var(--exc);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.cross-slice-trace-hop.issue {
+  border-left-color: var(--exc);
 }
 
 .cross-slice-trace-result {
@@ -1463,6 +1484,7 @@ header h1 {
   font-size: 11px;
   color: var(--muted);
 }
+
 
 .node.trace-hovered {
   outline: 2px solid var(--edge-highlight);

@@ -111,7 +111,7 @@ function App() {
   const [sliceMenuOpen, setSliceMenuOpen] = useState(false);
   const [routeMenuOpen, setRouteMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [selectedNodePanelTab, setSelectedNodePanelTab] = useState<'usage' | 'crossSliceData' | 'issues' | 'trace'>('usage');
+  const [selectedNodePanelTab, setSelectedNodePanelTab] = useState<'usage' | 'crossSliceData' | 'trace'>('usage');
   const [sourceOverrides, setSourceOverrides] = useState<Record<string, string>>({});
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [hoveredTraceNodeKey, setHoveredTraceNodeKey] = useState<string | null>(null);
@@ -497,6 +497,21 @@ function App() {
     }
     return dataIssues.filter((issue) => toNodeAnalysisRef(issue.nodeRef) === selectedNodeAnalysisRef);
   }, [dataIssues, selectedNodeAnalysisRef]);
+
+  const selectedNodeIssuesByKey = useMemo(() => {
+    const grouped: Record<string, typeof selectedNodeIssues> = {};
+    for (const issue of selectedNodeIssues) {
+      grouped[issue.key] ??= [];
+      grouped[issue.key].push(issue);
+    }
+    return grouped;
+  }, [selectedNodeIssues]);
+
+  const missingSourceIssueKeys = useMemo(() => (
+    new Set(selectedNodeIssues
+      .filter((issue) => issue.code === 'missing-source')
+      .map((issue) => issue.key))
+  ), [selectedNodeIssues]);
 
   const selectedNodeUsesKeys = useMemo(() => {
     if (selectedNodeAnalysisNodes.length === 0) {
@@ -1527,17 +1542,8 @@ function App() {
               <button
                 type="button"
                 role="tab"
-                aria-selected={selectedNodePanelTab === 'issues'}
-                className={`cross-slice-panel-tab ${selectedNodePanelTab === 'issues' ? 'active' : ''}`}
-                onClick={() => setSelectedNodePanelTab('issues')}
-              >
-                Issues
-              </button>
-              <button
-                type="button"
-                role="tab"
                 aria-selected={selectedNodePanelTab === 'trace'}
-                className={`cross-slice-panel-tab ${selectedNodePanelTab === 'trace' ? 'active' : ''}`}
+                className={`cross-slice-panel-tab ${selectedNodePanelTab === 'trace' ? 'active' : ''} ${missingSourceIssueKeys.size > 0 ? 'has-missing-source' : ''}`}
                 onClick={() => {
                   setSelectedNodePanelTab('trace');
                 }}
@@ -1663,48 +1669,16 @@ function App() {
                 })}
               </div>
             )}
-            {selectedNodePanelTab === 'issues' && (
-              <div className="cross-slice-issues-list">
-                {selectedNodeIssues.length === 0 && (
-                  <div className="cross-slice-issues-empty">No issues</div>
-                )}
-                {selectedNodeIssues.map((issue) => (
-                  <div key={`${issue.code}:${issue.key}:${issue.range.from}`} className="cross-slice-issue-item">
-                    <div className="cross-slice-issue-code">{issue.code}</div>
-                    <div className="cross-slice-issue-key">{issue.key}</div>
-                    {parsed && issue.code === 'ambiguous-source' && (
-                      <div className="cross-slice-issue-fixes">
-                        {getAmbiguousSourceCandidates(
-                          { dsl: currentDsl, nodes: parsed.nodes, edges: parsed.edges, sourceOverrides },
-                          issue.nodeKey,
-                          issue.key
-                        ).map((candidate) => (
-                          <button
-                            key={`${issue.nodeKey}:${issue.key}:${candidate}`}
-                            type="button"
-                            className="cross-slice-issue-fix"
-                            onClick={() =>
-                              setSourceOverrides((current) => ({
-                                ...current,
-                                [`${issue.nodeKey}:${issue.key}`]: candidate
-                              }))}
-                          >
-                            Use {candidate}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
             {selectedNodePanelTab === 'trace' && (
               <div className="cross-slice-trace-list">
                 {selectedNodeUsesKeys.map((traceKey) => {
                   const isExpanded = Boolean(crossSliceTraceExpandedKeys[traceKey]);
                   const entries = selectedNodeTraceResultsByKey[traceKey] ?? [];
                   return (
-                    <div key={`${selectedNodeAnalysisRef}:${traceKey}`} className="cross-slice-trace-key-section">
+                    <div
+                      key={`${selectedNodeAnalysisRef}:${traceKey}`}
+                      className={`cross-slice-trace-key-section ${missingSourceIssueKeys.has(traceKey) ? 'missing-source' : ''}`}
+                    >
                       <button
                         type="button"
                         className="cross-slice-trace-key-toggle"
@@ -1746,10 +1720,46 @@ function App() {
                                     <span className="cross-slice-trace-hop-key">{hop.key}</span>
                                   </div>
                                 ))}
+                                {(selectedNodeIssuesByKey[traceKey] ?? [])
+                                  .filter((issue) => issue.nodeKey === entry.nodeKey)
+                                  .map((issue) => (
+                                    <div
+                                      key={`${issue.code}:${issue.nodeKey}:${issue.key}:${issue.range.from}`}
+                                      className="cross-slice-trace-hop issue"
+                                    >
+                                      <span className="cross-slice-trace-issue-code">{issue.code}</span>
+                                      {parsed && issue.code === 'ambiguous-source' && (
+                                        <div className="cross-slice-issue-fixes">
+                                          {getAmbiguousSourceCandidates(
+                                            { dsl: currentDsl, nodes: parsed.nodes, edges: parsed.edges, sourceOverrides },
+                                            issue.nodeKey,
+                                            issue.key
+                                          ).map((candidate) => (
+                                            <button
+                                              key={`${issue.nodeKey}:${issue.key}:${candidate}`}
+                                              type="button"
+                                              className="cross-slice-issue-fix"
+                                              onClick={() =>
+                                                setSourceOverrides((current) => ({
+                                                  ...current,
+                                                  [`${issue.nodeKey}:${issue.key}`]: candidate
+                                                }))}
+                                            >
+                                              Use {candidate}
+                                            </button>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
                               </div>
-                              <div className="cross-slice-trace-source">
-                                source: {String(entry.result.source)}
-                              </div>
+                              {!selectedNodeIssues.some((issue) => (
+                                issue.code === 'missing-source' && issue.key === traceKey && issue.nodeKey === entry.nodeKey
+                              )) && (
+                                <div className="cross-slice-trace-source">
+                                  source: {String(entry.result.source)}
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>

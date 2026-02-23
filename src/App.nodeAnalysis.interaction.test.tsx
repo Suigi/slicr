@@ -199,7 +199,7 @@ describe('App node analysis interactions', () => {
 
     const labels = [...document.querySelectorAll('.cross-slice-panel-tab')]
       .map((el) => el.textContent?.trim());
-    expect(labels).toEqual(['Cross-Slice Usage', 'Cross-Slice Data', 'Issues', 'Data Trace']);
+    expect(labels).toEqual(['Cross-Slice Usage', 'Cross-Slice Data', 'Data Trace']);
   });
 
   it('renders the node analysis panel as vertically scrollable', () => {
@@ -453,7 +453,7 @@ describe('App node analysis interactions', () => {
     expect(document.querySelector('.node.selected .node-title')?.textContent?.trim()).toBe('Buy Again');
   });
 
-  it('shows selected node issues in the Issues tab', () => {
+  it('shows missing source directly in Data Trace and marks tab/key as missing', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -472,15 +472,25 @@ describe('App node analysis interactions', () => {
       sourceNode?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    const issuesTab = [...document.querySelectorAll('.cross-slice-panel-tab')]
-      .find((button) => button.textContent?.trim() === 'Issues') as HTMLButtonElement | undefined;
-    expect(issuesTab).toBeDefined();
+    const traceTab = [...document.querySelectorAll('.cross-slice-panel-tab')]
+      .find((button) => button.textContent?.trim() === 'Data Trace') as HTMLButtonElement | undefined;
+    expect(traceTab).toBeDefined();
     act(() => {
-      issuesTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      traceTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    const issueCode = document.querySelector('.cross-slice-issue-code');
-    expect(issueCode?.textContent?.trim()).toBe('missing-source');
+    expect(traceTab?.classList.contains('has-missing-source')).toBe(true);
+    const traceKey = document.querySelector('.cross-slice-trace-key-toggle') as HTMLButtonElement | null;
+    expect(traceKey).not.toBeNull();
+    act(() => {
+      traceKey?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(document.querySelector('.cross-slice-trace-key-section.missing-source')).not.toBeNull();
+    expect(document.querySelector('.cross-slice-trace-issue-code')?.textContent?.trim()).toBe('missing-source');
+    const hopRows = [...document.querySelectorAll('.cross-slice-trace-hops .cross-slice-trace-hop')]
+      .map((el) => el.textContent?.trim());
+    expect(hopRows[hopRows.length - 1]).toBe('missing-source');
+    expect(document.querySelector('.cross-slice-trace-source.missing-source')).toBeNull();
   });
 
   it('aggregates issues and trace keys across node versions under one analysis key', () => {
@@ -508,17 +518,6 @@ describe('App node analysis interactions', () => {
 
     expect(document.querySelector('.cross-slice-usage-node')?.textContent?.trim()).toBe('cmd:buy');
 
-    const issuesTab = [...document.querySelectorAll('.cross-slice-panel-tab')]
-      .find((button) => button.textContent?.trim() === 'Issues') as HTMLButtonElement | undefined;
-    expect(issuesTab).toBeDefined();
-    act(() => {
-      issuesTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
-    const issueKeys = [...document.querySelectorAll('.cross-slice-issue-key')]
-      .map((el) => el.textContent?.trim());
-    expect(issueKeys).toEqual(['alpha', 'beta']);
-
     const traceTab = [...document.querySelectorAll('.cross-slice-panel-tab')]
       .find((button) => button.textContent?.trim() === 'Data Trace') as HTMLButtonElement | undefined;
     expect(traceTab).toBeDefined();
@@ -531,9 +530,10 @@ describe('App node analysis interactions', () => {
     expect(traceKeys).toEqual(['alpha', 'beta']);
     expect([...document.querySelectorAll('.cross-slice-trace-key-toggle')]
       .every((button) => button.getAttribute('aria-expanded') === 'false')).toBe(true);
+    expect(traceTab?.classList.contains('has-missing-source')).toBe(true);
   });
 
-  it('applies ambiguous-source quick fix by selecting an explicit predecessor', () => {
+  it('applies ambiguous-source quick fix from Data Trace', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -555,14 +555,21 @@ describe('App node analysis interactions', () => {
       cmdNode?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    const issuesTab = [...document.querySelectorAll('.cross-slice-panel-tab')]
-      .find((button) => button.textContent?.trim() === 'Issues') as HTMLButtonElement | undefined;
-    expect(issuesTab).toBeDefined();
+    const traceTab = [...document.querySelectorAll('.cross-slice-panel-tab')]
+      .find((button) => button.textContent?.trim() === 'Data Trace') as HTMLButtonElement | undefined;
+    expect(traceTab).toBeDefined();
     act(() => {
-      issuesTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      traceTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    expect(document.querySelector('.cross-slice-issue-code')?.textContent?.trim()).toBe('ambiguous-source');
+    const alphaKey = [...document.querySelectorAll('.cross-slice-trace-key-toggle')]
+      .find((button) => button.textContent?.trim() === 'alpha') as HTMLButtonElement | undefined;
+    expect(alphaKey).toBeDefined();
+    act(() => {
+      alphaKey?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(document.querySelector('.cross-slice-trace-issue-code')?.textContent?.trim()).toBe('ambiguous-source');
     const quickFix = [...document.querySelectorAll('.cross-slice-issue-fix')]
       .find((button) => button.textContent?.includes('Use one')) as HTMLButtonElement | undefined;
     expect(quickFix).toBeDefined();
@@ -570,7 +577,7 @@ describe('App node analysis interactions', () => {
       quickFix?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    expect(document.querySelector('.cross-slice-issue-code')).toBeNull();
+    expect(document.querySelector('.cross-slice-trace-issue-code')).toBeNull();
   });
 
   it('opens command palette and runs Trace data action', () => {
