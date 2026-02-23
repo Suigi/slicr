@@ -20,6 +20,7 @@ import { getCrossSliceData } from './domain/crossSliceData';
 import { collectDataIssues, getAmbiguousSourceCandidates } from './domain/dataIssues';
 import { parseUsesBlocks } from './domain/dataMapping';
 import { traceData } from './domain/dataTrace';
+import { toNodeAnalysisRef, toNodeAnalysisRefFromNode } from './domain/nodeAnalysisKey';
 import { measureNodeHeights, NODE_MEASURE_NODE_CLASS } from './nodeMeasurement';
 import type {Parsed, Position} from './domain/types';
 import {
@@ -453,13 +454,29 @@ function App() {
     return parsed.nodes.get(selectedNodeKey) ?? null;
   }, [parsed, selectedNodeKey]);
 
-  const crossSliceUsage = useMemo(() => {
+  const selectedNodeAnalysisRef = useMemo(() => {
     if (!selectedNode) {
+      return null;
+    }
+    return toNodeAnalysisRefFromNode(selectedNode);
+  }, [selectedNode]);
+
+  const selectedNodeAnalysisNodes = useMemo(() => {
+    if (!parsed || !selectedNodeAnalysisRef) {
+      return [];
+    }
+    return [...parsed.nodes.values()].filter((node) => toNodeAnalysisRefFromNode(node) === selectedNodeAnalysisRef);
+  }, [parsed, selectedNodeAnalysisRef]);
+
+  const usesMappingsByRef = useMemo(() => parseUsesBlocks(currentDsl), [currentDsl]);
+
+  const crossSliceUsage = useMemo(() => {
+    if (!selectedNodeAnalysisRef) {
       return [];
     }
     const query = createCrossSliceUsageQuery(library.slices.map((slice) => ({ id: slice.id, dsl: slice.dsl })));
-    return query.getCrossSliceUsage(toNodeRef(selectedNode));
-  }, [library.slices, selectedNode]);
+    return query.getCrossSliceUsage(selectedNodeAnalysisRef);
+  }, [library.slices, selectedNodeAnalysisRef]);
 
   const dataIssues = useMemo(() => {
     if (!parsed) {
@@ -475,36 +492,53 @@ function App() {
   }, [currentDsl, library.selectedSliceId, parsed, sourceOverrides]);
 
   const selectedNodeIssues = useMemo(() => {
-    if (!selectedNode) {
+    if (!selectedNodeAnalysisRef) {
       return [];
     }
-    return dataIssues.filter((issue) => issue.nodeKey === selectedNode.key);
-  }, [dataIssues, selectedNode]);
+    return dataIssues.filter((issue) => toNodeAnalysisRef(issue.nodeRef) === selectedNodeAnalysisRef);
+  }, [dataIssues, selectedNodeAnalysisRef]);
 
   const selectedNodeUsesKeys = useMemo(() => {
-    if (!selectedNode) {
+    if (selectedNodeAnalysisNodes.length === 0) {
       return [];
     }
-    const mappings = parseUsesBlocks(currentDsl).get(toNodeRef(selectedNode)) ?? [];
-    return mappings.map((mapping) => mapping.targetKey);
-  }, [currentDsl, selectedNode]);
+    const seen = new Set<string>();
+    for (const node of selectedNodeAnalysisNodes) {
+      const mappings = usesMappingsByRef.get(toNodeRef(node)) ?? [];
+      for (const mapping of mappings) {
+        seen.add(mapping.targetKey);
+      }
+    }
+    return [...seen].sort((left, right) => left.localeCompare(right));
+  }, [selectedNodeAnalysisNodes, usesMappingsByRef]);
 
   const selectedNodeCrossSliceData = useMemo(() => {
-    if (!selectedNode) {
+    if (!selectedNodeAnalysisRef) {
       return { keys: [], byKey: {} };
     }
     return getCrossSliceData(
       library.slices.map((slice) => ({ id: slice.id, dsl: slice.dsl })),
-      toNodeRef(selectedNode)
+      selectedNodeAnalysisRef
     );
-  }, [library.slices, selectedNode]);
+  }, [library.slices, selectedNodeAnalysisRef]);
+
+  const selectedTraceNodeKey = useMemo(() => {
+    if (!selectedTraceKey || selectedNodeAnalysisNodes.length === 0) {
+      return selectedNode?.key ?? null;
+    }
+    const nodeForKey = selectedNodeAnalysisNodes.find((node) => {
+      const mappings = usesMappingsByRef.get(toNodeRef(node)) ?? [];
+      return mappings.some((mapping) => mapping.targetKey === selectedTraceKey);
+    });
+    return nodeForKey?.key ?? selectedNode?.key ?? null;
+  }, [selectedNode, selectedNodeAnalysisNodes, selectedTraceKey, usesMappingsByRef]);
 
   const selectedNodeTraceResult = useMemo(() => {
-    if (!parsed || !selectedNode || !selectedTraceKey) {
+    if (!parsed || !selectedTraceKey || !selectedTraceNodeKey) {
       return null;
     }
-    return traceData({ dsl: currentDsl, nodes: parsed.nodes, edges: parsed.edges }, selectedNode.key, selectedTraceKey);
-  }, [currentDsl, parsed, selectedNode, selectedTraceKey]);
+    return traceData({ dsl: currentDsl, nodes: parsed.nodes, edges: parsed.edges }, selectedTraceNodeKey, selectedTraceKey);
+  }, [currentDsl, parsed, selectedTraceKey, selectedTraceNodeKey]);
 
   const crossSliceUsageEntries = useMemo(() => {
     return crossSliceUsage.map((usage) => {
@@ -1472,7 +1506,7 @@ function App() {
                 Data Trace
               </button>
             </div>
-            <div className="cross-slice-usage-node">{toNodeRef(selectedNode)}</div>
+            <div className="cross-slice-usage-node">{selectedNodeAnalysisRef}</div>
             {selectedNodePanelTab === 'usage' && (
               <div className="cross-slice-usage-list">
                 {crossSliceUsageEntries.map(({ usage, sliceName, node }) => {
@@ -1525,7 +1559,7 @@ function App() {
                 {selectedNodeCrossSliceData.keys.map((key) => {
                   const isExpanded = Boolean(crossSliceDataExpandedKeys[key]);
                   return (
-                    <div key={`${selectedNode.key}:${key}`} className="cross-slice-data-key-section">
+                    <div key={`${selectedNodeAnalysisRef}:${key}`} className="cross-slice-data-key-section">
                       <button
                         type="button"
                         className="cross-slice-data-key-toggle"
@@ -1628,7 +1662,7 @@ function App() {
                     onChange={(event) => setSelectedTraceKey(event.target.value)}
                   >
                     {selectedNodeUsesKeys.map((key) => (
-                      <option key={`${selectedNode.key}:${key}`} value={key}>
+                      <option key={`${selectedNodeAnalysisRef}:${key}`} value={key}>
                         {key}
                       </option>
                     ))}

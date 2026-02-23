@@ -393,6 +393,54 @@ describe('App node analysis interactions', () => {
     expect(issueCode?.textContent?.trim()).toBe('missing-source');
   });
 
+  it('aggregates issues and trace keys across node versions under one analysis key', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [
+          {
+            id: 'a',
+            dsl: 'slice "Alpha"\n\ncmd:buy@1 "Buy One"\nuses:\n  alpha\n\ncmd:buy@2 "Buy Two"\nuses:\n  beta\n'
+          }
+        ]
+      })
+    );
+
+    renderApp();
+
+    const buyOneNode = [...document.querySelectorAll('.node.cmd')]
+      .find((el) => el.querySelector('.node-title')?.textContent?.trim() === 'Buy One') as HTMLElement | undefined;
+    expect(buyOneNode).toBeDefined();
+    act(() => {
+      buyOneNode?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(document.querySelector('.cross-slice-usage-node')?.textContent?.trim()).toBe('cmd:buy');
+
+    const issuesTab = [...document.querySelectorAll('.cross-slice-panel-tab')]
+      .find((button) => button.textContent?.trim() === 'Issues') as HTMLButtonElement | undefined;
+    expect(issuesTab).toBeDefined();
+    act(() => {
+      issuesTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const issueKeys = [...document.querySelectorAll('.cross-slice-issue-key')]
+      .map((el) => el.textContent?.trim());
+    expect(issueKeys).toEqual(['alpha', 'beta']);
+
+    const traceTab = [...document.querySelectorAll('.cross-slice-panel-tab')]
+      .find((button) => button.textContent?.trim() === 'Data Trace') as HTMLButtonElement | undefined;
+    expect(traceTab).toBeDefined();
+    act(() => {
+      traceTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const traceOptions = [...document.querySelectorAll('.cross-slice-trace-select option')]
+      .map((option) => option.textContent?.trim());
+    expect(traceOptions).toEqual(['alpha', 'beta']);
+  });
+
   it('applies ambiguous-source quick fix by selecting an explicit predecessor', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
