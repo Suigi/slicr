@@ -1,5 +1,6 @@
 import { getSliceNameFromDsl } from '../sliceLibrary';
 import { parseDsl } from './parseDsl';
+import { toNodeAnalysisRef, toNodeAnalysisRefFromNode } from './nodeAnalysisKey';
 
 export type CrossSliceDataDocument = {
   id: string;
@@ -21,21 +22,25 @@ export type CrossSliceDataResult = {
 
 export function getCrossSliceData(slices: CrossSliceDataDocument[], nodeRef: string): CrossSliceDataResult {
   const byKey: CrossSliceDataByKey = {};
+  const analysisRef = toNodeAnalysisRef(nodeRef);
 
   for (const slice of slices) {
     const parsed = parseDsl(slice.dsl);
-    const node = [...parsed.nodes.values()].find((item) => toNodeRef(item) === nodeRef);
-    if (!node || node.type === 'generic' || !node.data) {
-      continue;
-    }
+    const matchingNodes = [...parsed.nodes.values()]
+      .filter((item) => toNodeAnalysisRefFromNode(item) === analysisRef);
+    for (const node of matchingNodes) {
+      if (node.type === 'generic' || !node.data) {
+        continue;
+      }
 
-    for (const [key, value] of Object.entries(node.data)) {
-      byKey[key] ??= [];
-      byKey[key].push({
-        sliceId: slice.id,
-        sliceName: getSliceNameFromDsl(slice.dsl),
-        value
-      });
+      for (const [key, value] of Object.entries(node.data)) {
+        byKey[key] ??= [];
+        byKey[key].push({
+          sliceId: slice.id,
+          sliceName: getSliceNameFromDsl(slice.dsl),
+          value
+        });
+      }
     }
   }
 
@@ -53,8 +58,4 @@ export function getCrossSliceData(slices: CrossSliceDataDocument[], nodeRef: str
     keys: Object.keys(byKey).sort((a, b) => a.localeCompare(b)),
     byKey
   };
-}
-
-function toNodeRef(node: { type: string; name: string }) {
-  return `${node.type}:${node.name}`;
 }

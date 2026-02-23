@@ -86,4 +86,33 @@ data:
       { sliceId: 'b', sliceName: 'Beta', value: 2 }
     ]);
   });
+
+  it('merges node versions under one canonical analysis ref', () => {
+    const slices = [
+      {
+        id: 'a',
+        dsl: `slice "Alpha"
+
+cmd:buy@1
+data:
+  alpha: 1
+`
+      },
+      {
+        id: 'b',
+        dsl: `slice "Beta"
+
+cmd:buy@2
+data:
+  alpha: 2
+`
+      }
+    ];
+
+    const result = getCrossSliceData(slices, 'cmd:buy');
+    expect(result.byKey.alpha).toEqual([
+      { sliceId: 'a', sliceName: 'Alpha', value: 1 },
+      { sliceId: 'b', sliceName: 'Beta', value: 2 }
+    ]);
+  });
 });
