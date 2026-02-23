@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { traceData } from './dataTrace';
+import { parseDsl } from './parseDsl';
 import { VisualNode } from './types';
 
 function makeNode(type: string): VisualNode {
@@ -18,6 +19,37 @@ describe('traceData', () => {
   it('returns null for generic nodes', () => {
     const nodes = new Map<string, VisualNode>([['generic-node', makeNode('generic')]]);
 
-    expect(traceData({ nodes }, 'generic-node', 'alpha')).toBeNull();
+    expect(traceData({ dsl: '', nodes, edges: [] }, 'generic-node', 'alpha')).toBeNull();
+  });
+
+  it('traces uses keys backward through predecessor nodes', () => {
+    const dsl = `slice "Trace"
+
+evt:concert-scheduled "Concert Scheduled"
+data:
+  artist: "Headline"
+  openingBand: "The Openers"
+
+rm:concert-view "Concert View"
+<- evt:concert-scheduled
+uses:
+  artist
+  openingBand
+
+cmd:buy "Buy Tickets"
+<- rm:concert-view
+uses:
+  openingBand
+`;
+
+    const parsed = parseDsl(dsl);
+    expect(traceData({ dsl, nodes: parsed.nodes, edges: parsed.edges }, 'buy', 'openingBand')).toEqual({
+      usesKey: 'openingBand',
+      hops: [
+        { nodeKey: 'concert-view', key: 'openingBand' },
+        { nodeKey: 'concert-scheduled', key: 'openingBand' }
+      ],
+      source: 'The Openers'
+    });
   });
 });
