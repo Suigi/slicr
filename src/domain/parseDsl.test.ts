@@ -277,6 +277,29 @@ uses:
     expect(parsed.nodes.get('combined-view')?.mappedDataKeys).toEqual(new Set(['alpha', 'bravo']));
   });
 
+  it('applies JSONPath uses mappings into node data', () => {
+    const input = `slice "Buy Tickets"
+
+rm:available-concerts
+data:
+  concerts:
+    - id: c-101
+      selected: false
+    - id: c-202
+      selected: true
+
+cmd:buy-tickets
+<- rm:available-concerts
+uses:
+  concert-id <- $.concerts[?(@.selected==true)].id`;
+
+    const parsed = parseDsl(input);
+    expect(parsed.nodes.get('buy-tickets')?.data).toEqual({
+      'concert-id': 'c-202'
+    });
+    expect(parsed.nodes.get('buy-tickets')?.mappedDataKeys).toEqual(new Set(['concert-id']));
+  });
+
   it('warns when a mapped key cannot be sourced from direct predecessors', () => {
     const input = `slice "Mapped Warnings"
 
