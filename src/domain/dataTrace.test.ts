@@ -100,4 +100,61 @@ uses:
       source: 'a'
     });
   });
+
+  it('stops tracing when a cycle is detected', () => {
+    const dsl = `slice "Cycle"
+
+rm:left "Left"
+<- rm:right
+uses:
+  alpha
+
+rm:right "Right"
+<- rm:left
+uses:
+  alpha
+
+cmd:consume "Consume"
+<- rm:left
+uses:
+  alpha
+`;
+
+    const parsed = parseDsl(dsl);
+    expect(traceData({ dsl, nodes: parsed.nodes, edges: parsed.edges }, 'consume', 'alpha')).toEqual({
+      usesKey: 'alpha',
+      hops: [
+        { nodeKey: 'left', key: 'alpha' },
+        { nodeKey: 'right', key: 'alpha' }
+      ],
+      source: null
+    });
+  });
+
+  it('stops tracing when maxDepth is reached', () => {
+    const dsl = `slice "Depth"
+
+rm:left "Left"
+<- rm:right
+uses:
+  alpha
+
+rm:right "Right"
+<- rm:left
+uses:
+  alpha
+
+cmd:consume "Consume"
+<- rm:left
+uses:
+  alpha
+`;
+
+    const parsed = parseDsl(dsl);
+    expect(traceData({ dsl, nodes: parsed.nodes, edges: parsed.edges, maxDepth: 1 }, 'consume', 'alpha')).toEqual({
+      usesKey: 'alpha',
+      hops: [{ nodeKey: 'left', key: 'alpha' }],
+      source: null
+    });
+  });
 });
