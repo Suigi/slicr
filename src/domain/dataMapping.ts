@@ -1,4 +1,5 @@
 import { Edge, ParseWarning, VisualNode } from './types';
+import { JSONPath } from 'jsonpath-plus';
 
 export type MappingEntry = {
   targetKey: string;
@@ -130,12 +131,19 @@ function resolveMappingValue(
     if (!predecessor?.data) {
       continue;
     }
-    const value = getPathValue(predecessor.data, sourcePath);
+    const value = resolveSourcePathValue(predecessor.data, sourcePath);
     if (value !== undefined) {
       return value;
     }
   }
   return undefined;
+}
+
+function resolveSourcePathValue(data: Record<string, unknown>, sourcePath: string): unknown {
+  if (sourcePath.startsWith('$')) {
+    return getJsonPathValue(data, sourcePath);
+  }
+  return getPathValue(data, sourcePath);
 }
 
 function parseMappingLine(line: string, lineStart: number, contextPrefix: string | null): MappingEntry | null {
@@ -220,6 +228,22 @@ function getPathValue(data: Record<string, unknown>, path: string): unknown {
   }
 
   return current;
+}
+
+function getJsonPathValue(data: Record<string, unknown>, sourcePath: string): unknown {
+  try {
+    const matches = JSONPath({
+      path: sourcePath,
+      json: data,
+      wrap: true
+    });
+    if (!Array.isArray(matches) || matches.length === 0) {
+      return undefined;
+    }
+    return matches[0];
+  } catch {
+    return undefined;
+  }
 }
 
 function getIndent(line: string): number {
