@@ -125,6 +125,11 @@ function resolveMappingValue(
   targetNodeKey: string,
   sourcePath: string
 ): unknown {
+  const collectFields = parseCollectFields(sourcePath);
+  if (collectFields) {
+    return resolveCollectedValues(nodes, edges, targetNodeKey, collectFields);
+  }
+
   const predecessorKeys = edges.filter((edge) => edge.to === targetNodeKey).map((edge) => edge.from);
   for (const predecessorKey of predecessorKeys) {
     const predecessor = nodes.get(predecessorKey);
@@ -137,6 +142,62 @@ function resolveMappingValue(
     }
   }
   return undefined;
+}
+
+function resolveCollectedValues(
+  nodes: Map<string, VisualNode>,
+  edges: Edge[],
+  targetNodeKey: string,
+  fieldRefs: string[]
+) {
+  const predecessorKeys = edges.filter((edge) => edge.to === targetNodeKey).map((edge) => edge.from);
+  const collected: Array<Record<string, unknown>> = [];
+
+  for (const predecessorKey of predecessorKeys) {
+    const predecessor = nodes.get(predecessorKey);
+    if (!predecessor?.data) {
+      continue;
+    }
+
+    const item: Record<string, unknown> = {};
+    let isComplete = true;
+    for (const fieldRef of fieldRefs) {
+      const value = resolveSourcePathValue(predecessor.data, fieldRef);
+      if (value === undefined) {
+        isComplete = false;
+        break;
+      }
+      item[collectFieldKey(fieldRef)] = value;
+    }
+
+    if (isComplete) {
+      collected.push(item);
+    }
+  }
+
+  return collected;
+}
+
+function parseCollectFields(sourcePath: string): string[] | null {
+  const match = sourcePath.match(/^collect\s*\(\s*\{([\s\S]*)\}\s*\)\s*$/);
+  if (!match) {
+    return null;
+  }
+
+  const fields = match[1]
+    .split(',')
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+  return fields.length > 0 ? fields : [];
+}
+
+function collectFieldKey(fieldRef: string): string {
+  if (!fieldRef.startsWith('$')) {
+    return fieldRef;
+  }
+  const cleaned = fieldRef.replace(/\[(?:\*|\?\([^\]]+\)|\d+)\]/g, '');
+  const segments = cleaned.split('.').filter((segment) => segment !== '$' && segment.length > 0);
+  return segments[segments.length - 1] ?? fieldRef;
 }
 
 function resolveSourcePathValue(data: Record<string, unknown>, sourcePath: string): unknown {

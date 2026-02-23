@@ -118,4 +118,32 @@ uses:
       'Missing data source for key "concert-id"'
     );
   });
+
+  it('collects values from direct predecessors into an array', () => {
+    const dsl = `slice "Available Rooms"
+
+evt:room-opened@1
+data:
+  room-number: 101
+  capacity: 2
+
+evt:room-opened@2
+data:
+  room-number: 102
+  capacity: 4
+
+rm:available-rooms
+<- evt:room-opened@1
+<- evt:room-opened@2
+uses:
+  rooms <- collect({ room-number, capacity })`;
+
+    const parsed = parseDsl(dsl);
+    expect(parsed.nodes.get('available-rooms')?.data).toEqual({
+      rooms: [
+        { 'room-number': 101, capacity: 2 },
+        { 'room-number': 102, capacity: 4 }
+      ]
+    });
+  });
 });
