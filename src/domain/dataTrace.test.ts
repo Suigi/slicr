@@ -52,4 +52,30 @@ uses:
       source: 'The Openers'
     });
   });
+
+  it('stops when the first predecessor value is direct data and marks it as source', () => {
+    const dsl = `slice "Trace Stop"
+
+evt:seed "Seed"
+data:
+  alpha: "seed"
+
+rm:direct "Direct"
+data:
+  alpha: "direct"
+
+cmd:consume "Consume"
+<- rm:direct
+<- evt:seed
+uses:
+  alpha
+`;
+
+    const parsed = parseDsl(dsl);
+    expect(traceData({ dsl, nodes: parsed.nodes, edges: parsed.edges }, 'consume', 'alpha')).toEqual({
+      usesKey: 'alpha',
+      hops: [{ nodeKey: 'direct', key: 'alpha' }],
+      source: 'direct'
+    });
+  });
 });
