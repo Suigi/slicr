@@ -15,7 +15,6 @@ import {formatNodeData} from './domain/formatNodeData';
 import {PAD_X, rowFor} from './domain/layoutGraph';
 import {parseDsl} from './domain/parseDsl';
 import {isDragAndDropEnabled, shouldShowDevDiagramControls} from './domain/runtimeFlags';
-import {getRelatedElements} from './domain/traversal';
 import { createCrossSliceUsageQuery } from './domain/crossSliceUsage';
 import { collectDataIssues, getAmbiguousSourceCandidates } from './domain/dataIssues';
 import { parseUsesBlocks } from './domain/dataMapping';
@@ -113,6 +112,7 @@ function App() {
   const [sourceOverrides, setSourceOverrides] = useState<Record<string, string>>({});
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [selectedTraceKey, setSelectedTraceKey] = useState<string | null>(null);
+  const [hoveredTraceNodeKey, setHoveredTraceNodeKey] = useState<string | null>(null);
   const [manualNodePositions, setManualNodePositions] = useState<Record<string, { x: number; y: number }>>(
     initialSnapshot.overrides.nodes
   );
@@ -442,11 +442,6 @@ function App() {
     }
     return null;
   }, [hoveredEditorRange, parsed]);
-
-  const relatedElements = useMemo(() => {
-    if (!parsed) return { nodes: new Set<string>(), edges: new Set<string>() };
-    return getRelatedElements(parsed, selectedNodeKey);
-  }, [parsed, selectedNodeKey]);
 
   const selectedNode = useMemo(() => {
     if (!parsed || !selectedNodeKey) {
@@ -1311,12 +1306,13 @@ function App() {
 
                   const isHighlighted = activeNodeKeyFromEditor === node.key;
                   const isSelected = selectedNodeKey === node.key;
-                  const isRelated = relatedElements.nodes.has(node.key) || hoveredEdgeNodeKeys.has(node.key);
+                  const isRelated = hoveredEdgeNodeKeys.has(node.key);
+                  const isTraceHovered = hoveredTraceNodeKey === node.key;
 
                   return (
                     <div
                       key={node.key}
-                      className={`node ${node.type || 'rm'} ${isHighlighted ? 'highlighted' : ''} ${isSelected ? 'selected' : ''} ${isRelated ? 'related' : ''}`}
+                      className={`node ${node.type || 'rm'} ${isHighlighted ? 'highlighted' : ''} ${isSelected ? 'selected' : ''} ${isRelated ? 'related' : ''} ${isTraceHovered ? 'trace-hovered' : ''}`}
                       style={{
                         left: `${position.x}px`,
                         top: `${position.y}px`,
@@ -1369,7 +1365,7 @@ function App() {
                     {renderedEdges.map(({ key, edgeKey, edge, geometry }) => {
                       const edgePath = geometry.points ? routeRoundedPolyline(geometry.points, 5) : geometry.d;
                       const isHovered = hoveredEdgeKey === edgeKey;
-                      const isRelated = relatedElements.edges.has(`${edge.from}->${edge.to}`) || isHovered;
+                      const isRelated = isHovered;
                       const handleEdgeHoverEnter = () => setHoveredEdgeKey(edgeKey);
                       const handleEdgeHoverLeave = () => {
                         setHoveredEdgeKey((current) => (current === edgeKey ? null : current));
@@ -1563,6 +1559,20 @@ function App() {
                 )}
                 {selectedNodeTraceResult && (
                   <div className="cross-slice-trace-result">
+                    <div className="cross-slice-trace-hops">
+                      {selectedNodeTraceResult.hops.map((hop, index) => (
+                        <div
+                          key={`${hop.nodeKey}:${hop.key}:${index}`}
+                          className={`cross-slice-trace-hop ${parsed?.nodes.get(hop.nodeKey)?.type ?? 'generic'}`}
+                          onMouseOver={() => setHoveredTraceNodeKey(hop.nodeKey)}
+                          onMouseOut={() => setHoveredTraceNodeKey((current) => (current === hop.nodeKey ? null : current))}
+                        >
+                          <span className="cross-slice-trace-hop-node">{hop.nodeKey}</span>
+                          <span className="cross-slice-trace-hop-sep">.</span>
+                          <span className="cross-slice-trace-hop-key">{hop.key}</span>
+                        </div>
+                      ))}
+                    </div>
                     <div className="cross-slice-trace-source">
                       source: {String(selectedNodeTraceResult.source)}
                     </div>

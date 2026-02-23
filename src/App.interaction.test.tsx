@@ -717,6 +717,81 @@ uses:
     expect(document.querySelector('.cross-slice-trace-source')?.textContent).toContain('source: a');
   });
 
+  it('shows intermediate data trace hops from inspected node to source', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [
+          {
+            id: 'a',
+            dsl: 'slice "Alpha"\n\nevt:seed "Seed"\ndata:\n  alpha: "a"\n\nrm:view "View"\n<- evt:seed\nuses:\n  alpha\n\ncmd:consume "Consume"\n<- rm:view\nuses:\n  alpha\n'
+          }
+        ]
+      })
+    );
+
+    renderApp();
+    const cmdNode = document.querySelector('.node.cmd') as HTMLElement | null;
+    expect(cmdNode).not.toBeNull();
+    act(() => {
+      cmdNode?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const traceTab = [...document.querySelectorAll('.cross-slice-panel-tab')]
+      .find((button) => button.textContent?.trim() === 'Data Trace') as HTMLButtonElement | undefined;
+    expect(traceTab).toBeDefined();
+    act(() => {
+      traceTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const hops = [...document.querySelectorAll('.cross-slice-trace-hop')].map((el) => el.textContent?.trim());
+    expect(hops).toEqual(['view.alpha', 'seed.alpha']);
+    expect(document.querySelectorAll('.cross-slice-trace-hop-node').length).toBe(2);
+  });
+
+  it('highlights trace-hop node when hovering over Data Trace list entry', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [
+          {
+            id: 'a',
+            dsl: 'slice "Alpha"\n\nevt:seed "Seed"\ndata:\n  alpha: "a"\n\nrm:view "View"\n<- evt:seed\nuses:\n  alpha\n\ncmd:consume "Consume"\n<- rm:view\nuses:\n  alpha\n'
+          }
+        ]
+      })
+    );
+
+    renderApp();
+    const cmdNode = document.querySelector('.node.cmd') as HTMLElement | null;
+    expect(cmdNode).not.toBeNull();
+    act(() => {
+      cmdNode?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const traceTab = [...document.querySelectorAll('.cross-slice-panel-tab')]
+      .find((button) => button.textContent?.trim() === 'Data Trace') as HTMLButtonElement | undefined;
+    expect(traceTab).toBeDefined();
+    act(() => {
+      traceTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const viewHop = [...document.querySelectorAll('.cross-slice-trace-hop')]
+      .find((el) => el.textContent?.trim() === 'view.alpha') as HTMLElement | undefined;
+    expect(viewHop).toBeDefined();
+    const viewNode = [...document.querySelectorAll('.node.rm')]
+      .find((el) => el.querySelector('.node-title')?.textContent?.trim() === 'View') as HTMLElement | undefined;
+    expect(viewNode).toBeDefined();
+
+    act(() => {
+      viewHop?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+    });
+
+    expect(viewNode?.classList.contains('trace-hovered')).toBe(true);
+  });
+
   it('highlights both connected nodes when hovering an edge', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
@@ -750,6 +825,29 @@ uses:
 
     expect(fromNode?.classList.contains('related')).toBe(false);
     expect(toNode?.classList.contains('related')).toBe(false);
+  });
+
+  it('does not highlight related nodes when selecting a node', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{ id: 'a', dsl: 'slice "Alpha"\n\ncmd:buy\n\nevt:seed <- cmd:buy' }]
+      })
+    );
+
+    renderApp();
+    const cmdNode = document.querySelector('.node.cmd') as HTMLElement | null;
+    const evtNode = document.querySelector('.node.evt') as HTMLElement | null;
+    expect(cmdNode).not.toBeNull();
+    expect(evtNode).not.toBeNull();
+
+    act(() => {
+      cmdNode?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(cmdNode?.classList.contains('selected')).toBe(true);
+    expect(evtNode?.classList.contains('related')).toBe(false);
   });
 
   it('renders a slice divider for --- boundaries in the DSL', () => {
