@@ -16,6 +16,7 @@ import {PAD_X, rowFor} from './domain/layoutGraph';
 import {parseDsl} from './domain/parseDsl';
 import {isDragAndDropEnabled, shouldShowDevDiagramControls} from './domain/runtimeFlags';
 import {getRelatedElements} from './domain/traversal';
+import { createCrossSliceUsageQuery } from './domain/crossSliceUsage';
 import { measureNodeHeights, NODE_MEASURE_NODE_CLASS } from './nodeMeasurement';
 import type {Parsed, Position} from './domain/types';
 import {
@@ -419,6 +420,21 @@ function App() {
     if (!parsed) return { nodes: new Set<string>(), edges: new Set<string>() };
     return getRelatedElements(parsed, selectedNodeKey);
   }, [parsed, selectedNodeKey]);
+
+  const selectedNode = useMemo(() => {
+    if (!parsed || !selectedNodeKey) {
+      return null;
+    }
+    return parsed.nodes.get(selectedNodeKey) ?? null;
+  }, [parsed, selectedNodeKey]);
+
+  const crossSliceUsage = useMemo(() => {
+    if (!selectedNode) {
+      return [];
+    }
+    const query = createCrossSliceUsageQuery(library.slices.map((slice) => ({ id: slice.id, dsl: slice.dsl })));
+    return query.getCrossSliceUsage(toNodeRef(selectedNode));
+  }, [library.slices, selectedNode]);
 
   const hoveredEdgeNodeKeys = useMemo(() => {
     if (!hoveredEdgeKey) {
@@ -1343,6 +1359,24 @@ function App() {
             )}
           </div>
         </div>
+        {selectedNode && (
+          <aside className="cross-slice-usage-panel" aria-label="Cross-Slice Usage">
+            <h3>Cross-Slice Usage</h3>
+            <div className="cross-slice-usage-node">{toNodeRef(selectedNode)}</div>
+            <div className="cross-slice-usage-list">
+              {crossSliceUsage.map((usage) => {
+                const slice = library.slices.find((item) => item.id === usage.sliceId);
+                const sliceName = slice ? getSliceNameFromDsl(slice.dsl) : usage.sliceId;
+                return (
+                  <div key={`${usage.sliceId}:${usage.nodeKey}`} className="cross-slice-usage-item">
+                    <span className="cross-slice-usage-slice">{sliceName}</span>
+                    <span className="cross-slice-usage-ref">{usage.nodeKey}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </aside>
+        )}
         {(hasOpenedDocs || docsOpen) && (
           <div className={`docs-panel-shell ${docsOpen ? '' : 'hidden'}`} aria-hidden={!docsOpen}>
             <DocumentationPanel />
@@ -1354,3 +1388,7 @@ function App() {
 }
 
 export default App;
+
+function toNodeRef(node: { type: string; name: string }) {
+  return `${node.type}:${node.name}`;
+}

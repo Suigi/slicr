@@ -1033,6 +1033,55 @@ header h1 {
   display: none;
 }
 
+.cross-slice-usage-panel {
+  width: 280px;
+  min-height: 0;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cross-slice-usage-panel h3 {
+  margin: 0;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.cross-slice-usage-node {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.cross-slice-usage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cross-slice-usage-item {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+}
+
+.cross-slice-usage-slice {
+  color: var(--fg);
+}
+
+.cross-slice-usage-ref {
+  color: var(--muted);
+}
+
 .docs-panel-inner {
   max-width: 1160px;
   margin: 0 auto;

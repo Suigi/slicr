@@ -520,6 +520,32 @@ uses:
     expect(genericNode?.querySelector('.node-header span:last-child')?.textContent?.trim()).toBe('checkout-screen');
   });
 
+  it('shows a Cross-Slice Usage section when a node is selected', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [
+          { id: 'a', dsl: 'slice "Alpha"\n\ncmd:buy "Buy"\n' },
+          { id: 'b', dsl: 'slice "Beta"\n\ncmd:buy "Buy Again"\n' }
+        ]
+      })
+    );
+
+    renderApp();
+
+    const node = document.querySelector('.node.cmd') as HTMLElement | null;
+    expect(node).not.toBeNull();
+    act(() => {
+      node?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const panelTitle = [...document.querySelectorAll('.cross-slice-usage-panel h3')]
+      .find((el) => el.textContent?.trim() === 'Cross-Slice Usage');
+    expect(panelTitle).toBeDefined();
+    expect(document.querySelectorAll('.cross-slice-usage-item').length).toBe(2);
+  });
+
   it('highlights both connected nodes when hovering an edge', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
