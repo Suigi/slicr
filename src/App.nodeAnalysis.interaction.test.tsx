@@ -740,7 +740,7 @@ describe('App node analysis interactions', () => {
     });
 
     expect(document.querySelector('.cross-slice-panel-tab.active')?.textContent?.trim()).toBe('Data Trace');
-    expect(document.querySelector('.cross-slice-trace-source')?.textContent).toContain('source: a');
+    expect(document.querySelector('.cross-slice-trace-source')?.textContent).toContain('value: a');
   });
 
   it('shows intermediate data trace hops from inspected node to source', () => {
@@ -782,6 +782,98 @@ describe('App node analysis interactions', () => {
     expect(document.querySelectorAll('.cross-slice-trace-hop-node').length).toBe(2);
   });
 
+  it('shows collect contributor hops and structured source values in Data Trace', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [
+          {
+            id: 'a',
+            dsl: 'slice "Read Model from Two Events"\n\nevt:thing-added@1 "Thing Added"\ndata:\n  id: 100\n  name: alpha\n\nevt:thing-added@2 "Thing Added"\ndata:\n  id: 200\n  name: bravo\n\nrm:my-rm "All Things"\n<- evt:thing-added@1\n<- evt:thing-added@2\nuses:\n  things <- collect({id,name})\n'
+          }
+        ]
+      })
+    );
+
+    renderApp();
+    const rmNode = document.querySelector('.node.rm') as HTMLElement | null;
+    expect(rmNode).not.toBeNull();
+    act(() => {
+      rmNode?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const traceTab = [...document.querySelectorAll('.cross-slice-panel-tab')]
+      .find((button) => button.textContent?.trim() === 'Data Trace') as HTMLButtonElement | undefined;
+    expect(traceTab).toBeDefined();
+    act(() => {
+      traceTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    const thingsKey = [...document.querySelectorAll('.cross-slice-trace-key-toggle')]
+      .find((button) => button.textContent?.trim() === 'things') as HTMLButtonElement | undefined;
+    expect(thingsKey).toBeDefined();
+    act(() => {
+      thingsKey?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const hops = [...document.querySelectorAll('.cross-slice-trace-hop')].map((el) => el.textContent?.trim());
+    expect(hops).toEqual([
+      'thing-added@1.collect({id,name})',
+      'thing-added@2.collect({id,name})'
+    ]);
+
+    const sourceText = document.querySelector('.cross-slice-trace-source')?.textContent ?? '';
+    expect(sourceText).toContain('value:');
+    expect(sourceText).toContain('id: 100');
+    expect(sourceText).toContain('name: alpha');
+    expect(sourceText).not.toContain('[object Object]');
+  });
+
+  it('shows grouped collect contributors with upstream mapped hops', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [
+          {
+            id: 'a',
+            dsl: 'slice "Data Integrity"\n\ncmd:add "Add Thing"\ndata:\n  id: 100\n  name: alpha\n\nevt:thing-added@1 "Thing Added"\n<- cmd:add\nuses:\n  id\n  name\n\nevt:thing-added@2 "Thing Added"\ndata:\n  id: 200\n  name: bravo\n\nrm:my-rm "All Things"\n<- evt:thing-added@1\n<- evt:thing-added@2\nuses:\n  things <- collect({id,name})\n'
+          }
+        ]
+      })
+    );
+
+    renderApp();
+    const rmNode = document.querySelector('.node.rm') as HTMLElement | null;
+    expect(rmNode).not.toBeNull();
+    act(() => {
+      rmNode?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const traceTab = [...document.querySelectorAll('.cross-slice-panel-tab')]
+      .find((button) => button.textContent?.trim() === 'Data Trace') as HTMLButtonElement | undefined;
+    expect(traceTab).toBeDefined();
+    act(() => {
+      traceTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    const thingsKey = [...document.querySelectorAll('.cross-slice-trace-key-toggle')]
+      .find((button) => button.textContent?.trim() === 'things') as HTMLButtonElement | undefined;
+    expect(thingsKey).toBeDefined();
+    act(() => {
+      thingsKey?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const contributorLabels = [...document.querySelectorAll('.cross-slice-trace-contributor-label')]
+      .map((el) => el.textContent?.trim());
+    expect(contributorLabels).toEqual(['item[0]', 'item[1]']);
+
+    const hops = [...document.querySelectorAll('.cross-slice-trace-hop')].map((el) => el.textContent?.trim());
+    expect(hops).toContain('thing-added@1.collect({id,name})');
+    expect(hops).toContain('add.id');
+    expect(hops).toContain('add.name');
+    expect(hops).toContain('thing-added@2.collect({id,name})');
+  });
+
   it('shows data trace results for each node version with the selected uses key', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
@@ -819,8 +911,8 @@ describe('App node analysis interactions', () => {
 
     const sources = [...document.querySelectorAll('.cross-slice-trace-source')]
       .map((el) => el.textContent?.trim());
-    expect(sources).toContain('source: a1');
-    expect(sources).toContain('source: a2');
+    expect(sources).toContain('value: a1');
+    expect(sources).toContain('value: a2');
   });
 
   it('highlights trace-hop node when hovering over Data Trace list entry', () => {

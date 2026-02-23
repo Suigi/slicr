@@ -1530,6 +1530,20 @@ header h1 {
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
   color: var(--muted);
+  white-space: pre-wrap;
+}
+
+.cross-slice-trace-contributor {
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+  padding-top: 6px;
+}
+
+.cross-slice-trace-contributor-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 4px;
 }
 
 

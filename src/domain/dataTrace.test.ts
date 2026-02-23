@@ -157,4 +157,153 @@ uses:
       source: null
     });
   });
+
+  it('traces through JSONPath uses mapping into collect-backed predecessor data', () => {
+    const dsl = `slice "Read Model from Two Events"
+
+evt:thing-added@1 "Thing Added"
+data:
+  id: 100
+  name: alpha
+
+evt:thing-added@2 "Thing Added"
+data:
+  id: 200
+  name: bravo
+
+rm:my-rm "All Things"
+<- evt:thing-added@1
+<- evt:thing-added@2
+uses:
+  things <- collect({id,name})
+
+ui:my-ui "Rename Thing Form"
+<- rm:my-rm
+data:
+  newName: ALPHA
+uses:
+  id <- $.things[0].id`;
+
+    const parsed = parseDsl(dsl);
+    expect(traceData({ dsl, nodes: parsed.nodes, edges: parsed.edges }, 'my-ui', 'id')).toEqual({
+      usesKey: 'id',
+      hops: [
+        { nodeKey: 'my-rm', key: '$.things[0].id' },
+        { nodeKey: 'thing-added@1', key: 'collect({id,name})' },
+        { nodeKey: 'thing-added@2', key: 'collect({id,name})' }
+      ],
+      contributors: [
+        {
+          label: 'item[0]',
+          hops: [{ nodeKey: 'thing-added@1', key: 'collect({id,name})' }]
+        },
+        {
+          label: 'item[1]',
+          hops: [{ nodeKey: 'thing-added@2', key: 'collect({id,name})' }]
+        }
+      ],
+      source: [
+        { id: 100, name: 'alpha' },
+        { id: 200, name: 'bravo' }
+      ]
+    });
+  });
+
+  it('does not mark collect-backed root keys as missing source in trace', () => {
+    const dsl = `slice "Read Model from Two Events"
+
+evt:thing-added@1 "Thing Added"
+data:
+  id: 100
+  name: alpha
+
+evt:thing-added@2 "Thing Added"
+data:
+  id: 200
+  name: bravo
+
+rm:my-rm "All Things"
+<- evt:thing-added@1
+<- evt:thing-added@2
+uses:
+  things <- collect({id,name})`;
+
+    const parsed = parseDsl(dsl);
+    expect(traceData({ dsl, nodes: parsed.nodes, edges: parsed.edges }, 'my-rm', 'things')).toEqual({
+      usesKey: 'things',
+      hops: [
+        { nodeKey: 'thing-added@1', key: 'collect({id,name})' },
+        { nodeKey: 'thing-added@2', key: 'collect({id,name})' }
+      ],
+      contributors: [
+        {
+          label: 'item[0]',
+          hops: [{ nodeKey: 'thing-added@1', key: 'collect({id,name})' }]
+        },
+        {
+          label: 'item[1]',
+          hops: [{ nodeKey: 'thing-added@2', key: 'collect({id,name})' }]
+        }
+      ],
+      source: [
+        { id: 100, name: 'alpha' },
+        { id: 200, name: 'bravo' }
+      ]
+    });
+  });
+
+  it('includes upstream mapped contributors for collect branches', () => {
+    const dsl = `slice "Data Integrity"
+
+cmd:add "Add Thing"
+data:
+  id: 100
+  name: alpha
+
+evt:thing-added@1 "Thing Added"
+<- cmd:add
+uses:
+  id
+  name
+
+evt:thing-added@2 "Thing Added"
+data:
+  id: 200
+  name: bravo
+
+rm:my-rm "All Things"
+<- evt:thing-added@1
+<- evt:thing-added@2
+uses:
+  things <- collect({id,name})`;
+
+    const parsed = parseDsl(dsl);
+    expect(traceData({ dsl, nodes: parsed.nodes, edges: parsed.edges }, 'my-rm', 'things')).toEqual({
+      usesKey: 'things',
+      hops: [
+        { nodeKey: 'thing-added@1', key: 'collect({id,name})' },
+        { nodeKey: 'add', key: 'id' },
+        { nodeKey: 'add', key: 'name' },
+        { nodeKey: 'thing-added@2', key: 'collect({id,name})' }
+      ],
+      contributors: [
+        {
+          label: 'item[0]',
+          hops: [
+            { nodeKey: 'thing-added@1', key: 'collect({id,name})' },
+            { nodeKey: 'add', key: 'id' },
+            { nodeKey: 'add', key: 'name' }
+          ]
+        },
+        {
+          label: 'item[1]',
+          hops: [{ nodeKey: 'thing-added@2', key: 'collect({id,name})' }]
+        }
+      ],
+      source: [
+        { id: 100, name: 'alpha' },
+        { id: 200, name: 'bravo' }
+      ]
+    });
+  });
 });

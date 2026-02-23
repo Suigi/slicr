@@ -65,6 +65,11 @@ type ThemeMode = 'dark' | 'light';
 type RouteMode = DiagramEngineId;
 type EdgeGeometry = DiagramEdgeGeometry;
 
+function formatTraceSource(source: unknown): string {
+  const fields = formatNodeData({ value: source });
+  return fields[0]?.text ?? 'value: undefined';
+}
+
 function App() {
   const [initialSnapshot] = useState<{
     library: SliceLibrary;
@@ -1736,7 +1741,7 @@ function App() {
                                 <div className="cross-slice-trace-version">{entry.nodeKey}</div>
                               )}
                               <div className="cross-slice-trace-hops">
-                                {entry.result.hops.map((hop, index) => (
+                                {!entry.result.contributors && entry.result.hops.map((hop, index) => (
                                   <div
                                     key={`${entry.nodeKey}:${hop.nodeKey}:${hop.key}:${index}`}
                                     className={`cross-slice-trace-hop ${parsed?.nodes.get(hop.nodeKey)?.type ?? 'generic'}`}
@@ -1746,6 +1751,24 @@ function App() {
                                     <span className="cross-slice-trace-hop-node">{hop.nodeKey}</span>
                                     <span className="cross-slice-trace-hop-sep">.</span>
                                     <span className="cross-slice-trace-hop-key">{hop.key}</span>
+                                  </div>
+                                ))}
+                                {entry.result.contributors?.map((contributor) => (
+                                  <div key={`${entry.nodeKey}:${contributor.label}`} className="cross-slice-trace-contributor">
+                                    <div className="cross-slice-trace-contributor-label">{contributor.label}</div>
+                                    {contributor.hops.map((hop, index) => (
+                                      <div
+                                        key={`${entry.nodeKey}:${contributor.label}:${hop.nodeKey}:${hop.key}:${index}`}
+                                        className={`cross-slice-trace-hop ${parsed?.nodes.get(hop.nodeKey)?.type ?? 'generic'}`}
+                                        onMouseOver={() => setHoveredTraceNodeKey(hop.nodeKey)}
+                                        onMouseOut={() =>
+                                          setHoveredTraceNodeKey((current) => (current === hop.nodeKey ? null : current))}
+                                      >
+                                        <span className="cross-slice-trace-hop-node">{hop.nodeKey}</span>
+                                        <span className="cross-slice-trace-hop-sep">.</span>
+                                        <span className="cross-slice-trace-hop-key">{hop.key}</span>
+                                      </div>
+                                    ))}
                                   </div>
                                 ))}
                                 {(selectedNodeIssuesByKey[traceKey] ?? [])
@@ -1785,7 +1808,7 @@ function App() {
                                 issue.code === 'missing-source' && issue.key === traceKey && issue.nodeKey === entry.nodeKey
                               )) && (
                                 <div className="cross-slice-trace-source">
-                                  source: {String(entry.result.source)}
+                                  {formatTraceSource(entry.result.source)}
                                 </div>
                               )}
                             </div>
