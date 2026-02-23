@@ -19,6 +19,7 @@ type IssueInput = {
   nodes: Map<string, VisualNode>;
   edges: Edge[];
   sliceId?: string;
+  sourceOverrides?: Record<string, string>;
 };
 
 export function collectDataIssues(input: IssueInput): DataIssue[] {
@@ -35,12 +36,10 @@ export function collectDataIssues(input: IssueInput): DataIssue[] {
       continue;
     }
     for (const mapping of mappings) {
-      const ambiguousCandidates = input.edges
-        .filter((edge) => edge.to === node.key)
-        .map((edge) => input.nodes.get(edge.from))
-        .filter((candidate): candidate is VisualNode => Boolean(candidate))
-        .filter((candidate) => getPathValue(candidate.data, mapping.sourcePath) !== undefined);
-      if (ambiguousCandidates.length > 1) {
+      const ambiguousCandidates = getAmbiguousSourceCandidatesForPath(input, node.key, mapping.sourcePath);
+      const override = input.sourceOverrides?.[`${node.key}:${mapping.targetKey}`];
+      const hasValidOverride = override ? ambiguousCandidates.includes(override) : false;
+      if (ambiguousCandidates.length > 1 && !hasValidOverride) {
         issues.push({
           code: 'ambiguous-source',
           severity: 'warning',
@@ -69,6 +68,27 @@ export function collectDataIssues(input: IssueInput): DataIssue[] {
   }
 
   return issues;
+}
+
+export function getAmbiguousSourceCandidates(input: IssueInput, nodeKey: string, key: string): string[] {
+  const mappingsByRef = parseUsesBlocks(input.dsl);
+  const node = input.nodes.get(nodeKey);
+  if (!node) {
+    return [];
+  }
+  const nodeRef = `${node.type}:${node.name}`;
+  const mapping = mappingsByRef.get(nodeRef)?.find((entry) => entry.targetKey === key);
+  const sourcePath = mapping?.sourcePath ?? key;
+  return getAmbiguousSourceCandidatesForPath(input, node.key, sourcePath);
+}
+
+function getAmbiguousSourceCandidatesForPath(input: IssueInput, nodeKey: string, sourcePath: string): string[] {
+  return input.edges
+    .filter((edge) => edge.to === nodeKey)
+    .map((edge) => input.nodes.get(edge.from))
+    .filter((candidate): candidate is VisualNode => Boolean(candidate))
+    .filter((candidate) => getPathValue(candidate.data, sourcePath) !== undefined)
+    .map((candidate) => candidate.key);
 }
 
 function getPathValue(data: unknown, path: string): unknown {

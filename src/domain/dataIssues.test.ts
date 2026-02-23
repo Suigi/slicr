@@ -68,4 +68,32 @@ uses:
       sliceId: 'slice-a'
     }));
   });
+
+  it('applies source overrides to resolve ambiguous-source issues', () => {
+    const dsl = `slice "Ambiguous"
+
+evt:one "One"
+data:
+  alpha: "one"
+
+evt:two "Two"
+data:
+  alpha: "two"
+
+cmd:consume "Consume"
+<- evt:one
+<- evt:two
+uses:
+  alpha
+`;
+
+    const parsed = parseDsl(dsl);
+    const issues = collectDataIssues({
+      dsl,
+      nodes: parsed.nodes,
+      edges: parsed.edges,
+      sourceOverrides: { 'consume:alpha': 'one' }
+    });
+    expect(issues.some((issue) => issue.code === 'ambiguous-source')).toBe(false);
+  });
 });

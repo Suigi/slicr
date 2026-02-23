@@ -17,7 +17,7 @@ import {parseDsl} from './domain/parseDsl';
 import {isDragAndDropEnabled, shouldShowDevDiagramControls} from './domain/runtimeFlags';
 import {getRelatedElements} from './domain/traversal';
 import { createCrossSliceUsageQuery } from './domain/crossSliceUsage';
-import { collectDataIssues } from './domain/dataIssues';
+import { collectDataIssues, getAmbiguousSourceCandidates } from './domain/dataIssues';
 import { measureNodeHeights, NODE_MEASURE_NODE_CLASS } from './nodeMeasurement';
 import type {Parsed, Position} from './domain/types';
 import {
@@ -108,6 +108,7 @@ function App() {
   const [routeMenuOpen, setRouteMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedNodePanelTab, setSelectedNodePanelTab] = useState<'usage' | 'issues'>('usage');
+  const [sourceOverrides, setSourceOverrides] = useState<Record<string, string>>({});
   const [manualNodePositions, setManualNodePositions] = useState<Record<string, { x: number; y: number }>>(
     initialSnapshot.overrides.nodes
   );
@@ -466,9 +467,10 @@ function App() {
       dsl: currentDsl,
       nodes: parsed.nodes,
       edges: parsed.edges,
-      sliceId: library.selectedSliceId
+      sliceId: library.selectedSliceId,
+      sourceOverrides
     });
-  }, [currentDsl, library.selectedSliceId, parsed]);
+  }, [currentDsl, library.selectedSliceId, parsed, sourceOverrides]);
 
   const selectedNodeIssues = useMemo(() => {
     if (!selectedNode) {
@@ -1464,6 +1466,28 @@ function App() {
                   <div key={`${issue.code}:${issue.key}:${issue.range.from}`} className="cross-slice-issue-item">
                     <div className="cross-slice-issue-code">{issue.code}</div>
                     <div className="cross-slice-issue-key">{issue.key}</div>
+                    {parsed && issue.code === 'ambiguous-source' && (
+                      <div className="cross-slice-issue-fixes">
+                        {getAmbiguousSourceCandidates(
+                          { dsl: currentDsl, nodes: parsed.nodes, edges: parsed.edges, sourceOverrides },
+                          issue.nodeKey,
+                          issue.key
+                        ).map((candidate) => (
+                          <button
+                            key={`${issue.nodeKey}:${issue.key}:${candidate}`}
+                            type="button"
+                            className="cross-slice-issue-fix"
+                            onClick={() =>
+                              setSourceOverrides((current) => ({
+                                ...current,
+                                [`${issue.nodeKey}:${issue.key}`]: candidate
+                              }))}
+                          >
+                            Use {candidate}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

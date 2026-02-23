@@ -606,6 +606,46 @@ uses:
     expect(issueCode?.textContent?.trim()).toBe('missing-source');
   });
 
+  it('applies ambiguous-source quick fix by selecting an explicit predecessor', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [
+          {
+            id: 'a',
+            dsl: 'slice "Alpha"\n\nevt:one "One"\ndata:\n  alpha: "one"\n\nevt:two "Two"\ndata:\n  alpha: "two"\n\ncmd:consume "Consume"\n<- evt:one\n<- evt:two\nuses:\n  alpha\n'
+          }
+        ]
+      })
+    );
+
+    renderApp();
+
+    const cmdNode = document.querySelector('.node.cmd') as HTMLElement | null;
+    expect(cmdNode).not.toBeNull();
+    act(() => {
+      cmdNode?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const issuesTab = [...document.querySelectorAll('.cross-slice-panel-tab')]
+      .find((button) => button.textContent?.trim() === 'Issues') as HTMLButtonElement | undefined;
+    expect(issuesTab).toBeDefined();
+    act(() => {
+      issuesTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(document.querySelector('.cross-slice-issue-code')?.textContent?.trim()).toBe('ambiguous-source');
+    const quickFix = [...document.querySelectorAll('.cross-slice-issue-fix')]
+      .find((button) => button.textContent?.includes('Use one')) as HTMLButtonElement | undefined;
+    expect(quickFix).toBeDefined();
+    act(() => {
+      quickFix?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(document.querySelector('.cross-slice-issue-code')).toBeNull();
+  });
+
   it('highlights both connected nodes when hovering an edge', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
