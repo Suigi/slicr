@@ -170,4 +170,36 @@ uses:
       rooms: [{ 'room-number': 101, capacity: 2 }]
     });
   });
+
+  it('keeps explicit data for collect target keys and warns about duplicate declaration', () => {
+    const dsl = `slice "Available Rooms"
+
+evt:room-opened@1
+data:
+  room-number: 101
+  capacity: 2
+
+evt:room-opened@2
+data:
+  room-number: 102
+  capacity: 4
+
+rm:available-rooms
+<- evt:room-opened@1
+<- evt:room-opened@2
+data:
+  rooms:
+    - room-number: 999
+      capacity: 9
+uses:
+  rooms <- collect({ room-number, capacity })`;
+
+    const parsed = parseDsl(dsl);
+    expect(parsed.nodes.get('available-rooms')?.data).toEqual({
+      rooms: [{ 'room-number': 999, capacity: 9 }]
+    });
+    expect(parsed.warnings.map((warning) => warning.message)).toContain(
+      'Duplicate data key "rooms" in node rm:available-rooms (declared in both data and uses)'
+    );
+  });
 });
