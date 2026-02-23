@@ -244,6 +244,90 @@ describe('App node analysis interactions', () => {
     expect(values).toEqual(['Alpha: 1', 'Beta: 2']);
   });
 
+  it('updates Cross-Slice Data and resets expanded state when selected node changes', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [
+          {
+            id: 'a',
+            dsl: 'slice "Alpha"\n\ncmd:buy\ndata:\n  alpha: 1\n\ncmd:sell\ndata:\n  beta: 2\n'
+          }
+        ]
+      })
+    );
+
+    renderApp();
+    const buyNode = [...document.querySelectorAll('.node.cmd')]
+      .find((el) => el.querySelector('.node-title')?.textContent?.trim() === 'buy') as HTMLElement | undefined;
+    const sellNode = [...document.querySelectorAll('.node.cmd')]
+      .find((el) => el.querySelector('.node-title')?.textContent?.trim() === 'sell') as HTMLElement | undefined;
+    expect(buyNode).toBeDefined();
+    expect(sellNode).toBeDefined();
+
+    act(() => {
+      buyNode?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    const dataTab = [...document.querySelectorAll('.cross-slice-panel-tab')]
+      .find((el) => el.textContent?.trim() === 'Cross-Slice Data') as HTMLButtonElement | undefined;
+    expect(dataTab).toBeDefined();
+    act(() => {
+      dataTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    const alphaKey = [...document.querySelectorAll('.cross-slice-data-key-toggle')]
+      .find((el) => el.textContent?.trim() === 'alpha') as HTMLButtonElement | undefined;
+    expect(alphaKey).toBeDefined();
+    act(() => {
+      alphaKey?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(alphaKey?.getAttribute('aria-expanded')).toBe('true');
+
+    act(() => {
+      sellNode?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    act(() => {
+      dataTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const keyButtons = [...document.querySelectorAll('.cross-slice-data-key-toggle')];
+    expect(keyButtons.map((el) => el.textContent?.trim())).toEqual(['beta']);
+    expect(keyButtons[0]?.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('renders collapsible key headers and value rows with expected classes', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [
+          { id: 'a', dsl: 'slice "A"\n\ncmd:buy\ndata:\n  alpha: 1\n' }
+        ]
+      })
+    );
+
+    renderApp();
+    const node = document.querySelector('.node.cmd') as HTMLElement | null;
+    expect(node).not.toBeNull();
+    act(() => {
+      node?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    const dataTab = [...document.querySelectorAll('.cross-slice-panel-tab')]
+      .find((el) => el.textContent?.trim() === 'Cross-Slice Data') as HTMLButtonElement | undefined;
+    expect(dataTab).toBeDefined();
+    act(() => {
+      dataTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    const keyHeader = document.querySelector('.cross-slice-data-key-toggle') as HTMLButtonElement | null;
+    expect(keyHeader).not.toBeNull();
+    act(() => {
+      keyHeader?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(document.querySelector('.cross-slice-data-key-section')).not.toBeNull();
+    expect(document.querySelector('.cross-slice-data-value-item')).not.toBeNull();
+  });
+
   it('jumps to the selected cross-slice usage target', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
