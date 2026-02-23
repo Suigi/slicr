@@ -603,7 +603,7 @@ function App() {
       }
       grouped.set(entry.usage.sliceId, {
         sliceId: entry.usage.sliceId,
-        sliceName: entry.sliceName,
+        sliceName: entry.usage.sliceId === library.selectedSliceId ? 'This Slice' : entry.sliceName,
         entries: [entry]
       });
     }
@@ -613,13 +613,19 @@ function App() {
         entries: [...group.entries].sort((left, right) => left.usage.nodeKey.localeCompare(right.usage.nodeKey))
       }))
       .sort((left, right) => {
+        if (left.sliceId === library.selectedSliceId && right.sliceId !== library.selectedSliceId) {
+          return -1;
+        }
+        if (right.sliceId === library.selectedSliceId && left.sliceId !== library.selectedSliceId) {
+          return 1;
+        }
         const byName = left.sliceName.localeCompare(right.sliceName);
         if (byName !== 0) {
           return byName;
         }
         return left.sliceId.localeCompare(right.sliceId);
       });
-  }, [crossSliceUsageEntries]);
+  }, [crossSliceUsageEntries, library.selectedSliceId]);
 
   const hoveredEdgeNodeKeys = useMemo(() => {
     if (!hoveredEdgeKey) {

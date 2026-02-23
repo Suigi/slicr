@@ -140,15 +140,44 @@ describe('App node analysis interactions', () => {
 
     const groups = [...document.querySelectorAll('.cross-slice-usage-group')];
     expect(groups).toHaveLength(2);
-    expect(groups.map((group) => group.querySelector('.cross-slice-usage-group-title')?.textContent?.trim())).toEqual([
-      'Alpha',
-      'Beta'
-    ]);
+    const groupTitles = groups.map((group) => group.querySelector('.cross-slice-usage-group-title')?.textContent?.trim());
+    expect(groupTitles).toContain('This Slice');
+    expect(groupTitles).toContain('Beta');
 
     expect(groups[0]?.querySelectorAll('.cross-slice-usage-group-frame')).toHaveLength(1);
     expect(groups[1]?.querySelectorAll('.cross-slice-usage-group-frame')).toHaveLength(1);
-    expect(groups[0]?.querySelectorAll('.cross-slice-usage-item')).toHaveLength(2);
-    expect(groups[1]?.querySelectorAll('.cross-slice-usage-item')).toHaveLength(1);
+    const byTitle = new Map(groups.map((group) => [
+      group.querySelector('.cross-slice-usage-group-title')?.textContent?.trim(),
+      group
+    ]));
+    expect(byTitle.get('This Slice')?.querySelectorAll('.cross-slice-usage-item')).toHaveLength(2);
+    expect(byTitle.get('Beta')?.querySelectorAll('.cross-slice-usage-item')).toHaveLength(1);
+  });
+
+  it('labels the currently opened slice group as This Slice', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [
+          { id: 'a', dsl: 'slice "Alpha"\n\ncmd:buy@1 "Buy A1"\n' },
+          { id: 'b', dsl: 'slice "Beta"\n\ncmd:buy@2 "Buy B1"\n' }
+        ]
+      })
+    );
+
+    renderApp();
+    const node = document.querySelector('.node.cmd') as HTMLElement | null;
+    expect(node).not.toBeNull();
+    act(() => {
+      node?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const groupTitles = [...document.querySelectorAll('.cross-slice-usage-group-title')]
+      .map((el) => el.textContent?.trim());
+    expect(groupTitles[0]).toBe('This Slice');
+    expect(groupTitles).toContain('This Slice');
+    expect(groupTitles).toContain('Beta');
   });
 
   it('renders cross-slice usage header with colored type prefix and bold key', () => {
