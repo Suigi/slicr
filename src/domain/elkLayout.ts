@@ -250,7 +250,10 @@ export function buildElkLaneMeta(parsed: Parsed) {
   return { laneByKey, rowStreamLabels };
 }
 
-export async function computeElkLayout(parsed: Parsed): Promise<ElkComputedLayout> {
+export async function computeElkLayout(
+  parsed: Parsed,
+  measuredHeights?: Record<string, number>
+): Promise<ElkComputedLayout> {
   const elkTopOffset = 12;
   const elk = new ELK();
   const topoOrder = buildTopoOrder(parsed);
@@ -304,7 +307,7 @@ export async function computeElkLayout(parsed: Parsed): Promise<ElkComputedLayou
       return {
         id: node.key,
         width: 180,
-        height: nodeHeight(node),
+        height: nodeHeight(node, measuredHeights),
         layoutOptions: {
           'org.eclipse.elk.partitioning.partition': String(lane),
           'org.eclipse.elk.layered.crossingMinimization.positionId': String(topoOrder.get(node.key) ?? 0)

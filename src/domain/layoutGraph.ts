@@ -11,6 +11,8 @@ const HEADER_GAP = 8;
 const HEADER_TEXT_CHAR_W = 7;
 const HEADER_PREFIX_CHAR_W = 6;
 const HEADER_EXTRA_LINE_H = 14;
+const SINGLE_LINE_HEADER_DATA_COMPENSATION = 4;
+const WRAPPED_HEADER_EXTRA_COMPENSATION_PER_LINE = 2;
 const HEADER_MIN_CHARS_PER_LINE = 4;
 const NODE_VERSION_SUFFIX = /@\d+$/;
 const COL_GAP = 80;
@@ -19,7 +21,12 @@ const PAD_TOP = 16;
 const ROW_GAP = 120;
 const MIN_SUCCESSOR_X_OFFSET = EDGE_ANCHOR_OFFSET * 4;
 
-export function nodeHeight(node: VisualNode): number {
+export function nodeHeight(node: VisualNode, measuredHeights?: Record<string, number>): number {
+  const measured = measuredHeights?.[node.key];
+  if (typeof measured === 'number' && Number.isFinite(measured) && measured > 0) {
+    return Math.round(measured);
+  }
+
   const headerLines = headerLineCount(node);
   const headerHeight = NODE_H_BASE + Math.max(0, headerLines - 1) * HEADER_EXTRA_LINE_H;
 
@@ -28,7 +35,15 @@ export function nodeHeight(node: VisualNode): number {
   }
 
   const lines = countNodeDataLines(node.data);
-  return headerHeight + NODE_FIELD_PAD + lines * NODE_FIELD_H;
+  let height = headerHeight + NODE_FIELD_PAD + lines * NODE_FIELD_H;
+
+  if (headerLines === 1) {
+    height -= SINGLE_LINE_HEADER_DATA_COMPENSATION;
+  } else if (headerLines >= 3) {
+    height += (headerLines - 2) * WRAPPED_HEADER_EXTRA_COMPENSATION_PER_LINE;
+  }
+
+  return Math.max(headerHeight, height);
 }
 
 export function rowFor(type: string): number {
@@ -41,7 +56,12 @@ export function rowFor(type: string): number {
   return 1;
 }
 
-export function layoutGraph(nodes: Map<string, VisualNode>, edges: Edge[], boundaries: SliceBoundary[] = []): LayoutResult {
+export function layoutGraph(
+  nodes: Map<string, VisualNode>,
+  edges: Edge[],
+  boundaries: SliceBoundary[] = [],
+  measuredHeights?: Record<string, number>
+): LayoutResult {
   const inDeg: Record<string, number> = {};
   const outgoing: Record<string, string[]> = {};
   const nodeOrder = [...nodes.keys()];
@@ -170,7 +190,7 @@ export function layoutGraph(nodes: Map<string, VisualNode>, edges: Edge[], bound
     if (row === undefined) {
       return;
     }
-    const height = nodeHeight(node);
+    const height = nodeHeight(node, measuredHeights);
     rowHeights[row] = Math.max(rowHeights[row] ?? 0, height);
   });
   let nextRowY = PAD_TOP + 32;
@@ -207,7 +227,7 @@ export function layoutGraph(nodes: Map<string, VisualNode>, edges: Edge[], bound
       x,
       y: rowY[rowByKey[key]],
       w: NODE_W,
-      h: nodeHeight(node)
+      h: nodeHeight(node, measuredHeights)
     };
   }
 

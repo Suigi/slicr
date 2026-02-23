@@ -20,9 +20,17 @@ export type RenderedDiagramEdge = {
   geometry: DiagramEdgeGeometry;
 };
 
-export async function computeDiagramLayout(parsed: Parsed, engine: DiagramEngineId): Promise<DiagramEngineLayout> {
+type DiagramLayoutOptions = {
+  nodeHeights?: Record<string, number>;
+};
+
+export async function computeDiagramLayout(
+  parsed: Parsed,
+  engine: DiagramEngineId,
+  options: DiagramLayoutOptions = {}
+): Promise<DiagramEngineLayout> {
   if (engine === 'elk') {
-    const elk = await computeElkLayout(parsed);
+    const elk = await computeElkLayout(parsed, options.nodeHeights);
     return {
       layout: {
         pos: elk.pos,
@@ -38,11 +46,11 @@ export async function computeDiagramLayout(parsed: Parsed, engine: DiagramEngine
     };
   }
 
-  return computeClassicDiagramLayout(parsed);
+  return computeClassicDiagramLayout(parsed, options);
 }
 
-export function computeClassicDiagramLayout(parsed: Parsed): DiagramEngineLayout {
-  const classic = layoutGraph(parsed.nodes, parsed.edges, parsed.boundaries);
+export function computeClassicDiagramLayout(parsed: Parsed, options: DiagramLayoutOptions = {}): DiagramEngineLayout {
+  const classic = layoutGraph(parsed.nodes, parsed.edges, parsed.boundaries, options.nodeHeights);
   return {
     layout: classic,
     laneByKey: buildElkLaneMeta(parsed).laneByKey,

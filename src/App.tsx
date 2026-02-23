@@ -16,6 +16,7 @@ import {PAD_X, rowFor} from './domain/layoutGraph';
 import {parseDsl} from './domain/parseDsl';
 import {isDragAndDropEnabled, shouldShowDevDiagramControls} from './domain/runtimeFlags';
 import {getRelatedElements} from './domain/traversal';
+import { measureNodeHeights, NODE_MEASURE_NODE_CLASS } from './nodeMeasurement';
 import type {Parsed, Position} from './domain/types';
 import {
   addNewSlice,
@@ -110,6 +111,7 @@ function App() {
   const [manualEdgePoints, setManualEdgePoints] = useState<Record<string, DiagramPoint[]>>(
     initialSnapshot.overrides.edges
   );
+  const [measuredNodeHeights, setMeasuredNodeHeights] = useState<Record<string, number>>({});
   const initializedViewportKeyRef = useRef<string | null>(null);
   const showDevDiagramControls = shouldShowDevDiagramControls(window.location.hostname);
   const dragAndDropEnabled = isDragAndDropEnabled(window.location.hostname);
@@ -186,15 +188,15 @@ function App() {
     if (!parsed || parsed.nodes.size === 0) {
       return null;
     }
-    return computeClassicDiagramLayout(parsed);
-  }, [parsed]);
+    return computeClassicDiagramLayout(parsed, { nodeHeights: measuredNodeHeights });
+  }, [parsed, measuredNodeHeights]);
 
   useEffect(() => {
     if (routeMode !== 'elk' || !parsed || parsed.nodes.size === 0) {
       return;
     }
     let active = true;
-    computeDiagramLayout(parsed, 'elk')
+    computeDiagramLayout(parsed, 'elk', { nodeHeights: measuredNodeHeights })
       .then((result) => {
         if (!active) {
           return;
@@ -211,7 +213,45 @@ function App() {
     return () => {
       active = false;
     };
-  }, [routeMode, parsed]);
+  }, [routeMode, parsed, measuredNodeHeights]);
+
+  useEffect(() => {
+    if (!parsed || parsed.nodes.size === 0) {
+      return;
+    }
+
+    let cancelled = false;
+    const frame = window.requestAnimationFrame(() => {
+      if (cancelled) {
+        return;
+      }
+
+      const measured = measureNodeHeights(document);
+      const parsedKeys = [...parsed.nodes.keys()];
+      const next: Record<string, number> = {};
+      for (const key of parsedKeys) {
+        if (measured[key] !== undefined) {
+          next[key] = measured[key];
+        }
+      }
+
+      setMeasuredNodeHeights((previous) => {
+        const nextKeys = Object.keys(next);
+        const previousKeys = Object.keys(previous);
+        if (
+          nextKeys.length === previousKeys.length &&
+          nextKeys.every((key) => previous[key] === next[key])
+        ) {
+          return previous;
+        }
+        return next;
+      });
+    });
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(frame);
+    };
+  }, [parsed, currentDsl, theme]);
 
   const engineLayout = routeMode === 'elk'
     ? (diagramEngineLayout ?? classicEngineLayout)
@@ -541,6 +581,31 @@ function App() {
         <span className="node-field-key">{key}</span>
         <span className="node-field-colon">:</span>
         <span className="node-field-val">{value}</span>
+      </div>
+    );
+  };
+
+  const renderMeasureDataLine = (line: string, index: number) => {
+    const match = line.match(/^(\s*(?:-\s*)?)([^:\n]+:)(.*)$/);
+    if (!match) {
+      return (
+        <div key={index} className="node-measure-field-line">
+          {line}
+        </div>
+      );
+    }
+
+    const value = match[3];
+    const isMissing = value.trim() === MISSING_DATA_VALUE;
+    const keyWithColon = match[2];
+    const key = keyWithColon.endsWith(':') ? keyWithColon.slice(0, -1) : keyWithColon;
+
+    return (
+      <div key={index} className={`node-measure-field-line${isMissing ? ' missing' : ''}`}>
+        {match[1]}
+        <span className="node-measure-field-key">{key}</span>
+        <span className="node-measure-field-colon">:</span>
+        <span className="node-measure-field-val">{value}</span>
       </div>
     );
   };
@@ -963,6 +1028,41 @@ function App() {
           </>
         )}
       </header>
+
+      {parsed && parsed.nodes.size > 0 && (
+        <div className="node-measure-layer" aria-hidden="true">
+          {[...parsed.nodes.values()].map((node) => {
+            const nodePrefix = TYPE_LABEL[node.type] ?? node.type;
+            return (
+              <div
+                key={`measure-${node.key}`}
+                className={NODE_MEASURE_NODE_CLASS}
+                data-node-key={node.key}
+                style={{ width: '180px' }}
+              >
+                <div className="node-measure-header">
+                  {nodePrefix ? <span className="node-measure-prefix">{nodePrefix}:</span> : null}
+                  <span className="node-measure-title">{node.alias ?? node.name.replace(NODE_VERSION_SUFFIX, '')}</span>
+                </div>
+                {node.data && (
+                  <div className="node-measure-fields">
+                    {formatNodeData(node.data).map((field) => (
+                      <div
+                        key={`measure-${node.key}-${field.key}`}
+                        className="node-measure-field"
+                      >
+                        <div className="node-measure-field-lines">
+                          {field.text.split('\n').map((line, index) => renderMeasureDataLine(line, index))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <div className="main">
         <div ref={editorRef} className={`editor-panel ${editorOpen ? 'open' : ''}`}>
