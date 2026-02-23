@@ -18,6 +18,8 @@ import {isDragAndDropEnabled, shouldShowDevDiagramControls} from './domain/runti
 import {getRelatedElements} from './domain/traversal';
 import { createCrossSliceUsageQuery } from './domain/crossSliceUsage';
 import { collectDataIssues, getAmbiguousSourceCandidates } from './domain/dataIssues';
+import { parseUsesBlocks } from './domain/dataMapping';
+import { traceData } from './domain/dataTrace';
 import { measureNodeHeights, NODE_MEASURE_NODE_CLASS } from './nodeMeasurement';
 import type {Parsed, Position} from './domain/types';
 import {
@@ -107,8 +109,10 @@ function App() {
   const [sliceMenuOpen, setSliceMenuOpen] = useState(false);
   const [routeMenuOpen, setRouteMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [selectedNodePanelTab, setSelectedNodePanelTab] = useState<'usage' | 'issues'>('usage');
+  const [selectedNodePanelTab, setSelectedNodePanelTab] = useState<'usage' | 'issues' | 'trace'>('usage');
   const [sourceOverrides, setSourceOverrides] = useState<Record<string, string>>({});
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [selectedTraceKey, setSelectedTraceKey] = useState<string | null>(null);
   const [manualNodePositions, setManualNodePositions] = useState<Record<string, { x: number; y: number }>>(
     initialSnapshot.overrides.nodes
   );
@@ -479,6 +483,21 @@ function App() {
     return dataIssues.filter((issue) => issue.nodeKey === selectedNode.key);
   }, [dataIssues, selectedNode]);
 
+  const selectedNodeUsesKeys = useMemo(() => {
+    if (!selectedNode) {
+      return [];
+    }
+    const mappings = parseUsesBlocks(currentDsl).get(toNodeRef(selectedNode)) ?? [];
+    return mappings.map((mapping) => mapping.targetKey);
+  }, [currentDsl, selectedNode]);
+
+  const selectedNodeTraceResult = useMemo(() => {
+    if (!parsed || !selectedNode || !selectedTraceKey) {
+      return null;
+    }
+    return traceData({ dsl: currentDsl, nodes: parsed.nodes, edges: parsed.edges }, selectedNode.key, selectedTraceKey);
+  }, [currentDsl, parsed, selectedNode, selectedTraceKey]);
+
   const hoveredEdgeNodeKeys = useMemo(() => {
     if (!hoveredEdgeKey) {
       return new Set<string>();
@@ -618,6 +637,28 @@ function App() {
       document.removeEventListener('pointerdown', closeOnOutside);
     };
   }, [mobileMenuOpen]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const isCommandPalette = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k';
+      if (isCommandPalette) {
+        event.preventDefault();
+        setCommandPaletteOpen((open) => !open);
+        return;
+      }
+
+      const isTraceShortcut = (event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 't';
+      if (isTraceShortcut && selectedNode) {
+        event.preventDefault();
+        const firstKey = selectedNodeUsesKeys[0] ?? null;
+        setSelectedTraceKey(firstKey);
+        setSelectedNodePanelTab('trace');
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedNode, selectedNodeUsesKeys]);
 
   const renderDataLine = (line: string, index: number) => {
     const match = line.match(/^(\s*(?:-\s*)?)([^:\n]+:)(.*)$/);
@@ -1288,6 +1329,7 @@ function App() {
                         e.stopPropagation();
                         setSelectedNodeKey(node.key);
                         setSelectedNodePanelTab('usage');
+                        setSelectedTraceKey(null);
                       }}
                       onPointerDown={(event) => beginNodeDrag(event, node.key)}
                     >
@@ -1424,6 +1466,18 @@ function App() {
               >
                 Issues
               </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={selectedNodePanelTab === 'trace'}
+                className={`cross-slice-panel-tab ${selectedNodePanelTab === 'trace' ? 'active' : ''}`}
+                onClick={() => {
+                  setSelectedNodePanelTab('trace');
+                  setSelectedTraceKey((current) => current ?? selectedNodeUsesKeys[0] ?? null);
+                }}
+              >
+                Data Trace
+              </button>
             </div>
             <div className="cross-slice-usage-node">{toNodeRef(selectedNode)}</div>
             {selectedNodePanelTab === 'usage' && (
@@ -1492,7 +1546,58 @@ function App() {
                 ))}
               </div>
             )}
+            {selectedNodePanelTab === 'trace' && (
+              <div className="cross-slice-trace-list">
+                {selectedNodeUsesKeys.length > 0 && (
+                  <select
+                    className="cross-slice-trace-select"
+                    value={selectedTraceKey ?? ''}
+                    onChange={(event) => setSelectedTraceKey(event.target.value)}
+                  >
+                    {selectedNodeUsesKeys.map((key) => (
+                      <option key={`${selectedNode.key}:${key}`} value={key}>
+                        {key}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {selectedNodeTraceResult && (
+                  <div className="cross-slice-trace-result">
+                    <div className="cross-slice-trace-source">
+                      source: {String(selectedNodeTraceResult.source)}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </aside>
+        )}
+        {commandPaletteOpen && (
+          <div className="command-palette" role="dialog" aria-label="Command palette">
+            <button
+              type="button"
+              className="command-palette-item"
+              onClick={() => {
+                if (selectedNode) {
+                  setSelectedTraceKey((current) => current ?? selectedNodeUsesKeys[0] ?? null);
+                  setSelectedNodePanelTab('trace');
+                }
+                setCommandPaletteOpen(false);
+              }}
+            >
+              Trace data
+            </button>
+            <button
+              type="button"
+              className="command-palette-item"
+              onClick={() => {
+                setSelectedNodePanelTab('usage');
+                setCommandPaletteOpen(false);
+              }}
+            >
+              Show cross-slice usage
+            </button>
+          </div>
         )}
         {(hasOpenedDocs || docsOpen) && (
           <div className={`docs-panel-shell ${docsOpen ? '' : 'hidden'}`} aria-hidden={!docsOpen}>

@@ -1160,6 +1160,63 @@ header h1 {
   cursor: pointer;
 }
 
+.cross-slice-trace-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cross-slice-trace-select {
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  padding: 6px;
+}
+
+.cross-slice-trace-result {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.cross-slice-trace-source {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.command-palette {
+  position: fixed;
+  top: 72px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(420px, calc(100vw - 24px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  z-index: 40;
+}
+
+.command-palette-item {
+  appearance: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--fg);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  padding: 8px 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
 .docs-panel-inner {
   max-width: 1160px;
   margin: 0 auto;

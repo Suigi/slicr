@@ -646,6 +646,77 @@ uses:
     expect(document.querySelector('.cross-slice-issue-code')).toBeNull();
   });
 
+  it('opens command palette and runs Trace data action', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{ id: 'a', dsl: 'slice "Alpha"\n\nevt:seed "Seed"\ndata:\n  alpha: "a"\n\ncmd:consume "Consume"\n<- evt:seed\nuses:\n  alpha\n' }]
+      })
+    );
+
+    renderApp();
+    const cmdNode = document.querySelector('.node.cmd') as HTMLElement | null;
+    expect(cmdNode).not.toBeNull();
+    act(() => {
+      cmdNode?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+    });
+
+    const traceAction = [...document.querySelectorAll('.command-palette-item')]
+      .find((button) => button.textContent?.trim() === 'Trace data') as HTMLButtonElement | undefined;
+    expect(traceAction).toBeDefined();
+    act(() => {
+      traceAction?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(document.querySelector('.cross-slice-panel-tab.active')?.textContent?.trim()).toBe('Data Trace');
+  });
+
+  it('runs Show cross-slice usage command from the palette', () => {
+    renderApp();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+    });
+
+    const usageAction = [...document.querySelectorAll('.command-palette-item')]
+      .find((button) => button.textContent?.trim() === 'Show cross-slice usage') as HTMLButtonElement | undefined;
+    expect(usageAction).toBeDefined();
+    act(() => {
+      usageAction?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(document.querySelector('.command-palette')).toBeNull();
+  });
+
+  it('runs trace with keyboard shortcut for selected nodes', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{ id: 'a', dsl: 'slice "Alpha"\n\nevt:seed "Seed"\ndata:\n  alpha: "a"\n\ncmd:consume "Consume"\n<- evt:seed\nuses:\n  alpha\n' }]
+      })
+    );
+
+    renderApp();
+    const cmdNode = document.querySelector('.node.cmd') as HTMLElement | null;
+    expect(cmdNode).not.toBeNull();
+    act(() => {
+      cmdNode?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'T', ctrlKey: true, shiftKey: true, bubbles: true }));
+    });
+
+    expect(document.querySelector('.cross-slice-panel-tab.active')?.textContent?.trim()).toBe('Data Trace');
+    expect(document.querySelector('.cross-slice-trace-source')?.textContent).toContain('source: a');
+  });
+
   it('highlights both connected nodes when hovering an edge', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
