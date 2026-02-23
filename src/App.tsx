@@ -113,6 +113,8 @@ function App() {
     initialSnapshot.overrides.edges
   );
   const [measuredNodeHeights, setMeasuredNodeHeights] = useState<Record<string, number>>({});
+  const [focusRequestVersion, setFocusRequestVersion] = useState(0);
+  const pendingFocusNodeKeyRef = useRef<string | null>(null);
   const initializedViewportKeyRef = useRef<string | null>(null);
   const showDevDiagramControls = shouldShowDevDiagramControls(window.location.hostname);
   const dragAndDropEnabled = isDragAndDropEnabled(window.location.hostname);
@@ -402,6 +404,24 @@ function App() {
     panel.scrollTop = Math.max(0, canvasViewport.offsetY - 80);
     initializedViewportKeyRef.current = viewportKey;
   }, [canvasPanelRef, canvasViewport, library.selectedSliceId, routeMode]);
+
+  useEffect(() => {
+    const pendingFocusNodeKey = pendingFocusNodeKeyRef.current;
+    if (!pendingFocusNodeKey || !canvasViewport) {
+      return;
+    }
+    const panel = canvasPanelRef.current;
+    const position = displayedPos[pendingFocusNodeKey];
+    if (!panel || !position) {
+      return;
+    }
+
+    const targetX = canvasViewport.offsetX + position.x + position.w / 2 - panel.clientWidth / 2;
+    const targetY = canvasViewport.offsetY + position.y + position.h / 2 - panel.clientHeight / 2;
+    panel.scrollLeft = Math.max(0, targetX);
+    panel.scrollTop = Math.max(0, targetY);
+    pendingFocusNodeKeyRef.current = null;
+  }, [focusRequestVersion, canvasViewport, displayedPos, canvasPanelRef]);
 
   const activeNodeKeyFromEditor = useMemo(() => {
     if (!hoveredEditorRange || !parsed) {
@@ -1368,10 +1388,27 @@ function App() {
                 const slice = library.slices.find((item) => item.id === usage.sliceId);
                 const sliceName = slice ? getSliceNameFromDsl(slice.dsl) : usage.sliceId;
                 return (
-                  <div key={`${usage.sliceId}:${usage.nodeKey}`} className="cross-slice-usage-item">
+                  <button
+                    key={`${usage.sliceId}:${usage.nodeKey}`}
+                    type="button"
+                    className="cross-slice-usage-item"
+                    data-slice-id={usage.sliceId}
+                    onClick={() => {
+                      setSelectedNodeKey(usage.nodeKey);
+                      pendingFocusNodeKeyRef.current = usage.nodeKey;
+                      setFocusRequestVersion((version) => version + 1);
+                      setLibrary((currentLibrary) => {
+                        const nextLibrary = selectSlice(currentLibrary, usage.sliceId);
+                        if (nextLibrary.selectedSliceId !== currentLibrary.selectedSliceId) {
+                          applySelectedSliceOverrides(nextLibrary.selectedSliceId);
+                        }
+                        return nextLibrary;
+                      });
+                    }}
+                  >
                     <span className="cross-slice-usage-slice">{sliceName}</span>
                     <span className="cross-slice-usage-ref">{usage.nodeKey}</span>
-                  </div>
+                  </button>
                 );
               })}
             </div>

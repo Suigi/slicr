@@ -1064,6 +1064,9 @@ header h1 {
 }
 
 .cross-slice-usage-item {
+  appearance: none;
+  width: 100%;
+  background: transparent;
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 8px;
@@ -1072,6 +1075,8 @@ header h1 {
   gap: 8px;
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
+  cursor: pointer;
+  text-align: left;
 }
 
 .cross-slice-usage-slice {

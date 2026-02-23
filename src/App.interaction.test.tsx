@@ -546,6 +546,36 @@ uses:
     expect(document.querySelectorAll('.cross-slice-usage-item').length).toBe(2);
   });
 
+  it('jumps to the selected cross-slice usage target', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [
+          { id: 'a', dsl: 'slice "Alpha"\n\ncmd:buy "Buy"\n' },
+          { id: 'b', dsl: 'slice "Beta"\n\ncmd:buy "Buy Again"\n' }
+        ]
+      })
+    );
+
+    renderApp();
+
+    const sourceNode = document.querySelector('.node.cmd') as HTMLElement | null;
+    expect(sourceNode).not.toBeNull();
+    act(() => {
+      sourceNode?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const jumpButton = document.querySelector('button.cross-slice-usage-item[data-slice-id="b"]') as HTMLButtonElement | null;
+    expect(jumpButton).not.toBeNull();
+    act(() => {
+      jumpButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(document.querySelector('.slice-title')?.textContent?.trim()).toBe('Beta');
+    expect(document.querySelector('.node.selected .node-title')?.textContent?.trim()).toBe('Buy Again');
+  });
+
   it('highlights both connected nodes when hovering an edge', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
