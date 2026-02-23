@@ -95,4 +95,27 @@ uses:
       'Missing data source for key "concert-id"'
     );
   });
+
+  it('treats invalid JSONPath as missing source without crashing', () => {
+    const dsl = `slice "Buy Tickets"
+
+rm:available-concerts
+data:
+  concerts:
+    - id: c-101
+      selected: true
+
+cmd:buy-tickets
+<- rm:available-concerts
+uses:
+  concert-id <- $.concerts[?(@.selected==true].id`;
+
+    const parsed = parseDsl(dsl);
+    expect(parsed.nodes.get('buy-tickets')?.data).toEqual({
+      'concert-id': '<missing>'
+    });
+    expect(parsed.warnings.map((warning) => warning.message)).toContain(
+      'Missing data source for key "concert-id"'
+    );
+  });
 });
