@@ -1080,10 +1080,57 @@ header h1 {
   border-color: rgb(220 38 38 / 35%);
 }
 
+.cross-slice-panel-divider {
+  border-top: 1px solid var(--border);
+  margin-top: 2px;
+}
+
 .cross-slice-usage-node {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
+  font-size: 13px;
   color: var(--muted);
+  text-align: center;
+}
+
+.cross-slice-usage-node-type {
+  opacity: 0.9;
+}
+
+.cross-slice-usage-node-key {
+  font-weight: 700;
+  color: var(--fg);
+}
+
+.cross-slice-usage-node.cmd {
+  color: var(--cmd);
+}
+
+.cross-slice-usage-node.evt {
+  color: var(--evt);
+}
+
+.cross-slice-usage-node.rm {
+  color: var(--rm);
+}
+
+.cross-slice-usage-node.ui {
+  color: var(--ui);
+}
+
+.cross-slice-usage-node.exc {
+  color: var(--exc);
+}
+
+.cross-slice-usage-node.aut {
+  color: var(--aut);
+}
+
+.cross-slice-usage-node.ext {
+  color: var(--ext);
 }
 
 .cross-slice-usage-list {

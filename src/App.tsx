@@ -162,7 +162,7 @@ function App() {
   const errorText = parseResult.error;
   const currentSliceName = getSliceNameFromDsl(currentDsl);
 
-  const { collapseAllDataRegions, collapseAllRegions, expandAllRegions } = useDslEditor({
+  const { collapseAllDataRegions, collapseAllRegions, expandAllRegions, focusRange } = useDslEditor({
     dsl: currentDsl,
     onDslChange: setCurrentDsl,
     onRangeHover: setHoveredEditorRange,
@@ -460,6 +460,20 @@ function App() {
     }
     return toNodeAnalysisRefFromNode(selectedNode);
   }, [selectedNode]);
+
+  const selectedNodeAnalysisHeader = useMemo(() => {
+    if (!selectedNodeAnalysisRef) {
+      return { type: '', key: '' };
+    }
+    const splitAt = selectedNodeAnalysisRef.indexOf(':');
+    if (splitAt < 0) {
+      return { type: '', key: selectedNodeAnalysisRef };
+    }
+    return {
+      type: selectedNodeAnalysisRef.slice(0, splitAt),
+      key: selectedNodeAnalysisRef.slice(splitAt + 1)
+    };
+  }, [selectedNodeAnalysisRef]);
 
   const selectedNodeAnalysisNodes = useMemo(() => {
     if (!parsed || !selectedNodeAnalysisRef) {
@@ -1421,6 +1435,12 @@ function App() {
                         e.stopPropagation();
                         setSelectedNodeKey(node.key);
                       }}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedNodeKey(node.key);
+                        setEditorOpen(true);
+                        focusRange(node.srcRange);
+                      }}
                       onPointerDown={(event) => beginNodeDrag(event, node.key)}
                     />
                   );
@@ -1548,7 +1568,13 @@ function App() {
                 Data Trace
               </button>
             </div>
-            <div className="cross-slice-usage-node">{selectedNodeAnalysisRef}</div>
+            <div className="cross-slice-panel-divider" aria-hidden="true" />
+            <div className={`cross-slice-usage-node ${selectedNodeAnalysisHeader.type}`.trim()}>
+              {selectedNodeAnalysisHeader.type && (
+                <span className="cross-slice-usage-node-type">{selectedNodeAnalysisHeader.type}:</span>
+              )}
+              <span className="cross-slice-usage-node-key">{selectedNodeAnalysisHeader.key}</span>
+            </div>
             {selectedNodePanelTab === 'usage' && (
               <div className="cross-slice-usage-list">
                 {crossSliceUsageGroups.map((group) => (

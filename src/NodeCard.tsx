@@ -12,6 +12,7 @@ type NodeCardProps = {
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
   onClick?: (event: MouseEvent<HTMLDivElement>) => void;
+  onDoubleClick?: (event: MouseEvent<HTMLDivElement>) => void;
   onPointerDown?: (event: PointerEvent<HTMLDivElement>) => void;
 };
 
@@ -27,6 +28,7 @@ export function NodeCard(props: NodeCardProps) {
       onMouseEnter={props.onMouseEnter}
       onMouseLeave={props.onMouseLeave}
       onClick={props.onClick}
+      onDoubleClick={props.onDoubleClick}
       onPointerDown={props.onPointerDown}
     >
       <div className="node-header">

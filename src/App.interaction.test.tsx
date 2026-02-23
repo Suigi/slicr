@@ -243,6 +243,25 @@ rm:persisted-view`;
     expect(panel?.classList.contains('open')).toBe(true);
   });
 
+  it('opens the editor and moves cursor to declaration line when double-clicking a node', () => {
+    renderApp();
+
+    const panel = document.querySelector('.editor-panel');
+    expect(panel?.classList.contains('open')).toBe(false);
+
+    const node = [...document.querySelectorAll('.node')]
+      .find((element) => element.textContent?.includes('room-opened')) as HTMLElement | undefined;
+    expect(node).toBeDefined();
+
+    act(() => {
+      node?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    });
+
+    expect(panel?.classList.contains('open')).toBe(true);
+    const focusedElement = document.activeElement as HTMLElement | null;
+    expect(focusedElement?.closest('.dsl-editor')).not.toBeNull();
+  });
+
   it('toggles the documentation panel from the header', () => {
     renderApp();
 

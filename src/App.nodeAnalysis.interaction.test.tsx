@@ -151,6 +151,30 @@ describe('App node analysis interactions', () => {
     expect(groups[1]?.querySelectorAll('.cross-slice-usage-item')).toHaveLength(1);
   });
 
+  it('renders cross-slice usage header with colored type prefix and bold key', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{ id: 'a', dsl: 'slice "A"\n\ncmd:buy "Buy"\n' }]
+      })
+    );
+
+    renderApp();
+    const node = document.querySelector('.node.cmd') as HTMLElement | null;
+    expect(node).not.toBeNull();
+    act(() => {
+      node?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const header = document.querySelector('.cross-slice-usage-node') as HTMLElement | null;
+    expect(header).not.toBeNull();
+    expect(document.querySelector('.cross-slice-panel-divider')).not.toBeNull();
+    expect(header?.classList.contains('cmd')).toBe(true);
+    expect(header?.querySelector('.cross-slice-usage-node-type')?.textContent?.trim()).toBe('cmd:');
+    expect(header?.querySelector('.cross-slice-usage-node-key')?.textContent?.trim()).toBe('buy');
+  });
+
   it('shows each node version as its own usage entry with alias', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
@@ -555,7 +579,7 @@ describe('App node analysis interactions', () => {
       buyOneNode?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    expect(document.querySelector('.cross-slice-usage-node')?.textContent?.trim()).toBe('cmd:buy');
+    expect(document.querySelector('.cross-slice-usage-node-key')?.textContent?.trim()).toBe('buy');
 
     const traceTab = [...document.querySelectorAll('.cross-slice-panel-tab')]
       .find((button) => button.textContent?.trim() === 'Data Trace') as HTMLButtonElement | undefined;

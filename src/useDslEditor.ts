@@ -833,6 +833,20 @@ export function useDslEditor({
     unfoldAll(editorView);
   };
 
+  const focusRange = (range: Range) => {
+    const editorView = editorViewRef.current;
+    if (!editorView || !(editorView instanceof EditorView)) {
+      return;
+    }
+    const docLength = editorView.state.doc.length;
+    const anchor = Math.max(0, Math.min(range.from, docLength));
+    editorView.dispatch({
+      selection: EditorSelection.cursor(anchor),
+      effects: EditorView.scrollIntoView(anchor, { y: 'center' })
+    });
+    editorView.focus();
+  };
+
   useEffect(() => {
     const editorView = editorViewRef.current;
     if (!editorView || !(editorView instanceof EditorView)) {
@@ -999,5 +1013,5 @@ export function useDslEditor({
     });
   }, [dsl]);
 
-  return { collapseAllDataRegions, collapseAllRegions, expandAllRegions };
+  return { collapseAllDataRegions, collapseAllRegions, expandAllRegions, focusRange };
 }
