@@ -19,6 +19,10 @@ export type CrossSliceUsageIndexEntry = {
 
 export type CrossSliceUsageIndex = Record<string, CrossSliceUsageIndexEntry>;
 
+export type CrossSliceUsageQuery = {
+  getCrossSliceUsage: (nodeId: string) => CrossSliceUsageRef[];
+};
+
 export function buildCrossSliceUsageIndex(slices: CrossSliceDocument[]): CrossSliceUsageIndex {
   const index: CrossSliceUsageIndex = {};
 
@@ -48,6 +52,15 @@ export function buildCrossSliceUsageIndex(slices: CrossSliceDocument[]): CrossSl
 
 export function getCrossSliceUsage(slices: CrossSliceDocument[], nodeKey: string): CrossSliceUsageRef[] {
   return buildCrossSliceUsageIndex(slices)[nodeKey]?.sliceRefs ?? [];
+}
+
+export function createCrossSliceUsageQuery(slices: CrossSliceDocument[]): CrossSliceUsageQuery {
+  const index = buildCrossSliceUsageIndex(slices);
+  return {
+    getCrossSliceUsage(nodeId: string) {
+      return index[nodeId]?.sliceRefs ?? [];
+    }
+  };
 }
 
 function toNodeRef(node: { type: string; name: string }): string {

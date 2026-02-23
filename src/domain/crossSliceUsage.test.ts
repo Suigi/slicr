@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCrossSliceUsageIndex, getCrossSliceUsage } from './crossSliceUsage';
+import { buildCrossSliceUsageIndex, createCrossSliceUsageQuery, getCrossSliceUsage } from './crossSliceUsage';
 
 describe('getCrossSliceUsage', () => {
   it('returns no usage for generic nodes', () => {
@@ -47,5 +47,22 @@ cmd:buy "Buy Again"
         { sliceId: 'slice-b', nodeKey: 'buy' }
       ]
     });
+  });
+});
+
+describe('createCrossSliceUsageQuery', () => {
+  it('exposes getCrossSliceUsage(nodeId) backed by the usage index', () => {
+    const slices = [
+      {
+        id: 'slice-a',
+        dsl: `slice "A"
+
+cmd:buy "Buy"
+`
+      }
+    ];
+
+    const query = createCrossSliceUsageQuery(slices);
+    expect(query.getCrossSliceUsage('cmd:buy')).toEqual([{ sliceId: 'slice-a', nodeKey: 'buy' }]);
   });
 });
