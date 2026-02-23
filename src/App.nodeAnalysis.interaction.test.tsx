@@ -107,6 +107,9 @@ describe('App node analysis interactions', () => {
       .find((el) => el.textContent?.trim() === 'Cross-Slice Usage');
     expect(usageTab).toBeDefined();
     expect(document.querySelectorAll('.cross-slice-usage-item').length).toBe(2);
+    expect(document.querySelectorAll('.cross-slice-usage-item .node').length).toBe(2);
+    expect(document.querySelector('.cross-slice-usage-item .node.cmd')).not.toBeNull();
+    expect(document.querySelector('.cross-slice-usage-item .node .node-header')).not.toBeNull();
   });
 
   it('orders node panel tabs with Cross-Slice Data after Cross-Slice Usage', () => {
@@ -320,9 +323,11 @@ describe('App node analysis interactions', () => {
     });
     const keyHeader = document.querySelector('.cross-slice-data-key-toggle') as HTMLButtonElement | null;
     expect(keyHeader).not.toBeNull();
+    expect(keyHeader?.querySelector('.cross-slice-data-key-toggle-icon path[d="M6 4 L6 8"]')).not.toBeNull();
     act(() => {
       keyHeader?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
+    expect(keyHeader?.querySelector('.cross-slice-data-key-toggle-icon path[d="M6 4 L6 8"]')).toBeNull();
 
     expect(document.querySelector('.cross-slice-data-key-section')).not.toBeNull();
     expect(document.querySelector('.cross-slice-data-value-item')).not.toBeNull();

@@ -39,6 +39,7 @@ import {
 import {EditorWarning, Range, useDslEditor} from './useDslEditor';
 import {useDiagramInteractions} from './useDiagramInteractions';
 import { DocumentationPanel } from './DocumentationPanel';
+import { NodeCard } from './NodeCard';
 
 type ParseResult =
   | { parsed: Parsed; error: ''; warnings: Parsed['warnings'] }
@@ -505,6 +506,20 @@ function App() {
     return traceData({ dsl: currentDsl, nodes: parsed.nodes, edges: parsed.edges }, selectedNode.key, selectedTraceKey);
   }, [currentDsl, parsed, selectedNode, selectedTraceKey]);
 
+  const crossSliceUsageEntries = useMemo(() => {
+    return crossSliceUsage.map((usage) => {
+      const slice = library.slices.find((item) => item.id === usage.sliceId) ?? null;
+      const sliceName = slice ? getSliceNameFromDsl(slice.dsl) : usage.sliceId;
+      const usageNode = slice ? parseDsl(slice.dsl).nodes.get(usage.nodeKey) ?? null : null;
+      return {
+        usage,
+        slice,
+        sliceName,
+        node: usageNode
+      };
+    });
+  }, [crossSliceUsage, library.slices]);
+
   const hoveredEdgeNodeKeys = useMemo(() => {
     if (!hoveredEdgeKey) {
       return new Set<string>();
@@ -666,31 +681,6 @@ function App() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [selectedNode, selectedNodeUsesKeys]);
-
-  const renderDataLine = (line: string, index: number) => {
-    const match = line.match(/^(\s*(?:-\s*)?)([^:\n]+:)(.*)$/);
-    if (!match) {
-      return (
-        <div key={index} className="node-field-line">
-          {line}
-        </div>
-      );
-    }
-
-    const value = match[3];
-    const isMissing = value.trim() === MISSING_DATA_VALUE;
-    const keyWithColon = match[2];
-    const key = keyWithColon.endsWith(':') ? keyWithColon.slice(0, -1) : keyWithColon;
-
-    return (
-      <div key={index} className={`node-field-line${isMissing ? ' missing' : ''}`}>
-        {match[1]}
-        <span className="node-field-key">{key}</span>
-        <span className="node-field-colon">:</span>
-        <span className="node-field-val">{value}</span>
-      </div>
-    );
-  };
 
   const renderMeasureDataLine = (line: string, index: number) => {
     const match = line.match(/^(\s*(?:-\s*)?)([^:\n]+:)(.*)$/);
@@ -1322,9 +1312,14 @@ function App() {
                   const isTraceHovered = hoveredTraceNodeKey === node.key;
 
                   return (
-                    <div
+                    <NodeCard
                       key={node.key}
-                      className={`node ${node.type || 'rm'} ${isHighlighted ? 'highlighted' : ''} ${isSelected ? 'selected' : ''} ${isRelated ? 'related' : ''} ${isTraceHovered ? 'trace-hovered' : ''}`}
+                      node={{
+                        ...node,
+                        name: node.name.replace(NODE_VERSION_SUFFIX, '')
+                      }}
+                      nodePrefix={nodePrefix}
+                      className={`${isHighlighted ? 'highlighted' : ''} ${isSelected ? 'selected' : ''} ${isRelated ? 'related' : ''} ${isTraceHovered ? 'trace-hovered' : ''}`.trim()}
                       style={{
                         left: `${position.x}px`,
                         top: `${position.y}px`,
@@ -1341,27 +1336,7 @@ function App() {
                         setCrossSliceDataExpandedKeys({});
                       }}
                       onPointerDown={(event) => beginNodeDrag(event, node.key)}
-                    >
-                      <div className="node-header">
-                        {nodePrefix ? <span className="node-prefix">{nodePrefix}:</span> : null}
-                        <span className="node-title">{node.alias ?? node.name.replace(NODE_VERSION_SUFFIX, '')}</span>
-                      </div>
-
-                      {node.data && (
-                        <div className="node-fields">
-                          {formatNodeData(node.data).map((field) => (
-                            <div
-                              key={`${node.key}-${field.key}`}
-                              className={`node-field${node.mappedDataKeys?.has(field.key) ? ' mapped' : ''}`}
-                            >
-                              <div className="node-field-lines">
-                                {field.text.split('\n').map((line, index) => renderDataLine(line, index))}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    />
                   );
                 })}
 
@@ -1500,9 +1475,20 @@ function App() {
             <div className="cross-slice-usage-node">{toNodeRef(selectedNode)}</div>
             {selectedNodePanelTab === 'usage' && (
               <div className="cross-slice-usage-list">
-                {crossSliceUsage.map((usage) => {
-                  const slice = library.slices.find((item) => item.id === usage.sliceId);
-                  const sliceName = slice ? getSliceNameFromDsl(slice.dsl) : usage.sliceId;
+                {crossSliceUsageEntries.map(({ usage, sliceName, node }) => {
+                  const nodeType = node?.type ?? '';
+                  const nodePrefix = TYPE_LABEL[nodeType] ?? nodeType;
+                  const usageNode = node
+                    ? { ...node, name: node.name.replace(NODE_VERSION_SUFFIX, '') }
+                    : {
+                        type: 'generic',
+                        name: usage.nodeKey,
+                        alias: null,
+                        stream: null,
+                        key: usage.nodeKey,
+                        data: null,
+                        srcRange: { from: 0, to: 0 }
+                      };
                   return (
                     <button
                       key={`${usage.sliceId}:${usage.nodeKey}`}
@@ -1523,7 +1509,12 @@ function App() {
                       }}
                     >
                       <span className="cross-slice-usage-slice">{sliceName}</span>
-                      <span className="cross-slice-usage-ref">{usage.nodeKey}</span>
+                      <NodeCard
+                        node={usageNode}
+                        nodePrefix={nodePrefix}
+                        className="cross-slice-usage-node-card"
+                        maxFields={2}
+                      />
                     </button>
                   );
                 })}
@@ -1531,33 +1522,66 @@ function App() {
             )}
             {selectedNodePanelTab === 'crossSliceData' && (
               <div className="cross-slice-data-list">
-                {selectedNodeCrossSliceData.keys.map((key) => (
-                  <div key={`${selectedNode.key}:${key}`} className="cross-slice-data-key-section">
-                    <button
-                      type="button"
-                      className="cross-slice-data-key-toggle"
-                      aria-expanded={crossSliceDataExpandedKeys[key] ? 'true' : 'false'}
-                      onClick={() => setCrossSliceDataExpandedKeys((current) => ({ ...current, [key]: !current[key] }))}
-                    >
-                      {key}
-                    </button>
-                    {crossSliceDataExpandedKeys[key] && (
-                      <div className="cross-slice-data-values">
-                        {(selectedNodeCrossSliceData.byKey[key] ?? []).length === 0 && (
-                          <div className="cross-slice-data-empty">No values</div>
-                        )}
-                        {(selectedNodeCrossSliceData.byKey[key] ?? []).map((valueEntry) => (
-                          <div
-                            key={`${selectedNode.key}:${key}:${valueEntry.sliceId}`}
-                            className="cross-slice-data-value-item"
-                          >
-                            {valueEntry.sliceName}: {String(valueEntry.value)}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                {selectedNodeCrossSliceData.keys.map((key) => {
+                  const isExpanded = Boolean(crossSliceDataExpandedKeys[key]);
+                  return (
+                    <div key={`${selectedNode.key}:${key}`} className="cross-slice-data-key-section">
+                      <button
+                        type="button"
+                        className="cross-slice-data-key-toggle"
+                        aria-expanded={isExpanded ? 'true' : 'false'}
+                        onClick={() => setCrossSliceDataExpandedKeys((current) => ({ ...current, [key]: !current[key] }))}
+                      >
+                        <span className="cross-slice-data-key-toggle-icon" aria-hidden="true">
+                          <svg viewBox="0 0 12 12" width="10" height="10">
+                            <rect
+                              x="1.5"
+                              y="1.5"
+                              width="9"
+                              height="9"
+                              rx="1"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.2"
+                            />
+                            <path
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.4"
+                              strokeLinecap="round"
+                              d="M4 6 L8 6"
+                            />
+                            {!isExpanded && (
+                              <path
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.4"
+                                strokeLinecap="round"
+                                d="M6 4 L6 8"
+                              />
+                            )}
+                          </svg>
+                        </span>
+                        <span className="cross-slice-data-key-toggle-label">{key}</span>
+                      </button>
+                      {isExpanded && (
+                        <div className="cross-slice-data-values">
+                          {(selectedNodeCrossSliceData.byKey[key] ?? []).length === 0 && (
+                            <div className="cross-slice-data-empty">No values</div>
+                          )}
+                          {(selectedNodeCrossSliceData.byKey[key] ?? []).map((valueEntry) => (
+                            <div
+                              key={`${selectedNode.key}:${key}:${valueEntry.sliceId}`}
+                              className="cross-slice-data-value-item"
+                            >
+                              {valueEntry.sliceName}: {String(valueEntry.value)}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
             {selectedNodePanelTab === 'issues' && (

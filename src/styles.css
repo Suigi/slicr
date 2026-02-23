@@ -1101,14 +1101,61 @@ header h1 {
   font-size: 11px;
   cursor: pointer;
   text-align: left;
+  flex-direction: column;
 }
 
 .cross-slice-usage-slice {
   color: var(--fg);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  opacity: 0.8;
 }
 
 .cross-slice-usage-ref {
   color: var(--muted);
+}
+
+.cross-slice-usage-node-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  background: var(--bg);
+}
+
+.cross-slice-usage-node-card.node {
+  position: static;
+  width: auto;
+  height: auto;
+  left: auto;
+  top: auto;
+}
+
+.cross-slice-usage-node-card.node.rm {
+  border-color: var(--rm-border);
+}
+
+.cross-slice-usage-node-card.node.cmd {
+  border-color: var(--cmd-border);
+}
+
+.cross-slice-usage-node-card.node.evt {
+  border-color: var(--evt-border);
+}
+
+.cross-slice-usage-node-card.node.exc {
+  border-color: var(--exc-border);
+}
+
+.cross-slice-usage-node-card.node.ui {
+  border-color: var(--ui-border);
+}
+
+.cross-slice-usage-node-card.node.aut {
+  border-color: var(--aut-border);
+}
+
+.cross-slice-usage-node-card.node.ext {
+  border-color: var(--ext-border);
 }
 
 .cross-slice-data-list {
@@ -1130,9 +1177,34 @@ header h1 {
   width: 100%;
   text-align: left;
   padding: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
   cursor: pointer;
+}
+
+.cross-slice-data-key-toggle-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  color: #8a8aa0;
+  flex-shrink: 0;
+}
+
+.cross-slice-data-key-toggle-icon svg {
+  display: block;
+}
+
+.cross-slice-data-key-toggle:hover .cross-slice-data-key-toggle-icon {
+  color: #b8b8c7;
+}
+
+.cross-slice-data-key-toggle-label {
+  min-width: 0;
 }
 
 .cross-slice-data-values {
