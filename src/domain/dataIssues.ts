@@ -7,7 +7,9 @@ export type DataIssueCode = 'missing-source' | 'ambiguous-source';
 export type DataIssue = {
   code: DataIssueCode;
   severity: 'warning';
+  sliceId: string | null;
   nodeKey: string;
+  nodeRef: string;
   key: string;
   range: { from: number; to: number };
 };
@@ -16,6 +18,7 @@ type IssueInput = {
   dsl: string;
   nodes: Map<string, VisualNode>;
   edges: Edge[];
+  sliceId?: string;
 };
 
 export function collectDataIssues(input: IssueInput): DataIssue[] {
@@ -41,7 +44,9 @@ export function collectDataIssues(input: IssueInput): DataIssue[] {
         issues.push({
           code: 'ambiguous-source',
           severity: 'warning',
+          sliceId: input.sliceId ?? null,
           nodeKey: node.key,
+          nodeRef,
           key: mapping.targetKey,
           range: mapping.range
         });
@@ -54,7 +59,9 @@ export function collectDataIssues(input: IssueInput): DataIssue[] {
       issues.push({
         code: 'missing-source',
         severity: 'warning',
+        sliceId: input.sliceId ?? null,
         nodeKey: node.key,
+        nodeRef,
         key: mapping.targetKey,
         range: mapping.range
       });

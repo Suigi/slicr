@@ -50,4 +50,22 @@ uses:
       })
     ]);
   });
+
+  it('includes severity and node/slice references in issues', () => {
+    const dsl = `slice "Refs"
+
+cmd:buy "Buy"
+uses:
+  concertId
+`;
+
+    const parsed = parseDsl(dsl);
+    const issues = collectDataIssues({ dsl, nodes: parsed.nodes, edges: parsed.edges, sliceId: 'slice-a' });
+    expect(issues[0]).toEqual(expect.objectContaining({
+      severity: 'warning',
+      nodeKey: 'buy',
+      nodeRef: 'cmd:buy',
+      sliceId: 'slice-a'
+    }));
+  });
 });
