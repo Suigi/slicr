@@ -112,7 +112,7 @@ describe('App node analysis interactions', () => {
     expect(document.querySelector('.cross-slice-usage-item .node .node-header')).not.toBeNull();
   });
 
-  it('groups multiple node versions in the same slice into one usage entry', () => {
+  it('shows each node version as its own usage entry with alias', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -135,8 +135,11 @@ describe('App node analysis interactions', () => {
     });
 
     const usageItems = [...document.querySelectorAll('.cross-slice-usage-item')];
-    expect(usageItems).toHaveLength(1);
-    expect(usageItems[0]?.querySelector('.cross-slice-usage-versions')?.textContent?.trim()).toBe('2 versions');
+    expect(usageItems).toHaveLength(2);
+    const usageTitles = usageItems
+      .map((item) => item.querySelector('.node-title')?.textContent?.trim())
+      .filter((title): title is string => Boolean(title));
+    expect(usageTitles).toEqual(['Rooms (Version 1)', 'Rooms (Version 2)']);
   });
 
   it('orders node panel tabs with Cross-Slice Data after Cross-Slice Usage', () => {

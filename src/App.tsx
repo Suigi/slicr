@@ -20,7 +20,7 @@ import { getCrossSliceData } from './domain/crossSliceData';
 import { collectDataIssues, getAmbiguousSourceCandidates } from './domain/dataIssues';
 import { parseUsesBlocks } from './domain/dataMapping';
 import { traceData } from './domain/dataTrace';
-import { toNodeAnalysisKey, toNodeAnalysisRef, toNodeAnalysisRefFromNode } from './domain/nodeAnalysisKey';
+import { toNodeAnalysisRef, toNodeAnalysisRefFromNode } from './domain/nodeAnalysisKey';
 import { measureNodeHeights, NODE_MEASURE_NODE_CLASS } from './nodeMeasurement';
 import type {Parsed, Position} from './domain/types';
 import {
@@ -554,69 +554,17 @@ function App() {
   }, [currentDsl, parsed, selectedTraceKey, selectedTraceNodeKeys]);
 
   const crossSliceUsageEntries = useMemo(() => {
-    const grouped = new Map<string, {
-      sliceId: string;
-      sliceName: string;
-      nodeKeys: Set<string>;
-      nodes: Parsed['nodes'];
-    }>();
-
-    for (const usage of crossSliceUsage) {
+    return crossSliceUsage.map((usage) => {
       const slice = library.slices.find((item) => item.id === usage.sliceId) ?? null;
       const sliceName = slice ? getSliceNameFromDsl(slice.dsl) : usage.sliceId;
-      const parsedSlice = slice ? parseDsl(slice.dsl) : null;
-      const groupKey = `${usage.sliceId}:${selectedNodeAnalysisRef ?? ''}`;
-      const existing = grouped.get(groupKey);
-      if (existing) {
-        existing.nodeKeys.add(usage.nodeKey);
-        continue;
-      }
-      grouped.set(groupKey, {
-        sliceId: usage.sliceId,
+      const usageNode = slice ? parseDsl(slice.dsl).nodes.get(usage.nodeKey) ?? null : null;
+      return {
+        usage,
         sliceName,
-        nodeKeys: new Set<string>([usage.nodeKey]),
-        nodes: parsedSlice?.nodes ?? new Map()
-      });
-    }
-
-    return [...grouped.values()]
-      .map((entry) => {
-        const nodeKeys = [...entry.nodeKeys].sort((left, right) => left.localeCompare(right));
-        const focusNodeKey = nodeKeys[0] ?? '';
-        const primaryNode = entry.nodes.get(focusNodeKey) ?? null;
-        const versionCount = nodeKeys.length;
-        const usageNode = primaryNode
-          ? {
-              ...primaryNode,
-              alias: versionCount > 1 ? null : primaryNode.alias,
-              name: toNodeAnalysisKey(primaryNode.name)
-            }
-          : {
-              type: 'generic',
-              name: selectedNodeAnalysisRef ?? focusNodeKey,
-              alias: null,
-              stream: null,
-              key: focusNodeKey || selectedNodeAnalysisRef || '',
-              data: null,
-              srcRange: { from: 0, to: 0 }
-            };
-
-        return {
-          sliceId: entry.sliceId,
-          sliceName: entry.sliceName,
-          focusNodeKey,
-          node: usageNode,
-          versionCount
-        };
-      })
-      .sort((left, right) => {
-        const byName = left.sliceName.localeCompare(right.sliceName);
-        if (byName !== 0) {
-          return byName;
-        }
-        return left.sliceId.localeCompare(right.sliceId);
-      });
-  }, [crossSliceUsage, library.slices, selectedNodeAnalysisRef]);
+        node: usageNode
+      };
+    });
+  }, [crossSliceUsage, library.slices]);
 
   const hoveredEdgeNodeKeys = useMemo(() => {
     if (!hoveredEdgeKey) {
@@ -1573,24 +1521,21 @@ function App() {
             <div className="cross-slice-usage-node">{selectedNodeAnalysisRef}</div>
             {selectedNodePanelTab === 'usage' && (
               <div className="cross-slice-usage-list">
-                {crossSliceUsageEntries.map(({ sliceId, sliceName, node, focusNodeKey, versionCount }) => {
+                {crossSliceUsageEntries.map(({ usage, sliceName, node }) => {
                   const nodeType = node?.type ?? '';
                   const nodePrefix = TYPE_LABEL[nodeType] ?? nodeType;
                   return (
                     <button
-                      key={`${sliceId}:${focusNodeKey}`}
+                      key={`${usage.sliceId}:${usage.nodeKey}`}
                       type="button"
                       className="cross-slice-usage-item"
-                      data-slice-id={sliceId}
+                      data-slice-id={usage.sliceId}
                       onClick={() => {
-                        if (!focusNodeKey) {
-                          return;
-                        }
-                        setSelectedNodeKey(focusNodeKey);
-                        pendingFocusNodeKeyRef.current = focusNodeKey;
+                        setSelectedNodeKey(usage.nodeKey);
+                        pendingFocusNodeKeyRef.current = usage.nodeKey;
                         setFocusRequestVersion((version) => version + 1);
                         setLibrary((currentLibrary) => {
-                          const nextLibrary = selectSlice(currentLibrary, sliceId);
+                          const nextLibrary = selectSlice(currentLibrary, usage.sliceId);
                           if (nextLibrary.selectedSliceId !== currentLibrary.selectedSliceId) {
                             applySelectedSliceOverrides(nextLibrary.selectedSliceId);
                           }
@@ -1600,14 +1545,19 @@ function App() {
                     >
                       <span className="cross-slice-usage-slice">{sliceName}</span>
                       <NodeCard
-                        node={node}
+                        node={node ?? {
+                          type: 'generic',
+                          name: usage.nodeKey,
+                          alias: null,
+                          stream: null,
+                          key: usage.nodeKey,
+                          data: null,
+                          srcRange: { from: 0, to: 0 }
+                        }}
                         nodePrefix={nodePrefix}
                         className="cross-slice-usage-node-card"
                         maxFields={2}
                       />
-                      {versionCount > 1 && (
-                        <span className="cross-slice-usage-versions">{versionCount} versions</span>
-                      )}
                     </button>
                   );
                 })}
