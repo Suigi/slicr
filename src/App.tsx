@@ -114,6 +114,7 @@ function App() {
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [selectedTraceKey, setSelectedTraceKey] = useState<string | null>(null);
   const [hoveredTraceNodeKey, setHoveredTraceNodeKey] = useState<string | null>(null);
+  const [crossSliceDataExpandedKeys, setCrossSliceDataExpandedKeys] = useState<Record<string, boolean>>({});
   const [manualNodePositions, setManualNodePositions] = useState<Record<string, { x: number; y: number }>>(
     initialSnapshot.overrides.nodes
   );
@@ -1337,6 +1338,7 @@ function App() {
                         setSelectedNodeKey(node.key);
                         setSelectedNodePanelTab('usage');
                         setSelectedTraceKey(null);
+                        setCrossSliceDataExpandedKeys({});
                       }}
                       onPointerDown={(event) => beginNodeDrag(event, node.key)}
                     >
@@ -1530,8 +1532,15 @@ function App() {
             {selectedNodePanelTab === 'crossSliceData' && (
               <div className="cross-slice-data-list">
                 {selectedNodeCrossSliceData.keys.map((key) => (
-                  <div key={`${selectedNode.key}:${key}`} className="cross-slice-data-key">
-                    {key}
+                  <div key={`${selectedNode.key}:${key}`} className="cross-slice-data-key-section">
+                    <button
+                      type="button"
+                      className="cross-slice-data-key-toggle"
+                      aria-expanded={crossSliceDataExpandedKeys[key] ? 'true' : 'false'}
+                      onClick={() => setCrossSliceDataExpandedKeys((current) => ({ ...current, [key]: !current[key] }))}
+                    >
+                      {key}
+                    </button>
                   </div>
                 ))}
               </div>

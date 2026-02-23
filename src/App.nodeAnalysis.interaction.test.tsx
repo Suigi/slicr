@@ -130,6 +130,37 @@ describe('App node analysis interactions', () => {
     expect(labels).toEqual(['Cross-Slice Usage', 'Cross-Slice Data', 'Issues', 'Data Trace']);
   });
 
+  it('shows Cross-Slice Data keys as collapsed sections sorted alphabetically', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [
+          { id: 'a', dsl: 'slice "A"\n\ncmd:buy\ndata:\n  beta: 2\n  alpha: 1\n' },
+          { id: 'b', dsl: 'slice "B"\n\ncmd:buy\ndata:\n  gamma: 3\n' }
+        ]
+      })
+    );
+
+    renderApp();
+    const node = document.querySelector('.node.cmd') as HTMLElement | null;
+    expect(node).not.toBeNull();
+    act(() => {
+      node?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const dataTab = [...document.querySelectorAll('.cross-slice-panel-tab')]
+      .find((el) => el.textContent?.trim() === 'Cross-Slice Data') as HTMLButtonElement | undefined;
+    expect(dataTab).toBeDefined();
+    act(() => {
+      dataTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const keyButtons = [...document.querySelectorAll('.cross-slice-data-key-toggle')];
+    expect(keyButtons.map((el) => el.textContent?.trim())).toEqual(['alpha', 'beta', 'gamma']);
+    expect(keyButtons.every((el) => el.getAttribute('aria-expanded') === 'false')).toBe(true);
+  });
+
   it('jumps to the selected cross-slice usage target', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,

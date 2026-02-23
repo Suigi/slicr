@@ -1111,6 +1111,30 @@ header h1 {
   color: var(--muted);
 }
 
+.cross-slice-data-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cross-slice-data-key-section {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.cross-slice-data-key-toggle {
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: var(--fg);
+  width: 100%;
+  text-align: left;
+  padding: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  cursor: pointer;
+}
+
 .cross-slice-issues-list {
   display: flex;
   flex-direction: column;
