@@ -32,6 +32,9 @@ export function validateDataIntegrity(input: { nodes: Map<string, VisualNode>; e
     }
 
     for (const key of Object.keys(targetNode.data ?? {})) {
+      if (targetNode.mappedDataKeys?.has(key)) {
+        continue;
+      }
       if (targetNode.data?.[key] === MISSING_DATA_VALUE) {
         continue;
       }

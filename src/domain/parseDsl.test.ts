@@ -398,6 +398,42 @@ uses:
     );
   });
 
+  it('does not emit integrity warnings for keys satisfied via uses mapping', () => {
+    const input = `slice "Read Model from Two Events"
+
+evt:thing-added@1 "Thing Added"
+data:
+  id: 100
+  name: alpha
+
+evt:thing-added@2 "Thing Added"
+data:
+  id: 200
+  name: bravo
+
+rm:my-rm "All Things"
+<- evt:thing-added@1
+<- evt:thing-added@2
+uses:
+  things <- collect({id,name})
+
+ui:my-ui "Rename Thing Form"
+<- rm:my-rm
+data:
+  newName: ALPHA
+uses:
+  id <- $.things[0].id`;
+
+    const parsed = parseDsl(input);
+    expect(parsed.nodes.get('my-ui')?.data).toEqual({
+      newName: 'ALPHA',
+      id: 100
+    });
+    expect(parsed.warnings.map((warning) => warning.message)).not.toContain(
+      'Missing data source for key "id"'
+    );
+  });
+
   it('parses backwards arrows when the incoming clause is on a separate line', () => {
     const input = `slice "Book Room"
 
