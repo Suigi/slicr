@@ -112,6 +112,33 @@ describe('App node analysis interactions', () => {
     expect(document.querySelector('.cross-slice-usage-item .node .node-header')).not.toBeNull();
   });
 
+  it('groups multiple node versions in the same slice into one usage entry', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [
+          {
+            id: 'a',
+            dsl: 'slice "Aliases and Versions"\n\nrm:rooms@1 "Rooms (Version 1)"\n\nrm:rooms@2 "Rooms (Version 2)"\n'
+          }
+        ]
+      })
+    );
+
+    renderApp();
+
+    const roomsNode = document.querySelector('.node.rm') as HTMLElement | null;
+    expect(roomsNode).not.toBeNull();
+    act(() => {
+      roomsNode?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const usageItems = [...document.querySelectorAll('.cross-slice-usage-item')];
+    expect(usageItems).toHaveLength(1);
+    expect(usageItems[0]?.querySelector('.cross-slice-usage-versions')?.textContent?.trim()).toBe('2 versions');
+  });
+
   it('orders node panel tabs with Cross-Slice Data after Cross-Slice Usage', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
