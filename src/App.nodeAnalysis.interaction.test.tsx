@@ -109,6 +109,27 @@ describe('App node analysis interactions', () => {
     expect(document.querySelectorAll('.cross-slice-usage-item').length).toBe(2);
   });
 
+  it('orders node panel tabs with Cross-Slice Data after Cross-Slice Usage', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{ id: 'a', dsl: 'slice "Alpha"\n\ncmd:buy "Buy"\n' }]
+      })
+    );
+
+    renderApp();
+    const node = document.querySelector('.node.cmd') as HTMLElement | null;
+    expect(node).not.toBeNull();
+    act(() => {
+      node?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const labels = [...document.querySelectorAll('.cross-slice-panel-tab')]
+      .map((el) => el.textContent?.trim());
+    expect(labels).toEqual(['Cross-Slice Usage', 'Cross-Slice Data', 'Issues', 'Data Trace']);
+  });
+
   it('jumps to the selected cross-slice usage target', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,

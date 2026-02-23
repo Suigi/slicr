@@ -16,6 +16,7 @@ import {PAD_X, rowFor} from './domain/layoutGraph';
 import {parseDsl} from './domain/parseDsl';
 import {isDragAndDropEnabled, shouldShowDevDiagramControls} from './domain/runtimeFlags';
 import { createCrossSliceUsageQuery } from './domain/crossSliceUsage';
+import { getCrossSliceData } from './domain/crossSliceData';
 import { collectDataIssues, getAmbiguousSourceCandidates } from './domain/dataIssues';
 import { parseUsesBlocks } from './domain/dataMapping';
 import { traceData } from './domain/dataTrace';
@@ -108,7 +109,7 @@ function App() {
   const [sliceMenuOpen, setSliceMenuOpen] = useState(false);
   const [routeMenuOpen, setRouteMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [selectedNodePanelTab, setSelectedNodePanelTab] = useState<'usage' | 'issues' | 'trace'>('usage');
+  const [selectedNodePanelTab, setSelectedNodePanelTab] = useState<'usage' | 'crossSliceData' | 'issues' | 'trace'>('usage');
   const [sourceOverrides, setSourceOverrides] = useState<Record<string, string>>({});
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [selectedTraceKey, setSelectedTraceKey] = useState<string | null>(null);
@@ -485,6 +486,16 @@ function App() {
     const mappings = parseUsesBlocks(currentDsl).get(toNodeRef(selectedNode)) ?? [];
     return mappings.map((mapping) => mapping.targetKey);
   }, [currentDsl, selectedNode]);
+
+  const selectedNodeCrossSliceData = useMemo(() => {
+    if (!selectedNode) {
+      return { keys: [], byKey: {} };
+    }
+    return getCrossSliceData(
+      library.slices.map((slice) => ({ id: slice.id, dsl: slice.dsl })),
+      toNodeRef(selectedNode)
+    );
+  }, [library.slices, selectedNode]);
 
   const selectedNodeTraceResult = useMemo(() => {
     if (!parsed || !selectedNode || !selectedTraceKey) {
@@ -1456,6 +1467,15 @@ function App() {
               <button
                 type="button"
                 role="tab"
+                aria-selected={selectedNodePanelTab === 'crossSliceData'}
+                className={`cross-slice-panel-tab ${selectedNodePanelTab === 'crossSliceData' ? 'active' : ''}`}
+                onClick={() => setSelectedNodePanelTab('crossSliceData')}
+              >
+                Cross-Slice Data
+              </button>
+              <button
+                type="button"
+                role="tab"
                 aria-selected={selectedNodePanelTab === 'issues'}
                 className={`cross-slice-panel-tab ${selectedNodePanelTab === 'issues' ? 'active' : ''}`}
                 onClick={() => setSelectedNodePanelTab('issues')}
@@ -1505,6 +1525,15 @@ function App() {
                     </button>
                   );
                 })}
+              </div>
+            )}
+            {selectedNodePanelTab === 'crossSliceData' && (
+              <div className="cross-slice-data-list">
+                {selectedNodeCrossSliceData.keys.map((key) => (
+                  <div key={`${selectedNode.key}:${key}`} className="cross-slice-data-key">
+                    {key}
+                  </div>
+                ))}
               </div>
             )}
             {selectedNodePanelTab === 'issues' && (
