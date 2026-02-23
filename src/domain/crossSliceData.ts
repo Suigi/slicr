@@ -39,6 +39,16 @@ export function getCrossSliceData(slices: CrossSliceDataDocument[], nodeRef: str
     }
   }
 
+  for (const values of Object.values(byKey)) {
+    values.sort((a, b) => {
+      const byName = a.sliceName.localeCompare(b.sliceName);
+      if (byName !== 0) {
+        return byName;
+      }
+      return a.sliceId.localeCompare(b.sliceId);
+    });
+  }
+
   return {
     keys: Object.keys(byKey).sort((a, b) => a.localeCompare(b)),
     byKey
