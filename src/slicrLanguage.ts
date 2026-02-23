@@ -11,7 +11,7 @@ import {
 import { autocompletion } from "@codemirror/autocomplete"
 import {styleTags, tags as t} from "@lezer/highlight"
 import {parser} from "./slicr.parser.js"
-import { getDependencySuggestions } from "./domain/dslAutocomplete"
+import { getDependencySuggestions, getUsesKeySuggestions } from "./domain/dslAutocomplete"
 
 type CompletionContextLike = {
   state: { doc: { toString: () => string } }
@@ -21,6 +21,17 @@ type CompletionContextLike = {
 
 function slicrCompletionSource(context: CompletionContextLike) {
   const doc = context.state.doc.toString()
+  const usesSuggestions = getUsesKeySuggestions(doc, context.pos)
+  if (usesSuggestions && usesSuggestions.suggestions.length > 0) {
+    return {
+      from: usesSuggestions.from,
+      options: usesSuggestions.suggestions.map((label) => ({
+        label,
+        type: 'property'
+      }))
+    }
+  }
+
   const suggestions = getDependencySuggestions(doc, context.pos)
   if (suggestions.length === 0) {
     return null

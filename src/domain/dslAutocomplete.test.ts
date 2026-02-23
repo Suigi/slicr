@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getDependencySuggestions } from './dslAutocomplete';
+import { getDependencySuggestions, getUsesKeySuggestions } from './dslAutocomplete';
 
 describe('dsl autocomplete', () => {
   it('suggests existing node refs after a dependency arrow', () => {
@@ -100,5 +100,42 @@ cmd:place-order <- `;
 
     expect(suggestions).toContain('checkout-screen');
     expect(suggestions).not.toContain('cmd:place-order');
+  });
+
+  it('suggests uses keys from predecessor and non-generic node data with .. trigger', () => {
+    const dsl = `slice "Uses"
+
+evt:seed
+data:
+  alpha: 1
+  profile:
+    city: "Berlin"
+
+rm:view
+<- evt:seed
+uses:
+  ..`;
+
+    const result = getUsesKeySuggestions(dsl, dsl.length);
+    const suggestions = result?.suggestions ?? [];
+    expect(suggestions).toContain('alpha');
+    expect(suggestions).toContain('profile.city');
+  });
+
+  it('ranks exact-prefix uses key matches first', () => {
+    const dsl = `slice "Rank"
+
+evt:seed
+data:
+  alpha: 1
+  betaAlpha: 2
+
+cmd:consume
+<- evt:seed
+uses:
+  al..`;
+
+    const result = getUsesKeySuggestions(dsl, dsl.length);
+    expect(result?.suggestions[0]).toBe('alpha');
   });
 });

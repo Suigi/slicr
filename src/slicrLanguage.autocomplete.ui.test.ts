@@ -196,4 +196,44 @@ evt:room-booked
     expect(labels).toContain('rm:available-rooms');
     expect(labels).not.toContain('evt:room-booked');
   });
+
+  it('inserts selected uses key suggestions when using .. trigger', async () => {
+    const doc = `slice "Uses"
+
+evt:seed
+data:
+  alpha: 1
+
+cmd:consume
+<- evt:seed
+uses:
+  ..`;
+
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    view = new EditorView({
+      state: EditorState.create({
+        doc,
+        selection: { anchor: doc.length },
+        extensions: [slicr()]
+      }),
+      parent: host
+    });
+
+    const pos = doc.length;
+    const source = getAutocompleteSource(view.state, pos);
+    expect(source).toBeDefined();
+    const result = source ? await source(new CompletionContext(view.state, pos, true, view)) : null;
+    expect(result).not.toBeNull();
+    const selected = result?.options.find((option) => option.label === 'alpha');
+    expect(selected).toBeDefined();
+
+    if (result && selected) {
+      view.dispatch({
+        changes: { from: result.from, to: pos, insert: selected.label }
+      });
+    }
+
+    expect(view.state.doc.toString()).toContain('uses:\n  alpha');
+  });
 });
