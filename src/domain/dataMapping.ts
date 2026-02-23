@@ -28,6 +28,7 @@ export function parseUsesBlocks(dsl: string): Map<string, MappingEntry[]> {
 
     const mapsIndent = getIndent(line);
     const mappings: MappingEntry[] = [];
+    const sourceContexts: Array<{ indent: number; prefix: string }> = [];
     for (let next = i + 1; next < lines.length; next += 1) {
       const nextLine = lines[next];
       const nextTrimmed = nextLine.trim();
@@ -38,7 +39,21 @@ export function parseUsesBlocks(dsl: string): Map<string, MappingEntry[]> {
         break;
       }
 
-      const mapping = parseMappingLine(nextLine, lineStarts[next]);
+      const nextIndent = getIndent(nextLine);
+      while (sourceContexts.length > 0 && sourceContexts[sourceContexts.length - 1].indent >= nextIndent) {
+        sourceContexts.pop();
+      }
+
+      if (isSourceContextHeader(nextTrimmed)) {
+        sourceContexts.push({
+          indent: nextIndent,
+          prefix: nextTrimmed.slice(0, -1).trim()
+        });
+        continue;
+      }
+
+      const contextPrefix = sourceContexts.map((entry) => entry.prefix).join('.');
+      const mapping = parseMappingLine(nextLine, lineStarts[next], contextPrefix || null);
       if (mapping) {
         mappings.push(mapping);
       }
@@ -123,7 +138,21 @@ function resolveMappingValue(
   return undefined;
 }
 
-function parseMappingLine(line: string, lineStart: number): MappingEntry | null {
+function parseMappingLine(line: string, lineStart: number, contextPrefix: string | null): MappingEntry | null {
+  const base = parseMappingLineWithoutContext(line, lineStart);
+  if (!base) {
+    return null;
+  }
+  if (contextPrefix && !line.includes('<-')) {
+    return {
+      ...base,
+      sourcePath: `${contextPrefix}.${base.sourcePath}`
+    };
+  }
+  return base;
+}
+
+function parseMappingLineWithoutContext(line: string, lineStart: number): MappingEntry | null {
   const contentStart = line.search(/\S/);
   if (contentStart === -1) {
     return null;
@@ -131,7 +160,7 @@ function parseMappingLine(line: string, lineStart: number): MappingEntry | null 
   const content = line.slice(contentStart);
   const arrowIndex = content.indexOf('<-');
   if (arrowIndex === -1) {
-    const key = content.trim();
+    const key = normalizeMappingKey(content.trim());
     if (!key) {
       return null;
     }
@@ -146,7 +175,7 @@ function parseMappingLine(line: string, lineStart: number): MappingEntry | null 
   }
 
   const targetPart = content.slice(0, arrowIndex);
-  const targetKey = targetPart.trim();
+  const targetKey = normalizeMappingKey(targetPart.trim());
   const sourcePath = content.slice(arrowIndex + 2).trim();
   if (!targetKey) {
     return null;
@@ -163,6 +192,14 @@ function parseMappingLine(line: string, lineStart: number): MappingEntry | null 
       to: lineStart + contentStart + targetEndOffset
     }
   };
+}
+
+function normalizeMappingKey(value: string): string {
+  return value.replace(/^-+\s*/, '').trim();
+}
+
+function isSourceContextHeader(line: string): boolean {
+  return line.endsWith(':') && !line.includes('<-');
 }
 
 function getPathValue(data: Record<string, unknown>, path: string): unknown {
