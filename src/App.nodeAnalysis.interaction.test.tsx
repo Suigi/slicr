@@ -202,6 +202,27 @@ describe('App node analysis interactions', () => {
     expect(labels).toEqual(['Cross-Slice Usage', 'Cross-Slice Data', 'Issues', 'Data Trace']);
   });
 
+  it('renders the node analysis panel as vertically scrollable', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{ id: 'a', dsl: 'slice "Alpha"\n\ncmd:buy "Buy"\n' }]
+      })
+    );
+
+    renderApp();
+    const node = document.querySelector('.node.cmd') as HTMLElement | null;
+    expect(node).not.toBeNull();
+    act(() => {
+      node?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const panel = document.querySelector('.cross-slice-usage-panel') as HTMLElement | null;
+    expect(panel).not.toBeNull();
+    expect(panel?.style.overflowY).toBe('auto');
+  });
+
   it('shows Cross-Slice Data keys as collapsed sections sorted alphabetically', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
@@ -505,9 +526,11 @@ describe('App node analysis interactions', () => {
       traceTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    const traceOptions = [...document.querySelectorAll('.cross-slice-trace-select option')]
-      .map((option) => option.textContent?.trim());
-    expect(traceOptions).toEqual(['alpha', 'beta']);
+    const traceKeys = [...document.querySelectorAll('.cross-slice-trace-key-toggle')]
+      .map((button) => button.textContent?.trim());
+    expect(traceKeys).toEqual(['alpha', 'beta']);
+    expect([...document.querySelectorAll('.cross-slice-trace-key-toggle')]
+      .every((button) => button.getAttribute('aria-expanded') === 'false')).toBe(true);
   });
 
   it('applies ambiguous-source quick fix by selecting an explicit predecessor', () => {
@@ -648,6 +671,12 @@ describe('App node analysis interactions', () => {
     act(() => {
       traceTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
+    const alphaKey = [...document.querySelectorAll('.cross-slice-trace-key-toggle')]
+      .find((button) => button.textContent?.trim() === 'alpha') as HTMLButtonElement | undefined;
+    expect(alphaKey).toBeDefined();
+    act(() => {
+      alphaKey?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
 
     const hops = [...document.querySelectorAll('.cross-slice-trace-hop')].map((el) => el.textContent?.trim());
     expect(hops).toEqual(['view.alpha', 'seed.alpha']);
@@ -682,6 +711,12 @@ describe('App node analysis interactions', () => {
     act(() => {
       traceTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
+    const alphaKey = [...document.querySelectorAll('.cross-slice-trace-key-toggle')]
+      .find((button) => button.textContent?.trim() === 'alpha') as HTMLButtonElement | undefined;
+    expect(alphaKey).toBeDefined();
+    act(() => {
+      alphaKey?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
 
     const sources = [...document.querySelectorAll('.cross-slice-trace-source')]
       .map((el) => el.textContent?.trim());
@@ -715,6 +750,12 @@ describe('App node analysis interactions', () => {
     expect(traceTab).toBeDefined();
     act(() => {
       traceTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    const alphaKey = [...document.querySelectorAll('.cross-slice-trace-key-toggle')]
+      .find((button) => button.textContent?.trim() === 'alpha') as HTMLButtonElement | undefined;
+    expect(alphaKey).toBeDefined();
+    act(() => {
+      alphaKey?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
     const viewHop = [...document.querySelectorAll('.cross-slice-trace-hop')]

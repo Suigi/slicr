@@ -114,9 +114,9 @@ function App() {
   const [selectedNodePanelTab, setSelectedNodePanelTab] = useState<'usage' | 'crossSliceData' | 'issues' | 'trace'>('usage');
   const [sourceOverrides, setSourceOverrides] = useState<Record<string, string>>({});
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  const [selectedTraceKey, setSelectedTraceKey] = useState<string | null>(null);
   const [hoveredTraceNodeKey, setHoveredTraceNodeKey] = useState<string | null>(null);
   const [crossSliceDataExpandedKeys, setCrossSliceDataExpandedKeys] = useState<Record<string, boolean>>({});
+  const [crossSliceTraceExpandedKeys, setCrossSliceTraceExpandedKeys] = useState<Record<string, boolean>>({});
   const [manualNodePositions, setManualNodePositions] = useState<Record<string, { x: number; y: number }>>(
     initialSnapshot.overrides.nodes
   );
@@ -522,36 +522,34 @@ function App() {
     );
   }, [library.slices, selectedNodeAnalysisRef]);
 
-  const selectedTraceNodeKeys = useMemo(() => {
-    if (selectedNodeAnalysisNodes.length === 0) {
-      return selectedNode ? [selectedNode.key] : [];
+  const selectedNodeTraceResultsByKey = useMemo(() => {
+    if (!parsed) {
+      return {} as Record<string, Array<{ nodeKey: string; result: NonNullable<ReturnType<typeof traceData>> }>>;
     }
-    if (!selectedTraceKey) {
-      return selectedNode ? [selectedNode.key] : [];
-    }
-    const matching = selectedNodeAnalysisNodes
-      .filter((node) => {
-        const mappings = usesMappingsByRef.get(toNodeRef(node)) ?? [];
-        return mappings.some((mapping) => mapping.targetKey === selectedTraceKey);
-      })
-      .map((node) => node.key);
-    if (matching.length > 0) {
-      return matching;
-    }
-    return selectedNode ? [selectedNode.key] : [];
-  }, [selectedNode, selectedNodeAnalysisNodes, selectedTraceKey, usesMappingsByRef]);
 
-  const selectedNodeTraceResults = useMemo(() => {
-    if (!parsed || !selectedTraceKey) {
-      return [];
+    const byKey: Record<string, Array<{ nodeKey: string; result: NonNullable<ReturnType<typeof traceData>> }>> = {};
+    for (const traceKey of selectedNodeUsesKeys) {
+      const matchingNodeKeys = selectedNodeAnalysisNodes
+        .filter((node) => {
+          const mappings = usesMappingsByRef.get(toNodeRef(node)) ?? [];
+          return mappings.some((mapping) => mapping.targetKey === traceKey);
+        })
+        .map((node) => node.key);
+
+      const traceNodeKeys = matchingNodeKeys.length > 0
+        ? matchingNodeKeys
+        : (selectedNode ? [selectedNode.key] : []);
+
+      byKey[traceKey] = traceNodeKeys
+        .map((nodeKey) => ({
+          nodeKey,
+          result: traceData({ dsl: currentDsl, nodes: parsed.nodes, edges: parsed.edges }, nodeKey, traceKey)
+        }))
+        .filter((entry): entry is { nodeKey: string; result: NonNullable<ReturnType<typeof traceData>> } => entry.result !== null);
     }
-    return selectedTraceNodeKeys
-      .map((nodeKey) => ({
-        nodeKey,
-        result: traceData({ dsl: currentDsl, nodes: parsed.nodes, edges: parsed.edges }, nodeKey, selectedTraceKey)
-      }))
-      .filter((entry): entry is { nodeKey: string; result: NonNullable<ReturnType<typeof traceData>> } => entry.result !== null);
-  }, [currentDsl, parsed, selectedTraceKey, selectedTraceNodeKeys]);
+
+    return byKey;
+  }, [currentDsl, parsed, selectedNode, selectedNodeAnalysisNodes, selectedNodeUsesKeys, usesMappingsByRef]);
 
   const crossSliceUsageEntries = useMemo(() => {
     return crossSliceUsage.map((usage) => {
@@ -747,7 +745,9 @@ function App() {
       if (isTraceShortcut && selectedNode) {
         event.preventDefault();
         const firstKey = selectedNodeUsesKeys[0] ?? null;
-        setSelectedTraceKey(firstKey);
+        if (firstKey) {
+          setCrossSliceTraceExpandedKeys({ [firstKey]: true });
+        }
         setSelectedNodePanelTab('trace');
       }
     };
@@ -1406,7 +1406,7 @@ function App() {
                         e.stopPropagation();
                         setSelectedNodeKey(node.key);
                         setSelectedNodePanelTab('usage');
-                        setSelectedTraceKey(null);
+                        setCrossSliceTraceExpandedKeys({});
                         setCrossSliceDataExpandedKeys({});
                       }}
                       onPointerDown={(event) => beginNodeDrag(event, node.key)}
@@ -1504,7 +1504,7 @@ function App() {
           </div>
         </div>
         {selectedNode && (
-          <aside className="cross-slice-usage-panel" aria-label="Cross-Slice Usage">
+          <aside className="cross-slice-usage-panel" aria-label="Cross-Slice Usage" style={{ overflowY: 'auto' }}>
             <div className="cross-slice-panel-tabs" role="tablist" aria-label="Node panel tabs">
               <button
                 type="button"
@@ -1540,7 +1540,6 @@ function App() {
                 className={`cross-slice-panel-tab ${selectedNodePanelTab === 'trace' ? 'active' : ''}`}
                 onClick={() => {
                   setSelectedNodePanelTab('trace');
-                  setSelectedTraceKey((current) => current ?? selectedNodeUsesKeys[0] ?? null);
                 }}
               >
                 Data Trace
@@ -1567,6 +1566,7 @@ function App() {
                                 setSelectedNodeKey(usage.nodeKey);
                                 pendingFocusNodeKeyRef.current = usage.nodeKey;
                                 setFocusRequestVersion((version) => version + 1);
+                                setCrossSliceTraceExpandedKeys({});
                                 setLibrary((currentLibrary) => {
                                   const nextLibrary = selectSlice(currentLibrary, usage.sliceId);
                                   if (nextLibrary.selectedSliceId !== currentLibrary.selectedSliceId) {
@@ -1700,43 +1700,63 @@ function App() {
             )}
             {selectedNodePanelTab === 'trace' && (
               <div className="cross-slice-trace-list">
-                {selectedNodeUsesKeys.length > 0 && (
-                  <select
-                    className="cross-slice-trace-select"
-                    value={selectedTraceKey ?? ''}
-                    onChange={(event) => setSelectedTraceKey(event.target.value)}
-                  >
-                    {selectedNodeUsesKeys.map((key) => (
-                      <option key={`${selectedNodeAnalysisRef}:${key}`} value={key}>
-                        {key}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                {selectedNodeTraceResults.map((entry) => (
-                  <div key={`${selectedNodeAnalysisRef}:${entry.nodeKey}`} className="cross-slice-trace-result">
-                    {selectedNodeTraceResults.length > 1 && (
-                      <div className="cross-slice-trace-version">{entry.nodeKey}</div>
-                    )}
-                    <div className="cross-slice-trace-hops">
-                      {entry.result.hops.map((hop, index) => (
-                        <div
-                          key={`${entry.nodeKey}:${hop.nodeKey}:${hop.key}:${index}`}
-                          className={`cross-slice-trace-hop ${parsed?.nodes.get(hop.nodeKey)?.type ?? 'generic'}`}
-                          onMouseOver={() => setHoveredTraceNodeKey(hop.nodeKey)}
-                          onMouseOut={() => setHoveredTraceNodeKey((current) => (current === hop.nodeKey ? null : current))}
-                        >
-                          <span className="cross-slice-trace-hop-node">{hop.nodeKey}</span>
-                          <span className="cross-slice-trace-hop-sep">.</span>
-                          <span className="cross-slice-trace-hop-key">{hop.key}</span>
+                {selectedNodeUsesKeys.map((traceKey) => {
+                  const isExpanded = Boolean(crossSliceTraceExpandedKeys[traceKey]);
+                  const entries = selectedNodeTraceResultsByKey[traceKey] ?? [];
+                  return (
+                    <div key={`${selectedNodeAnalysisRef}:${traceKey}`} className="cross-slice-trace-key-section">
+                      <button
+                        type="button"
+                        className="cross-slice-trace-key-toggle"
+                        aria-expanded={isExpanded ? 'true' : 'false'}
+                        onClick={() =>
+                          setCrossSliceTraceExpandedKeys((current) => ({ ...current, [traceKey]: !current[traceKey] }))}
+                      >
+                        <span className="cross-slice-trace-key-toggle-icon" aria-hidden="true">
+                          <svg viewBox="0 0 12 12" width="10" height="10">
+                            <rect x="1.5" y="1.5" width="9" height="9" rx="1" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                            <path fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" d="M4 6 L8 6" />
+                            {!isExpanded && (
+                              <path fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" d="M6 4 L6 8" />
+                            )}
+                          </svg>
+                        </span>
+                        <span className="cross-slice-trace-key-toggle-label">{traceKey}</span>
+                      </button>
+                      {isExpanded && (
+                        <div className="cross-slice-trace-key-values">
+                          {entries.length === 0 && (
+                            <div className="cross-slice-trace-empty">No trace</div>
+                          )}
+                          {entries.map((entry) => (
+                            <div key={`${selectedNodeAnalysisRef}:${traceKey}:${entry.nodeKey}`} className="cross-slice-trace-result">
+                              {entries.length > 1 && (
+                                <div className="cross-slice-trace-version">{entry.nodeKey}</div>
+                              )}
+                              <div className="cross-slice-trace-hops">
+                                {entry.result.hops.map((hop, index) => (
+                                  <div
+                                    key={`${entry.nodeKey}:${hop.nodeKey}:${hop.key}:${index}`}
+                                    className={`cross-slice-trace-hop ${parsed?.nodes.get(hop.nodeKey)?.type ?? 'generic'}`}
+                                    onMouseOver={() => setHoveredTraceNodeKey(hop.nodeKey)}
+                                    onMouseOut={() => setHoveredTraceNodeKey((current) => (current === hop.nodeKey ? null : current))}
+                                  >
+                                    <span className="cross-slice-trace-hop-node">{hop.nodeKey}</span>
+                                    <span className="cross-slice-trace-hop-sep">.</span>
+                                    <span className="cross-slice-trace-hop-key">{hop.key}</span>
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="cross-slice-trace-source">
+                                source: {String(entry.result.source)}
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      )}
                     </div>
-                    <div className="cross-slice-trace-source">
-                      source: {String(entry.result.source)}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </aside>
@@ -1748,7 +1768,10 @@ function App() {
               className="command-palette-item"
               onClick={() => {
                 if (selectedNode) {
-                  setSelectedTraceKey((current) => current ?? selectedNodeUsesKeys[0] ?? null);
+                  const firstKey = selectedNodeUsesKeys[0] ?? null;
+                  if (firstKey) {
+                    setCrossSliceTraceExpandedKeys({ [firstKey]: true });
+                  }
                   setSelectedNodePanelTab('trace');
                 }
                 setCommandPaletteOpen(false);
