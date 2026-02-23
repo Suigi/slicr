@@ -255,6 +255,67 @@ describe('sliceLibrary', () => {
     expect(loaded.selectedSliceId).toBe('slice-b');
   });
 
+  it('migrates legacy maps keyword to uses and appends a text-edited event on load', () => {
+    localStorage.setItem(
+      'slicr.es.v1.index',
+      JSON.stringify({
+        sliceIds: ['slice-a']
+      })
+    );
+    localStorage.setItem(
+      'slicr.es.v1.stream.slice-a',
+      JSON.stringify([
+        {
+          id: 'e-1',
+          sliceId: 'slice-a',
+          version: 1,
+          at: '2026-01-01T00:00:01.000Z',
+          type: 'slice-created',
+          payload: { initialDsl: 'slice "Legacy"\n\nrm:legacy\nmaps:\n  alpha' }
+        }
+      ])
+    );
+
+    const loaded = loadSliceLibrary();
+    expect(loaded.slices).toEqual([{ id: 'slice-a', dsl: 'slice "Legacy"\n\nrm:legacy\nuses:\n  alpha' }]);
+
+    const events = JSON.parse(localStorage.getItem('slicr.es.v1.stream.slice-a') ?? '[]') as Array<{
+      type: string;
+      payload?: { dsl?: string };
+    }>;
+    expect(events).toHaveLength(2);
+    expect(events[1]?.type).toBe('text-edited');
+    expect(events[1]?.payload?.dsl).toContain('uses:');
+  });
+
+  it('does not append repeated migration events once maps is migrated', () => {
+    localStorage.setItem(
+      'slicr.es.v1.index',
+      JSON.stringify({
+        sliceIds: ['slice-a']
+      })
+    );
+    localStorage.setItem(
+      'slicr.es.v1.stream.slice-a',
+      JSON.stringify([
+        {
+          id: 'e-1',
+          sliceId: 'slice-a',
+          version: 1,
+          at: '2026-01-01T00:00:01.000Z',
+          type: 'slice-created',
+          payload: { initialDsl: 'slice "Legacy"\n\nrm:legacy\nmaps:\n  alpha' }
+        }
+      ])
+    );
+
+    loadSliceLibrary();
+    const afterFirstLoad = JSON.parse(localStorage.getItem('slicr.es.v1.stream.slice-a') ?? '[]') as Array<unknown>;
+    loadSliceLibrary();
+    const afterSecondLoad = JSON.parse(localStorage.getItem('slicr.es.v1.stream.slice-a') ?? '[]') as Array<unknown>;
+    expect(afterSecondLoad).toHaveLength(afterFirstLoad.length);
+  });
+
   it('prefers text from event stream over stale stored slice payloads', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,

@@ -1,6 +1,6 @@
 import { parser } from '../slicr.parser';
 import * as terms from '../slicr.parser.terms';
-import { applyMappingsToNodes, parseMapsBlocks } from './dataMapping';
+import { applyMappingsToNodes, parseUsesBlocks } from './dataMapping';
 import { validateDataIntegrity } from './dataIntegrity';
 import { Edge, NodeData, Parsed, ParseWarning, SliceBoundary, VisualNode } from './types';
 
@@ -57,8 +57,8 @@ export function parseDsl(src: string): Parsed {
   const lines = src.split('\n');
   const lineStarts = buildLineStarts(lines);
   const boundaryLines = collectBoundaryLines(lines);
-  const mapsBodyLines = collectMapsBodyLines(lines);
-  const mappingsByRef = parseMapsBlocks(src);
+  const usesBodyLines = collectUsesBodyLines(lines);
+  const mappingsByRef = parseUsesBlocks(src);
 
   const nodes = new Map<string, VisualNode>();
   const edges: Edge[] = [];
@@ -117,7 +117,7 @@ export function parseDsl(src: string): Parsed {
       }
 
       const lineIndex = getLineIndexAtPos(lineStarts, cursor.from);
-      if (mapsBodyLines.has(lineIndex)) {
+      if (usesBodyLines.has(lineIndex)) {
         continue;
       }
       edgeClauses.push({
@@ -249,11 +249,11 @@ function collectBoundaryLines(lines: string[]) {
   return boundaryLines;
 }
 
-function collectMapsBodyLines(lines: string[]) {
+function collectUsesBodyLines(lines: string[]) {
   const mapLines = new Set<number>();
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
     const line = lines[lineIndex];
-    if (!line.trim().startsWith('maps:')) {
+    if (!(line.trim().startsWith('uses:') || line.trim().startsWith('maps:'))) {
       continue;
     }
 

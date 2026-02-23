@@ -102,7 +102,7 @@ rm:pending-bookings
   {
     id: 'data',
     title: 'Data and mappings',
-    description: 'Declare node-local data and pull values from direct predecessors with maps blocks.',
+    description: 'Declare node-local data and pull values from direct predecessors with uses blocks.',
     features: [
       {
         id: 'node-data',
@@ -121,8 +121,8 @@ data:
   customer-id: C_400`
       },
       {
-        id: 'maps-from-predecessors',
-        title: 'maps: from predecessor data',
+        id: 'uses-from-predecessors',
+        title: 'uses: from predecessor data',
         description: 'Map keys from direct predecessor nodes into the current node.',
         dsl: `slice "Maps from Predecessors"
 
@@ -137,7 +137,7 @@ data:
 cmd:book-room
 <- evt:room-selected
 <- evt:customer-selected
-maps:
+uses:
   room-number
   customer <- customer-id`
       }

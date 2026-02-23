@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { parseDsl } from './parseDsl';
 
-describe('maps block DSL (spec)', () => {
-  it('maps alpha and bravo into a read model from two predecessor events', () => {
+describe('uses block DSL (spec)', () => {
+  it('uses alpha and bravo in a read model from two predecessor events', () => {
     const dsl = `slice "Mapped RM"
 
 evt:alpha-updated
@@ -16,7 +16,7 @@ data:
 rm:combined-view
 <- evt:alpha-updated
 <- evt:bravo-updated
-maps:
+uses:
   alpha
   bravo <- bravo`;
 
@@ -27,7 +27,7 @@ maps:
     });
   });
 
-  it.skip('maps selected concert id for cmd:buy-tickets from rm:available-concerts', () => {
+  it.skip('uses selected concert id for cmd:buy-tickets from rm:available-concerts', () => {
     const dsl = `slice "Buy Tickets"
 
 rm:available-concerts
@@ -40,7 +40,7 @@ data:
 
 cmd:buy-tickets
 <- rm:available-concerts
-maps:
+uses:
   concert-id <- concerts[?selected=true].id`;
 
     const parsed = parseDsl(dsl);

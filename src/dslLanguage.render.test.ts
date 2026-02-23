@@ -12,7 +12,7 @@ ui:the-screen@2 <- rm:the-read-model@1, evt:the-event
 cmd:the-command <- ui:the-screen@2
 evt:the-event <- cmd:the-command
 rm:the-read-model@1
-  maps:
+  uses:
     alpha`;
 
 let view: EditorView | null = null;
@@ -41,7 +41,7 @@ describe('DSL language rendering', () => {
     expect(content?.textContent).toContain('cmd:the-command');
     expect(content?.textContent).toContain('evt:the-event <- cmd:the-command');
     expect(content?.textContent).toContain('rm:the-read-model@1');
-    expect(content?.textContent).toContain('maps:');
+    expect(content?.textContent).toContain('uses:');
     expect(content?.textContent).toContain('ui:the-screen@2 <- rm:the-read-model@1, evt:the-event');
     expect(content?.textContent).toContain('"screen": "main"');
 
@@ -76,6 +76,6 @@ describe('DSL language rendering', () => {
     expect(stringToken?.textContent?.trim()).toBe('"Test Slice"');
     expect(operatorToken?.textContent?.trim()).toBe('<-');
     expect(punctuationTokens.some((token) => token.textContent?.trim() === '@')).toBe(true);
-    expect(keywordTokens.some((token) => token.textContent?.trim() === 'maps')).toBe(true);
+    expect(keywordTokens.some((token) => token.textContent?.trim() === 'uses')).toBe(true);
   });
 });

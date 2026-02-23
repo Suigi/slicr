@@ -432,6 +432,42 @@ function deriveSelectedSliceId(sliceIds: string[]): string | null {
   return deriveSelectedSliceIdFromLegacySliceEvents(sliceIds);
 }
 
+function migrateMapsDslToUses(dsl: string): string {
+  return dsl.replace(/^(\s*)maps:(\s*)$/gm, '$1uses:$2');
+}
+
+function migrateSliceMapsKeyword(slice: StoredSlice): StoredSlice {
+  const migratedDsl = migrateMapsDslToUses(slice.dsl);
+  if (migratedDsl === slice.dsl) {
+    return slice;
+  }
+
+  appendSliceEvent(slice.id, {
+    type: 'text-edited',
+    payload: { dsl: migratedDsl }
+  });
+  return { ...slice, dsl: migratedDsl };
+}
+
+function migrateLibraryMapsKeyword(library: SliceLibrary): SliceLibrary {
+  let didChange = false;
+  const slices = library.slices.map((slice) => {
+    const migrated = migrateSliceMapsKeyword(slice);
+    if (migrated !== slice) {
+      didChange = true;
+    }
+    return migrated;
+  });
+
+  if (!didChange) {
+    return library;
+  }
+  return {
+    ...library,
+    slices
+  };
+}
+
 function writeEventIndex(sliceIds: string[]): void {
   localStorage.setItem(
     SLICES_EVENT_INDEX_STORAGE_KEY,
@@ -513,7 +549,7 @@ export function createInitialLibrary(defaultDsl = DEFAULT_DSL): SliceLibrary {
 export function loadSliceLibrary(defaultDsl = DEFAULT_DSL): SliceLibrary {
   const eventLibrary = loadSliceLibraryFromEventIndex();
   if (eventLibrary) {
-    return eventLibrary;
+    return migrateLibraryMapsKeyword(eventLibrary);
   }
 
   try {
@@ -524,7 +560,7 @@ export function loadSliceLibrary(defaultDsl = DEFAULT_DSL): SliceLibrary {
         migrateLegacyLibraryToEvents(parsed);
         const migrated = loadSliceLibraryFromEventIndex();
         if (migrated) {
-          return migrated;
+          return migrateLibraryMapsKeyword(migrated);
         }
       }
     }
@@ -539,7 +575,7 @@ export function loadSliceLibrary(defaultDsl = DEFAULT_DSL): SliceLibrary {
       migrateLegacyLibraryToEvents(migrated);
       const fromEvents = loadSliceLibraryFromEventIndex();
       if (fromEvents) {
-        return fromEvents;
+        return migrateLibraryMapsKeyword(fromEvents);
       }
       return migrated;
     }

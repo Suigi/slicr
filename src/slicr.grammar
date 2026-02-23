@@ -7,7 +7,7 @@ Statement {
   BoundaryStatement |
   StreamStatement |
   DataStatement |
-  MapsStatement
+  UsesStatement
 }
 
 SliceStatement {
@@ -62,8 +62,8 @@ StreamStatement {
   kw<"stream"> Colon (Identifier | String)
 }
 
-MapsStatement {
-  kw<"maps"> Colon
+UsesStatement {
+  kw<"uses"> Colon
 }
 
 @tokens {

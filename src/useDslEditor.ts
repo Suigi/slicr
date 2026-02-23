@@ -789,7 +789,7 @@ export function useDslEditor({
     const effects: StateEffect<unknown>[] = [];
     for (let lineNumber = 1; lineNumber <= editorView.state.doc.lines; lineNumber++) {
       const line = editorView.state.doc.line(lineNumber);
-      if (!/^\s*(data|maps):\s*$/.test(line.text)) {
+      if (!/^\s*(data|uses|maps):\s*$/.test(line.text)) {
         continue;
       }
 

@@ -539,7 +539,7 @@ data:
 slice "Harness"
 
 evt:room-booked "Room Booked" <- cmd:book-room
-  maps:
+  uses:
     room-number
     customer-id
 

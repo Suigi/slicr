@@ -251,7 +251,7 @@ data:
     ]);
   });
 
-  it('applies maps block values into node data', () => {
+  it('applies uses block values into node data', () => {
     const input = `slice "Mapped RM"
 
 evt:alpha-updated
@@ -265,7 +265,7 @@ data:
 rm:combined-view
 <- evt:alpha-updated
 <- evt:bravo-updated
-maps:
+uses:
   alpha
   bravo <- bravo`;
 
@@ -286,7 +286,7 @@ data:
 
 cmd:my-cmd
 <- ui:my-ui
-maps:
+uses:
   alpha
   bravo <- bravo`;
 
@@ -318,7 +318,7 @@ rm:combined-view
 <- evt:alpha-updated
 data:
   alpha: from-data
-maps:
+uses:
   alpha`;
 
     const parsed = parseDsl(input);
@@ -328,7 +328,7 @@ maps:
     expect(parsed.nodes.get('combined-view')?.mappedDataKeys).toBeUndefined();
   });
 
-  it('warns when a key is declared in both data and maps', () => {
+  it('warns when a key is declared in both data and uses', () => {
     const input = `slice "Mapped Duplicate Key"
 
 evt:alpha-updated
@@ -339,16 +339,16 @@ rm:combined-view
 <- evt:alpha-updated
 data:
   alpha: from-data
-maps:
+uses:
   alpha`;
 
     const parsed = parseDsl(input);
     expect(parsed.warnings.map((warning) => warning.message)).toContain(
-      'Duplicate data key "alpha" in node rm:combined-view (declared in both data and maps)'
+      'Duplicate data key "alpha" in node rm:combined-view (declared in both data and uses)'
     );
   });
 
-  it('does not treat maps lines as generic dependency edges', () => {
+  it('does not treat uses lines as generic dependency edges', () => {
     const input = `slice "Read Model from Two Events"
 
 evt:alpha-updated "Alpha Updated"
@@ -364,7 +364,7 @@ rm:combined-view "Combined View"
 <- evt:bravo-updated
 data:
   charlie: blub
-maps:
+uses:
   alpha
   bravo <- bravo
   charlie`;

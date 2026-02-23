@@ -400,7 +400,7 @@ data:
 
 cmd:my-cmd
 <- ui:my-ui
-maps:
+uses:
   alpha
   bravo <- bravo`
         }]
@@ -418,7 +418,7 @@ maps:
     expect(mappedField?.classList.contains('mapped')).toBe(true);
   });
 
-  it('applies mapped styling only to fields coming from maps', () => {
+  it('applies mapped styling only to fields coming from uses', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -435,7 +435,7 @@ cmd:target
 <- ui:source
 data:
   local: from-data
-maps:
+uses:
   alpha`
         }]
       })
@@ -450,7 +450,7 @@ maps:
     expect(mapped[0]?.textContent).not.toContain('local:');
   });
 
-  it('does not crash when warnings arrive out of order while typing malformed maps/data blocks', () => {
+  it('does not crash when warnings arrive out of order while typing malformed uses/data blocks', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -471,7 +471,7 @@ rm:combined-view "Combined View"
 <- evt:alpha-updated
 <- evt:bravo-updated
 d
-maps:
+uses:
   alpha
   bravo <- bravo
   charlie`

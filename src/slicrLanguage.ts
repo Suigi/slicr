@@ -82,7 +82,7 @@ export const slicrLanguage = LRLanguage.define({
       styleTags({
         "slice": t.keyword,
         "data": t.keyword,
-        "maps": t.keyword,
+        "uses": t.keyword,
         "stream": t.keyword,
         "rmType": t.tagName,
         "uiType": t.modifier,

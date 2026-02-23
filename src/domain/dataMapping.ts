@@ -8,7 +8,7 @@ export type MappingEntry = {
 
 export const MISSING_DATA_VALUE = '<missing>';
 
-export function parseMapsBlocks(dsl: string): Map<string, MappingEntry[]> {
+export function parseUsesBlocks(dsl: string): Map<string, MappingEntry[]> {
   const lines = dsl.split('\n');
   const lineStarts = buildLineStarts(lines);
   const result = new Map<string, MappingEntry[]>();
@@ -22,7 +22,7 @@ export function parseMapsBlocks(dsl: string): Map<string, MappingEntry[]> {
     }
 
     const trimmed = line.trim();
-    if (!currentNodeRef || !trimmed.startsWith('maps:')) {
+    if (!currentNodeRef || !(trimmed.startsWith('uses:') || trimmed.startsWith('maps:'))) {
       continue;
     }
 
@@ -73,7 +73,7 @@ export function applyMappingsToNodes(input: {
     for (const mapping of mappings) {
       if (mapping.targetKey in baseData) {
         warnings.push({
-          message: `Duplicate data key "${mapping.targetKey}" in node ${targetRef} (declared in both data and maps)`,
+          message: `Duplicate data key "${mapping.targetKey}" in node ${targetRef} (declared in both data and uses)`,
           range: mapping.range,
           level: 'warning'
         });
