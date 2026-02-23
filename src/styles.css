@@ -1087,13 +1087,40 @@ header h1 {
   gap: 8px;
 }
 
+.cross-slice-usage-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cross-slice-usage-group-title {
+  color: var(--fg);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  opacity: 0.85;
+}
+
+.cross-slice-usage-group-items {
+  display: flex;
+  flex-direction: column;
+}
+
+.cross-slice-usage-group-frame {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .cross-slice-usage-item {
   appearance: none;
   width: 100%;
   background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 8px;
+  border: none;
+  border-radius: 0;
+  padding: 0;
   display: flex;
   justify-content: space-between;
   gap: 8px;

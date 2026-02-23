@@ -566,6 +566,34 @@ function App() {
     });
   }, [crossSliceUsage, library.slices]);
 
+  const crossSliceUsageGroups = useMemo(() => {
+    const grouped = new Map<string, { sliceId: string; sliceName: string; entries: typeof crossSliceUsageEntries }>();
+    for (const entry of crossSliceUsageEntries) {
+      const existing = grouped.get(entry.usage.sliceId);
+      if (existing) {
+        existing.entries.push(entry);
+        continue;
+      }
+      grouped.set(entry.usage.sliceId, {
+        sliceId: entry.usage.sliceId,
+        sliceName: entry.sliceName,
+        entries: [entry]
+      });
+    }
+    return [...grouped.values()]
+      .map((group) => ({
+        ...group,
+        entries: [...group.entries].sort((left, right) => left.usage.nodeKey.localeCompare(right.usage.nodeKey))
+      }))
+      .sort((left, right) => {
+        const byName = left.sliceName.localeCompare(right.sliceName);
+        if (byName !== 0) {
+          return byName;
+        }
+        return left.sliceId.localeCompare(right.sliceId);
+      });
+  }, [crossSliceUsageEntries]);
+
   const hoveredEdgeNodeKeys = useMemo(() => {
     if (!hoveredEdgeKey) {
       return new Set<string>();
@@ -1521,46 +1549,54 @@ function App() {
             <div className="cross-slice-usage-node">{selectedNodeAnalysisRef}</div>
             {selectedNodePanelTab === 'usage' && (
               <div className="cross-slice-usage-list">
-                {crossSliceUsageEntries.map(({ usage, sliceName, node }) => {
-                  const nodeType = node?.type ?? '';
-                  const nodePrefix = TYPE_LABEL[nodeType] ?? nodeType;
-                  return (
-                    <button
-                      key={`${usage.sliceId}:${usage.nodeKey}`}
-                      type="button"
-                      className="cross-slice-usage-item"
-                      data-slice-id={usage.sliceId}
-                      onClick={() => {
-                        setSelectedNodeKey(usage.nodeKey);
-                        pendingFocusNodeKeyRef.current = usage.nodeKey;
-                        setFocusRequestVersion((version) => version + 1);
-                        setLibrary((currentLibrary) => {
-                          const nextLibrary = selectSlice(currentLibrary, usage.sliceId);
-                          if (nextLibrary.selectedSliceId !== currentLibrary.selectedSliceId) {
-                            applySelectedSliceOverrides(nextLibrary.selectedSliceId);
-                          }
-                          return nextLibrary;
-                        });
-                      }}
-                    >
-                      <span className="cross-slice-usage-slice">{sliceName}</span>
-                      <NodeCard
-                        node={node ?? {
-                          type: 'generic',
-                          name: usage.nodeKey,
-                          alias: null,
-                          stream: null,
-                          key: usage.nodeKey,
-                          data: null,
-                          srcRange: { from: 0, to: 0 }
-                        }}
-                        nodePrefix={nodePrefix}
-                        className="cross-slice-usage-node-card"
-                        maxFields={2}
-                      />
-                    </button>
-                  );
-                })}
+                {crossSliceUsageGroups.map((group) => (
+                  <section key={group.sliceId} className="cross-slice-usage-group">
+                    <div className="cross-slice-usage-group-title">{group.sliceName}</div>
+                    <div className="cross-slice-usage-group-items">
+                      <div className="cross-slice-usage-group-frame">
+                        {group.entries.map(({ usage, node }) => {
+                          const nodeType = node?.type ?? '';
+                          const nodePrefix = TYPE_LABEL[nodeType] ?? nodeType;
+                          return (
+                            <button
+                              key={`${usage.sliceId}:${usage.nodeKey}`}
+                              type="button"
+                              className="cross-slice-usage-item"
+                              data-slice-id={usage.sliceId}
+                              onClick={() => {
+                                setSelectedNodeKey(usage.nodeKey);
+                                pendingFocusNodeKeyRef.current = usage.nodeKey;
+                                setFocusRequestVersion((version) => version + 1);
+                                setLibrary((currentLibrary) => {
+                                  const nextLibrary = selectSlice(currentLibrary, usage.sliceId);
+                                  if (nextLibrary.selectedSliceId !== currentLibrary.selectedSliceId) {
+                                    applySelectedSliceOverrides(nextLibrary.selectedSliceId);
+                                  }
+                                  return nextLibrary;
+                                });
+                              }}
+                            >
+                              <NodeCard
+                                node={node ?? {
+                                  type: 'generic',
+                                  name: usage.nodeKey,
+                                  alias: null,
+                                  stream: null,
+                                  key: usage.nodeKey,
+                                  data: null,
+                                  srcRange: { from: 0, to: 0 }
+                                }}
+                                nodePrefix={nodePrefix}
+                                className="cross-slice-usage-node-card"
+                                maxFields={2}
+                              />
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </section>
+                ))}
               </div>
             )}
             {selectedNodePanelTab === 'crossSliceData' && (

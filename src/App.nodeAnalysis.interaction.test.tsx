@@ -112,6 +112,45 @@ describe('App node analysis interactions', () => {
     expect(document.querySelector('.cross-slice-usage-item .node .node-header')).not.toBeNull();
   });
 
+  it('groups Cross-Slice Usage entries by slice', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [
+          {
+            id: 'a',
+            dsl: 'slice "Alpha"\n\ncmd:buy@1 "Buy A1"\n\ncmd:buy@2 "Buy A2"\n'
+          },
+          {
+            id: 'b',
+            dsl: 'slice "Beta"\n\ncmd:buy@3 "Buy B1"\n'
+          }
+        ]
+      })
+    );
+
+    renderApp();
+
+    const node = document.querySelector('.node.cmd') as HTMLElement | null;
+    expect(node).not.toBeNull();
+    act(() => {
+      node?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const groups = [...document.querySelectorAll('.cross-slice-usage-group')];
+    expect(groups).toHaveLength(2);
+    expect(groups.map((group) => group.querySelector('.cross-slice-usage-group-title')?.textContent?.trim())).toEqual([
+      'Alpha',
+      'Beta'
+    ]);
+
+    expect(groups[0]?.querySelectorAll('.cross-slice-usage-group-frame')).toHaveLength(1);
+    expect(groups[1]?.querySelectorAll('.cross-slice-usage-group-frame')).toHaveLength(1);
+    expect(groups[0]?.querySelectorAll('.cross-slice-usage-item')).toHaveLength(2);
+    expect(groups[1]?.querySelectorAll('.cross-slice-usage-item')).toHaveLength(1);
+  });
+
   it('shows each node version as its own usage entry with alias', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
