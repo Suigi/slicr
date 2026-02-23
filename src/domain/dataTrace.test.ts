@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { traceData } from './dataTrace';
+import { createDataTraceQuery, traceData } from './dataTrace';
 import { parseDsl } from './parseDsl';
 import { VisualNode } from './types';
 
@@ -76,6 +76,28 @@ uses:
       usesKey: 'alpha',
       hops: [{ nodeKey: 'direct', key: 'alpha' }],
       source: 'direct'
+    });
+  });
+
+  it('exposes traceData(nodeId, usesKey) query API', () => {
+    const dsl = `slice "Query"
+
+evt:seed "Seed"
+data:
+  alpha: "a"
+
+cmd:consume "Consume"
+<- evt:seed
+uses:
+  alpha
+`;
+
+    const parsed = parseDsl(dsl);
+    const query = createDataTraceQuery({ dsl, nodes: parsed.nodes, edges: parsed.edges });
+    expect(query.traceData('consume', 'alpha')).toEqual({
+      usesKey: 'alpha',
+      hops: [{ nodeKey: 'seed', key: 'alpha' }],
+      source: 'a'
     });
   });
 });

@@ -9,6 +9,10 @@ type TraceInput = {
   maxDepth?: number;
 };
 
+export type DataTraceQuery = {
+  traceData: (nodeId: string, usesKey: string) => DataTraceResult | null;
+};
+
 export type DataTraceHop = {
   nodeKey: string;
   key: string;
@@ -79,6 +83,14 @@ export function traceData(input: TraceInput, nodeKey: string, usesKey: string): 
     usesKey,
     hops,
     source: null
+  };
+}
+
+export function createDataTraceQuery(input: TraceInput): DataTraceQuery {
+  return {
+    traceData(nodeId: string, usesKey: string) {
+      return traceData(input, nodeId, usesKey);
+    }
   };
 }
 
