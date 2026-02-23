@@ -337,7 +337,7 @@ describe('App node analysis interactions', () => {
     expect(values).toEqual(['Alpha: 1', 'Beta: 2']);
   });
 
-  it('updates Cross-Slice Data and resets expanded state when selected node changes', () => {
+  it('keeps Cross-Slice Data expansion state when selected node changes', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -345,7 +345,7 @@ describe('App node analysis interactions', () => {
         slices: [
           {
             id: 'a',
-            dsl: 'slice "Alpha"\n\ncmd:buy\ndata:\n  alpha: 1\n\ncmd:sell\ndata:\n  beta: 2\n'
+            dsl: 'slice "Alpha"\n\ncmd:buy\ndata:\n  alpha: 1\n\ncmd:sell\ndata:\n  alpha: 2\n'
           }
         ]
       })
@@ -384,8 +384,47 @@ describe('App node analysis interactions', () => {
     });
 
     const keyButtons = [...document.querySelectorAll('.cross-slice-data-key-toggle')];
-    expect(keyButtons.map((el) => el.textContent?.trim())).toEqual(['beta']);
-    expect(keyButtons[0]?.getAttribute('aria-expanded')).toBe('false');
+    expect(keyButtons.map((el) => el.textContent?.trim())).toEqual(['alpha']);
+    expect(keyButtons[0]?.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('keeps the selected node panel tab when switching nodes', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [
+          {
+            id: 'a',
+            dsl: 'slice "Alpha"\n\nevt:seed "Seed"\ndata:\n  alpha: "a"\n\ncmd:buy "Buy"\n<- evt:seed\nuses:\n  alpha\n\ncmd:sell "Sell"\n<- evt:seed\nuses:\n  alpha\n'
+          }
+        ]
+      })
+    );
+
+    renderApp();
+    const buyNode = [...document.querySelectorAll('.node.cmd')]
+      .find((el) => el.querySelector('.node-title')?.textContent?.trim() === 'Buy') as HTMLElement | undefined;
+    const sellNode = [...document.querySelectorAll('.node.cmd')]
+      .find((el) => el.querySelector('.node-title')?.textContent?.trim() === 'Sell') as HTMLElement | undefined;
+    expect(buyNode).toBeDefined();
+    expect(sellNode).toBeDefined();
+
+    act(() => {
+      buyNode?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    const traceTab = [...document.querySelectorAll('.cross-slice-panel-tab')]
+      .find((button) => button.textContent?.trim() === 'Data Trace') as HTMLButtonElement | undefined;
+    expect(traceTab).toBeDefined();
+    act(() => {
+      traceTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    act(() => {
+      sellNode?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(document.querySelector('.cross-slice-panel-tab.active')?.textContent?.trim()).toBe('Data Trace');
   });
 
   it('renders collapsible key headers and value rows with expected classes', () => {

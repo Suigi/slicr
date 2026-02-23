@@ -1420,9 +1420,6 @@ function App() {
                       onClick={(e) => {
                         e.stopPropagation();
                         setSelectedNodeKey(node.key);
-                        setSelectedNodePanelTab('usage');
-                        setCrossSliceTraceExpandedKeys({});
-                        setCrossSliceDataExpandedKeys({});
                       }}
                       onPointerDown={(event) => beginNodeDrag(event, node.key)}
                     />
@@ -1572,7 +1569,6 @@ function App() {
                                 setSelectedNodeKey(usage.nodeKey);
                                 pendingFocusNodeKeyRef.current = usage.nodeKey;
                                 setFocusRequestVersion((version) => version + 1);
-                                setCrossSliceTraceExpandedKeys({});
                                 setLibrary((currentLibrary) => {
                                   const nextLibrary = selectSlice(currentLibrary, usage.sliceId);
                                   if (nextLibrary.selectedSliceId !== currentLibrary.selectedSliceId) {
