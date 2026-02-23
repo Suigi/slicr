@@ -202,4 +202,34 @@ uses:
       'Duplicate data key "rooms" in node rm:available-rooms (declared in both data and uses)'
     );
   });
+
+  it('supports JSONPath entries inside collect using starts-with-$ logic', () => {
+    const dsl = `slice "Available Rooms"
+
+evt:room-opened@1
+data:
+  room:
+    id: r-101
+  capacity: 2
+
+evt:room-opened@2
+data:
+  room:
+    id: r-102
+  capacity: 4
+
+rm:available-rooms
+<- evt:room-opened@1
+<- evt:room-opened@2
+uses:
+  rooms <- collect({ $.room.id, capacity })`;
+
+    const parsed = parseDsl(dsl);
+    expect(parsed.nodes.get('available-rooms')?.data).toEqual({
+      rooms: [
+        { id: 'r-101', capacity: 2 },
+        { id: 'r-102', capacity: 4 }
+      ]
+    });
+  });
 });
