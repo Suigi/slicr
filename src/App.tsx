@@ -1541,6 +1541,21 @@ function App() {
                     >
                       {key}
                     </button>
+                    {crossSliceDataExpandedKeys[key] && (
+                      <div className="cross-slice-data-values">
+                        {(selectedNodeCrossSliceData.byKey[key] ?? []).length === 0 && (
+                          <div className="cross-slice-data-empty">No values</div>
+                        )}
+                        {(selectedNodeCrossSliceData.byKey[key] ?? []).map((valueEntry) => (
+                          <div
+                            key={`${selectedNode.key}:${key}:${valueEntry.sliceId}`}
+                            className="cross-slice-data-value-item"
+                          >
+                            {valueEntry.sliceName}: {String(valueEntry.value)}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

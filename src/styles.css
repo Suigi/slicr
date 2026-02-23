@@ -1135,6 +1135,26 @@ header h1 {
   cursor: pointer;
 }
 
+.cross-slice-data-values {
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+}
+
+.cross-slice-data-value-item {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.cross-slice-data-empty {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+}
+
 .cross-slice-issues-list {
   display: flex;
   flex-direction: column;
