@@ -540,9 +540,9 @@ uses:
       node?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    const panelTitle = [...document.querySelectorAll('.cross-slice-usage-panel h3')]
+    const usageTab = [...document.querySelectorAll('.cross-slice-panel-tab')]
       .find((el) => el.textContent?.trim() === 'Cross-Slice Usage');
-    expect(panelTitle).toBeDefined();
+    expect(usageTab).toBeDefined();
     expect(document.querySelectorAll('.cross-slice-usage-item').length).toBe(2);
   });
 
@@ -574,6 +574,36 @@ uses:
 
     expect(document.querySelector('.slice-title')?.textContent?.trim()).toBe('Beta');
     expect(document.querySelector('.node.selected .node-title')?.textContent?.trim()).toBe('Buy Again');
+  });
+
+  it('shows selected node issues in the Issues tab', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [
+          { id: 'a', dsl: 'slice "Alpha"\n\ncmd:buy "Buy"\nuses:\n  concertId\n' }
+        ]
+      })
+    );
+
+    renderApp();
+
+    const sourceNode = document.querySelector('.node.cmd') as HTMLElement | null;
+    expect(sourceNode).not.toBeNull();
+    act(() => {
+      sourceNode?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const issuesTab = [...document.querySelectorAll('.cross-slice-panel-tab')]
+      .find((button) => button.textContent?.trim() === 'Issues') as HTMLButtonElement | undefined;
+    expect(issuesTab).toBeDefined();
+    act(() => {
+      issuesTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const issueCode = document.querySelector('.cross-slice-issue-code');
+    expect(issueCode?.textContent?.trim()).toBe('missing-source');
   });
 
   it('highlights both connected nodes when hovering an edge', () => {

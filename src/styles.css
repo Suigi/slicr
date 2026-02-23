@@ -1051,6 +1051,30 @@ header h1 {
   letter-spacing: 0.06em;
 }
 
+.cross-slice-panel-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cross-slice-panel-tab {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  text-align: left;
+  padding: 6px 8px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.cross-slice-panel-tab.active {
+  color: var(--fg);
+  border-color: var(--fg);
+}
+
 .cross-slice-usage-node {
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
@@ -1084,6 +1108,37 @@ header h1 {
 }
 
 .cross-slice-usage-ref {
+  color: var(--muted);
+}
+
+.cross-slice-issues-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cross-slice-issues-empty {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.cross-slice-issue-item {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  justify-content: space-between;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  gap: 8px;
+}
+
+.cross-slice-issue-code {
+  color: var(--exc);
+}
+
+.cross-slice-issue-key {
   color: var(--muted);
 }
 

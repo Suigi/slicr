@@ -17,6 +17,7 @@ import {parseDsl} from './domain/parseDsl';
 import {isDragAndDropEnabled, shouldShowDevDiagramControls} from './domain/runtimeFlags';
 import {getRelatedElements} from './domain/traversal';
 import { createCrossSliceUsageQuery } from './domain/crossSliceUsage';
+import { collectDataIssues } from './domain/dataIssues';
 import { measureNodeHeights, NODE_MEASURE_NODE_CLASS } from './nodeMeasurement';
 import type {Parsed, Position} from './domain/types';
 import {
@@ -106,6 +107,7 @@ function App() {
   const [sliceMenuOpen, setSliceMenuOpen] = useState(false);
   const [routeMenuOpen, setRouteMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [selectedNodePanelTab, setSelectedNodePanelTab] = useState<'usage' | 'issues'>('usage');
   const [manualNodePositions, setManualNodePositions] = useState<Record<string, { x: number; y: number }>>(
     initialSnapshot.overrides.nodes
   );
@@ -455,6 +457,25 @@ function App() {
     const query = createCrossSliceUsageQuery(library.slices.map((slice) => ({ id: slice.id, dsl: slice.dsl })));
     return query.getCrossSliceUsage(toNodeRef(selectedNode));
   }, [library.slices, selectedNode]);
+
+  const dataIssues = useMemo(() => {
+    if (!parsed) {
+      return [];
+    }
+    return collectDataIssues({
+      dsl: currentDsl,
+      nodes: parsed.nodes,
+      edges: parsed.edges,
+      sliceId: library.selectedSliceId
+    });
+  }, [currentDsl, library.selectedSliceId, parsed]);
+
+  const selectedNodeIssues = useMemo(() => {
+    if (!selectedNode) {
+      return [];
+    }
+    return dataIssues.filter((issue) => issue.nodeKey === selectedNode.key);
+  }, [dataIssues, selectedNode]);
 
   const hoveredEdgeNodeKeys = useMemo(() => {
     if (!hoveredEdgeKey) {
@@ -1264,6 +1285,7 @@ function App() {
                       onClick={(e) => {
                         e.stopPropagation();
                         setSelectedNodeKey(node.key);
+                        setSelectedNodePanelTab('usage');
                       }}
                       onPointerDown={(event) => beginNodeDrag(event, node.key)}
                     >
@@ -1381,37 +1403,71 @@ function App() {
         </div>
         {selectedNode && (
           <aside className="cross-slice-usage-panel" aria-label="Cross-Slice Usage">
-            <h3>Cross-Slice Usage</h3>
-            <div className="cross-slice-usage-node">{toNodeRef(selectedNode)}</div>
-            <div className="cross-slice-usage-list">
-              {crossSliceUsage.map((usage) => {
-                const slice = library.slices.find((item) => item.id === usage.sliceId);
-                const sliceName = slice ? getSliceNameFromDsl(slice.dsl) : usage.sliceId;
-                return (
-                  <button
-                    key={`${usage.sliceId}:${usage.nodeKey}`}
-                    type="button"
-                    className="cross-slice-usage-item"
-                    data-slice-id={usage.sliceId}
-                    onClick={() => {
-                      setSelectedNodeKey(usage.nodeKey);
-                      pendingFocusNodeKeyRef.current = usage.nodeKey;
-                      setFocusRequestVersion((version) => version + 1);
-                      setLibrary((currentLibrary) => {
-                        const nextLibrary = selectSlice(currentLibrary, usage.sliceId);
-                        if (nextLibrary.selectedSliceId !== currentLibrary.selectedSliceId) {
-                          applySelectedSliceOverrides(nextLibrary.selectedSliceId);
-                        }
-                        return nextLibrary;
-                      });
-                    }}
-                  >
-                    <span className="cross-slice-usage-slice">{sliceName}</span>
-                    <span className="cross-slice-usage-ref">{usage.nodeKey}</span>
-                  </button>
-                );
-              })}
+            <div className="cross-slice-panel-tabs" role="tablist" aria-label="Node panel tabs">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={selectedNodePanelTab === 'usage'}
+                className={`cross-slice-panel-tab ${selectedNodePanelTab === 'usage' ? 'active' : ''}`}
+                onClick={() => setSelectedNodePanelTab('usage')}
+              >
+                Cross-Slice Usage
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={selectedNodePanelTab === 'issues'}
+                className={`cross-slice-panel-tab ${selectedNodePanelTab === 'issues' ? 'active' : ''}`}
+                onClick={() => setSelectedNodePanelTab('issues')}
+              >
+                Issues
+              </button>
             </div>
+            <div className="cross-slice-usage-node">{toNodeRef(selectedNode)}</div>
+            {selectedNodePanelTab === 'usage' && (
+              <div className="cross-slice-usage-list">
+                {crossSliceUsage.map((usage) => {
+                  const slice = library.slices.find((item) => item.id === usage.sliceId);
+                  const sliceName = slice ? getSliceNameFromDsl(slice.dsl) : usage.sliceId;
+                  return (
+                    <button
+                      key={`${usage.sliceId}:${usage.nodeKey}`}
+                      type="button"
+                      className="cross-slice-usage-item"
+                      data-slice-id={usage.sliceId}
+                      onClick={() => {
+                        setSelectedNodeKey(usage.nodeKey);
+                        pendingFocusNodeKeyRef.current = usage.nodeKey;
+                        setFocusRequestVersion((version) => version + 1);
+                        setLibrary((currentLibrary) => {
+                          const nextLibrary = selectSlice(currentLibrary, usage.sliceId);
+                          if (nextLibrary.selectedSliceId !== currentLibrary.selectedSliceId) {
+                            applySelectedSliceOverrides(nextLibrary.selectedSliceId);
+                          }
+                          return nextLibrary;
+                        });
+                      }}
+                    >
+                      <span className="cross-slice-usage-slice">{sliceName}</span>
+                      <span className="cross-slice-usage-ref">{usage.nodeKey}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {selectedNodePanelTab === 'issues' && (
+              <div className="cross-slice-issues-list">
+                {selectedNodeIssues.length === 0 && (
+                  <div className="cross-slice-issues-empty">No issues</div>
+                )}
+                {selectedNodeIssues.map((issue) => (
+                  <div key={`${issue.code}:${issue.key}:${issue.range.from}`} className="cross-slice-issue-item">
+                    <div className="cross-slice-issue-code">{issue.code}</div>
+                    <div className="cross-slice-issue-key">{issue.key}</div>
+                  </div>
+                ))}
+              </div>
+            )}
           </aside>
         )}
         {(hasOpenedDocs || docsOpen) && (
