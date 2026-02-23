@@ -21,4 +21,33 @@ uses:
       })
     ]);
   });
+
+  it('reports ambiguous source collisions for uses keys', () => {
+    const dsl = `slice "Ambiguous"
+
+evt:one "One"
+data:
+  alpha: "one"
+
+evt:two "Two"
+data:
+  alpha: "two"
+
+cmd:consume "Consume"
+<- evt:one
+<- evt:two
+uses:
+  alpha
+`;
+
+    const parsed = parseDsl(dsl);
+    const issues = collectDataIssues({ dsl, nodes: parsed.nodes, edges: parsed.edges });
+    expect(issues).toEqual([
+      expect.objectContaining({
+        code: 'ambiguous-source',
+        nodeKey: 'consume',
+        key: 'alpha'
+      })
+    ]);
+  });
 });

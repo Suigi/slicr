@@ -32,6 +32,21 @@ export function collectDataIssues(input: IssueInput): DataIssue[] {
       continue;
     }
     for (const mapping of mappings) {
+      const ambiguousCandidates = input.edges
+        .filter((edge) => edge.to === node.key)
+        .map((edge) => input.nodes.get(edge.from))
+        .filter((candidate): candidate is VisualNode => Boolean(candidate))
+        .filter((candidate) => getPathValue(candidate.data, mapping.sourcePath) !== undefined);
+      if (ambiguousCandidates.length > 1) {
+        issues.push({
+          code: 'ambiguous-source',
+          severity: 'warning',
+          nodeKey: node.key,
+          key: mapping.targetKey,
+          range: mapping.range
+        });
+      }
+
       const traced = traceData(input, node.key, mapping.targetKey);
       if (traced?.source !== null) {
         continue;
@@ -47,4 +62,22 @@ export function collectDataIssues(input: IssueInput): DataIssue[] {
   }
 
   return issues;
+}
+
+function getPathValue(data: unknown, path: string): unknown {
+  if (!data || typeof data !== 'object') {
+    return undefined;
+  }
+  const segments = path.split('.').filter(Boolean);
+  let current: unknown = data;
+  for (const segment of segments) {
+    if (!current || typeof current !== 'object') {
+      return undefined;
+    }
+    if (!(segment in current)) {
+      return undefined;
+    }
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return current;
 }
