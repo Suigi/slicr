@@ -12,6 +12,8 @@
   [ ] zoom (somehow)
 [ ] documentation tab
 [ ] generate code stubs from model
+  [ ] thymeleaf view (from `ui` nodes)
+  [ ] spring boot controller form data (from `cmd` nodes)
 [ ] select multiple nodes
 [ ] autocomplete for node names without node type
     [ ] if there's a node evt:concert-scheduled, I want `conc` to autocomplete to evt:concert-scheduled
@@ -35,6 +37,7 @@
 [ ] Layout: horizontally move nodes on separate lanes when edges collide with them (see Ted's "Buy Ticket" diagram)
 [ ] Add a "project" layer for grouping slices
   [ ] "Across slice" features would use that project for context
+[ ] Add support for comments to the DSL
 
 ## DONE
 
