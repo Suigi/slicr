@@ -195,6 +195,21 @@ After group-based placement:
 - UI renders rounded corners using `routeRoundedPolyline(points, radius=10)`.
 - This is a visual layer change in `App.tsx`; routing constraints are unchanged.
 
+## Slice Divider Placement
+
+- Slice boundaries come from DSL `---` markers (`parsed.boundaries` from `parseDsl`).
+- Divider is rendered in `App.tsx` from final displayed node positions, not from a separate layout pass.
+- For each boundary, use the anchor node (`boundary.after`) and place divider at:
+- `dividerX = anchor.x + anchor.w + 40`
+- This means divider sits at the center of the boundary gap.
+- Boundary floor constraint for nodes declared after that boundary is:
+- `node.x >= anchor.x + anchor.w + 40 + PAD_X`
+- With current `PAD_X = 40`, this yields an 80px boundary gap:
+- left half (40px) from anchor-right to divider
+- right half (40px) from divider to minimum x of post-boundary nodes
+- If post-layout passes move nodes (successor/lane/boundary/density/avoidance), divider follows automatically because it is derived from final `displayedPos`.
+- There is currently no independent divider re-legalization pass; correctness depends on keeping divider formula consistent with boundary-floor formula.
+
 ## Manual Overrides
 
 - ELK mode supports manual edge point overrides and node drag overrides.
