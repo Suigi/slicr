@@ -128,6 +128,13 @@ function baseDescriptor(
 }
 
 function sharedSegmentComparator(left: RoutedEdgeDescriptor, right: RoutedEdgeDescriptor): number {
+  if (left.sourceKey === right.sourceKey && left.goDown === right.goDown) {
+    const leftSpan = Math.abs(left.endX - left.startX);
+    const rightSpan = Math.abs(right.endX - right.startX);
+    if (leftSpan !== rightSpan) {
+      return left.goDown ? rightSpan - leftSpan : leftSpan - rightSpan;
+    }
+  }
   if (left.targetKey === right.targetKey && left.goDown === right.goDown) {
     const leftSpan = Math.abs(left.endX - left.startX);
     const rightSpan = Math.abs(right.endX - right.startX);

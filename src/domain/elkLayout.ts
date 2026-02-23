@@ -1,7 +1,7 @@
 import ELK from 'elkjs/lib/elk.bundled.js';
 import type { ElkNode } from 'elkjs/lib/elk-api';
 import { DiagramEdgeGeometry, routeElkEdges } from './diagramRouting';
-import { applyBoundaryFloorPass, applyLaneGapPass, applySuccessorGapPass, normalizeLeftPadding } from './elkPostLayout';
+import { applyBoundaryFloorPass, applyLaneGapPass, applySuccessorGapPass } from './elkPostLayout';
 import { nodeHeight, PAD_X, rowFor } from './layoutGraph';
 import type { Parsed, Position } from './types';
 
@@ -13,6 +13,75 @@ export type ElkComputedLayout = {
   laneByKey: Map<string, number>;
   rowStreamLabels: Record<number, string>;
 };
+
+const EDGE_NODE_AVOIDANCE_CLEARANCE_X = 26;
+const EDGE_NODE_AVOIDANCE_GRID_X = 15;
+const EDGE_NODE_AVOIDANCE_GRID_Y = 10;
+
+function overlapsRange(minA: number, maxA: number, minB: number, maxB: number): boolean {
+  return maxA >= minB && maxB >= minA;
+}
+
+function snapUpToGrid(value: number, grid: number): number {
+  return Math.ceil(value / grid) * grid;
+}
+
+function applyVerticalEdgeNodeAvoidancePass(
+  parsed: Parsed,
+  nodesById: Record<string, Position>,
+  movedNodeKeys?: Set<string>
+): boolean {
+  const routed = routeElkEdges(
+    parsed.edges.map((edge, index) => ({
+      key: `${edge.from}->${edge.to}#${index}`,
+      from: edge.from,
+      to: edge.to
+    })),
+    nodesById
+  );
+  let changed = false;
+
+  parsed.edges.forEach((edge, index) => {
+    const key = `${edge.from}->${edge.to}#${index}`;
+    const geometry = routed[key];
+    const points = geometry?.points;
+    if (!points || points.length < 2) {
+      return;
+    }
+
+    for (let i = 0; i < points.length - 1; i += 1) {
+      const start = points[i];
+      const end = points[i + 1];
+      if (Math.abs(start.x - end.x) > 0.001) {
+        continue;
+      }
+      const segmentX = start.x;
+      const segMinY = Math.min(start.y, end.y);
+      const segMaxY = Math.max(start.y, end.y);
+
+      for (const [nodeKey, node] of Object.entries(nodesById)) {
+        if (nodeKey === edge.from || nodeKey === edge.to) {
+          continue;
+        }
+        if (!overlapsRange(segMinY, segMaxY, node.y, node.y + node.h)) {
+          continue;
+        }
+        if (segmentX < node.x || segmentX > node.x + node.w) {
+          continue;
+        }
+        const desiredX = snapUpToGrid(segmentX + EDGE_NODE_AVOIDANCE_CLEARANCE_X + 1, EDGE_NODE_AVOIDANCE_GRID_X);
+        if (node.x < desiredX) {
+          node.x = desiredX;
+          node.y = Math.round(node.y / EDGE_NODE_AVOIDANCE_GRID_Y) * EDGE_NODE_AVOIDANCE_GRID_Y;
+          movedNodeKeys?.add(nodeKey);
+          changed = true;
+        }
+      }
+    }
+  });
+
+  return changed;
+}
 
 function applyEdgeDensityGapPass(
   parsed: Parsed,
@@ -304,17 +373,37 @@ export async function computeElkLayout(parsed: Parsed): Promise<ElkComputedLayou
     laneTop += laneHeight + laneBottomPadding + laneGapY;
   }
 
-  for (let pass = 0; pass < 4; pass += 1) {
+  const avoidanceMovedNodeKeys = new Set<string>();
+  for (let pass = 0; pass < 6; pass += 1) {
+    const movedByNodeAvoidance = applyVerticalEdgeNodeAvoidancePass(parsed, nodesById, avoidanceMovedNodeKeys);
     const movedByDensityGap = applyEdgeDensityGapPass(parsed, topoOrder, nodesById);
     const movedBySuccessorGap = applySuccessorGapPass(parsed.edges, topoOrder, nodesById, minSuccessorGap);
     const movedByBoundaryFloors = applyBoundaryFloorPass(dslOrder, boundarySpecs, nodesById);
     const movedByLaneGap = applyLaneGapPass(laneKeys, nodesById, minLaneGap);
-    if (!movedByDensityGap && !movedBySuccessorGap && !movedByBoundaryFloors && !movedByLaneGap) {
+    if (!movedByNodeAvoidance && !movedByDensityGap && !movedBySuccessorGap && !movedByBoundaryFloors && !movedByLaneGap) {
       break;
     }
   }
 
-  normalizeLeftPadding(nodesById, 50);
+  let minX = Number.POSITIVE_INFINITY;
+  for (const node of Object.values(nodesById)) {
+    minX = Math.min(minX, node.x);
+  }
+  let leftShift = 0;
+  if (Number.isFinite(minX) && minX > 50) {
+    leftShift = minX - 50;
+    for (const node of Object.values(nodesById)) {
+      node.x -= leftShift;
+    }
+  }
+  if (leftShift > 0) {
+    for (const key of avoidanceMovedNodeKeys) {
+      const moved = nodesById[key];
+      if (moved) {
+        moved.x += leftShift;
+      }
+    }
+  }
 
   let maxX = 0;
   let maxY = 0;

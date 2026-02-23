@@ -570,6 +570,50 @@ maps:
     expect(divider).not.toBeNull();
   });
 
+  it('keeps divider aligned with post-shift boundary floor in ELK mode (expected to fail before fix)', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{
+          id: 'a',
+          dsl: `slice "Harness"
+
+cmd:buy "Buy Ticket"
+
+evt:sold "Tickets Sold"
+<- cmd:buy
+stream: concert
+
+evt:tp "Tickets Purchased" <- cmd:buy
+stream: customer
+
+---
+
+rm:avail@2 "Available Concerts"
+<- evt:sold
+
+rm:wallet "Customer Wallet"
+<- evt:tp`
+        }]
+      })
+    );
+
+    renderApp();
+
+    const anchorNode = [...document.querySelectorAll('.node')]
+      .find((node) => node.textContent?.includes('Tickets Purchased')) as HTMLElement | undefined;
+    const divider = document.querySelector('.slice-divider') as HTMLElement | null;
+    expect(anchorNode).toBeDefined();
+    expect(divider).not.toBeNull();
+
+    const anchorLeft = Number.parseFloat(anchorNode?.style.left ?? '0');
+    const dividerLeft = Number.parseFloat(divider?.style.left ?? '0');
+
+    // Divider should be centered in the boundary gap: anchor right edge + 40.
+    expect(dividerLeft).toBe(anchorLeft + 180 + 40);
+  });
+
   it('renders stream lane headers for event streams', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,

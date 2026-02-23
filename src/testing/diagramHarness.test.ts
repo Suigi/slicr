@@ -744,4 +744,67 @@ data:
 
     await assertGeometry(dsl, expectedGeometry);
   });
+
+  it('moves nodes horizontally to avoid edges crossing them', async () => {
+    const dsl = `
+
+slice "Harness"
+
+cmd:buy "Buy Ticket"
+
+evt:sold "Tickets Sold"
+<- cmd:buy
+stream: concert
+
+evt:tp "Tickets Purchased"  <- cmd:buy
+stream: customer
+
+
+rm:avail@2 "Available Concerts"
+<- evt:sold
+
+rm:wallet "Customer Wallet"
+<- evt:tp
+`;
+    const expectedGeometry = {
+      "nodes": [
+        {"key":"avail@2","x":270,"y":52,"w":180,"h":42},
+        {"key":"buy","x":50,"y":52,"w":180,"h":42},
+        {"key":"sold","x":195,"y":170,"w":180,"h":42},
+        {"key":"tp","x":102,"y":296,"w":180,"h":42},
+        {"key":"wallet","x":490,"y":52,"w":180,"h":42}
+      ],
+      "edges": [
+        {"key":"buy->sold#0","from":"buy","to":"sold","d":"M 165 94 L 165 110 L 265 110 L 265 170","points":[{"x":165,"y":94},{"x":165,"y":110},{"x":265,"y":110},{"x":265,"y":170}]},
+        {"key":"buy->tp#1","from":"buy","to":"tp","d":"M 155 94 L 155 120 L 172 120 L 172 296","points":[{"x":155,"y":94},{"x":155,"y":120},{"x":172,"y":120},{"x":172,"y":296}]},
+        {"key":"sold->avail@2#2","from":"sold","to":"avail@2","d":"M 305 170 L 305 156.94 L 340 156.94 L 340 94","points":[{"x":305,"y":170},{"x":305,"y":157},{"x":340,"y":157},{"x":340,"y":94}]},
+        {"key":"tp->wallet#3","from":"tp","to":"wallet","d":"M 212 296 L 212 281.5 L 560 281.5 L 560 94","points":[{"x":212,"y":296},{"x":212,"y":282},{"x":560,"y":282},{"x":560,"y":94}]}
+      ]
+    };
+
+    await assertGeometry(dsl, expectedGeometry);
+  });
+
+  it('avoids crossover of fan-out down-stream edges', async () => {
+    const dsl = `
+slice "Harness"
+
+cmd:command
+evt:a <- cmd:command
+evt:b <- cmd:command
+`;
+    const expectedGeometry = {
+      "nodes": [
+        {"key":"a","x":102,"y":174,"w":180,"h":42},
+        {"key":"b","x":322,"y":174,"w":180,"h":42},
+        {"key":"command","x":50,"y":52,"w":180,"h":42}
+      ],
+      "edges": [
+        {"key":"command->a#0","from":"command","to":"a","d":"M 155 94 L 155 120 L 172 120 L 172 174","points":[{"x":155,"y":94},{"x":155,"y":120},{"x":172,"y":120},{"x":172,"y":174}]},
+        {"key":"command->b#1","from":"command","to":"b","d":"M 165 94 L 165 110 L 392 110 L 392 174","points":[{"x":165,"y":94},{"x":165,"y":110},{"x":392,"y":110},{"x":392,"y":174}]}
+      ]
+    };
+
+    await assertGeometry(dsl, expectedGeometry);
+  });
 });
