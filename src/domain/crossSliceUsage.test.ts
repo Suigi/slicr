@@ -48,6 +48,35 @@ cmd:buy "Buy Again"
       ]
     });
   });
+
+  it('groups node versions under one canonical analysis ref', () => {
+    const slices = [
+      {
+        id: 'slice-a',
+        dsl: `slice "A"
+
+cmd:buy@1 "Buy V1"
+`
+      },
+      {
+        id: 'slice-b',
+        dsl: `slice "B"
+
+cmd:buy@2 "Buy V2"
+`
+      }
+    ];
+
+    const index = buildCrossSliceUsageIndex(slices);
+    expect(index['cmd:buy']).toEqual({
+      nodeRef: 'cmd:buy',
+      nodeType: 'cmd',
+      sliceRefs: [
+        { sliceId: 'slice-a', nodeKey: 'buy@1' },
+        { sliceId: 'slice-b', nodeKey: 'buy@2' }
+      ]
+    });
+  });
 });
 
 describe('createCrossSliceUsageQuery', () => {

@@ -1,5 +1,6 @@
 import { parseDsl } from './parseDsl';
 import { isTraceableNode } from './nodeTracing';
+import { toNodeAnalysisRef, toNodeAnalysisRefFromNode } from './nodeAnalysisKey';
 
 export type CrossSliceDocument = {
   id: string;
@@ -32,7 +33,7 @@ export function buildCrossSliceUsageIndex(slices: CrossSliceDocument[]): CrossSl
       if (!isTraceableNode(node)) {
         continue;
       }
-      const nodeRef = toNodeRef(node);
+      const nodeRef = toNodeAnalysisRefFromNode(node);
       const existing = index[nodeRef];
       if (existing) {
         existing.sliceRefs.push({ sliceId: slice.id, nodeKey: node.key });
@@ -51,18 +52,14 @@ export function buildCrossSliceUsageIndex(slices: CrossSliceDocument[]): CrossSl
 }
 
 export function getCrossSliceUsage(slices: CrossSliceDocument[], nodeKey: string): CrossSliceUsageRef[] {
-  return buildCrossSliceUsageIndex(slices)[nodeKey]?.sliceRefs ?? [];
+  return buildCrossSliceUsageIndex(slices)[toNodeAnalysisRef(nodeKey)]?.sliceRefs ?? [];
 }
 
 export function createCrossSliceUsageQuery(slices: CrossSliceDocument[]): CrossSliceUsageQuery {
   const index = buildCrossSliceUsageIndex(slices);
   return {
     getCrossSliceUsage(nodeId: string) {
-      return index[nodeId]?.sliceRefs ?? [];
+      return index[toNodeAnalysisRef(nodeId)]?.sliceRefs ?? [];
     }
   };
-}
-
-function toNodeRef(node: { type: string; name: string }): string {
-  return `${node.type}:${node.name}`;
 }
