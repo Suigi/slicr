@@ -111,13 +111,56 @@ describe('DomSvgDiagramRendererCamera', () => {
 
     const panel = document.querySelector('.canvas-panel') as HTMLElement | null;
     const world = document.querySelector('.canvas-camera-world') as HTMLElement | null;
+    const toolbar = document.querySelector('.camera-zoom-toolbar') as HTMLElement | null;
     expect(panel).not.toBeNull();
     expect(panel?.style.overflow).toBe('hidden');
+    expect(toolbar).not.toBeNull();
     expect(world).not.toBeNull();
     expect(world?.dataset.cameraX).toBe('0');
     expect(world?.dataset.cameraY).toBe('0');
     expect(world?.dataset.cameraZoom).toBe('1');
     expect(world?.style.transform).toContain('scale(1)');
+  });
+
+  it('supports zoom out/reset/zoom in actions from toolbar', () => {
+    renderRenderer();
+
+    const zoomOut = document.querySelector('button[aria-label="Zoom out"]') as HTMLButtonElement | null;
+    const reset = document.querySelector('button[aria-label="Reset zoom"]') as HTMLButtonElement | null;
+    const zoomIn = document.querySelector('button[aria-label="Zoom in"]') as HTMLButtonElement | null;
+    expect(zoomOut).not.toBeNull();
+    expect(reset).not.toBeNull();
+    expect(zoomIn).not.toBeNull();
+
+    const readZoom = () => Number((document.querySelector('.canvas-camera-world') as HTMLElement | null)?.dataset.cameraZoom ?? '0');
+
+    expect(readZoom()).toBeCloseTo(1, 5);
+
+    act(() => {
+      zoomIn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(readZoom()).toBeGreaterThan(1);
+
+    act(() => {
+      zoomOut?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(readZoom()).toBeCloseTo(1, 5);
+
+    act(() => {
+      zoomIn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      zoomIn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(readZoom()).toBeGreaterThan(1);
+
+    act(() => {
+      reset?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(readZoom()).toBeCloseTo(1, 5);
+  });
+
+  it('does not render toolbar when camera controls are disabled', () => {
+    renderRenderer({ cameraControlsEnabled: false });
+    expect(document.querySelector('.camera-zoom-toolbar')).toBeNull();
   });
 
   it('pans camera via background drag without mutating node world coordinates', () => {

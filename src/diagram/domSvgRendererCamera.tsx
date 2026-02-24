@@ -37,7 +37,10 @@ export function DomSvgDiagramRendererCamera({
       return;
     }
     const target = event.target;
-    if (target instanceof Element && (target.closest('.node') || target.closest('.edge-segment-handle'))) {
+    if (
+      target instanceof Element &&
+      (target.closest('.node') || target.closest('.edge-segment-handle') || target.closest('.camera-zoom-toolbar'))
+    ) {
       return;
     }
 
@@ -152,6 +155,28 @@ export function DomSvgDiagramRendererCamera({
     Object.defineProperty(proxy, 'clientX', { configurable: true, value: world.x });
     Object.defineProperty(proxy, 'clientY', { configurable: true, value: world.y });
     return proxy;
+  };
+
+  const zoomAroundPanelCenter = (zoomFactor: number) => {
+    if (!sceneModel?.viewport) {
+      return;
+    }
+    const panel = canvasPanelRef.current;
+    const rect = panel?.getBoundingClientRect();
+    const anchorX = panel
+      ? ((panel.clientWidth || rect?.width || 0) / 2) + (panel.scrollLeft ?? 0)
+      : ((sceneModel.viewport.width || 0) / 2);
+    const anchorY = panel
+      ? ((panel.clientHeight || rect?.height || 0) / 2) + (panel.scrollTop ?? 0)
+      : ((sceneModel.viewport.height || 0) / 2);
+
+    setCamera((current) => (
+      zoomCameraAroundClientPoint(sceneModel, current, anchorX, anchorY, zoomFactor)
+    ));
+  };
+
+  const resetCamera = () => {
+    setCamera(initialCamera ?? { x: 0, y: 0, zoom: 1 });
   };
 
   return (
@@ -326,6 +351,47 @@ export function DomSvgDiagramRendererCamera({
                 );
               })}
             </svg>
+          </div>
+        )}
+      </div>
+      <div className="canvas-ui-overlay">
+        {cameraControlsEnabled && (
+          <div className="camera-zoom-toolbar" onPointerDown={(event) => event.stopPropagation()}>
+            <button
+              type="button"
+              className="camera-zoom-button"
+              aria-label="Zoom out"
+              title="Zoom out"
+              onClick={() => zoomAroundPanelCenter(1 / 1.1)}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6 12h12" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className="camera-zoom-button"
+              aria-label="Reset zoom"
+              title="Reset zoom"
+              onClick={resetCamera}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 12a8 8 0 1 0 2.34-5.66" />
+                <path d="M4 4v4h4" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className="camera-zoom-button"
+              aria-label="Zoom in"
+              title="Zoom in"
+              onClick={() => zoomAroundPanelCenter(1.1)}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 6v12" />
+                <path d="M6 12h12" />
+              </svg>
+            </button>
           </div>
         )}
       </div>

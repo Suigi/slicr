@@ -252,6 +252,7 @@ header h1 {
   height: 8px;
   border-radius: 2px;
   flex-shrink: 0;
+  border: 1px solid black;
 }
 
 .slice-controls {
@@ -1774,6 +1775,56 @@ header h1 {
 .canvas-panel.panning {
   cursor: grabbing;
   user-select: none;
+}
+
+.canvas-ui-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 8;
+}
+
+.camera-zoom-toolbar {
+  position: absolute;
+  right: max(14px, env(safe-area-inset-right));
+  bottom: max(14px, env(safe-area-inset-bottom));
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 66%, transparent);
+  backdrop-filter: blur(6px);
+  pointer-events: all;
+}
+
+.camera-zoom-button {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface) 76%, var(--bg) 24%);
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.camera-zoom-button:hover {
+  border-color: var(--text);
+}
+
+.camera-zoom-button svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .dsl-editor .cm-scroller::-webkit-scrollbar,

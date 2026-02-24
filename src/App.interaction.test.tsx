@@ -281,6 +281,11 @@ rm:persisted-view`;
     localStorage.setItem(DIAGRAM_RENDERER_FLAG_STORAGE_KEY, 'experimental');
     renderApp();
 
+    const mainCameraWorld = document.querySelector('.main .canvas-panel .canvas-camera-world') as HTMLElement | null;
+    expect(mainCameraWorld).not.toBeNull();
+    expect(Number(mainCameraWorld?.dataset.cameraX ?? 0)).toBeLessThan(0);
+    expect(Number(mainCameraWorld?.dataset.cameraY ?? 0)).toBeLessThan(0);
+
     const docsToggle = document.querySelector('button[aria-label="Toggle documentation panel"]');
     expect(docsToggle).not.toBeNull();
 
@@ -291,6 +296,7 @@ rm:persisted-view`;
     const docsWorld = document.querySelector('.docs-panel .canvas-camera-world') as HTMLElement | null;
     const firstDocDiagram = document.querySelector('.docs-panel .doc-diagram') as HTMLElement | null;
     expect(docsWorld).not.toBeNull();
+    expect(document.querySelector('.docs-panel .camera-zoom-toolbar')).toBeNull();
     expect(firstDocDiagram?.style.width).toBe('560px');
     expect(firstDocDiagram?.style.height).toBe('560px');
     expect(Number(docsWorld?.dataset.cameraZoom ?? 0)).toBeGreaterThan(0);

@@ -369,6 +369,20 @@ function App() {
     hoveredTraceNodeKey
   ]);
 
+  const initialCamera = useMemo(() => {
+    if (diagramRendererId !== 'experimental' || !sceneModel?.viewport) {
+      return undefined;
+    }
+    const targetPadding = 80;
+    return {
+      x: Math.min(0, targetPadding - sceneModel.viewport.offsetX),
+      y: Math.min(0, targetPadding - sceneModel.viewport.offsetY),
+      zoom: 1
+    };
+  }, [diagramRendererId, sceneModel]);
+
+  const rendererViewportKey = `${diagramRendererId}:${library.selectedSliceId}:${routeMode}`;
+
   useEffect(() => {
     const panel = canvasPanelRef.current;
     if (!panel || !sceneModel?.viewport) {
@@ -378,14 +392,24 @@ function App() {
     if (initializedViewportKeyRef.current === viewportKey) {
       return;
     }
+    if (diagramRendererId !== 'dom-svg') {
+      panel.scrollLeft = 0;
+      panel.scrollTop = 0;
+      initializedViewportKeyRef.current = viewportKey;
+      return;
+    }
     panel.scrollLeft = Math.max(0, sceneModel.viewport.offsetX - 80);
     panel.scrollTop = Math.max(0, sceneModel.viewport.offsetY - 80);
     initializedViewportKeyRef.current = viewportKey;
-  }, [canvasPanelRef, sceneModel, library.selectedSliceId, routeMode]);
+  }, [canvasPanelRef, sceneModel, library.selectedSliceId, routeMode, diagramRendererId]);
 
   useEffect(() => {
     const pendingFocusNodeKey = pendingFocusNodeKeyRef.current;
     if (!pendingFocusNodeKey || !sceneModel?.viewport) {
+      return;
+    }
+    if (diagramRendererId !== 'dom-svg') {
+      pendingFocusNodeKeyRef.current = null;
       return;
     }
     const panel = canvasPanelRef.current;
@@ -399,7 +423,7 @@ function App() {
     panel.scrollLeft = Math.max(0, targetX);
     panel.scrollTop = Math.max(0, targetY);
     pendingFocusNodeKeyRef.current = null;
-  }, [focusRequestVersion, sceneModel, displayedPos, canvasPanelRef]);
+  }, [focusRequestVersion, sceneModel, displayedPos, canvasPanelRef, diagramRendererId]);
 
   const selectedNode = useMemo(() => {
     if (!parsed || !selectedNodeKey) {
@@ -829,20 +853,20 @@ function App() {
         <h1>Slicer</h1>
         <div className="legend">
           <div className="legend-item">
+            <div className="legend-dot" style={{ background: 'var(--rm)' }} />
+            <span>read model</span>
+          </div>
+          <div className="legend-item">
+            <div className="legend-dot" style={{ background: 'var(--ui-bg)' }} />
+            <span>ui</span>
+          </div>
+          <div className="legend-item">
             <div className="legend-dot" style={{ background: 'var(--cmd)' }} />
             <span>command</span>
           </div>
           <div className="legend-item">
             <div className="legend-dot" style={{ background: 'var(--evt)' }} />
             <span>event</span>
-          </div>
-          <div className="legend-item">
-            <div className="legend-dot" style={{ background: 'var(--rm)' }} />
-            <span>read model</span>
-          </div>
-          <div className="legend-item">
-            <div className="legend-dot" style={{ background: 'var(--exc)' }} />
-            <span>exception</span>
           </div>
         </div>
         <div className="slice-controls">
@@ -1265,6 +1289,7 @@ function App() {
         </div>
 
         <DiagramRenderer
+          key={rendererViewportKey}
           sceneModel={sceneModel}
           canvasPanelRef={canvasPanelRef}
           isPanning={isPanning}
@@ -1283,6 +1308,7 @@ function App() {
             focusRange(range);
           }}
           onEdgeHover={setHoveredEdgeKey}
+          initialCamera={initialCamera}
         />
         {selectedNode && (
           <aside className="cross-slice-usage-panel" aria-label="Cross-Slice Usage" style={{ overflowY: 'auto' }}>
