@@ -1,5 +1,6 @@
 export const RENDER_ENGINE_DROPDOWN_FLAG_STORAGE_KEY = 'slicr.flag.renderEngineDropdown';
 export const DRAG_AND_DROP_FLAG_STORAGE_KEY = 'slicr.flag.dragAndDrop';
+export const CROSS_SLICE_DATA_FLAG_STORAGE_KEY = 'slicr.flag.crossSliceData';
 type StorageLike = Pick<Storage, 'getItem' | 'setItem'>;
 
 function parseStoredFlag(value: string | null): boolean | null {
@@ -43,4 +44,8 @@ export function shouldShowDevDiagramControls(hostname: string, storage?: Storage
 
 export function isDragAndDropEnabled(hostname: string, storage?: StorageLike | null): boolean {
   return readFlag(hostname, DRAG_AND_DROP_FLAG_STORAGE_KEY, storage);
+}
+
+export function isCrossSliceDataEnabled(hostname: string, storage?: StorageLike | null): boolean {
+  return readFlag(hostname, CROSS_SLICE_DATA_FLAG_STORAGE_KEY, storage);
 }

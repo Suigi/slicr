@@ -4,6 +4,7 @@ import { StrictMode, act } from 'react';
 import ReactDOM from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import App from './App';
+import { CROSS_SLICE_DATA_FLAG_STORAGE_KEY } from './domain/runtimeFlags';
 import { SLICES_STORAGE_KEY } from './sliceLibrary';
 import { hydrateSliceProjection } from './sliceEventStore';
 
@@ -253,6 +254,28 @@ describe('App node analysis interactions', () => {
     const labels = [...document.querySelectorAll('.cross-slice-panel-tab')]
       .map((el) => el.textContent?.trim());
     expect(labels).toEqual(['Cross-Slice Usage', 'Cross-Slice Data', 'Data Trace']);
+  });
+
+  it('hides Cross-Slice Data tab when feature flag is disabled', () => {
+    localStorage.setItem(CROSS_SLICE_DATA_FLAG_STORAGE_KEY, 'false');
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{ id: 'a', dsl: 'slice "Alpha"\n\ncmd:buy "Buy"\n' }]
+      })
+    );
+
+    renderApp();
+    const node = document.querySelector('.node.cmd') as HTMLElement | null;
+    expect(node).not.toBeNull();
+    act(() => {
+      node?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const labels = [...document.querySelectorAll('.cross-slice-panel-tab')]
+      .map((el) => el.textContent?.trim());
+    expect(labels).toEqual(['Cross-Slice Usage', 'Data Trace']);
   });
 
   it('renders the node analysis panel as vertically scrollable', () => {

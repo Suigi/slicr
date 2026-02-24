@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CROSS_SLICE_DATA_FLAG_STORAGE_KEY,
   DRAG_AND_DROP_FLAG_STORAGE_KEY,
   RENDER_ENGINE_DROPDOWN_FLAG_STORAGE_KEY,
   isDragAndDropEnabled,
+  isCrossSliceDataEnabled,
   shouldShowDevDiagramControls
 } from './runtimeFlags';
 
@@ -57,5 +59,26 @@ describe('runtimeFlags', () => {
 
     storage.setItem(DRAG_AND_DROP_FLAG_STORAGE_KEY, 'true');
     expect(isDragAndDropEnabled('example.com', storage)).toBe(true);
+  });
+
+  it('defaults cross-slice-data flag to enabled on localhost and persists it', () => {
+    const storage = createStorage();
+    expect(isCrossSliceDataEnabled('localhost', storage)).toBe(true);
+    expect(storage.getItem(CROSS_SLICE_DATA_FLAG_STORAGE_KEY)).toBe('true');
+  });
+
+  it('defaults cross-slice-data flag to disabled on non-localhost hosts and persists it', () => {
+    const storage = createStorage();
+    expect(isCrossSliceDataEnabled('example.com', storage)).toBe(false);
+    expect(storage.getItem(CROSS_SLICE_DATA_FLAG_STORAGE_KEY)).toBe('false');
+  });
+
+  it('honors persisted cross-slice-data flag values', () => {
+    const storage = createStorage();
+    storage.setItem(CROSS_SLICE_DATA_FLAG_STORAGE_KEY, 'false');
+    expect(isCrossSliceDataEnabled('localhost', storage)).toBe(false);
+
+    storage.setItem(CROSS_SLICE_DATA_FLAG_STORAGE_KEY, 'true');
+    expect(isCrossSliceDataEnabled('example.com', storage)).toBe(true);
   });
 });

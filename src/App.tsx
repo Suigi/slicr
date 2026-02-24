@@ -14,7 +14,7 @@ import { routeRoundedPolyline } from './domain/diagramRouting';
 import {formatNodeData} from './domain/formatNodeData';
 import {PAD_X, rowFor} from './domain/layoutGraph';
 import {parseDsl} from './domain/parseDsl';
-import {isDragAndDropEnabled, shouldShowDevDiagramControls} from './domain/runtimeFlags';
+import {isCrossSliceDataEnabled, isDragAndDropEnabled, shouldShowDevDiagramControls} from './domain/runtimeFlags';
 import { createCrossSliceUsageQuery } from './domain/crossSliceUsage';
 import { getCrossSliceData } from './domain/crossSliceData';
 import { collectDataIssues, getAmbiguousSourceCandidates } from './domain/dataIssues';
@@ -134,6 +134,7 @@ function App() {
   const initializedViewportKeyRef = useRef<string | null>(null);
   const showDevDiagramControls = shouldShowDevDiagramControls(window.location.hostname);
   const dragAndDropEnabled = isDragAndDropEnabled(window.location.hostname);
+  const crossSliceDataEnabled = isCrossSliceDataEnabled(window.location.hostname);
   const currentSlice =
     library.slices.find((slice) => slice.id === library.selectedSliceId) ?? library.slices[0];
   const currentDsl = currentSlice?.dsl ?? DEFAULT_DSL;
@@ -233,6 +234,12 @@ function App() {
       active = false;
     };
   }, [routeMode, parsed, measuredNodeHeights]);
+
+  useEffect(() => {
+    if (!crossSliceDataEnabled && selectedNodePanelTab === 'crossSliceData') {
+      setSelectedNodePanelTab('usage');
+    }
+  }, [crossSliceDataEnabled, selectedNodePanelTab]);
 
   useEffect(() => {
     if (!parsed || parsed.nodes.size === 0) {
@@ -1558,15 +1565,17 @@ function App() {
               >
                 Cross-Slice Usage
               </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={selectedNodePanelTab === 'crossSliceData'}
-                className={`cross-slice-panel-tab ${selectedNodePanelTab === 'crossSliceData' ? 'active' : ''}`}
-                onClick={() => setSelectedNodePanelTab('crossSliceData')}
-              >
-                Cross-Slice Data
-              </button>
+              {crossSliceDataEnabled && (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={selectedNodePanelTab === 'crossSliceData'}
+                  className={`cross-slice-panel-tab ${selectedNodePanelTab === 'crossSliceData' ? 'active' : ''}`}
+                  onClick={() => setSelectedNodePanelTab('crossSliceData')}
+                >
+                  Cross-Slice Data
+                </button>
+              )}
               <button
                 type="button"
                 role="tab"
@@ -1638,7 +1647,7 @@ function App() {
                 ))}
               </div>
             )}
-            {selectedNodePanelTab === 'crossSliceData' && (
+            {crossSliceDataEnabled && selectedNodePanelTab === 'crossSliceData' && (
               <div className="cross-slice-data-list">
                 {selectedNodeCrossSliceData.keys.map((key) => {
                   const isExpanded = Boolean(crossSliceDataExpandedKeys[key]);
