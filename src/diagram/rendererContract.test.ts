@@ -9,10 +9,33 @@ import {
 } from './rendererContract';
 
 function createScene(overrides: Partial<DiagramSceneModel> = {}): DiagramSceneModel {
+  const nodeA = {
+    type: 'cmd',
+    name: 'a',
+    alias: null,
+    stream: null,
+    key: 'a',
+    data: null,
+    srcRange: { from: 1, to: 2 }
+  };
+  const nodeB = {
+    type: 'evt',
+    name: 'b',
+    alias: null,
+    stream: null,
+    key: 'b',
+    data: null,
+    srcRange: { from: 3, to: 4 }
+  };
+
   return {
     nodes: [
       {
+        renderKey: 'node-a',
         key: 'a',
+        node: nodeA,
+        nodePrefix: 'cmd',
+        className: '',
         type: 'cmd',
         title: 'A',
         prefix: 'cmd',
@@ -26,7 +49,11 @@ function createScene(overrides: Partial<DiagramSceneModel> = {}): DiagramSceneMo
         related: false
       },
       {
+        renderKey: 'node-b',
         key: 'b',
+        node: nodeB,
+        nodePrefix: 'evt',
+        className: '',
         type: 'evt',
         title: 'B',
         prefix: 'evt',
@@ -42,21 +69,39 @@ function createScene(overrides: Partial<DiagramSceneModel> = {}): DiagramSceneMo
     ],
     edges: [
       {
+        renderKey: 'edge-a-b-0',
         key: 'a->b#0',
+        edgeKey: 'a->b#0',
         from: 'a',
         to: 'b',
+        path: 'M 0 0 L 1 1',
         d: 'M 0 0 L 1 1',
         label: null,
         points: [{ x: 0, y: 0 }, { x: 1, y: 1 }],
+        draggableSegmentIndices: [0],
         labelX: 0.5,
         labelY: 0.5,
         hovered: false,
         related: false
       }
     ],
-    lanes: [],
+    lanes: [
+      {
+        key: 'lane-0',
+        row: 0,
+        bandTop: 0,
+        bandHeight: 10,
+        y: 0,
+        height: 10,
+        streamLabel: '',
+        labelTop: 8,
+        labelLeft: 8
+      }
+    ],
     boundaries: [],
-    title: 'Slice',
+    worldWidth: 600,
+    worldHeight: 400,
+    title: { text: 'Slice', top: 6, left: 8 },
     viewport: {
       width: 600,
       height: 400,

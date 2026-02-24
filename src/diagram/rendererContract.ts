@@ -1,4 +1,6 @@
 import type { Range } from '../useDslEditor';
+import type { DiagramPoint as RoutingPoint } from '../domain/diagramRouting';
+import type { VisualNode } from '../domain/types';
 
 export const DIAGRAM_RENDERER_CONTRACT_INVARIANTS = [
   'Stable IDs: node keys and edge keys must be deterministic and remain stable across renders for identical diagram inputs.',
@@ -9,7 +11,11 @@ export const DIAGRAM_RENDERER_CONTRACT_INVARIANTS = [
 export type DiagramPoint = { x: number; y: number };
 
 export type DiagramNode = {
+  renderKey: string;
   key: string;
+  node: VisualNode;
+  nodePrefix: string;
+  className: string;
   type: string;
   title: string;
   prefix: string;
@@ -24,12 +30,16 @@ export type DiagramNode = {
 };
 
 export type DiagramEdge = {
+  renderKey: string;
   key: string;
+  edgeKey: string;
   from: string;
   to: string;
+  path: string;
   d: string;
   label: string | null;
-  points: DiagramPoint[];
+  points: RoutingPoint[];
+  draggableSegmentIndices: number[];
   labelX: number;
   labelY: number;
   hovered: boolean;
@@ -37,17 +47,29 @@ export type DiagramEdge = {
 };
 
 export type DiagramLane = {
+  key: string;
   row: number;
+  bandTop: number;
+  bandHeight: number;
   y: number;
   height: number;
   streamLabel: string;
+  labelTop: number;
+  labelLeft: number;
 };
 
 export type DiagramBoundary = {
   key: string;
+  left: number;
   x: number;
   top: number;
   height: number;
+};
+
+export type DiagramTitle = {
+  text: string;
+  top: number;
+  left: number;
 };
 
 export type DiagramViewport = {
@@ -62,7 +84,9 @@ export type DiagramSceneModel = {
   edges: DiagramEdge[];
   lanes: DiagramLane[];
   boundaries: DiagramBoundary[];
-  title: string;
+  worldWidth: number;
+  worldHeight: number;
+  title: DiagramTitle | null;
   viewport: DiagramViewport | null;
 };
 
