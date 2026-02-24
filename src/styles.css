@@ -1714,7 +1714,7 @@ header h1 {
 
 .doc-feature-content {
   display: grid;
-  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+  grid-template-columns: minmax(320px, 415px) minmax(0, 1fr);
   gap: 12px;
   align-items: start;
 }
@@ -1723,7 +1723,8 @@ header h1 {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: color-mix(in srgb, var(--bg) 88%, var(--surface) 12%);
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   min-height: 220px;
 }
 
@@ -1731,7 +1732,13 @@ header h1 {
   position: relative;
 }
 
-.doc-diagram .canvas-world {
+.doc-diagram .canvas-panel {
+  border: 0;
+  background: transparent;
+}
+
+.doc-diagram .canvas-world,
+.doc-diagram .canvas-camera-world {
   min-width: 100%;
   min-height: 100%;
 }

@@ -557,7 +557,9 @@ function App() {
       }
       grouped.set(entry.usage.sliceId, {
         sliceId: entry.usage.sliceId,
-        sliceName: entry.usage.sliceId === library.selectedSliceId ? 'This Slice' : entry.sliceName,
+        sliceName: entry.usage.sliceId === library.selectedSliceId
+          ? `${entry.sliceName} (this Slice)`
+          : entry.sliceName,
         entries: [entry]
       });
     }
@@ -565,20 +567,7 @@ function App() {
       .map((group) => ({
         ...group,
         entries: [...group.entries].sort((left, right) => left.usage.nodeKey.localeCompare(right.usage.nodeKey))
-      }))
-      .sort((left, right) => {
-        if (left.sliceId === library.selectedSliceId && right.sliceId !== library.selectedSliceId) {
-          return -1;
-        }
-        if (right.sliceId === library.selectedSliceId && left.sliceId !== library.selectedSliceId) {
-          return 1;
-        }
-        const byName = left.sliceName.localeCompare(right.sliceName);
-        if (byName !== 0) {
-          return byName;
-        }
-        return left.sliceId.localeCompare(right.sliceId);
-      });
+      }));
   }, [crossSliceUsageEntries, library.selectedSliceId]);
 
   useEffect(() => {
@@ -1605,7 +1594,7 @@ function App() {
         )}
         {(hasOpenedDocs || docsOpen) && (
           <div className={`docs-panel-shell ${docsOpen ? '' : 'hidden'}`} aria-hidden={!docsOpen}>
-            <DocumentationPanel />
+            <DocumentationPanel diagramRendererId={diagramRendererId} />
           </div>
         )}
       </div>

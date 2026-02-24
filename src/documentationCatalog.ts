@@ -19,17 +19,20 @@ export const DOCUMENTATION_GROUPS: DocumentationGroup[] = [
     description: 'Declare nodes in your slice with explicit types, aliases, and optional node versions.',
     features: [
       {
-        id: 'node-types',
-        title: 'Node types',
-        description: 'Supported typed nodes plus generic (unprefixed) nodes.',
-        dsl: `slice "Node Types"
-
-ui:booking-form "Booking Form"
-cmd:book-room "Book Room"
-evt:room-booked "Room Booked"
+        id: 'common-node-types',
+        title: 'Common Node Types',
+        description: 'Core node types used in most slices.',
+        dsl: `evt:room-booked "Room Booked"
 rm:available-rooms "Available Rooms"
-exc:room-conflict "Room Conflict"
+ui:booking-form "Booking Form"
 aut:process-booking "Process Booking"
+cmd:book-room "Book Room"`
+      },
+      {
+        id: 'more-node-types',
+        title: 'More Node Types',
+        description: 'Additional typed nodes plus generic (unprefixed) nodes.',
+        dsl: `exc:room-conflict "Room Conflict"
 ext:payment-gateway "Payment Gateway"
 generic-node "Generic Node"`
       },
@@ -37,9 +40,7 @@ generic-node "Generic Node"`
         id: 'aliases-and-versions',
         title: 'Aliases and versions',
         description: 'Use quoted aliases for display names and @version suffixes for evolving nodes.',
-        dsl: `slice "Aliases and Versions"
-
-evt:room-opened "Room Opened"
+        dsl: `evt:room-opened "Room Opened"
 data:
   room-number: 101
 
@@ -74,9 +75,7 @@ data:
         id: 'incoming-inline',
         title: 'Incoming arrows (inline <-)',
         description: 'Attach predecessors on the same line as the target node.',
-        dsl: `slice "Inline Incoming"
-
-ui:room-list
+        dsl: `ui:room-list
 cmd:book-room <- ui:room-list
 evt:room-booked <- cmd:book-room
 rm:bookings <- evt:room-booked`
@@ -85,9 +84,7 @@ rm:bookings <- evt:room-booked`
         id: 'incoming-and-outgoing-multiline',
         title: 'Incoming and outgoing arrows (multiline <- and ->)',
         description: 'Standalone clauses under a node are equivalent to inline edge syntax.',
-        dsl: `slice "Arrow Directions"
-
-evt:room-booked
+        dsl: `evt:room-booked
   -> rm:available-rooms
   -> rm:pending-bookings
 
@@ -108,9 +105,7 @@ rm:pending-bookings
         id: 'node-data',
         title: 'Node data blocks',
         description: 'Attach YAML-style data to nodes.',
-        dsl: `slice "Node Data"
-
-ui:booking-form
+        dsl: `ui:booking-form
 data:
   selected-room: 101
   customer-id: C_400
@@ -124,9 +119,7 @@ data:
         id: 'uses-from-predecessors',
         title: 'uses: from predecessor data',
         description: 'Map keys from direct predecessor nodes into the current node.',
-        dsl: `slice "Maps from Predecessors"
-
-evt:room-selected
+        dsl: `evt:room-selected
 data:
   room-number: 101
 
@@ -152,9 +145,7 @@ uses:
         id: 'slice-dividers',
         title: 'Slice dividers (---)',
         description: 'A boundary marker adds a visual divider after the preceding node.',
-        dsl: `slice "Slice Dividers"
-
-cmd:enter-flow
+        dsl: `cmd:enter-flow
 evt:step-one <- cmd:enter-flow
 ---
 evt:step-two <- evt:step-one

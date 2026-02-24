@@ -1,38 +1,11 @@
-import type { Dispatch, PointerEvent as ReactPointerEvent, RefObject, SetStateAction } from 'react';
-import { supportsEditableEdgePoints, type DiagramEngineId } from '../domain/diagramEngine';
-import type { DiagramPoint } from '../domain/diagramRouting';
-import type { DiagramSceneModel } from './rendererContract';
-import type { DiagramRendererId } from '../domain/runtimeFlags';
+import { useState } from 'react';
+import type { PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent } from 'react';
+import { supportsEditableEdgePoints } from '../domain/diagramEngine';
 import { NodeCard } from '../NodeCard';
-import type { Range } from '../useDslEditor';
-import type { DragTooltipState } from '../useDiagramInteractions';
+import { toWorldClientPoint, zoomCameraAroundClientPoint } from './cameraUtils';
+import type { DiagramRendererAdapterProps } from './domSvgRenderer';
 
-export type DiagramRendererAdapterProps = {
-  sceneModel: DiagramSceneModel | null;
-  canvasPanelRef: RefObject<HTMLDivElement>;
-  isPanning: boolean;
-  docsOpen: boolean;
-  dragTooltip: DragTooltipState | null;
-  dragAndDropEnabled: boolean;
-  routeMode: DiagramEngineId;
-  beginCanvasPan: (event: ReactPointerEvent<HTMLDivElement>) => void;
-  beginNodeDrag: (event: ReactPointerEvent, nodeKey: string) => void;
-  beginEdgeSegmentDrag: (
-    event: ReactPointerEvent,
-    edgeKey: string,
-    segmentIndex: number,
-    points: DiagramPoint[]
-  ) => void;
-  onNodeHoverRange: (range: Range | null) => void;
-  onNodeSelect: (nodeKey: string) => void;
-  onNodeOpenInEditor: (nodeKey: string, range: Range) => void;
-  onEdgeHover: Dispatch<SetStateAction<string | null>>;
-  rendererId?: DiagramRendererId;
-  cameraControlsEnabled?: boolean;
-  initialCamera?: { x: number; y: number; zoom: number };
-};
-
-export function DomSvgDiagramRenderer({
+export function DomSvgDiagramRendererCamera({
   sceneModel,
   canvasPanelRef,
   isPanning,
@@ -47,13 +20,106 @@ export function DomSvgDiagramRenderer({
   onNodeSelect,
   onNodeOpenInEditor,
   onEdgeHover,
-  rendererId = 'dom-svg'
+  rendererId = 'dom-svg',
+  cameraControlsEnabled = true,
+  initialCamera
 }: DiagramRendererAdapterProps) {
+  const [camera, setCamera] = useState<{ x: number; y: number; zoom: number }>(
+    () => initialCamera ?? { x: 0, y: 0, zoom: 1 }
+  );
+  void beginCanvasPan;
+
+  const beginCameraPan = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!cameraControlsEnabled) {
+      return;
+    }
+    if (event.button !== 0) {
+      return;
+    }
+    const target = event.target;
+    if (target instanceof Element && (target.closest('.node') || target.closest('.edge-segment-handle'))) {
+      return;
+    }
+
+    event.preventDefault();
+    const pointerId = event.pointerId;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startCameraX = camera.x;
+    const startCameraY = camera.y;
+
+    const onMove = (moveEvent: PointerEvent) => {
+      if ((moveEvent.buttons & 1) === 0) {
+        return;
+      }
+      const dx = moveEvent.clientX - startX;
+      const dy = moveEvent.clientY - startY;
+      setCamera((current) => ({ ...current, x: startCameraX + dx, y: startCameraY + dy }));
+    };
+
+    const onUp = (upEvent: PointerEvent) => {
+      if (upEvent.pointerId !== pointerId) {
+        return;
+      }
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  };
+
+  const handleWheelZoom = (event: ReactWheelEvent<HTMLDivElement>) => {
+    if (!cameraControlsEnabled) {
+      return;
+    }
+    if (!sceneModel?.viewport) {
+      return;
+    }
+    event.preventDefault();
+
+    if (!event.ctrlKey && !event.metaKey) {
+      if (event.deltaX === 0 && event.deltaY === 0) {
+        return;
+      }
+      setCamera((current) => ({
+        ...current,
+        x: current.x - event.deltaX,
+        y: current.y - event.deltaY
+      }));
+      return;
+    }
+
+    if (event.deltaY === 0) {
+      return;
+    }
+
+    setCamera((current) => {
+      return zoomCameraAroundClientPoint(
+        sceneModel,
+        current,
+        event.clientX,
+        event.clientY,
+        event.deltaY < 0 ? 1.1 : 0.9
+      );
+    });
+  };
+
+  const toWorldPointerEvent = (event: ReactPointerEvent): ReactPointerEvent => {
+    const world = toWorldClientPoint(sceneModel, camera, event.clientX, event.clientY);
+    const proxy = Object.create(event) as ReactPointerEvent;
+    Object.defineProperty(proxy, 'clientX', { configurable: true, value: world.x });
+    Object.defineProperty(proxy, 'clientY', { configurable: true, value: world.y });
+    return proxy;
+  };
+
   return (
     <div
       ref={canvasPanelRef}
       className={`canvas-panel ${isPanning ? 'panning' : ''} ${docsOpen ? 'hidden' : ''}`}
-      onPointerDown={beginCanvasPan}
+      onPointerDown={beginCameraPan}
+      onWheel={handleWheelZoom}
+      style={{ overflow: 'hidden' }}
       aria-hidden={docsOpen}
       data-diagram-renderer={rendererId}
     >
@@ -77,8 +143,14 @@ export function DomSvgDiagramRenderer({
         )}
         {sceneModel?.viewport && (
           <div
-            className="canvas-world"
-            style={{ transform: `translate(${sceneModel.viewport.offsetX}px, ${sceneModel.viewport.offsetY}px)` }}
+            className="canvas-camera-world"
+            data-camera-x={String(camera.x)}
+            data-camera-y={String(camera.y)}
+            data-camera-zoom={String(camera.zoom)}
+            style={{
+              transform: `translate(${sceneModel.viewport.offsetX + camera.x}px, ${sceneModel.viewport.offsetY + camera.y}px) scale(${camera.zoom})`,
+              transformOrigin: '0 0'
+            }}
           >
             {sceneModel.lanes.map((lane) => (
               <div key={lane.key}>
@@ -130,7 +202,7 @@ export function DomSvgDiagramRenderer({
                   event.stopPropagation();
                   onNodeOpenInEditor(entry.key, entry.srcRange);
                 }}
-                onPointerDown={(event) => beginNodeDrag(event, entry.key)}
+                onPointerDown={(event) => beginNodeDrag(toWorldPointerEvent(event), entry.key)}
               />
             ))}
 
@@ -201,7 +273,12 @@ export function DomSvgDiagramRenderer({
                             onPointerLeave={handleEdgeHoverLeave}
                             onMouseEnter={handleEdgeHoverEnter}
                             onMouseLeave={handleEdgeHoverLeave}
-                            onPointerDown={(event) => beginEdgeSegmentDrag(event, edge.edgeKey, pointIndex, edge.points)}
+                            onPointerDown={(event) => beginEdgeSegmentDrag(
+                              toWorldPointerEvent(event),
+                              edge.edgeKey,
+                              pointIndex,
+                              edge.points
+                            )}
                           />
                         );
                       })}

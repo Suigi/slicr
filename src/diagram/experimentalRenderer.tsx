@@ -1,8 +1,9 @@
-import { DomSvgDiagramRenderer, type DiagramRendererAdapterProps } from './domSvgRenderer';
+import type { DiagramRendererAdapterProps } from './domSvgRenderer';
+import { DomSvgDiagramRendererCamera } from './domSvgRendererCamera';
 
 export function ExperimentalDiagramRenderer(props: DiagramRendererAdapterProps) {
   return (
-    <DomSvgDiagramRenderer
+    <DomSvgDiagramRendererCamera
       {...props}
       rendererId="experimental"
     />

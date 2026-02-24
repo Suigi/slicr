@@ -285,6 +285,57 @@ rm:persisted-view`;
     expect(document.querySelector('.canvas-panel')?.classList.contains('hidden')).toBe(true);
   });
 
+  it('uses selected renderer engine for documentation previews', () => {
+    localStorage.setItem(DIAGRAM_RENDERER_FLAG_STORAGE_KEY, 'experimental');
+    renderApp();
+
+    const docsToggle = document.querySelector('button[aria-label="Toggle documentation panel"]');
+    expect(docsToggle).not.toBeNull();
+
+    act(() => {
+      docsToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const docsWorld = document.querySelector('.docs-panel .canvas-camera-world') as HTMLElement | null;
+    const firstDocDiagram = document.querySelector('.docs-panel .doc-diagram') as HTMLElement | null;
+    expect(docsWorld).not.toBeNull();
+    expect(firstDocDiagram?.style.width).toBe('560px');
+    expect(firstDocDiagram?.style.height).toBe('560px');
+    expect(Number(docsWorld?.dataset.cameraZoom ?? 0)).toBeGreaterThan(0);
+    expect(Number(docsWorld?.dataset.cameraZoom ?? 0)).toBeLessThanOrEqual(1.2);
+  });
+
+  it('disables camera pan and zoom interactions for documentation previews', () => {
+    localStorage.setItem(DIAGRAM_RENDERER_FLAG_STORAGE_KEY, 'experimental');
+    renderApp();
+
+    const docsToggle = document.querySelector('button[aria-label="Toggle documentation panel"]');
+    expect(docsToggle).not.toBeNull();
+
+    act(() => {
+      docsToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const docsWorld = document.querySelector('.docs-panel .canvas-camera-world') as HTMLElement | null;
+    const docsPanel = document.querySelector('.docs-panel .canvas-panel') as HTMLElement | null;
+    expect(docsWorld).not.toBeNull();
+    expect(docsPanel).not.toBeNull();
+
+    const initialX = docsWorld?.dataset.cameraX;
+    const initialY = docsWorld?.dataset.cameraY;
+    const initialZoom = docsWorld?.dataset.cameraZoom;
+
+    act(() => {
+      docsPanel?.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaX: 40, deltaY: 80, clientX: 200, clientY: 180 }));
+      docsPanel?.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: -120, ctrlKey: true, clientX: 200, clientY: 180 }));
+    });
+
+    const afterWorld = document.querySelector('.docs-panel .canvas-camera-world') as HTMLElement | null;
+    expect(afterWorld?.dataset.cameraX).toBe(initialX);
+    expect(afterWorld?.dataset.cameraY).toBe(initialY);
+    expect(afterWorld?.dataset.cameraZoom).toBe(initialZoom);
+  });
+
   it('preserves canvas scroll position when opening and closing documentation panel', () => {
     renderApp();
 

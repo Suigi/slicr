@@ -142,7 +142,7 @@ describe('App node analysis interactions', () => {
     const groups = [...document.querySelectorAll('.cross-slice-usage-group')];
     expect(groups).toHaveLength(2);
     const groupTitles = groups.map((group) => group.querySelector('.cross-slice-usage-group-title')?.textContent?.trim());
-    expect(groupTitles).toContain('This Slice');
+    expect(groupTitles).toContain('Alpha (this Slice)');
     expect(groupTitles).toContain('Beta');
 
     expect(groups[0]?.querySelectorAll('.cross-slice-usage-group-frame')).toHaveLength(1);
@@ -151,7 +151,7 @@ describe('App node analysis interactions', () => {
       group.querySelector('.cross-slice-usage-group-title')?.textContent?.trim(),
       group
     ]));
-    expect(byTitle.get('This Slice')?.querySelectorAll('.cross-slice-usage-item')).toHaveLength(2);
+    expect(byTitle.get('Alpha (this Slice)')?.querySelectorAll('.cross-slice-usage-item')).toHaveLength(2);
     expect(byTitle.get('Beta')?.querySelectorAll('.cross-slice-usage-item')).toHaveLength(1);
   });
 
@@ -176,9 +176,7 @@ describe('App node analysis interactions', () => {
 
     const groupTitles = [...document.querySelectorAll('.cross-slice-usage-group-title')]
       .map((el) => el.textContent?.trim());
-    expect(groupTitles[0]).toBe('This Slice');
-    expect(groupTitles).toContain('This Slice');
-    expect(groupTitles).toContain('Beta');
+    expect(groupTitles).toEqual(['Alpha (this Slice)', 'Beta'])
   });
 
   it('renders cross-slice usage header with colored type prefix and bold key', () => {
