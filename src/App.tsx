@@ -10,9 +10,7 @@ import {
 } from './domain/diagramEngine';
 import {MISSING_DATA_VALUE} from './domain/dataMapping';
 import {DiagramEdgeGeometry, DiagramPoint} from './domain/diagramRouting';
-import { routeRoundedPolyline } from './domain/diagramRouting';
 import {formatNodeData} from './domain/formatNodeData';
-import {PAD_X, rowFor} from './domain/layoutGraph';
 import {parseDsl} from './domain/parseDsl';
 import {isCrossSliceDataEnabled, isDragAndDropEnabled, shouldShowDevDiagramControls} from './domain/runtimeFlags';
 import { createCrossSliceUsageQuery } from './domain/crossSliceUsage';
@@ -41,6 +39,7 @@ import {EditorWarning, Range, useDslEditor} from './useDslEditor';
 import {useDiagramInteractions} from './useDiagramInteractions';
 import { DocumentationPanel } from './DocumentationPanel';
 import { NodeCard } from './NodeCard';
+import { buildSceneModel } from './diagram/sceneModel';
 
 type ParseResult =
   | { parsed: Parsed; error: ''; warnings: Parsed['warnings'] }
@@ -60,7 +59,6 @@ const TYPE_LABEL: Record<string, string> = {
 const NODE_VERSION_SUFFIX = /@\d+$/;
 const THEME_STORAGE_KEY = 'slicr.theme';
 const ROUTE_MODE_STORAGE_KEY = 'slicr.routeMode';
-const CANVAS_MARGIN = 900;
 type ThemeMode = 'dark' | 'light';
 type RouteMode = DiagramEngineId;
 type EdgeGeometry = DiagramEdgeGeometry;
@@ -327,125 +325,6 @@ function App() {
     }
   });
 
-  const laneOverlay = useMemo(() => {
-    if (!parsed || !activeLayout) {
-      return null;
-    }
-
-    if (routeMode === 'classic') {
-      return {
-        usedRows: activeLayout.usedRows,
-        rowY: activeLayout.rowY,
-        rowStreamLabels: activeLayout.rowStreamLabels,
-        height: activeLayout.h
-      };
-    }
-
-    const rowBuckets = new Map<number, { minY: number; streamLabel: string }>();
-    const laneByKey = engineLayout?.laneByKey ?? new Map<string, number>();
-    for (const node of parsed.nodes.values()) {
-      const position = displayedPos[node.key];
-      if (!position) {
-        continue;
-      }
-      const row = laneByKey.get(node.key) ?? rowFor(node.type);
-      const existing = rowBuckets.get(row);
-      const streamLabel = engineLayout?.rowStreamLabels[row] ?? existing?.streamLabel ?? '';
-      rowBuckets.set(row, {
-        minY: existing ? Math.min(existing.minY, position.y) : position.y,
-        streamLabel
-      });
-    }
-
-    const usedRows = [...rowBuckets.keys()].sort((a, b) => a - b);
-    const rowY: Record<number, number> = {};
-    const rowStreamLabels: Record<number, string> = {};
-    for (const row of usedRows) {
-      const data = rowBuckets.get(row);
-      if (!data) {
-        continue;
-      }
-      rowY[row] = data.minY;
-      if (data.streamLabel) {
-        rowStreamLabels[row] = data.streamLabel;
-      }
-    }
-
-    return { usedRows, rowY, rowStreamLabels, height: activeLayout.h };
-  }, [parsed, activeLayout, routeMode, engineLayout, displayedPos]);
-
-  const canvasViewport = useMemo(() => {
-    if (!activeLayout) {
-      return null;
-    }
-
-    let minX = 0;
-    let minY = 0;
-    let maxX = activeLayout.w;
-    let maxY = activeLayout.h;
-
-    for (const position of Object.values(displayedPos)) {
-      minX = Math.min(minX, position.x);
-      minY = Math.min(minY, position.y);
-      maxX = Math.max(maxX, position.x + position.w);
-      maxY = Math.max(maxY, position.y + position.h);
-    }
-
-    for (const rendered of renderedEdges) {
-      const points = rendered.geometry.points;
-      if (!points) {
-        continue;
-      }
-      for (const point of points) {
-        minX = Math.min(minX, point.x);
-        minY = Math.min(minY, point.y);
-        maxX = Math.max(maxX, point.x);
-        maxY = Math.max(maxY, point.y);
-      }
-    }
-
-    const contentWidth = Math.max(1, maxX - minX);
-    const contentHeight = Math.max(1, maxY - minY);
-    return {
-      width: contentWidth + CANVAS_MARGIN * 2,
-      height: contentHeight + CANVAS_MARGIN * 2,
-      offsetX: CANVAS_MARGIN - minX,
-      offsetY: CANVAS_MARGIN - minY
-    };
-  }, [activeLayout, displayedPos, renderedEdges]);
-
-  useEffect(() => {
-    const panel = canvasPanelRef.current;
-    if (!panel || !canvasViewport) {
-      return;
-    }
-    const viewportKey = `${library.selectedSliceId}:${routeMode}`;
-    if (initializedViewportKeyRef.current === viewportKey) {
-      return;
-    }
-    panel.scrollLeft = Math.max(0, canvasViewport.offsetX - 80);
-    panel.scrollTop = Math.max(0, canvasViewport.offsetY - 80);
-    initializedViewportKeyRef.current = viewportKey;
-  }, [canvasPanelRef, canvasViewport, library.selectedSliceId, routeMode]);
-
-  useEffect(() => {
-    const pendingFocusNodeKey = pendingFocusNodeKeyRef.current;
-    if (!pendingFocusNodeKey || !canvasViewport) {
-      return;
-    }
-    const panel = canvasPanelRef.current;
-    const position = displayedPos[pendingFocusNodeKey];
-    if (!panel || !position) {
-      return;
-    }
-
-    const targetX = canvasViewport.offsetX + position.x + position.w / 2 - panel.clientWidth / 2;
-    const targetY = canvasViewport.offsetY + position.y + position.h / 2 - panel.clientHeight / 2;
-    panel.scrollLeft = Math.max(0, targetX);
-    panel.scrollTop = Math.max(0, targetY);
-    pendingFocusNodeKeyRef.current = null;
-  }, [focusRequestVersion, canvasViewport, displayedPos, canvasPanelRef]);
-
   const activeNodeKeyFromEditor = useMemo(() => {
     if (!hoveredEditorRange || !parsed) {
       return null;
@@ -458,6 +337,62 @@ function App() {
     }
     return null;
   }, [hoveredEditorRange, parsed]);
+
+  const sceneModel = useMemo(() => buildSceneModel({
+    parsed,
+    activeLayout,
+    displayedPos,
+    renderedEdges,
+    routeMode,
+    engineLayout,
+    activeNodeKeyFromEditor,
+    selectedNodeKey,
+    hoveredEdgeKey,
+    hoveredTraceNodeKey
+  }), [
+    parsed,
+    activeLayout,
+    displayedPos,
+    renderedEdges,
+    routeMode,
+    engineLayout,
+    activeNodeKeyFromEditor,
+    selectedNodeKey,
+    hoveredEdgeKey,
+    hoveredTraceNodeKey
+  ]);
+
+  useEffect(() => {
+    const panel = canvasPanelRef.current;
+    if (!panel || !sceneModel?.viewport) {
+      return;
+    }
+    const viewportKey = `${library.selectedSliceId}:${routeMode}`;
+    if (initializedViewportKeyRef.current === viewportKey) {
+      return;
+    }
+    panel.scrollLeft = Math.max(0, sceneModel.viewport.offsetX - 80);
+    panel.scrollTop = Math.max(0, sceneModel.viewport.offsetY - 80);
+    initializedViewportKeyRef.current = viewportKey;
+  }, [canvasPanelRef, sceneModel, library.selectedSliceId, routeMode]);
+
+  useEffect(() => {
+    const pendingFocusNodeKey = pendingFocusNodeKeyRef.current;
+    if (!pendingFocusNodeKey || !sceneModel?.viewport) {
+      return;
+    }
+    const panel = canvasPanelRef.current;
+    const position = displayedPos[pendingFocusNodeKey];
+    if (!panel || !position) {
+      return;
+    }
+
+    const targetX = sceneModel.viewport.offsetX + position.x + position.w / 2 - panel.clientWidth / 2;
+    const targetY = sceneModel.viewport.offsetY + position.y + position.h / 2 - panel.clientHeight / 2;
+    panel.scrollLeft = Math.max(0, targetX);
+    panel.scrollTop = Math.max(0, targetY);
+    pendingFocusNodeKeyRef.current = null;
+  }, [focusRequestVersion, sceneModel, displayedPos, canvasPanelRef]);
 
   const selectedNode = useMemo(() => {
     if (!parsed || !selectedNodeKey) {
@@ -638,17 +573,6 @@ function App() {
         return left.sliceId.localeCompare(right.sliceId);
       });
   }, [crossSliceUsageEntries, library.selectedSliceId]);
-
-  const hoveredEdgeNodeKeys = useMemo(() => {
-    if (!hoveredEdgeKey) {
-      return new Set<string>();
-    }
-    const hoveredEdge = renderedEdges.find(({ edgeKey }) => edgeKey === hoveredEdgeKey);
-    if (!hoveredEdge) {
-      return new Set<string>();
-    }
-    return new Set<string>([hoveredEdge.edge.from, hoveredEdge.edge.to]);
-  }, [hoveredEdgeKey, renderedEdges]);
 
   useEffect(() => {
     const closeOnOutside = (event: PointerEvent) => {
@@ -1353,8 +1277,8 @@ function App() {
           <div
             id="canvas"
             style={{
-              width: canvasViewport ? `${canvasViewport.width}px` : undefined,
-              height: canvasViewport ? `${canvasViewport.height}px` : undefined
+              width: sceneModel?.viewport ? `${sceneModel.viewport.width}px` : undefined,
+              height: sceneModel?.viewport ? `${sceneModel.viewport.height}px` : undefined
             }}
           >
             {dragTooltip && (
@@ -1368,104 +1292,74 @@ function App() {
                 {dragTooltip.text}
               </div>
             )}
-            {parsed && activeLayout && canvasViewport && (
+            {sceneModel?.viewport && (
               <div
                 className="canvas-world"
-                style={{ transform: `translate(${canvasViewport.offsetX}px, ${canvasViewport.offsetY}px)` }}
+                style={{ transform: `translate(${sceneModel.viewport.offsetX}px, ${sceneModel.viewport.offsetY}px)` }}
               >
-                {laneOverlay?.usedRows.map((row, i) => {
-                  const bandTop = laneOverlay.rowY[row] - 28;
-                  const bandHeight =
-                    i < laneOverlay.usedRows.length - 1
-                      ? laneOverlay.rowY[laneOverlay.usedRows[i + 1]] - laneOverlay.rowY[row]
-                      : laneOverlay.height - bandTop;
-                  const streamLabel = laneOverlay.rowStreamLabels[row];
-
+                {sceneModel.lanes.map((lane) => {
                   return (
-                    <div key={`lane-${row}`}>
+                    <div key={lane.key}>
                       <div
                         className="lane-band"
-                        style={{ top: `${bandTop}px`, height: `${bandHeight}px` }}
+                        style={{ top: `${lane.bandTop}px`, height: `${lane.bandHeight}px` }}
                       />
-                      {streamLabel && (
-                        <div className="lane-stream-label" style={{ top: `${bandTop + 8}px`, left: `${Math.max(8, PAD_X - 48)}px` }}>
-                          {streamLabel}
+                      {lane.streamLabel && (
+                        <div className="lane-stream-label" style={{ top: `${lane.labelTop}px`, left: `${lane.labelLeft}px` }}>
+                          {lane.streamLabel}
                         </div>
                       )}
                     </div>
                   );
                 })}
 
-                {parsed.boundaries.map((boundary, index) => {
-                  const afterPos = displayedPos[boundary.after];
-                  if (!afterPos) {
-                    return null;
-                  }
-                  const topLaneRow = laneOverlay?.usedRows[0];
-                  const topLaneY = topLaneRow === undefined ? 0 : (laneOverlay?.rowY[topLaneRow] ?? 0);
-                  const dividerTop = (topLaneY - 28) - 40;
-                  const dividerHeight = activeLayout.h - dividerTop;
-                  const x = afterPos.x + afterPos.w + 40;
+                {sceneModel.boundaries.map((boundary) => {
                   return (
                     <div
-                      key={`slice-divider-${index}-${boundary.after}`}
+                      key={boundary.key}
                       className="slice-divider"
-                      style={{ left: `${x}px`, top: `${dividerTop}px`, height: `${dividerHeight}px` }}
+                      style={{ left: `${boundary.left}px`, top: `${boundary.top}px`, height: `${boundary.height}px` }}
                     />
                   );
                 })}
 
-                {parsed.sliceName && (
-                  <div className="slice-title" style={{ top: '6px', left: `${PAD_X}px` }}>
-                    {parsed.sliceName}
+                {sceneModel.title && (
+                  <div className="slice-title" style={{ top: `${sceneModel.title.top}px`, left: `${sceneModel.title.left}px` }}>
+                    {sceneModel.title.text}
                   </div>
                 )}
 
-                {[...parsed.nodes.values()].map((node) => {
-                  const position = displayedPos[node.key];
-                  if (!position) {
-                    return null;
-                  }
-                  const nodePrefix = TYPE_LABEL[node.type] ?? node.type;
-
-                  const isHighlighted = activeNodeKeyFromEditor === node.key;
-                  const isSelected = selectedNodeKey === node.key;
-                  const isRelated = hoveredEdgeNodeKeys.has(node.key);
-                  const isTraceHovered = hoveredTraceNodeKey === node.key;
-
+                {sceneModel.nodes.map((entry) => {
                   return (
                     <NodeCard
-                      key={node.key}
-                      node={{
-                        ...node,
-                        name: node.name.replace(NODE_VERSION_SUFFIX, '')
-                      }}
-                      nodePrefix={nodePrefix}
-                      className={`${isHighlighted ? 'highlighted' : ''} ${isSelected ? 'selected' : ''} ${isRelated ? 'related' : ''} ${isTraceHovered ? 'trace-hovered' : ''}`.trim()}
+                      key={entry.renderKey}
+                      node={entry.node}
+                      nodePrefix={entry.nodePrefix}
+                      className={entry.className}
                       style={{
-                        left: `${position.x}px`,
-                        top: `${position.y}px`,
-                        width: `${position.w}px`,
-                        height: `${position.h}px`
+                        left: `${entry.x}px`,
+                        top: `${entry.y}px`,
+                        width: `${entry.w}px`,
+                        height: `${entry.h}px`
                       }}
-                      onMouseEnter={() => setHighlightRange(node.srcRange)}
+                      onMouseEnter={() => setHighlightRange(entry.srcRange)}
                       onMouseLeave={() => setHighlightRange(null)}
                       onClick={(e) => {
                         e.stopPropagation();
-                        setSelectedNodeKey(node.key);
+                        setSelectedNodeKey(entry.key);
                       }}
                       onDoubleClick={(e) => {
                         e.stopPropagation();
-                        setSelectedNodeKey(node.key);
+                        setSelectedNodeKey(entry.key);
                         setEditorOpen(true);
-                        focusRange(node.srcRange);
+                        focusRange(entry.srcRange);
                       }}
-                      onPointerDown={(event) => beginNodeDrag(event, node.key)}
+                      onPointerDown={(event) => beginNodeDrag(event, entry.key)}
                     />
                   );
                 })}
 
-                  <svg id="arrows" width={activeLayout.w} height={activeLayout.h}>
+                  <svg id="arrows" width={sceneModel.worldWidth} height={sceneModel.worldHeight}>
                     <defs>
                       <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
                         <path d="M0,0 L0,6 L8,3 z" fill="var(--arrow)" />
@@ -1475,19 +1369,16 @@ function App() {
                       </marker>
                     </defs>
 
-                    {renderedEdges.map(({ key, edgeKey, edge, geometry }) => {
-                      const edgePath = geometry.points ? routeRoundedPolyline(geometry.points, 5) : geometry.d;
-                      const isHovered = hoveredEdgeKey === edgeKey;
-                      const isRelated = isHovered;
-                      const handleEdgeHoverEnter = () => setHoveredEdgeKey(edgeKey);
+                    {sceneModel.edges.map((edge) => {
+                      const handleEdgeHoverEnter = () => setHoveredEdgeKey(edge.edgeKey);
                       const handleEdgeHoverLeave = () => {
-                        setHoveredEdgeKey((current) => (current === edgeKey ? null : current));
+                        setHoveredEdgeKey((current) => (current === edge.edgeKey ? null : current));
                       };
 
                       return (
-                        <g key={key} className={`${isRelated ? 'related ' : ''}${isHovered ? 'hovered' : ''}`.trim()}>
+                        <g key={edge.renderKey} className={`${edge.related ? 'related ' : ''}${edge.hovered ? 'hovered' : ''}`.trim()}>
                           <path
-                            d={edgePath}
+                            d={edge.path}
                             className="edge-hover-target"
                             onPointerEnter={handleEdgeHoverEnter}
                             onPointerLeave={handleEdgeHoverLeave}
@@ -1495,9 +1386,9 @@ function App() {
                             onMouseLeave={handleEdgeHoverLeave}
                           />
                           <path
-                            d={edgePath}
+                            d={edge.path}
                             className="arrow-path"
-                            markerEnd={isRelated ? "url(#arr-related)" : "url(#arr)"}
+                            markerEnd={edge.related ? "url(#arr-related)" : "url(#arr)"}
                             onPointerEnter={handleEdgeHoverEnter}
                             onPointerLeave={handleEdgeHoverLeave}
                             onMouseEnter={handleEdgeHoverEnter}
@@ -1507,45 +1398,38 @@ function App() {
                             <text
                               className="arrow-label"
                               textAnchor="middle"
-                              x={geometry.labelX}
-                              y={geometry.labelY}
+                              x={edge.labelX}
+                              y={edge.labelY}
                             >
                               [{edge.label}]
                             </text>
                           )}
                           {dragAndDropEnabled &&
                             supportsEditableEdgePoints(routeMode) &&
-                            geometry.points?.map((point, pointIndex) => {
-                              const nextPoint = geometry.points?.[pointIndex + 1];
+                            edge.points?.map((point, pointIndex) => {
+                              const nextPoint = edge.points?.[pointIndex + 1];
                               if (!nextPoint) {
                                 return null;
                               }
-                              const segmentCount = geometry.points!.length - 1;
-                              const middleIndex = Math.max(0, Math.floor((segmentCount - 1) / 2));
-                              const draggableSegmentIndices = new Set<number>([
-                                0,
-                                middleIndex,
-                                segmentCount - 1
-                              ]);
-                              if (!draggableSegmentIndices.has(pointIndex)) {
+                              if (!edge.draggableSegmentIndices.includes(pointIndex)) {
                                 return null;
                               }
                               return (
                                 <line
-                                  key={`${edgeKey}-segment-handle-${pointIndex}`}
+                                  key={`${edge.edgeKey}-segment-handle-${pointIndex}`}
                                   x1={point.x}
                                   y1={point.y}
-                                x2={nextPoint.x}
-                                y2={nextPoint.y}
-                                className="edge-segment-handle"
-                                onPointerEnter={handleEdgeHoverEnter}
-                                onPointerLeave={handleEdgeHoverLeave}
-                                onMouseEnter={handleEdgeHoverEnter}
-                                onMouseLeave={handleEdgeHoverLeave}
-                                onPointerDown={(event) => beginEdgeSegmentDrag(event, edgeKey, pointIndex, geometry.points!)}
-                              />
-                            );
-                          })}
+                                  x2={nextPoint.x}
+                                  y2={nextPoint.y}
+                                  className="edge-segment-handle"
+                                  onPointerEnter={handleEdgeHoverEnter}
+                                  onPointerLeave={handleEdgeHoverLeave}
+                                  onMouseEnter={handleEdgeHoverEnter}
+                                  onMouseLeave={handleEdgeHoverLeave}
+                                  onPointerDown={(event) => beginEdgeSegmentDrag(event, edge.edgeKey, pointIndex, edge.points)}
+                                />
+                              );
+                            })}
                         </g>
                       );
                     })}
