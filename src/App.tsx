@@ -853,20 +853,20 @@ function App() {
         <h1>Slicer</h1>
         <div className="legend">
           <div className="legend-item">
-            <div className="legend-dot" style={{ background: 'var(--rm)' }} />
-            <span>read model</span>
+            <div className="legend-dot" style={{ borderColor: 'var(--rm-border)', background: 'var(--rm-bg)' }} />
+            <span style={{color: 'var(--rm)'}}>read model</span>
           </div>
           <div className="legend-item">
-            <div className="legend-dot" style={{ background: 'var(--ui-bg)' }} />
-            <span>ui</span>
+            <div className="legend-dot" style={{ borderColor: 'var(--ui-border)', background: 'var(--ui-bg)' }} />
+            <span style={{color: 'var(--ui)'}}>ui</span>
           </div>
           <div className="legend-item">
-            <div className="legend-dot" style={{ background: 'var(--cmd)' }} />
-            <span>command</span>
+            <div className="legend-dot" style={{ borderColor: 'var(--cmd-border)', background: 'var(--cmd-bg)' }} />
+            <span style={{color: 'var(--cmd)'}}>command</span>
           </div>
           <div className="legend-item">
-            <div className="legend-dot" style={{ background: 'var(--evt)' }} />
-            <span>event</span>
+            <div className="legend-dot" style={{ borderColor: 'var(--evt-border)', background: 'var(--evt-bg)' }} />
+            <span style={{color: 'var(--evt)'}}>event</span>
           </div>
         </div>
         <div className="slice-controls">
