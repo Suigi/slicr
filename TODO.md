@@ -4,13 +4,15 @@
   [X] Evaluate if top-level keys exist in previous nodes
   [ ] Mark fields as [supplied]
       or treat all data keys as supplied
-[ ] inherit data somehow?
+[ ] inherit data
   [X] Map data from predecessor nodes via simple key names
+  [X] Map data from predecessor nodes via complex key paths (JSONPath)
+  [ ] Add autocomplete for keys in previous nodes
 [ ] "Query" nodes (for reading, similar to how commands are for writing)
-[ ] zoom/pan
+[X] zoom/pan
   [X] pan with left mouse button
-  [ ] zoom (somehow)
-[ ] documentation tab
+  [X] zoom (somehow)
+[X] documentation tab
 [ ] generate code stubs from model
   [ ] thymeleaf view (from `ui` nodes)
   [ ] spring boot controller form data (from `cmd` nodes)
