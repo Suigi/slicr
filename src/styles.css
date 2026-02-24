@@ -44,8 +44,11 @@
   --aut-border: #3c3660;
   --automation-color: var(--aut-color);
   --automation-color-rgb: var(--aut-color-rgb);
-  --ext-color: var(--text);
-  --ext-color-rgb: 232 232 240;
+  --ext: #facc15;
+  --ext-bg: #2a2205;
+  --ext-border: #7a6310;
+  --ext-color: var(--ext);
+  --ext-color-rgb: 250 204 21;
   --external-color: var(--ext-color);
   --external-color-rgb: var(--ext-color-rgb);
   --generic: #9ca3af;
@@ -74,6 +77,7 @@
   --node-shadow-exc: 0 0 0 2px var(--exc), 0 6px 20px rgb(239 68 68 / 15%);
   --node-shadow-ui: 0 0 0 2px var(--ui-color), 0 6px 20px rgb(67 56 202 / 15%);
   --node-shadow-aut: 0 0 0 2px var(--aut-color), 0 6px 20px rgb(167 139 250 / 15%);
+  --node-shadow-ext: 0 0 0 2px var(--ext), 0 6px 20px rgb(250 204 21 / 15%);
   --node-shadow-generic: 0 0 0 2px var(--generic), 0 6px 20px rgb(156 163 175 / 12%);
   --warning-tooltip-border: #6b7280;
   --warning-tooltip-shadow: 0 8px 24px rgb(0 0 0 / 35%);
@@ -126,8 +130,11 @@
   --aut-border: #cdb9f8;
   --automation-color: var(--aut-color);
   --automation-color-rgb: var(--aut-color-rgb);
-  --ext-color: var(--text);
-  --ext-color-rgb: 16 24 40;
+  --ext: #a16207;
+  --ext-bg: #fff7d6;
+  --ext-border: #f3d17a;
+  --ext-color: var(--ext);
+  --ext-color-rgb: 161 98 7;
   --external-color: var(--ext-color);
   --external-color-rgb: var(--ext-color-rgb);
   --generic: #4b5563;
@@ -156,6 +163,7 @@
   --node-shadow-exc: 0 0 0 2px var(--exc), 0 6px 20px rgb(220 38 38 / 14%);
   --node-shadow-ui: 0 0 0 2px var(--ui-color), 0 6px 20px rgb(67 56 202 / 14%);
   --node-shadow-aut: 0 0 0 2px var(--aut-color), 0 6px 20px rgb(109 40 217 / 14%);
+  --node-shadow-ext: 0 0 0 2px var(--ext), 0 6px 20px rgb(161 98 7 / 14%);
   --node-shadow-generic: 0 0 0 2px var(--generic), 0 6px 20px rgb(75 85 99 / 14%);
   --warning-tooltip-border: #374151;
   --warning-tooltip-shadow: 0 8px 22px rgb(15 23 42 / 16%);
@@ -2094,6 +2102,12 @@ header h1 {
   color: var(--aut-color);
 }
 
+.node.ext {
+  background: var(--ext-bg);
+  border-color: var(--ext-border);
+  color: var(--ext);
+}
+
 .node.generic {
   background: var(--generic-bg);
   border-color: var(--generic-border);
@@ -2128,6 +2142,13 @@ header h1 {
 .node.aut.selected,
 .node.aut.related {
   box-shadow: var(--node-shadow-aut);
+}
+
+.node.ext:hover,
+.node.ext.highlighted,
+.node.ext.selected,
+.node.ext.related {
+  box-shadow: var(--node-shadow-ext);
 }
 
 .node.generic:hover,
