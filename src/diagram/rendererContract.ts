@@ -88,3 +88,60 @@ export function createNoopDiagramRendererCallbacks(
     ...overrides
   };
 }
+
+export type SceneValidationResult = {
+  ok: boolean;
+  errors: string[];
+};
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+export function validateDiagramSceneModel(scene: DiagramSceneModel): SceneValidationResult {
+  const errors: string[] = [];
+
+  const nodeKeys = new Set<string>();
+  for (const node of scene.nodes) {
+    if (nodeKeys.has(node.key)) {
+      errors.push(`duplicate node key: ${node.key}`);
+    }
+    nodeKeys.add(node.key);
+
+    if (![node.x, node.y, node.w, node.h].every(isFiniteNumber)) {
+      errors.push(`non-finite node geometry: ${node.key}`);
+    }
+  }
+
+  const edgeKeys = new Set<string>();
+  for (const edge of scene.edges) {
+    if (edgeKeys.has(edge.key)) {
+      errors.push(`duplicate edge key: ${edge.key}`);
+    }
+    edgeKeys.add(edge.key);
+
+    if (!nodeKeys.has(edge.from)) {
+      errors.push(`unknown source node for edge ${edge.key}: ${edge.from}`);
+    }
+    if (!nodeKeys.has(edge.to)) {
+      errors.push(`unknown target node for edge ${edge.key}: ${edge.to}`);
+    }
+  }
+
+  if (scene.viewport) {
+    if (!isFiniteNumber(scene.viewport.width) || scene.viewport.width <= 0) {
+      errors.push('viewport width must be > 0');
+    }
+    if (!isFiniteNumber(scene.viewport.height) || scene.viewport.height <= 0) {
+      errors.push('viewport height must be > 0');
+    }
+    if (!isFiniteNumber(scene.viewport.offsetX) || !isFiniteNumber(scene.viewport.offsetY)) {
+      errors.push('viewport offsets must be finite');
+    }
+  }
+
+  return {
+    ok: errors.length === 0,
+    errors
+  };
+}
