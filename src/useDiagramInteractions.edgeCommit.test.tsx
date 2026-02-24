@@ -2,7 +2,7 @@
 
 import { act, useState } from 'react';
 import ReactDOM from 'react-dom/client';
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DiagramPoint } from './domain/diagramRouting';
 import type { Position } from './domain/types';
 import { useDiagramInteractions } from './useDiagramInteractions';
@@ -101,10 +101,3 @@ describe('useDiagramInteractions edge drag commit', () => {
     expect(points).toHaveLength(3);
   });
 });
-  beforeAll(() => {
-    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-  });
-
-  afterAll(() => {
-    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = undefined;
-  });

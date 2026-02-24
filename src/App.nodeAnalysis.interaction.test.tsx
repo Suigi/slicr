@@ -2,7 +2,7 @@
 
 import { StrictMode, act } from 'react';
 import ReactDOM from 'react-dom/client';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import App from './App';
 import { CROSS_SLICE_DATA_FLAG_STORAGE_KEY } from './domain/runtimeFlags';
 import { SLICES_STORAGE_KEY } from './sliceLibrary';
@@ -10,14 +10,6 @@ import { hydrateSliceProjection } from './sliceEventStore';
 
 let root: ReactDOM.Root | null = null;
 let host: HTMLDivElement | null = null;
-
-beforeAll(() => {
-  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-});
-
-afterAll(() => {
-  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = undefined;
-});
 
 afterEach(() => {
   if (root && host) {

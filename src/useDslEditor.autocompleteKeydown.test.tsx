@@ -6,7 +6,7 @@ import { EditorView } from '@codemirror/view';
 import { act } from 'react';
 import { Dispatch, SetStateAction, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { slicr } from './slicrLanguage';
 import { EditorViewLike, useDslEditor } from './useDslEditor';
 
@@ -47,14 +47,6 @@ function Harness(props: HarnessProps) {
 }
 
 describe('useDslEditor autocomplete key handling', () => {
-  beforeAll(() => {
-    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-  });
-
-  afterAll(() => {
-    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = undefined;
-  });
-
   let root: ReactDOM.Root | null = null;
   let host: HTMLDivElement | null = null;
   let editorView: EditorView | null = null;

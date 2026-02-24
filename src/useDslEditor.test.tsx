@@ -3,7 +3,7 @@
 import { act } from 'react';
 import ReactDOM from 'react-dom/client';
 import { Dispatch, SetStateAction, useRef } from 'react';
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useDslEditor } from './useDslEditor';
 
 type TestEditor = {
@@ -42,14 +42,6 @@ function Harness(props: HarnessProps) {
 }
 
 describe('useDslEditor', () => {
-  beforeAll(() => {
-    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-  });
-
-  afterAll(() => {
-    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = undefined;
-  });
-
   let root: ReactDOM.Root | null = null;
   let host: HTMLDivElement | null = null;
 
