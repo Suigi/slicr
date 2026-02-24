@@ -1,7 +1,9 @@
 export const RENDER_ENGINE_DROPDOWN_FLAG_STORAGE_KEY = 'slicr.flag.renderEngineDropdown';
 export const DRAG_AND_DROP_FLAG_STORAGE_KEY = 'slicr.flag.dragAndDrop';
 export const CROSS_SLICE_DATA_FLAG_STORAGE_KEY = 'slicr.flag.crossSliceData';
+export const DIAGRAM_RENDERER_FLAG_STORAGE_KEY = 'slicr.flag.diagramRenderer';
 type StorageLike = Pick<Storage, 'getItem' | 'setItem'>;
+export type DiagramRendererId = 'dom-svg' | 'experimental';
 
 function parseStoredFlag(value: string | null): boolean | null {
   if (value === 'true') {
@@ -9,6 +11,13 @@ function parseStoredFlag(value: string | null): boolean | null {
   }
   if (value === 'false') {
     return false;
+  }
+  return null;
+}
+
+function parseStoredRendererId(value: string | null): DiagramRendererId | null {
+  if (value === 'dom-svg' || value === 'experimental') {
+    return value;
   }
   return null;
 }
@@ -48,4 +57,21 @@ export function isDragAndDropEnabled(hostname: string, storage?: StorageLike | n
 
 export function isCrossSliceDataEnabled(hostname: string, storage?: StorageLike | null): boolean {
   return readFlag(hostname, CROSS_SLICE_DATA_FLAG_STORAGE_KEY, storage);
+}
+
+export function getDiagramRendererId(_hostname: string, storage: StorageLike | null = defaultStorage()): DiagramRendererId {
+  const defaultValue: DiagramRendererId = 'dom-svg';
+  if (!storage) {
+    return defaultValue;
+  }
+  try {
+    const stored = parseStoredRendererId(storage.getItem(DIAGRAM_RENDERER_FLAG_STORAGE_KEY));
+    if (stored !== null) {
+      return stored;
+    }
+    storage.setItem(DIAGRAM_RENDERER_FLAG_STORAGE_KEY, defaultValue);
+    return defaultValue;
+  } catch {
+    return defaultValue;
+  }
 }

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DIAGRAM_RENDERER_FLAG_STORAGE_KEY,
   CROSS_SLICE_DATA_FLAG_STORAGE_KEY,
   DRAG_AND_DROP_FLAG_STORAGE_KEY,
   RENDER_ENGINE_DROPDOWN_FLAG_STORAGE_KEY,
+  getDiagramRendererId,
   isDragAndDropEnabled,
   isCrossSliceDataEnabled,
   shouldShowDevDiagramControls
@@ -80,5 +82,27 @@ describe('runtimeFlags', () => {
 
     storage.setItem(CROSS_SLICE_DATA_FLAG_STORAGE_KEY, 'true');
     expect(isCrossSliceDataEnabled('example.com', storage)).toBe(true);
+  });
+
+  it('defaults diagram renderer id to dom-svg and persists it', () => {
+    const storage = createStorage();
+
+    expect(getDiagramRendererId('localhost', storage)).toBe('dom-svg');
+    expect(storage.getItem(DIAGRAM_RENDERER_FLAG_STORAGE_KEY)).toBe('dom-svg');
+  });
+
+  it('honors persisted diagram renderer id values', () => {
+    const storage = createStorage();
+    storage.setItem(DIAGRAM_RENDERER_FLAG_STORAGE_KEY, 'experimental');
+
+    expect(getDiagramRendererId('localhost', storage)).toBe('experimental');
+  });
+
+  it('falls back to dom-svg for invalid persisted renderer ids', () => {
+    const storage = createStorage();
+    storage.setItem(DIAGRAM_RENDERER_FLAG_STORAGE_KEY, 'invalid');
+
+    expect(getDiagramRendererId('localhost', storage)).toBe('dom-svg');
+    expect(storage.getItem(DIAGRAM_RENDERER_FLAG_STORAGE_KEY)).toBe('dom-svg');
   });
 });
