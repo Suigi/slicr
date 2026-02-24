@@ -1,9 +1,9 @@
 import type { JSX } from 'react';
 import type { DiagramRendererId } from '../domain/runtimeFlags';
-import { DomSvgDiagramRenderer } from './domSvgRenderer';
+import { DomSvgDiagramRenderer, type DiagramRendererAdapterProps } from './domSvgRenderer';
 import { ExperimentalDiagramRenderer } from './experimentalRenderer';
 
-type DiagramRendererComponent = () => JSX.Element | null;
+export type DiagramRendererComponent = (props: DiagramRendererAdapterProps) => JSX.Element | null;
 
 const RENDERERS: Record<DiagramRendererId, DiagramRendererComponent> = {
   'dom-svg': DomSvgDiagramRenderer,

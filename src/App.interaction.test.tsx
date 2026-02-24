@@ -6,6 +6,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import App from './App';
 import { DEFAULT_DSL } from './defaultDsl';
 import {
+  DIAGRAM_RENDERER_FLAG_STORAGE_KEY,
   DRAG_AND_DROP_FLAG_STORAGE_KEY,
   RENDER_ENGINE_DROPDOWN_FLAG_STORAGE_KEY
 } from './domain/runtimeFlags';
@@ -717,6 +718,23 @@ rm:wallet "Customer Wallet"
 
     const menuToggle = document.querySelector('button[aria-label="Select render mode"]');
     expect(menuToggle).toBeNull();
+  });
+
+  it('uses dom-svg renderer by default and persists renderer id', () => {
+    renderApp();
+
+    const canvasPanel = document.querySelector('.canvas-panel');
+    expect(canvasPanel?.getAttribute('data-diagram-renderer')).toBe('dom-svg');
+    expect(localStorage.getItem(DIAGRAM_RENDERER_FLAG_STORAGE_KEY)).toBe('dom-svg');
+  });
+
+  it('uses experimental renderer when persisted renderer flag is enabled', () => {
+    localStorage.setItem(DIAGRAM_RENDERER_FLAG_STORAGE_KEY, 'experimental');
+
+    renderApp();
+
+    const canvasPanel = document.querySelector('.canvas-panel');
+    expect(canvasPanel?.getAttribute('data-diagram-renderer')).toBe('experimental');
   });
 
   it('restores saved manual node positions for the selected slice on render', () => {

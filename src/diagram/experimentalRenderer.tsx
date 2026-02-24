@@ -1,5 +1,10 @@
-import type { JSX } from 'react';
+import { DomSvgDiagramRenderer, type DiagramRendererAdapterProps } from './domSvgRenderer';
 
-export function ExperimentalDiagramRenderer(): JSX.Element | null {
-  return null;
+export function ExperimentalDiagramRenderer(props: DiagramRendererAdapterProps) {
+  return (
+    <DomSvgDiagramRenderer
+      {...props}
+      rendererId="experimental"
+    />
+  );
 }

@@ -5,14 +5,18 @@ import {
   computeClassicDiagramLayout,
   computeDiagramLayout,
   DiagramEngineId,
-  DiagramEngineLayout,
-  supportsEditableEdgePoints
+  DiagramEngineLayout
 } from './domain/diagramEngine';
 import {MISSING_DATA_VALUE} from './domain/dataMapping';
 import {DiagramEdgeGeometry, DiagramPoint} from './domain/diagramRouting';
 import {formatNodeData} from './domain/formatNodeData';
 import {parseDsl} from './domain/parseDsl';
-import {isCrossSliceDataEnabled, isDragAndDropEnabled, shouldShowDevDiagramControls} from './domain/runtimeFlags';
+import {
+  getDiagramRendererId,
+  isCrossSliceDataEnabled,
+  isDragAndDropEnabled,
+  shouldShowDevDiagramControls
+} from './domain/runtimeFlags';
 import { createCrossSliceUsageQuery } from './domain/crossSliceUsage';
 import { getCrossSliceData } from './domain/crossSliceData';
 import { collectDataIssues, getAmbiguousSourceCandidates } from './domain/dataIssues';
@@ -40,6 +44,7 @@ import {useDiagramInteractions} from './useDiagramInteractions';
 import { DocumentationPanel } from './DocumentationPanel';
 import { NodeCard } from './NodeCard';
 import { buildSceneModel } from './diagram/sceneModel';
+import { getDiagramRenderer } from './diagram/rendererRegistry';
 
 type ParseResult =
   | { parsed: Parsed; error: ''; warnings: Parsed['warnings'] }
@@ -100,6 +105,7 @@ function App() {
   const [hoveredEditorRange, setHoveredEditorRange] = useState<Range | null>(null);
   const [selectedNodeKey, setSelectedNodeKey] = useState<string | null>(null);
   const [hoveredEdgeKey, setHoveredEdgeKey] = useState<string | null>(null);
+  const [diagramRendererId] = useState(() => getDiagramRendererId(window.location.hostname));
   const [routeMode, setRouteMode] = useState<RouteMode>(() => {
     try {
       const saved = localStorage.getItem(ROUTE_MODE_STORAGE_KEY);
@@ -136,6 +142,7 @@ function App() {
   const currentSlice =
     library.slices.find((slice) => slice.id === library.selectedSliceId) ?? library.slices[0];
   const currentDsl = currentSlice?.dsl ?? DEFAULT_DSL;
+  const DiagramRenderer = useMemo(() => getDiagramRenderer(diagramRendererId), [diagramRendererId]);
 
   const setCurrentDsl: Dispatch<SetStateAction<string>> = (updater) => {
     setLibrary((currentLibrary) => {
@@ -1268,176 +1275,26 @@ function App() {
           {errorText && <div className="error-bar">{errorText}</div>}
         </div>
 
-        <div
-          ref={canvasPanelRef}
-          className={`canvas-panel ${isPanning ? 'panning' : ''} ${docsOpen ? 'hidden' : ''}`}
-          onPointerDown={beginCanvasPan}
-          aria-hidden={docsOpen}
-        >
-          <div
-            id="canvas"
-            style={{
-              width: sceneModel?.viewport ? `${sceneModel.viewport.width}px` : undefined,
-              height: sceneModel?.viewport ? `${sceneModel.viewport.height}px` : undefined
-            }}
-          >
-            {dragTooltip && (
-              <div
-                className="drag-tooltip"
-                style={{
-                  left: `${dragTooltip.clientX + 12}px`,
-                  top: `${dragTooltip.clientY + 12}px`
-                }}
-              >
-                {dragTooltip.text}
-              </div>
-            )}
-            {sceneModel?.viewport && (
-              <div
-                className="canvas-world"
-                style={{ transform: `translate(${sceneModel.viewport.offsetX}px, ${sceneModel.viewport.offsetY}px)` }}
-              >
-                {sceneModel.lanes.map((lane) => {
-                  return (
-                    <div key={lane.key}>
-                      <div
-                        className="lane-band"
-                        style={{ top: `${lane.bandTop}px`, height: `${lane.bandHeight}px` }}
-                      />
-                      {lane.streamLabel && (
-                        <div className="lane-stream-label" style={{ top: `${lane.labelTop}px`, left: `${lane.labelLeft}px` }}>
-                          {lane.streamLabel}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-
-                {sceneModel.boundaries.map((boundary) => {
-                  return (
-                    <div
-                      key={boundary.key}
-                      className="slice-divider"
-                      style={{ left: `${boundary.left}px`, top: `${boundary.top}px`, height: `${boundary.height}px` }}
-                    />
-                  );
-                })}
-
-                {sceneModel.title && (
-                  <div className="slice-title" style={{ top: `${sceneModel.title.top}px`, left: `${sceneModel.title.left}px` }}>
-                    {sceneModel.title.text}
-                  </div>
-                )}
-
-                {sceneModel.nodes.map((entry) => {
-                  return (
-                    <NodeCard
-                      key={entry.renderKey}
-                      node={entry.node}
-                      nodePrefix={entry.nodePrefix}
-                      className={entry.className}
-                      style={{
-                        left: `${entry.x}px`,
-                        top: `${entry.y}px`,
-                        width: `${entry.w}px`,
-                        height: `${entry.h}px`
-                      }}
-                      onMouseEnter={() => setHighlightRange(entry.srcRange)}
-                      onMouseLeave={() => setHighlightRange(null)}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedNodeKey(entry.key);
-                      }}
-                      onDoubleClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedNodeKey(entry.key);
-                        setEditorOpen(true);
-                        focusRange(entry.srcRange);
-                      }}
-                      onPointerDown={(event) => beginNodeDrag(event, entry.key)}
-                    />
-                  );
-                })}
-
-                  <svg id="arrows" width={sceneModel.worldWidth} height={sceneModel.worldHeight}>
-                    <defs>
-                      <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-                        <path d="M0,0 L0,6 L8,3 z" fill="var(--arrow)" />
-                      </marker>
-                      <marker id="arr-related" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-                        <path d="M0,0 L0,6 L8,3 z" fill="var(--edge-highlight)" />
-                      </marker>
-                    </defs>
-
-                    {sceneModel.edges.map((edge) => {
-                      const handleEdgeHoverEnter = () => setHoveredEdgeKey(edge.edgeKey);
-                      const handleEdgeHoverLeave = () => {
-                        setHoveredEdgeKey((current) => (current === edge.edgeKey ? null : current));
-                      };
-
-                      return (
-                        <g key={edge.renderKey} className={`${edge.related ? 'related ' : ''}${edge.hovered ? 'hovered' : ''}`.trim()}>
-                          <path
-                            d={edge.path}
-                            className="edge-hover-target"
-                            onPointerEnter={handleEdgeHoverEnter}
-                            onPointerLeave={handleEdgeHoverLeave}
-                            onMouseEnter={handleEdgeHoverEnter}
-                            onMouseLeave={handleEdgeHoverLeave}
-                          />
-                          <path
-                            d={edge.path}
-                            className="arrow-path"
-                            markerEnd={edge.related ? "url(#arr-related)" : "url(#arr)"}
-                            onPointerEnter={handleEdgeHoverEnter}
-                            onPointerLeave={handleEdgeHoverLeave}
-                            onMouseEnter={handleEdgeHoverEnter}
-                            onMouseLeave={handleEdgeHoverLeave}
-                          />
-                          {edge.label && (
-                            <text
-                              className="arrow-label"
-                              textAnchor="middle"
-                              x={edge.labelX}
-                              y={edge.labelY}
-                            >
-                              [{edge.label}]
-                            </text>
-                          )}
-                          {dragAndDropEnabled &&
-                            supportsEditableEdgePoints(routeMode) &&
-                            edge.points?.map((point, pointIndex) => {
-                              const nextPoint = edge.points?.[pointIndex + 1];
-                              if (!nextPoint) {
-                                return null;
-                              }
-                              if (!edge.draggableSegmentIndices.includes(pointIndex)) {
-                                return null;
-                              }
-                              return (
-                                <line
-                                  key={`${edge.edgeKey}-segment-handle-${pointIndex}`}
-                                  x1={point.x}
-                                  y1={point.y}
-                                  x2={nextPoint.x}
-                                  y2={nextPoint.y}
-                                  className="edge-segment-handle"
-                                  onPointerEnter={handleEdgeHoverEnter}
-                                  onPointerLeave={handleEdgeHoverLeave}
-                                  onMouseEnter={handleEdgeHoverEnter}
-                                  onMouseLeave={handleEdgeHoverLeave}
-                                  onPointerDown={(event) => beginEdgeSegmentDrag(event, edge.edgeKey, pointIndex, edge.points)}
-                                />
-                              );
-                            })}
-                        </g>
-                      );
-                    })}
-                  </svg>
-              </div>
-            )}
-          </div>
-        </div>
+        <DiagramRenderer
+          sceneModel={sceneModel}
+          canvasPanelRef={canvasPanelRef}
+          isPanning={isPanning}
+          docsOpen={docsOpen}
+          dragTooltip={dragTooltip}
+          dragAndDropEnabled={dragAndDropEnabled}
+          routeMode={routeMode}
+          beginCanvasPan={beginCanvasPan}
+          beginNodeDrag={beginNodeDrag}
+          beginEdgeSegmentDrag={beginEdgeSegmentDrag}
+          onNodeHoverRange={setHighlightRange}
+          onNodeSelect={setSelectedNodeKey}
+          onNodeOpenInEditor={(nodeKey, range) => {
+            setSelectedNodeKey(nodeKey);
+            setEditorOpen(true);
+            focusRange(range);
+          }}
+          onEdgeHover={setHoveredEdgeKey}
+        />
         {selectedNode && (
           <aside className="cross-slice-usage-panel" aria-label="Cross-Slice Usage" style={{ overflowY: 'auto' }}>
             <div className="cross-slice-panel-tabs" role="tablist" aria-label="Node panel tabs">
