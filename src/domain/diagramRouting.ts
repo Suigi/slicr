@@ -433,6 +433,44 @@ export function routeElkEdges(edges: RoutedEdgeInput[], pos: Record<string, Posi
     }
   }
 
+  // Upward stabilization:
+  // Process upward edges right-to-left by source anchor and move each edge
+  // up until its horizontal segment no longer collides with previously placed ones.
+  const upwardDescriptors = descriptors
+    .filter((descriptor) => !descriptor.sameRow && !descriptor.goDown)
+    .sort((left, right) => {
+      if (left.startX !== right.startX) {
+        return right.startX - left.startX;
+      }
+      if (left.endX !== right.endX) {
+        return right.endX - left.endX;
+      }
+      return left.key.localeCompare(right.key);
+    });
+
+  const placedUpwardSegments: Array<{ y: number; startX: number; endX: number }> = [];
+  for (const descriptor of upwardDescriptors) {
+    const minY = Math.min(descriptor.minTrackY, descriptor.maxTrackY);
+    const maxY = Math.max(descriptor.minTrackY, descriptor.maxTrackY);
+    const step = EDGE_EDGE_TRACK_SPACING;
+    let trackY = clamp(descriptor.trackY, minY, maxY);
+    const collides = (candidateY: number) => placedUpwardSegments.some((segment) => (
+      Math.abs(segment.y - candidateY) < 0.001 &&
+      rangesOverlap(segment.startX, segment.endX, descriptor.startX, descriptor.endX)
+    ));
+
+    while (collides(trackY)) {
+      const candidateY = trackY - step;
+      if (candidateY < minY) {
+        break;
+      }
+      trackY = candidateY;
+    }
+
+    descriptor.trackY = findNonOverlappingTrackY({ ...descriptor, trackY }, pos, minY, maxY);
+    placedUpwardSegments.push({ y: descriptor.trackY, startX: descriptor.startX, endX: descriptor.endX });
+  }
+
   const sameRowGroups = new Map<string, RoutedEdgeDescriptor[]>();
   for (const descriptor of descriptors) {
     if (!descriptor.sameRow) {

@@ -807,4 +807,85 @@ evt:b <- cmd:command
 
     await assertGeometry(dsl, expectedGeometry);
   });
+
+  it('orders edge y values based on source node x values', async () => {
+    const dsl = `
+slice "Data Mapping"
+
+cmd:add "Add Todo"
+data:
+  id: 100
+  name: alpha
+
+evt:thing-added@1 "Todo Added"
+<- cmd:add
+uses:
+  id
+  name
+
+evt:thing-added@2 "Todo Added"
+data:
+  id: 200
+  name: bravo
+
+---
+
+rm:my-rm "All Todos"
+<- evt:thing-added@1
+<- evt:thing-added@2
+uses:
+  things <- collect({id,name})
+
+ui:my-ui "Rename Todo Form"
+<- rm:my-rm
+data:
+  newName: ALPHA
+uses:
+  id <- $.things[0].id
+
+cmd:my-cmd "Rename Todo"
+<- ui:my-ui
+uses:
+  id
+  newName
+
+evt:my-evt "Todo Renamed"
+<- cmd:my-cmd
+uses:
+  id
+  name <- newName
+
+---
+
+rm:my-rm@2 "All Todos"
+<- evt:thing-added@2
+<- evt:my-evt
+uses:
+  things <- collect({id,name})
+`;
+    const expectedGeometry = {
+      "nodes": [
+        {"key":"add","x":50,"y":212,"w":180,"h":80},
+        {"key":"my-cmd","x":808,"y":212,"w":180,"h":80},
+        {"key":"my-evt","x":848,"y":420,"w":180,"h":80},
+        {"key":"my-rm","x":588,"y":212,"w":180,"h":128},
+        {"key":"my-rm@2","x":1108,"y":212,"w":180,"h":128},
+        {"key":"my-ui","x":628,"y":52,"w":180,"h":80},
+        {"key":"thing-added@1","x":108,"y":420,"w":180,"h":80},
+        {"key":"thing-added@2","x":328,"y":420,"w":180,"h":80}
+      ],
+      "edges": [
+        {"key":"add->thing-added@1#0","from":"add","to":"thing-added@1","d":"M 160 292 L 160 310 L 178 310 L 178 420","points":[{"x":160,"y":292},{"x":160,"y":310},{"x":178,"y":310},{"x":178,"y":420}]},
+        {"key":"my-cmd->my-evt#5","from":"my-cmd","to":"my-evt","d":"M 918 292 L 918 320 L 918 320 L 918 420","points":[{"x":918,"y":292},{"x":918,"y":320},{"x":918,"y":320},{"x":918,"y":420}]},
+        {"key":"my-evt->my-rm@2#7","from":"my-evt","to":"my-rm@2","d":"M 958 420 L 958 410 L 1183 410 L 1183 340","points":[{"x":958,"y":420},{"x":958,"y":410},{"x":1183,"y":410},{"x":1183,"y":340}]},
+        {"key":"my-rm->my-ui#3","from":"my-rm","to":"my-ui","d":"M 698 212 L 698 198.2 L 698 198.2 L 698 132","points":[{"x":698,"y":212},{"x":698,"y":198},{"x":698,"y":198},{"x":698,"y":132}]},
+        {"key":"my-ui->my-cmd#4","from":"my-ui","to":"my-cmd","d":"M 738 132 L 738 145.3 L 878 145.3 L 878 212","points":[{"x":738,"y":132},{"x":738,"y":145},{"x":878,"y":145},{"x":878,"y":212}]},
+        {"key":"thing-added@1->my-rm#1","from":"thing-added@1","to":"my-rm","d":"M 218 420 L 218 380 L 653 380 L 653 340","points":[{"x":218,"y":420},{"x":218,"y":380},{"x":653,"y":380},{"x":653,"y":340}]},
+        {"key":"thing-added@2->my-rm@2#6","from":"thing-added@2","to":"my-rm@2","d":"M 443 420 L 443 400 L 1173 400 L 1173 340","points":[{"x":443,"y":420},{"x":443,"y":400},{"x":1173,"y":400},{"x":1173,"y":340}]},
+        {"key":"thing-added@2->my-rm#2","from":"thing-added@2","to":"my-rm","d":"M 433 420 L 433 390 L 663 390 L 663 340","points":[{"x":433,"y":420},{"x":433,"y":390},{"x":663,"y":390},{"x":663,"y":340}]}
+      ]
+    };
+
+    await assertGeometry(dsl, expectedGeometry);
+  });
 });
