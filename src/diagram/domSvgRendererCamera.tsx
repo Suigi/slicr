@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import type { PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent } from 'react';
+import { useEffect, useState } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 import { supportsEditableEdgePoints } from '../domain/diagramEngine';
 import { NodeCard } from '../NodeCard';
 import { toWorldClientPoint, zoomCameraAroundClientPoint } from './cameraUtils';
@@ -69,14 +69,22 @@ export function DomSvgDiagramRendererCamera({
     window.addEventListener('pointerup', onUp);
   };
 
-  const handleWheelZoom = (event: ReactWheelEvent<HTMLDivElement>) => {
+  type WheelLikeEvent = {
+    deltaX: number;
+    deltaY: number;
+    clientX: number;
+    clientY: number;
+    ctrlKey: boolean;
+    metaKey: boolean;
+  };
+
+  const handleWheelZoom = (event: WheelLikeEvent) => {
     if (!cameraControlsEnabled) {
       return;
     }
     if (!sceneModel?.viewport) {
       return;
     }
-    event.preventDefault();
 
     if (!event.ctrlKey && !event.metaKey) {
       if (event.deltaX === 0 && event.deltaY === 0) {
@@ -94,19 +102,52 @@ export function DomSvgDiagramRendererCamera({
       return;
     }
 
+    const zoomFactor = Math.pow(1.1, -event.deltaY / 100);
+
+    const rect = canvasPanelRef.current?.getBoundingClientRect();
+    const scrollLeft = canvasPanelRef.current?.scrollLeft ?? 0;
+    const scrollTop = canvasPanelRef.current?.scrollTop ?? 0;
+    const localX = rect ? event.clientX - rect.left + scrollLeft : event.clientX;
+    const localY = rect ? event.clientY - rect.top + scrollTop : event.clientY;
+
     setCamera((current) => {
       return zoomCameraAroundClientPoint(
         sceneModel,
         current,
-        event.clientX,
-        event.clientY,
-        event.deltaY < 0 ? 1.1 : 0.9
+        localX,
+        localY,
+        zoomFactor
       );
     });
   };
 
+  useEffect(() => {
+    const el = canvasPanelRef.current;
+    if (!el) return;
+
+    const onWheel = (e: WheelEvent) => {
+      if (!cameraControlsEnabled || !sceneModel?.viewport) {
+        return;
+      }
+      // prevent the browser's default scroll/zoom when interacting with the canvas
+      e.preventDefault();
+      handleWheelZoom(e as unknown as WheelLikeEvent);
+    };
+
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+    };
+  }, [canvasPanelRef, cameraControlsEnabled, sceneModel]);
+
   const toWorldPointerEvent = (event: ReactPointerEvent): ReactPointerEvent => {
-    const world = toWorldClientPoint(sceneModel, camera, event.clientX, event.clientY);
+    const rect = canvasPanelRef.current?.getBoundingClientRect();
+    const scrollLeft = canvasPanelRef.current?.scrollLeft ?? 0;
+    const scrollTop = canvasPanelRef.current?.scrollTop ?? 0;
+    const localX = rect ? event.clientX - rect.left + scrollLeft : event.clientX;
+    const localY = rect ? event.clientY - rect.top + scrollTop : event.clientY;
+
+    const world = toWorldClientPoint(sceneModel, camera, localX, localY);
     const proxy = Object.create(event) as ReactPointerEvent;
     Object.defineProperty(proxy, 'clientX', { configurable: true, value: world.x });
     Object.defineProperty(proxy, 'clientY', { configurable: true, value: world.y });
@@ -118,8 +159,7 @@ export function DomSvgDiagramRendererCamera({
       ref={canvasPanelRef}
       className={`canvas-panel ${isPanning ? 'panning' : ''} ${docsOpen ? 'hidden' : ''}`}
       onPointerDown={beginCameraPan}
-      onWheel={handleWheelZoom}
-      style={{ overflow: 'hidden' }}
+      style={{ position: 'relative', overflow: 'hidden' }}
       aria-hidden={docsOpen}
       data-diagram-renderer={rendererId}
     >

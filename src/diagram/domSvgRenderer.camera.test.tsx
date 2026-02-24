@@ -69,9 +69,10 @@ function renderRenderer(overrides: Partial<DiagramRendererAdapterProps> = {}) {
   document.body.appendChild(host);
   root = ReactDOM.createRoot(host);
 
+  const canvasPanelRef = { current: null };
   const props: DiagramRendererAdapterProps = {
     sceneModel: baseScene(),
-    canvasPanelRef: { current: null },
+    canvasPanelRef,
     isPanning: false,
     docsOpen: false,
     dragTooltip: null,
@@ -90,6 +91,16 @@ function renderRenderer(overrides: Partial<DiagramRendererAdapterProps> = {}) {
   act(() => {
     root?.render(<DomSvgDiagramRendererCamera {...props} />);
   });
+
+  // Mock getBoundingClientRect for the panel
+  if (canvasPanelRef.current) {
+    (canvasPanelRef.current as HTMLElement).getBoundingClientRect = vi.fn().mockReturnValue({
+      left: 0,
+      top: 0,
+      width: 1200,
+      height: 900
+    });
+  }
 
   return props;
 }
