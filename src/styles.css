@@ -6,6 +6,7 @@
   --border: #2a2a38;
   --text: #e8e8f0;
   --muted: #6b6b80;
+  --fg: var(--text);
 
   --rm: #22c55e;
   --rm-bg: #0a1f10;
@@ -35,10 +36,12 @@
   --event-color-rgb: 249 115 22;
   --rm-color-rgb: 34 197 94;
   --ui-color: #f3f4f6;
+  --ui: var(--ui-color);
   --ui-color-rgb: 243 244 246;
   --ui-bg: #374151;
   --ui-border: #f9fafb;
   --aut-color: #a78bfa;
+  --aut: var(--aut-color);
   --aut-color-rgb: 167 139 250;
   --aut-bg: #1c1a2e;
   --aut-border: #3c3660;
@@ -1111,7 +1114,6 @@ header h1 {
 
 .cross-slice-usage-node-key {
   font-weight: 700;
-  color: var(--fg);
 }
 
 .cross-slice-usage-node.cmd {
