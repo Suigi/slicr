@@ -696,7 +696,8 @@ function App() {
   }, []);
 
   useEffect(() => {
-    document.title = `Slicer - ${currentSliceName}`;
+    const localPrefix = window.location.hostname === 'localhost' ? '[local] ' : '';
+    document.title = `${localPrefix}Slicer - ${currentSliceName}`;
   }, [currentSliceName]);
 
   useEffect(() => {

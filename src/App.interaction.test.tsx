@@ -113,9 +113,10 @@ describe('App interactions', () => {
 
     const sliceTitle = document.querySelector('.slice-title');
     const defaultName = DEFAULT_DSL.match(/^\s*slice\s+"([^"]+)"/m)?.[1];
+    const localPrefix = window.location.hostname === 'localhost' ? '[local] ' : '';
 
     expect(sliceTitle?.textContent).toBe(defaultName);
-    expect(document.title).toBe(`Slicer - ${defaultName}`);
+    expect(document.title).toBe(`${localPrefix}Slicer - ${defaultName}`);
     expect(localStorage.getItem('slicr.es.v1.index')).not.toBeNull();
     expect(localStorage.getItem('slicr.dsl')).toBeNull();
     const stored = readStoredLibrary();
@@ -153,9 +154,10 @@ rm:persisted-view`;
     expect(document.querySelector('.slice-title')?.textContent).toBe('Alpha');
 
     clickSliceMenuItem('Beta');
+    const localPrefix = window.location.hostname === 'localhost' ? '[local] ' : '';
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Beta');
-    expect(document.title).toBe('Slicer - Beta');
+    expect(document.title).toBe(`${localPrefix}Slicer - Beta`);
     const streamRaw = localStorage.getItem('slicr.es.v1.stream.app');
     expect(streamRaw).not.toBeNull();
     const events = JSON.parse(streamRaw ?? '[]') as Array<{ type: string; payload?: { selectedSliceId?: string } }>;
