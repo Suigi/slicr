@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, expectTypeOf } from 'vitest';
 import {
+  DIAGRAM_RENDERER_CONTRACT_INVARIANTS,
   createNoopDiagramRendererCallbacks,
   validateDiagramSceneModel,
   type DiagramRendererCallbacks,
@@ -150,5 +151,12 @@ describe('rendererContract', () => {
     expect(result.errors.join('\n')).toContain('non-finite node geometry');
     expect(result.errors.join('\n')).toContain('viewport width must be > 0');
     expect(result.errors.join('\n')).toContain('viewport height must be > 0');
+  });
+
+  it('documents strict renderer invariants for adapter implementers', () => {
+    const invariantText = DIAGRAM_RENDERER_CONTRACT_INVARIANTS.join('\n');
+    expect(invariantText).toContain('Stable IDs');
+    expect(invariantText).toContain('Coordinate Space');
+    expect(invariantText).toContain('Commit-on-end');
   });
 });
