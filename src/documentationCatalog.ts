@@ -164,13 +164,11 @@ rm:summary <- evt:step-two`
         id: 'stream-lanes',
         title: 'Stream lanes',
         description: 'Assign stream labels to events to split them into named event lanes.',
-        dsl: `slice "Stream Lanes"
+        dsl: `evt:room-booked
+stream: booking
 
 evt:room-opened
 stream: inventory
-
-evt:room-booked
-stream: booking
 
 evt:room-cleaned
 stream: inventory
@@ -178,7 +176,8 @@ stream: inventory
 rm:ops-dashboard
   <- evt:room-opened
   <- evt:room-booked
-  <- evt:room-cleaned`
+  <- evt:room-cleaned
+`
       }
     ]
   }

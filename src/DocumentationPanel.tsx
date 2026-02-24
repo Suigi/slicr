@@ -70,7 +70,7 @@ function computePreview(feature: DocumentationFeature): PreviewData {
       return { error: 'No nodes to render in this example.' };
     }
 
-    const renderedEdges = buildRenderedEdges(parsed, layout.layout.pos, 'classic', {});
+    const renderedEdges = buildRenderedEdges(parsed, layout.layout.pos, 'elk', {});
 
     let minX = 0;
     let minY = 0;
