@@ -1,0 +1,4 @@
+interface:
+  display_name: "Strict TDD (Vitest MCP)"
+  short_description: "Run strict red/green/refactor gates with Vitest MCP"
+  default_prompt: "Use $strict-tdd-vitest-mcp to implement in strict TDD steps, prove red before green, and run tests through Vitest MCP for each phase gate."
