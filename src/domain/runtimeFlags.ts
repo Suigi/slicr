@@ -3,7 +3,7 @@ export const DRAG_AND_DROP_FLAG_STORAGE_KEY = 'slicr.flag.dragAndDrop';
 export const CROSS_SLICE_DATA_FLAG_STORAGE_KEY = 'slicr.flag.crossSliceData';
 export const DIAGRAM_RENDERER_FLAG_STORAGE_KEY = 'slicr.flag.diagramRenderer';
 type StorageLike = Pick<Storage, 'getItem' | 'setItem'>;
-export type DiagramRendererId = 'dom-svg' | 'experimental';
+export type DiagramRendererId = 'dom-svg' | 'dom-svg-camera';
 
 function parseStoredFlag(value: string | null): boolean | null {
   if (value === 'true') {
@@ -16,7 +16,7 @@ function parseStoredFlag(value: string | null): boolean | null {
 }
 
 function parseStoredRendererId(value: string | null): DiagramRendererId | null {
-  if (value === 'dom-svg' || value === 'experimental') {
+  if (value === 'dom-svg' || value === 'dom-svg-camera') {
     return value;
   }
   return null;
@@ -60,7 +60,7 @@ export function isCrossSliceDataEnabled(hostname: string, storage?: StorageLike 
 }
 
 export function getDiagramRendererId(_hostname: string, storage: StorageLike | null = defaultStorage()): DiagramRendererId {
-  const defaultValue: DiagramRendererId = 'dom-svg';
+  const defaultValue: DiagramRendererId = 'dom-svg-camera';
   if (!storage) {
     return defaultValue;
   }

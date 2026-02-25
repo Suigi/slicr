@@ -4,7 +4,7 @@ import { act } from 'react';
 import ReactDOM from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DomSvgDiagramRenderer } from './domSvgRenderer';
-import { ExperimentalDiagramRenderer } from './experimentalRenderer';
+import { DomSvgCameraDiagramRenderer } from './domSvgCameraRenderer';
 import { getDiagramRenderer } from './rendererRegistry';
 import type { DiagramRendererAdapterProps } from './domSvgRenderer';
 import type { DiagramSceneModel } from './rendererContract';
@@ -21,7 +21,7 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
-function renderWithRegistryRenderer(rendererId: 'dom-svg' | 'experimental') {
+function renderWithRegistryRenderer(rendererId: 'dom-svg' | 'dom-svg-camera') {
   const Renderer = getDiagramRenderer(rendererId);
   host = document.createElement('div');
   document.body.appendChild(host);
@@ -65,16 +65,16 @@ describe('rendererRegistry', () => {
     expect(getDiagramRenderer('dom-svg')).toBe(DomSvgDiagramRenderer);
   });
 
-  it('returns experimental renderer for experimental id', () => {
-    expect(getDiagramRenderer('experimental')).toBe(ExperimentalDiagramRenderer);
+  it('returns dom-svg-camera renderer for dom-svg-camera id', () => {
+    expect(getDiagramRenderer('dom-svg-camera')).toBe(DomSvgCameraDiagramRenderer);
   });
 
-  it('falls back to dom-svg renderer for unknown id', () => {
-    expect(getDiagramRenderer('unknown' as 'dom-svg')).toBe(DomSvgDiagramRenderer);
+  it('falls back to dom-svg-camera renderer for unknown id', () => {
+    expect(getDiagramRenderer('unknown' as 'dom-svg-camera')).toBe(DomSvgCameraDiagramRenderer);
   });
 
-  it('mounts camera world wrapper for experimental renderer', () => {
-    renderWithRegistryRenderer('experimental');
+  it('mounts camera world wrapper for dom-svg-camera renderer', () => {
+    renderWithRegistryRenderer('dom-svg-camera');
     expect(document.querySelector('.canvas-camera-world')).not.toBeNull();
   });
 });

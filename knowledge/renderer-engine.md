@@ -21,7 +21,7 @@ This document captures the current learnings and the preparation plan for switch
 - Renderer registry/factory added:
   - `/Users/daniel/src/private/slicr/src/diagram/rendererRegistry.ts`
 - Experimental renderer skeleton added:
-  - `/Users/daniel/src/private/slicr/src/diagram/experimentalRenderer.tsx`
+  - `/Users/daniel/src/private/slicr/src/diagram/domSvgCameraRenderer.tsx`
 - Renderer selection flag added/persisted via runtime flags:
   - `/Users/daniel/src/private/slicr/src/domain/runtimeFlags.ts`
 
@@ -133,7 +133,7 @@ Deliverables:
 
 Status:
 - Completed.
-- App now mounts a renderer adapter selected by persisted runtime flag (`dom-svg` default, `experimental` available).
+- App now mounts a renderer adapter selected by persisted runtime flag (`dom-svg` default, `dom-svg-camera` [default] available).
 - Renderer-specific canvas/DOM/SVG JSX has been moved out of `App.tsx`.
 
 ## Phase 3 (in progress): Add experimental new engine renderer
@@ -199,5 +199,5 @@ Current status:
 
 1. Replace `experimentalRenderer` internals with true engine-specific rendering (tldraw/custom), while preserving callback semantics.
 2. Add adapter-level parity tests for renderer behavior (selection/hover/drag commit/focus initialization).
-3. Define and track a parity checklist (visual + interaction) between `dom-svg` and `experimental`.
+3. Define and track a parity checklist (visual + interaction) between `dom-svg` and `dom-svg-camera`.
 4. Run side-by-side validation behind feature flag and close deltas before default switch.

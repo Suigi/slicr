@@ -5,7 +5,7 @@ import { parseDsl } from './domain/parseDsl';
 import { DiagramRendererId } from './domain/runtimeFlags';
 import { ReadOnlyDslEditor } from './ReadOnlyDslEditor';
 import { DomSvgDiagramRenderer } from './diagram/domSvgRenderer';
-import { ExperimentalDiagramRenderer } from './diagram/experimentalRenderer';
+import { DomSvgCameraDiagramRenderer } from './diagram/domSvgCameraRenderer';
 import { buildSceneModel } from './diagram/sceneModel';
 const DOC_PREVIEW_MARGIN = 64;
 const DOC_PREVIEW_VIEWPORT_WIDTH = 560;
@@ -77,8 +77,8 @@ function computePreview(feature: DocumentationFeature): PreviewData {
 function FeatureCard({ feature, diagramRendererId }: { feature: DocumentationFeature; diagramRendererId: DiagramRendererId }) {
   const preview = useMemo(() => computePreview(feature), [feature]);
   const canvasPanelRef = useRef<HTMLDivElement>(null);
-  const DiagramRenderer = diagramRendererId === 'experimental'
-    ? ExperimentalDiagramRenderer
+  const DiagramRenderer = diagramRendererId === 'dom-svg-camera'
+    ? DomSvgCameraDiagramRenderer
     : DomSvgDiagramRenderer;
   const noopEdgeHover: Dispatch<SetStateAction<string | null>> = () => {};
 

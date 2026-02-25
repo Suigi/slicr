@@ -278,7 +278,7 @@ rm:persisted-view`;
   });
 
   it('uses selected renderer engine for documentation previews', () => {
-    localStorage.setItem(DIAGRAM_RENDERER_FLAG_STORAGE_KEY, 'experimental');
+    localStorage.setItem(DIAGRAM_RENDERER_FLAG_STORAGE_KEY, 'dom-svg-camera');
     renderApp();
 
     const mainCameraWorld = document.querySelector('.main .canvas-panel .canvas-camera-world') as HTMLElement | null;
@@ -304,7 +304,7 @@ rm:persisted-view`;
   });
 
   it('disables camera pan and zoom interactions for documentation previews', () => {
-    localStorage.setItem(DIAGRAM_RENDERER_FLAG_STORAGE_KEY, 'experimental');
+    localStorage.setItem(DIAGRAM_RENDERER_FLAG_STORAGE_KEY, 'dom-svg-camera');
     renderApp();
 
     const docsToggle = document.querySelector('button[aria-label="Toggle documentation panel"]');
@@ -769,21 +769,21 @@ rm:wallet "Customer Wallet"
     expect(menuToggle).toBeNull();
   });
 
-  it('uses dom-svg renderer by default and persists renderer id', () => {
+  it('uses dom-svg-camera renderer by default and persists renderer id', () => {
     renderApp();
 
     const canvasPanel = document.querySelector('.canvas-panel');
-    expect(canvasPanel?.getAttribute('data-diagram-renderer')).toBe('dom-svg');
-    expect(localStorage.getItem(DIAGRAM_RENDERER_FLAG_STORAGE_KEY)).toBe('dom-svg');
+    expect(canvasPanel?.getAttribute('data-diagram-renderer')).toBe('dom-svg-camera');
+    expect(localStorage.getItem(DIAGRAM_RENDERER_FLAG_STORAGE_KEY)).toBe('dom-svg-camera');
   });
 
-  it('uses experimental renderer when persisted renderer flag is enabled', () => {
-    localStorage.setItem(DIAGRAM_RENDERER_FLAG_STORAGE_KEY, 'experimental');
+  it('uses dom-svg-camera renderer when persisted renderer flag is enabled', () => {
+    localStorage.setItem(DIAGRAM_RENDERER_FLAG_STORAGE_KEY, 'dom-svg-camera');
 
     renderApp();
 
     const canvasPanel = document.querySelector('.canvas-panel');
-    expect(canvasPanel?.getAttribute('data-diagram-renderer')).toBe('experimental');
+    expect(canvasPanel?.getAttribute('data-diagram-renderer')).toBe('dom-svg-camera');
   });
 
   it('restores saved manual node positions for the selected slice on render', () => {

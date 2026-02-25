@@ -370,7 +370,7 @@ function App() {
   ]);
 
   const initialCamera = useMemo(() => {
-    if (diagramRendererId !== 'experimental' || !sceneModel?.viewport) {
+    if (diagramRendererId !== 'dom-svg-camera' || !sceneModel?.viewport) {
       return undefined;
     }
     const targetPadding = 80;

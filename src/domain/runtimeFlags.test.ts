@@ -84,25 +84,25 @@ describe('runtimeFlags', () => {
     expect(isCrossSliceDataEnabled('example.com', storage)).toBe(true);
   });
 
-  it('defaults diagram renderer id to dom-svg and persists it', () => {
+  it('defaults diagram renderer id to dom-svg-camera and persists it', () => {
     const storage = createStorage();
 
-    expect(getDiagramRendererId('localhost', storage)).toBe('dom-svg');
-    expect(storage.getItem(DIAGRAM_RENDERER_FLAG_STORAGE_KEY)).toBe('dom-svg');
+    expect(getDiagramRendererId('localhost', storage)).toBe('dom-svg-camera');
+    expect(storage.getItem(DIAGRAM_RENDERER_FLAG_STORAGE_KEY)).toBe('dom-svg-camera');
   });
 
   it('honors persisted diagram renderer id values', () => {
     const storage = createStorage();
-    storage.setItem(DIAGRAM_RENDERER_FLAG_STORAGE_KEY, 'experimental');
+    storage.setItem(DIAGRAM_RENDERER_FLAG_STORAGE_KEY, 'dom-svg-camera');
 
-    expect(getDiagramRendererId('localhost', storage)).toBe('experimental');
+    expect(getDiagramRendererId('localhost', storage)).toBe('dom-svg-camera');
   });
 
-  it('falls back to dom-svg for invalid persisted renderer ids', () => {
+  it('falls back to dom-svg-camera for invalid persisted renderer ids', () => {
     const storage = createStorage();
     storage.setItem(DIAGRAM_RENDERER_FLAG_STORAGE_KEY, 'invalid');
 
-    expect(getDiagramRendererId('localhost', storage)).toBe('dom-svg');
-    expect(storage.getItem(DIAGRAM_RENDERER_FLAG_STORAGE_KEY)).toBe('dom-svg');
+    expect(getDiagramRendererId('localhost', storage)).toBe('dom-svg-camera');
+    expect(storage.getItem(DIAGRAM_RENDERER_FLAG_STORAGE_KEY)).toBe('dom-svg-camera');
   });
 });
