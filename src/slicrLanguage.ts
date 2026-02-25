@@ -8,7 +8,9 @@ import {
   syntaxHighlighting,
   syntaxTree
 } from "@codemirror/language"
-import { autocompletion } from "@codemirror/autocomplete"
+import { autocompletion, startCompletion } from "@codemirror/autocomplete"
+import { EditorSelection } from "@codemirror/state"
+import { EditorView } from "@codemirror/view"
 import {styleTags, tags as t} from "@lezer/highlight"
 import {parser} from "./slicr.parser.js"
 import { getDependencySuggestions, getUsesKeySuggestions } from "./domain/dslAutocomplete"
@@ -19,12 +21,36 @@ type CompletionContextLike = {
   matchBefore: (pattern: RegExp) => { from: number; to: number; text: string } | null
 }
 
+declare global {
+  var __SLICR_DEBUG_AUTOCOMPLETE__: boolean | undefined
+  var __SLICR_AUTOCOMPLETE_DEBUG_EVENTS__: Array<Record<string, unknown>> | undefined
+}
+
+function logAutocompleteDebug(stage: string, details: Record<string, unknown>) {
+  if (!globalThis.__SLICR_DEBUG_AUTOCOMPLETE__) {
+    return
+  }
+  const entry = { stage, ...details }
+  if (!globalThis.__SLICR_AUTOCOMPLETE_DEBUG_EVENTS__) {
+    globalThis.__SLICR_AUTOCOMPLETE_DEBUG_EVENTS__ = []
+  }
+  globalThis.__SLICR_AUTOCOMPLETE_DEBUG_EVENTS__.push(entry)
+  if (typeof console !== 'undefined' && typeof console.debug === 'function') {
+    console.debug('[slicr-autocomplete]', entry)
+  }
+}
+
 function slicrCompletionSource(context: CompletionContextLike) {
   const doc = context.state.doc.toString()
   const usesSuggestions = getUsesKeySuggestions(doc, context.pos)
+  logAutocompleteDebug('source-called', {
+    pos: context.pos,
+    usesSuggestionCount: usesSuggestions?.suggestions.length ?? 0
+  })
   if (usesSuggestions && usesSuggestions.suggestions.length > 0) {
     return {
       from: usesSuggestions.from,
+      filter: false,
       options: usesSuggestions.suggestions.map((label) => ({
         label,
         type: 'property'
@@ -55,6 +81,46 @@ function completionTypeForLabel(label: string) {
   }
   return "variable"
 }
+
+const triggerUsesCompletionOnDotDot = EditorView.updateListener.of((update) => {
+  if (!update.docChanged) {
+    return
+  }
+
+  const pos = update.state.selection.main.head
+  const doc = update.state.doc.toString()
+  logAutocompleteDebug('listener-doc-changed', {
+    pos,
+    around: doc.slice(Math.max(0, pos - 3), Math.min(doc.length, pos + 3))
+  })
+  const checks = [pos - 1, pos, pos + 1]
+    .filter((candidatePos) => candidatePos >= 2 && candidatePos <= doc.length)
+    .filter((candidatePos) => doc.slice(candidatePos - 2, candidatePos) === '..')
+  logAutocompleteDebug('listener-dotdot-checks', { pos, checks })
+  if (checks.length === 0) {
+    return
+  }
+  const suggestionProbe = checks.map((candidatePos) => {
+    const result = getUsesKeySuggestions(doc, candidatePos)
+    return { candidatePos, count: result?.suggestions.length ?? 0 }
+  })
+  logAutocompleteDebug('listener-suggestion-probe', { pos, suggestionProbe })
+  const bestCandidate = suggestionProbe.find((entry) => entry.count > 0)
+  if (!bestCandidate) {
+    return
+  }
+
+  if (update.state.selection.main.head !== bestCandidate.candidatePos) {
+    update.view.dispatch({
+      selection: EditorSelection.cursor(bestCandidate.candidatePos)
+    })
+  }
+
+  setTimeout(() => {
+    const started = startCompletion(update.view)
+    logAutocompleteDebug('listener-start-completion', { pos, started, completionPos: bestCandidate.candidatePos, deferred: true })
+  }, 0)
+})
 
 export const slicrHighlightStyle = HighlightStyle.define([
   { tag: t.keyword, class: "dsl-tok-keyword" },
@@ -166,6 +232,7 @@ export function slicr() {
       })
     ]),
     syntaxHighlighting(slicrHighlightStyle),
+    triggerUsesCompletionOnDotDot,
     autocompletion({
       activateOnTyping: true,
       override: [slicrCompletionSource]

@@ -22,6 +22,48 @@ function getAutocompleteSource(state: EditorState, pos: number) {
 }
 
 describe('slicr autocomplete ui', () => {
+  it('shows uses suggestions in popup when typing ..', async () => {
+    const doc = `slice "Uses"
+
+evt:seed
+data:
+  alpha: 1
+
+cmd:consume
+<- evt:seed
+uses:
+  .`;
+
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    view = new EditorView({
+      state: EditorState.create({
+        doc,
+        selection: { anchor: doc.length },
+        extensions: [slicr()]
+      }),
+      parent: host
+    });
+    view.focus();
+
+    view.dispatch({
+      changes: { from: doc.length, to: doc.length, insert: '.' },
+      selection: { anchor: doc.length + 1 }
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await Promise.resolve();
+
+    const source = getAutocompleteSource(view.state, view.state.selection.main.head);
+    const sourceResult = source
+      ? await source(new CompletionContext(view.state, view.state.selection.main.head, true, view))
+      : null;
+    const sourceLabels = sourceResult?.options.map((option) => option.label) ?? [];
+
+    expect(sourceLabels).toContain('alpha');
+  });
+
   it('opens completion suggestions while editing dependencies', async () => {
     const doc = `slice "Orders"
 
