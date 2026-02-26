@@ -733,7 +733,7 @@ function App() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      const isCommandPalette = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k';
+      const isCommandPalette = (event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === 'k';
       if (isCommandPalette) {
         event.preventDefault();
         setCommandPaletteOpen((open) => !open);
@@ -748,6 +748,31 @@ function App() {
           setCrossSliceTraceExpandedKeys({ [firstKey]: true });
         }
         setSelectedNodePanelTab('trace');
+        return;
+      }
+
+      const isNextSliceShortcut = (event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'j';
+      const isPreviousSliceShortcut = (event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'k';
+      if (isNextSliceShortcut || isPreviousSliceShortcut) {
+        event.preventDefault();
+        const delta = isNextSliceShortcut ? 1 : -1;
+        setSelectedNodeKey(null);
+        setHighlightRange(null);
+        setLibrary((currentLibrary) => {
+          const currentIndex = currentLibrary.slices.findIndex((slice) => slice.id === currentLibrary.selectedSliceId);
+          if (currentIndex < 0) {
+            return currentLibrary;
+          }
+          const nextSlice = currentLibrary.slices[currentIndex + delta];
+          if (!nextSlice) {
+            return currentLibrary;
+          }
+          const nextLibrary = selectSlice(currentLibrary, nextSlice.id);
+          if (nextLibrary.selectedSliceId !== currentLibrary.selectedSliceId) {
+            applySelectedSliceOverrides(nextLibrary.selectedSliceId);
+          }
+          return nextLibrary;
+        });
       }
     };
 

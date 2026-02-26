@@ -184,6 +184,122 @@ rm:persisted-view`;
     expect(events.some((event) => event.type === 'slice-selected' && event.payload?.selectedSliceId === 'b')).toBe(true);
   });
 
+  it('switches to the next slice on Cmd/Ctrl+Shift+J', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [
+          { id: 'a', name: 'Alpha', dsl: 'slice "Alpha"\n\nrm:alpha' },
+          { id: 'b', name: 'Beta', dsl: 'slice "Beta"\n\nrm:beta' }
+        ]
+      })
+    );
+
+    renderApp();
+
+    expect(document.querySelector('.slice-title')?.textContent).toBe('Alpha');
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'j', metaKey: true, shiftKey: true, bubbles: true }));
+    });
+
+    expect(document.querySelector('.slice-title')?.textContent).toBe('Beta');
+
+    const streamRaw = localStorage.getItem('slicr.es.v1.stream.app');
+    expect(streamRaw).not.toBeNull();
+    const events = JSON.parse(streamRaw ?? '[]') as Array<{ type: string; payload?: { selectedSliceId?: string } }>;
+    expect(events.some((event) => event.type === 'slice-selected' && event.payload?.selectedSliceId === 'b')).toBe(true);
+  });
+
+  it('switches to the previous slice on Cmd/Ctrl+Shift+K', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'b',
+        slices: [
+          { id: 'a', name: 'Alpha', dsl: 'slice "Alpha"\n\nrm:alpha' },
+          { id: 'b', name: 'Beta', dsl: 'slice "Beta"\n\nrm:beta' }
+        ]
+      })
+    );
+
+    renderApp();
+
+    expect(document.querySelector('.slice-title')?.textContent).toBe('Beta');
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, shiftKey: true, bubbles: true }));
+    });
+
+    expect(document.querySelector('.slice-title')?.textContent).toBe('Alpha');
+
+    const streamRaw = localStorage.getItem('slicr.es.v1.stream.app');
+    expect(streamRaw).not.toBeNull();
+    const events = JSON.parse(streamRaw ?? '[]') as Array<{ type: string; payload?: { selectedSliceId?: string } }>;
+    expect(events.some((event) => event.type === 'slice-selected' && event.payload?.selectedSliceId === 'a')).toBe(true);
+  });
+
+  it('does not change slice on Cmd/Ctrl+Shift+J when already on the last slice', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'b',
+        slices: [
+          { id: 'a', name: 'Alpha', dsl: 'slice "Alpha"\n\nrm:alpha' },
+          { id: 'b', name: 'Beta', dsl: 'slice "Beta"\n\nrm:beta' }
+        ]
+      })
+    );
+
+    renderApp();
+
+    expect(document.querySelector('.slice-title')?.textContent).toBe('Beta');
+    const beforeRaw = localStorage.getItem('slicr.es.v1.stream.app');
+    const beforeEvents = JSON.parse(beforeRaw ?? '[]') as Array<{ type: string }>;
+    const beforeSelectedCount = beforeEvents.filter((event) => event.type === 'slice-selected').length;
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'j', ctrlKey: true, shiftKey: true, bubbles: true }));
+    });
+
+    expect(document.querySelector('.slice-title')?.textContent).toBe('Beta');
+    const afterRaw = localStorage.getItem('slicr.es.v1.stream.app');
+    const afterEvents = JSON.parse(afterRaw ?? '[]') as Array<{ type: string }>;
+    const afterSelectedCount = afterEvents.filter((event) => event.type === 'slice-selected').length;
+    expect(afterSelectedCount).toBe(beforeSelectedCount);
+  });
+
+  it('does not change slice on Cmd/Ctrl+Shift+K when already on the first slice', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [
+          { id: 'a', name: 'Alpha', dsl: 'slice "Alpha"\n\nrm:alpha' },
+          { id: 'b', name: 'Beta', dsl: 'slice "Beta"\n\nrm:beta' }
+        ]
+      })
+    );
+
+    renderApp();
+
+    expect(document.querySelector('.slice-title')?.textContent).toBe('Alpha');
+    const beforeRaw = localStorage.getItem('slicr.es.v1.stream.app');
+    const beforeEvents = JSON.parse(beforeRaw ?? '[]') as Array<{ type: string }>;
+    const beforeSelectedCount = beforeEvents.filter((event) => event.type === 'slice-selected').length;
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, shiftKey: true, bubbles: true }));
+    });
+
+    expect(document.querySelector('.slice-title')?.textContent).toBe('Alpha');
+    const afterRaw = localStorage.getItem('slicr.es.v1.stream.app');
+    const afterEvents = JSON.parse(afterRaw ?? '[]') as Array<{ type: string }>;
+    const afterSelectedCount = afterEvents.filter((event) => event.type === 'slice-selected').length;
+    expect(afterSelectedCount).toBe(beforeSelectedCount);
+  });
+
   it('derives dropdown labels from DSL, ignoring stale stored names', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
