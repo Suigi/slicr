@@ -2127,6 +2127,8 @@ header h1 {
 .node-field-val {
   color: var(--node-field-value);
   font-weight: 500;
+  padding-left: 2px;
+  padding-right: 2px;
 }
 
 .node-field-key {
@@ -2135,6 +2137,8 @@ header h1 {
 
 .node-field-colon {
   color: var(--node-field-key);
+  margin-left: 0.1rem;
+  margin-right: 0.1rem;
 }
 
 .node-field-line.missing .node-field-key,

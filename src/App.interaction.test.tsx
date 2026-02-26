@@ -751,6 +751,84 @@ uses:
     expect(idField?.classList.contains('ui-mapped-both')).toBe(true);
   });
 
+  it('renders node field values without a leading space after the colon', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{
+          id: 'a',
+          dsl: `slice "Trim Node Value"
+
+ui:rename-todo "Rename Todo Form"
+data:
+  newName: ALPHA`
+        }]
+      })
+    );
+
+    renderApp();
+
+    const value = document.querySelector('.node.ui .node-field-val');
+    expect(value?.textContent).toBe('ALPHA');
+  });
+
+  it('renders node measure field values without a leading space after the colon', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{
+          id: 'a',
+          dsl: `slice "Trim Measure Value"
+
+ui:rename-todo "Rename Todo Form"
+data:
+  newName: ALPHA`
+        }]
+      })
+    );
+
+    renderApp();
+
+    const value = document.querySelector('.node-measure-layer .node-measure-field-val');
+    expect(value?.textContent).toBe('ALPHA');
+  });
+
+  it('does not render a node-field-val span for container header lines', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{
+          id: 'a',
+          dsl: `slice "Container Header Value Span"
+
+ui:rename-todo "Rename Todo Form"
+data:
+  alpha: bravo
+  todos:
+    - id: 1
+      name: todo 1`
+        }]
+      })
+    );
+
+    renderApp();
+
+    const uiNode = document.querySelector('.node.ui');
+    expect(uiNode).not.toBeNull();
+
+    const lines = [...(uiNode?.querySelectorAll('.node-field-line') ?? [])];
+    const todosLine = lines.find((line) => line.querySelector('.node-field-key')?.textContent === 'todos');
+    expect(todosLine).toBeDefined();
+    expect(todosLine?.querySelector('.node-field-val')).toBeNull();
+
+    const alphaLine = lines.find((line) => line.querySelector('.node-field-key')?.textContent === 'alpha');
+    expect(alphaLine).toBeDefined();
+    expect(alphaLine?.querySelector('.node-field-val')?.textContent).toBe('bravo');
+  });
+
   it('does not crash when warnings arrive out of order while typing malformed uses/data blocks', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,

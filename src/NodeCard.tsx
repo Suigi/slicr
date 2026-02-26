@@ -75,7 +75,9 @@ function renderNodeDataLine(line: string, index: number) {
   }
 
   const value = match[3];
-  const isMissing = value.trim() === MISSING_DATA_VALUE;
+  const displayValue = value.startsWith(' ') ? value.slice(1) : value;
+  const hasValue = displayValue.length > 0;
+  const isMissing = displayValue.trim() === MISSING_DATA_VALUE;
   const keyWithColon = match[2];
   const key = keyWithColon.endsWith(':') ? keyWithColon.slice(0, -1) : keyWithColon;
 
@@ -84,7 +86,7 @@ function renderNodeDataLine(line: string, index: number) {
       {match[1]}
       <span className="node-field-key">{key}</span>
       <span className="node-field-colon">:</span>
-      <span className="node-field-val">{value}</span>
+      {hasValue ? <span className="node-field-val">{displayValue}</span> : null}
     </div>
   );
 }

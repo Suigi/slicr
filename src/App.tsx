@@ -791,7 +791,8 @@ function App() {
     }
 
     const value = match[3];
-    const isMissing = value.trim() === MISSING_DATA_VALUE;
+    const displayValue = value.startsWith(' ') ? value.slice(1) : value;
+    const isMissing = displayValue.trim() === MISSING_DATA_VALUE;
     const keyWithColon = match[2];
     const key = keyWithColon.endsWith(':') ? keyWithColon.slice(0, -1) : keyWithColon;
 
@@ -800,7 +801,7 @@ function App() {
         {match[1]}
         <span className="node-measure-field-key">{key}</span>
         <span className="node-measure-field-colon">:</span>
-        <span className="node-measure-field-val">{value}</span>
+        <span className="node-measure-field-val">{displayValue}</span>
       </div>
     );
   };
