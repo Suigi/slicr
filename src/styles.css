@@ -91,6 +91,9 @@
   --scrollbar-thumb: #323247;
   --scrollbar-thumb-hover: #454562;
   --scrollbar-thumb-active: #5f5f86;
+  --ui-inbound-data-background: linear-gradient(90deg, color-mix(in srgb, var(--rm) 50%, transparent), transparent);
+  --ui-outbound-data-background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--cmd) 50%, transparent));
+  --ui-data-inbound-and-outbound-background: linear-gradient(90deg, color-mix(in srgb, var(--rm) 30%, transparent), transparent, color-mix(in srgb, var(--cmd) 30%, transparent));
 }
 
 :root[data-theme='light'] {
@@ -2092,6 +2095,24 @@ header h1 {
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;
+}
+
+.node.ui .node-field.ui-mapped-inbound .node-field-line:not(.missing) .node-field-val {
+  background-image: var(--ui-inbound-data-background);
+  border-color: var(--rm);
+  border-radius: 4px;
+}
+
+.node.ui .node-field.ui-mapped-outbound .node-field-line:not(.missing) .node-field-val {
+  background-image: var(--ui-outbound-data-background);
+  border-color: var(--cmd);
+  border-radius: 4px;
+}
+
+.node.ui .node-field.ui-mapped-both .node-field-line:not(.missing) .node-field-val {
+  background-image: var(--ui-data-inbound-and-outbound-background);
+  border-color: var(--ui);
+  border-radius: 4px;
 }
 
 .node-field-lines {

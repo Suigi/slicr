@@ -38,16 +38,26 @@ export function NodeCard(props: NodeCardProps) {
 
       {props.node.data && (
         <div className="node-fields">
-          {displayedFields.map((field) => (
-            <div
-              key={`${props.node.key}-${field.key}`}
-              className={`node-field${props.node.mappedDataKeys?.has(field.key) ? ' mapped' : ''}`}
-            >
-              <div className="node-field-lines">
-                {field.text.split('\n').map((line, index) => renderNodeDataLine(line, index))}
+          {displayedFields.map((field) => {
+            const isInboundMapped = props.node.mappedDataKeys?.has(field.key) ?? false;
+            const isOutboundMapped = props.node.outboundMappedDataKeys?.has(field.key) ?? false;
+            const uiMappingDirectionClass = props.node.type === 'ui'
+              ? (isInboundMapped && isOutboundMapped
+                ? ' ui-mapped-both'
+                : (isInboundMapped ? ' ui-mapped-inbound' : (isOutboundMapped ? ' ui-mapped-outbound' : '')))
+              : '';
+
+            return (
+              <div
+                key={`${props.node.key}-${field.key}`}
+                className={`node-field${isInboundMapped ? ' mapped' : ''}${uiMappingDirectionClass}`}
+              >
+                <div className="node-field-lines">
+                  {field.text.split('\n').map((line, index) => renderNodeDataLine(line, index))}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

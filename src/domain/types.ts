@@ -10,6 +10,7 @@ export type VisualNode = {
   key: string;
   data: NodeData;
   mappedDataKeys?: Set<string>;
+  outboundMappedDataKeys?: Set<string>;
   srcRange: { from: number; to: number };
   dataKeyRanges?: Record<string, { from: number; to: number }>;
 };

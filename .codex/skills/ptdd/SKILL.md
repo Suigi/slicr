@@ -23,6 +23,9 @@ The skill operates in two modes:
 ## Process
 
 Before the first task, create a **test list** in `./test-list.md`: write down all the test cases you anticipate needing to implement the feature. This list will evolve — add and remove items as understanding develops.
+If a test list already exists, remove all [done] tests.
+*In collaborative mode*: if the test list contains [wip ] or [todo] tests, ask the human whether they want to keep them.
+*In autonomous mode*: if the test list contains [wip ] or [todo] tests, remove them.
 
 Use this format for `./test-list.md`, with one test per line and a status tag prefixed to each description:
 

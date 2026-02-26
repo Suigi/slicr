@@ -664,6 +664,93 @@ uses:
     expect(mapped[0]?.textContent).not.toContain('local:');
   });
 
+  it('tints ui data keys by mapping direction across predecessor and successor uses', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{
+          id: 'a',
+          dsl: `slice "UI Data Key Tints"
+
+rm:todos "All Todos"
+data:
+  todos:
+  - id: 101
+    name: Old Todo Name
+
+ui:rename-todo "Rename Todo Form"
+<- rm:todos
+data:
+  newName: ALPHA
+uses:
+  id <- $.todos[0].id
+
+cmd:rename-todo "Rename Todo"
+<- ui:rename-todo
+uses:
+  newName`
+        }]
+      })
+    );
+
+    renderApp();
+
+    const uiNode = [...document.querySelectorAll('.node.ui')]
+      .find((node) => node.querySelector('.node-title')?.textContent?.includes('Rename Todo Form'));
+    expect(uiNode).toBeDefined();
+
+    const fields = [...(uiNode?.querySelectorAll('.node-field') ?? [])];
+    const idField = fields.find((field) => field.textContent?.includes('id:'));
+    const newNameField = fields.find((field) => field.textContent?.includes('newName:'));
+
+    expect(idField?.classList.contains('ui-mapped-inbound')).toBe(true);
+    expect(newNameField?.classList.contains('ui-mapped-outbound')).toBe(true);
+  });
+
+  it('marks ui keys as both when they are mapped in and mapped out', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{
+          id: 'a',
+          dsl: `slice "UI Data Gradient Tint"
+
+rm:todos "All Todos"
+data:
+  todos:
+  - id: 101
+    name: Old Todo Name
+
+ui:rename-todo "Rename Todo Form"
+<- rm:todos
+data:
+  newName: ALPHA
+uses:
+  id <- $.todos[0].id
+
+cmd:rename-todo "Rename Todo"
+<- ui:rename-todo
+uses:
+  id
+  newName`
+        }]
+      })
+    );
+
+    renderApp();
+
+    const uiNode = [...document.querySelectorAll('.node.ui')]
+      .find((node) => node.querySelector('.node-title')?.textContent?.includes('Rename Todo Form'));
+    expect(uiNode).toBeDefined();
+
+    const fields = [...(uiNode?.querySelectorAll('.node-field') ?? [])];
+    const idField = fields.find((field) => field.textContent?.includes('id:'));
+
+    expect(idField?.classList.contains('ui-mapped-both')).toBe(true);
+  });
+
   it('does not crash when warnings arrive out of order while typing malformed uses/data blocks', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,

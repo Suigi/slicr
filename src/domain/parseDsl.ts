@@ -1,6 +1,7 @@
 import { parser } from '../slicr.parser';
 import * as terms from '../slicr.parser.terms';
-import { applyMappingsToNodes, parseUsesBlocks } from './dataMapping';
+import { JSONPath } from 'jsonpath-plus';
+import { applyMappingsToNodes, MappingEntry, parseUsesBlocks } from './dataMapping';
 import { validateDataIntegrity } from './dataIntegrity';
 import { Edge, NodeData, Parsed, ParseWarning, SliceBoundary, VisualNode } from './types';
 
@@ -233,6 +234,7 @@ export function parseDsl(src: string): Parsed {
   }
 
   warnings.push(...applyMappingsToNodes({ nodes, edges, mappingsByRef }));
+  applyOutboundMappedKeys({ nodes, edges, mappingsByRef });
   warnings.push(...validateDataIntegrity({ nodes, edges }));
   boundaries.push(...resolveBoundaries(specs, boundaryLines, refToKey));
 
@@ -868,6 +870,102 @@ function parseInlineYamlProperty(text: string) {
   return { key, value: parseYamlScalar(rest), fromInline: true };
 }
 
+function applyOutboundMappedKeys(input: {
+  nodes: Map<string, VisualNode>;
+  edges: Edge[];
+  mappingsByRef: Map<string, MappingEntry[]>;
+}) {
+  const nodeByRef = new Map<string, VisualNode>();
+  for (const node of input.nodes.values()) {
+    nodeByRef.set(toRefId(node.type, node.name), node);
+  }
+
+  for (const [targetRef, mappings] of input.mappingsByRef.entries()) {
+    const targetNode = nodeByRef.get(targetRef);
+    if (!targetNode || mappings.length === 0) {
+      continue;
+    }
+
+    for (const mapping of mappings) {
+      const sourceNode = resolveMappedSourceNode(input.nodes, input.edges, targetNode.key, mapping.sourcePath);
+      if (!sourceNode || sourceNode.type !== 'ui') {
+        continue;
+      }
+
+      const rootKey = rootKeyForSourcePath(mapping.sourcePath);
+      if (!rootKey) {
+        continue;
+      }
+
+      if (!sourceNode.outboundMappedDataKeys) {
+        sourceNode.outboundMappedDataKeys = new Set<string>();
+      }
+      sourceNode.outboundMappedDataKeys.add(rootKey);
+    }
+  }
+}
+
+function resolveMappedSourceNode(
+  nodes: Map<string, VisualNode>,
+  edges: Edge[],
+  targetNodeKey: string,
+  sourcePath: string
+): VisualNode | null {
+  const predecessorKeys = edges.filter((edge) => edge.to === targetNodeKey).map((edge) => edge.from);
+  for (const predecessorKey of predecessorKeys) {
+    const predecessor = nodes.get(predecessorKey);
+    if (!predecessor || !isRecord(predecessor.data)) {
+      continue;
+    }
+    if (resolvePathValue(predecessor.data, sourcePath) !== undefined) {
+      return predecessor;
+    }
+  }
+  return null;
+}
+
+function resolvePathValue(data: Record<string, unknown>, path: string): unknown {
+  if (path.startsWith('$')) {
+    try {
+      const values = JSONPath({
+        path,
+        json: data,
+        wrap: true
+      });
+      return Array.isArray(values) && values.length > 0 ? values[0] : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+  return getPathValue(data, path);
+}
+
+function getPathValue(data: Record<string, unknown>, path: string): unknown {
+  const segments = path.split('.').filter(Boolean);
+  let current: unknown = data;
+  for (const segment of segments) {
+    if (!current || typeof current !== 'object' || !(segment in current)) {
+      return undefined;
+    }
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return current;
+}
+
+function rootKeyForSourcePath(sourcePath: string): string {
+  if (sourcePath.startsWith('$')) {
+    const match = sourcePath.match(/^\$\.(["']?)([a-zA-Z0-9_-]+)\1/);
+    if (match) {
+      return match[2];
+    }
+  }
+  return sourcePath.split('.', 1)[0];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
 function parseYamlScalar(raw: string): unknown {
   if (raw === 'true') {
     return true;
@@ -895,8 +993,4 @@ function parseYamlScalar(raw: string): unknown {
   }
 
   return raw;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
