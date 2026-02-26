@@ -1,0 +1,4 @@
+interface:
+  display_name: "Predictive TDD"
+  short_description: "Implement features using Predictive Test-Driven Development"
+  default_prompt: "Implement the discussed feature using PTDD: define predictive tests first, make them fail, implement the minimum code to pass, then refactor and verify."
