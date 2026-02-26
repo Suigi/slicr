@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, expect, it } from 'vitest';
-import { measureNodeHeights, NODE_MEASURE_NODE_CLASS, NODE_MEASURE_NODE_SELECTOR } from './nodeMeasurement';
+import { measureNodeDimensions, NODE_MEASURE_NODE_CLASS, NODE_MEASURE_NODE_SELECTOR } from './nodeMeasurement';
 
 describe('nodeMeasurement', () => {
   it('measures only nodes matching the shared selector', () => {
@@ -40,6 +40,9 @@ describe('nodeMeasurement', () => {
     container.appendChild(wrongClassNode);
 
     expect(NODE_MEASURE_NODE_SELECTOR).toBe(`.${NODE_MEASURE_NODE_CLASS}[data-node-key]`);
-    expect(measureNodeHeights(container)).toEqual({ 'buy-ticket': 97 });
+    expect(measureNodeDimensions(container)).toEqual({
+      'buy-ticket': { width: 180, height: 97 }
+    });
   });
+
 });

@@ -22,8 +22,9 @@ import { getCrossSliceData } from './domain/crossSliceData';
 import { collectDataIssues, getAmbiguousSourceCandidates } from './domain/dataIssues';
 import { parseUsesBlocks } from './domain/dataMapping';
 import { traceData } from './domain/dataTrace';
+import type { NodeDimensions } from './domain/nodeSizing';
 import { toNodeAnalysisRef, toNodeAnalysisRefFromNode } from './domain/nodeAnalysisKey';
-import { measureNodeHeights, NODE_MEASURE_NODE_CLASS } from './nodeMeasurement';
+import { measureNodeDimensions, NODE_MEASURE_NODE_CLASS } from './nodeMeasurement';
 import type {Parsed, Position} from './domain/types';
 import {
   addNewSlice,
@@ -132,10 +133,12 @@ function App() {
   const [manualEdgePoints, setManualEdgePoints] = useState<Record<string, DiagramPoint[]>>(
     initialSnapshot.overrides.edges
   );
-  const [measuredNodeHeights, setMeasuredNodeHeights] = useState<Record<string, number>>({});
+  const [measuredNodeDimensions, setMeasuredNodeDimensions] = useState<Record<string, NodeDimensions>>({});
   const [focusRequestVersion, setFocusRequestVersion] = useState(0);
   const pendingFocusNodeKeyRef = useRef<string | null>(null);
   const initializedViewportKeyRef = useRef<string | null>(null);
+  const hasManualLayoutOverrides =
+    Object.keys(manualNodePositions).length > 0 || Object.keys(manualEdgePoints).length > 0;
   const showDevDiagramControls = shouldShowDevDiagramControls(window.location.hostname);
   const dragAndDropEnabled = isDragAndDropEnabled(window.location.hostname);
   const crossSliceDataEnabled = isCrossSliceDataEnabled(window.location.hostname);
@@ -213,15 +216,15 @@ function App() {
     if (!parsed || parsed.nodes.size === 0) {
       return null;
     }
-    return computeClassicDiagramLayout(parsed, { nodeHeights: measuredNodeHeights });
-  }, [parsed, measuredNodeHeights]);
+    return computeClassicDiagramLayout(parsed, { nodeDimensions: measuredNodeDimensions });
+  }, [parsed, measuredNodeDimensions]);
 
   useEffect(() => {
     if (routeMode !== 'elk' || !parsed || parsed.nodes.size === 0) {
       return;
     }
     let active = true;
-    computeDiagramLayout(parsed, 'elk', { nodeHeights: measuredNodeHeights })
+    computeDiagramLayout(parsed, 'elk', { nodeDimensions: measuredNodeDimensions })
       .then((result) => {
         if (!active) {
           return;
@@ -238,7 +241,7 @@ function App() {
     return () => {
       active = false;
     };
-  }, [routeMode, parsed, measuredNodeHeights]);
+  }, [routeMode, parsed, measuredNodeDimensions]);
 
   useEffect(() => {
     if (!crossSliceDataEnabled && selectedNodePanelTab === 'crossSliceData') {
@@ -257,21 +260,25 @@ function App() {
         return;
       }
 
-      const measured = measureNodeHeights(document);
+      const measured = measureNodeDimensions(document);
       const parsedKeys = [...parsed.nodes.keys()];
-      const next: Record<string, number> = {};
+      const next: Record<string, NodeDimensions> = {};
       for (const key of parsedKeys) {
         if (measured[key] !== undefined) {
           next[key] = measured[key];
         }
       }
 
-      setMeasuredNodeHeights((previous) => {
+      setMeasuredNodeDimensions((previous) => {
         const nextKeys = Object.keys(next);
         const previousKeys = Object.keys(previous);
         if (
           nextKeys.length === previousKeys.length &&
-          nextKeys.every((key) => previous[key] === next[key])
+          nextKeys.every(
+            (key) =>
+              previous[key]?.width === next[key]?.width &&
+              previous[key]?.height === next[key]?.height
+          )
         ) {
           return previous;
         }
@@ -1138,7 +1145,7 @@ function App() {
             <div className="route-menu desktop-only" ref={routeMenuRef}>
               <button
                 type="button"
-                className="route-toggle"
+                className={`route-toggle ${hasManualLayoutOverrides ? 'has-manual-layout-overrides' : ''}`}
                 aria-label="Select render mode"
                 title="Select render mode"
                 onClick={() => setRouteMenuOpen((current) => !current)}
@@ -1201,7 +1208,6 @@ function App() {
                 key={`measure-${node.key}`}
                 className={NODE_MEASURE_NODE_CLASS}
                 data-node-key={node.key}
-                style={{ width: '180px' }}
               >
                 <div className="node-measure-header">
                   {nodePrefix ? <span className="node-measure-prefix">{nodePrefix}:</span> : null}

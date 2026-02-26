@@ -3,6 +3,8 @@ import type { ElkNode } from 'elkjs/lib/elk-api';
 import { DiagramEdgeGeometry, routeElkEdges } from './diagramRouting';
 import { applyBoundaryFloorPass, applyLaneGapPass, applySuccessorGapPass } from './elkPostLayout';
 import { nodeHeight, PAD_X, rowFor } from './layoutGraph';
+import { DEFAULT_NODE_WIDTH, projectNodeHeights } from './nodeSizing';
+import type { NodeDimensions } from './nodeSizing';
 import type { Parsed, Position } from './types';
 
 export type ElkComputedLayout = {
@@ -252,10 +254,11 @@ export function buildElkLaneMeta(parsed: Parsed) {
 
 export async function computeElkLayout(
   parsed: Parsed,
-  measuredHeights?: Record<string, number>
+  nodeDimensions?: Record<string, NodeDimensions>
 ): Promise<ElkComputedLayout> {
   const elkTopOffset = 12;
   const elk = new ELK();
+  const measuredHeights = projectNodeHeights(nodeDimensions);
   const topoOrder = buildTopoOrder(parsed);
   const { laneByKey, rowStreamLabels } = buildElkLaneMeta(parsed);
   const dslOrder = new Map<string, number>();
@@ -304,9 +307,12 @@ export async function computeElkLayout(
     },
     children: children.map((node) => {
       const lane = laneByKey.get(node.key) ?? rowFor(node.type);
+      const measuredWidth = nodeDimensions?.[node.key]?.width;
       return {
         id: node.key,
-        width: 180,
+        width: typeof measuredWidth === 'number' && Number.isFinite(measuredWidth) && measuredWidth > 0
+          ? Math.round(measuredWidth)
+          : DEFAULT_NODE_WIDTH,
         height: nodeHeight(node, measuredHeights),
         layoutOptions: {
           'org.eclipse.elk.partitioning.partition': String(lane),
@@ -327,7 +333,7 @@ export async function computeElkLayout(
     nodesById[child.id] = {
       x: (child.y ?? 0) + PAD_X,
       y: (child.x ?? 0) + 40 + elkTopOffset,
-      w: child.width ?? 180,
+      w: child.width ?? DEFAULT_NODE_WIDTH,
       h: child.height ?? 42
     };
   }

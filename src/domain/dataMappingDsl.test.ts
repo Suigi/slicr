@@ -27,28 +27,6 @@ uses:
     });
   });
 
-  it.skip('uses selected concert id for cmd:buy-tickets from rm:available-concerts', () => {
-    const dsl = `slice "Buy Tickets"
-
-rm:available-concerts
-data:
-  concerts:
-    - id: c-101
-      selected: false
-    - id: c-202
-      selected: true
-
-cmd:buy-tickets
-<- rm:available-concerts
-uses:
-  concert-id <- concerts[?selected=true].id`;
-
-    const parsed = parseDsl(dsl);
-    expect(parsed.nodes.get('buy-tickets')?.data).toEqual({
-      'concert-id': 'c-202'
-    });
-  });
-
   it('resolves uses value through JSONPath when source path starts with $', () => {
     const dsl = `slice "Buy Tickets"
 

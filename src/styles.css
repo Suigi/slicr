@@ -82,6 +82,8 @@
   --node-shadow-aut: 0 0 0 2px var(--aut-color), 0 6px 20px rgb(167 139 250 / 15%);
   --node-shadow-ext: 0 0 0 2px var(--ext), 0 6px 20px rgb(250 204 21 / 15%);
   --node-shadow-generic: 0 0 0 2px var(--generic), 0 6px 20px rgb(156 163 175 / 12%);
+  --node-width-min: 180px;
+  --node-width-max: 250px;
   --warning-tooltip-border: #6b7280;
   --warning-tooltip-shadow: 0 8px 24px rgb(0 0 0 / 35%);
 
@@ -626,6 +628,12 @@ header h1 {
 
 .route-toggle:hover {
   border-color: var(--text);
+  color: var(--text);
+}
+
+.route-toggle.has-manual-layout-overrides {
+  background: rgb(var(--exc-rgb) / 16%);
+  border-color: rgb(var(--exc-rgb) / 55%);
   color: var(--text);
 }
 
@@ -1968,6 +1976,9 @@ header h1 {
   flex-direction: column;
   gap: 0;
   border: 1px solid transparent;
+  min-width: var(--node-width-min);
+  max-width: var(--node-width-max);
+  overflow: clip;
 }
 
 .node-measure-header {
@@ -2033,6 +2044,9 @@ header h1 {
   transition: box-shadow 0.15s;
   cursor: default;
   user-select: none;
+  overflow: clip;
+  min-width: var(--node-width-min);
+  max-width: var(--node-width-max);
 }
 
 .node-header {

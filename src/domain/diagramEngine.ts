@@ -2,6 +2,8 @@ import { edgePath } from './edgePath';
 import { DiagramEdgeGeometry, middlePoint, routeElkEdges, routeForwardEdge, routePolyline } from './diagramRouting';
 import { buildElkLaneMeta, computeElkLayout } from './elkLayout';
 import { layoutGraph } from './layoutGraph';
+import { projectNodeHeights } from './nodeSizing';
+import type { NodeDimensions } from './nodeSizing';
 import type { LayoutResult, Parsed, Position } from './types';
 
 export type DiagramEngineId = 'classic' | 'elk';
@@ -21,7 +23,7 @@ export type RenderedDiagramEdge = {
 };
 
 type DiagramLayoutOptions = {
-  nodeHeights?: Record<string, number>;
+  nodeDimensions?: Record<string, NodeDimensions>;
 };
 
 export async function computeDiagramLayout(
@@ -30,7 +32,7 @@ export async function computeDiagramLayout(
   options: DiagramLayoutOptions = {}
 ): Promise<DiagramEngineLayout> {
   if (engine === 'elk') {
-    const elk = await computeElkLayout(parsed, options.nodeHeights);
+    const elk = await computeElkLayout(parsed, options.nodeDimensions);
     return {
       layout: {
         pos: elk.pos,
@@ -50,7 +52,7 @@ export async function computeDiagramLayout(
 }
 
 export function computeClassicDiagramLayout(parsed: Parsed, options: DiagramLayoutOptions = {}): DiagramEngineLayout {
-  const classic = layoutGraph(parsed.nodes, parsed.edges, parsed.boundaries, options.nodeHeights);
+  const classic = layoutGraph(parsed.nodes, parsed.edges, parsed.boundaries, projectNodeHeights(options.nodeDimensions));
   return {
     layout: classic,
     laneByKey: buildElkLaneMeta(parsed).laneByKey,

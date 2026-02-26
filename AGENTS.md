@@ -2,8 +2,8 @@
 
 ## Tests and Test-Driven Development
 
-- **ALWAYS** run all the tests (`npm test`) instead of just the task-specific ones.
-- **ALWAYS** write a failing test before adding or changing behavior. Run the tests to see it fail in the expected way. Only then, implement the feature.
+- **ALWAYS** run tests via the `vitest` MCP server
+- Use the $ptdd skill when adding or changing behavior.
 
 ## Running npm in this repo
 

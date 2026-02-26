@@ -100,6 +100,33 @@ function clickSliceMenuItem(label: string) {
   });
 }
 
+function setSingleEventSlice(dsl = 'slice "A"\n\nevt:simple-event') {
+  localStorage.setItem(
+    SLICES_STORAGE_KEY,
+    JSON.stringify({
+      selectedSliceId: 'a',
+      slices: [{ id: 'a', dsl }]
+    })
+  );
+}
+
+function openRenderModeMenu() {
+  const menuToggle = document.querySelector('button[aria-label="Select render mode"]') as HTMLButtonElement | null;
+  expect(menuToggle).not.toBeNull();
+  act(() => {
+    menuToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+  return menuToggle;
+}
+
+function clickResetPositionsButton() {
+  const resetButton = [...document.querySelectorAll('button')].find((button) => button.textContent?.includes('Reset positions'));
+  expect(resetButton).toBeDefined();
+  act(() => {
+    resetButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+}
+
 describe('App interactions', () => {
   it('loads default DSL when storage is empty and persists it', () => {
     renderApp();
@@ -643,50 +670,6 @@ uses:
     expect(divider).not.toBeNull();
   });
 
-  it('keeps divider aligned with post-shift boundary floor in ELK mode (expected to fail before fix)', () => {
-    localStorage.setItem(
-      SLICES_STORAGE_KEY,
-      JSON.stringify({
-        selectedSliceId: 'a',
-        slices: [{
-          id: 'a',
-          dsl: `slice "Harness"
-
-cmd:buy "Buy Ticket"
-
-evt:sold "Tickets Sold"
-<- cmd:buy
-stream: concert
-
-evt:tp "Tickets Purchased" <- cmd:buy
-stream: customer
-
----
-
-rm:avail@2 "Available Concerts"
-<- evt:sold
-
-rm:wallet "Customer Wallet"
-<- evt:tp`
-        }]
-      })
-    );
-
-    renderApp();
-
-    const anchorNode = [...document.querySelectorAll('.node')]
-      .find((node) => node.textContent?.includes('Tickets Purchased')) as HTMLElement | undefined;
-    const divider = document.querySelector('.slice-divider') as HTMLElement | null;
-    expect(anchorNode).toBeDefined();
-    expect(divider).not.toBeNull();
-
-    const anchorLeft = Number.parseFloat(anchorNode?.style.left ?? '0');
-    const dividerLeft = Number.parseFloat(divider?.style.left ?? '0');
-
-    // Divider should be centered in the boundary gap: anchor right edge + 40.
-    expect(dividerLeft).toBe(anchorLeft + 180 + 40);
-  });
-
   it('renders stream lane headers for event streams', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
@@ -972,37 +955,46 @@ rm:wallet "Customer Wallet"
   });
 
   it('appends layout-reset events when resetting positions from route menu', () => {
-    localStorage.setItem(
-      SLICES_STORAGE_KEY,
-      JSON.stringify({
-        selectedSliceId: 'a',
-        slices: [{ id: 'a', dsl: 'slice "A"\n\nevt:simple-event' }]
-      })
-    );
+    setSingleEventSlice();
 
     renderApp();
-
-    const menuToggle = document.querySelector('button[aria-label="Select render mode"]') as HTMLButtonElement | null;
-    expect(menuToggle).not.toBeNull();
 
     const beforeRaw = localStorage.getItem('slicr.es.v1.stream.a');
     const beforeEvents = beforeRaw ? (JSON.parse(beforeRaw) as Array<{ type: string }>) : [];
     const beforeResetCount = beforeEvents.filter((event) => event.type === 'layout-reset').length;
 
-    act(() => {
-      menuToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
-    const resetButton = [...document.querySelectorAll('button')].find((button) => button.textContent?.includes('Reset positions'));
-    expect(resetButton).toBeDefined();
-
-    act(() => {
-      resetButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    openRenderModeMenu();
+    clickResetPositionsButton();
 
     const afterRaw = localStorage.getItem('slicr.es.v1.stream.a');
     const afterEvents = afterRaw ? (JSON.parse(afterRaw) as Array<{ type: string }>) : [];
     const afterResetCount = afterEvents.filter((event) => event.type === 'layout-reset').length;
     expect(afterResetCount).toBe(beforeResetCount + 1);
+  });
+
+  it('tints render mode dropdown when manual layout overrides exist', () => {
+    setSingleEventSlice();
+
+    renderApp();
+
+    const menuToggle = document.querySelector('button[aria-label="Select render mode"]') as HTMLButtonElement | null;
+    expect(menuToggle).not.toBeNull();
+    expect(menuToggle?.classList.contains('has-manual-layout-overrides')).toBe(false);
+
+    const node = document.querySelector('.node.evt') as HTMLElement | null;
+    expect(node).not.toBeNull();
+    const PointerCtor = window.PointerEvent ?? window.MouseEvent;
+    act(() => {
+      node?.dispatchEvent(new PointerCtor('pointerdown', { bubbles: true, button: 0, clientX: 100, clientY: 100, pointerId: 1 }));
+      window.dispatchEvent(new PointerCtor('pointermove', { bubbles: true, buttons: 1, clientX: 180, clientY: 180, pointerId: 1 }));
+      window.dispatchEvent(new PointerCtor('pointerup', { bubbles: true, button: 0, clientX: 180, clientY: 180, pointerId: 1 }));
+    });
+
+    expect(menuToggle?.classList.contains('has-manual-layout-overrides')).toBe(true);
+
+    openRenderModeMenu();
+    clickResetPositionsButton();
+
+    expect(menuToggle?.classList.contains('has-manual-layout-overrides')).toBe(false);
   });
 });

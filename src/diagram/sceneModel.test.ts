@@ -144,4 +144,5 @@ describe('buildSceneModel', () => {
     expect(scene?.lanes[0].y).toBe(200);
     expect(scene?.lanes[1].y).toBe(360);
   });
+
 });

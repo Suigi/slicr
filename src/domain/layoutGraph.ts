@@ -1,8 +1,9 @@
 import { Edge, LayoutResult, SliceBoundary, VisualNode } from './types';
 import { EDGE_ANCHOR_OFFSET } from './edgePath';
 import { countNodeDataLines } from './formatNodeData';
+import { DEFAULT_NODE_WIDTH } from './nodeSizing';
 
-const NODE_W = 180;
+const NODE_W = DEFAULT_NODE_WIDTH;
 const NODE_H_BASE = 42;
 const NODE_FIELD_H = 16;
 const NODE_FIELD_PAD = 10;
