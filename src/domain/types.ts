@@ -31,12 +31,29 @@ export type SliceBoundary = {
   after: string;
 };
 
+export type ParsedScenarioEntry = {
+  key: string;
+  type: NodeType;
+  name: string;
+  alias: string | null;
+  srcRange: { from: number; to: number };
+};
+
+export type ParsedScenario = {
+  name: string;
+  srcRange: { from: number; to: number };
+  given: ParsedScenarioEntry[];
+  when: ParsedScenarioEntry | null;
+  then: ParsedScenarioEntry[];
+};
+
 export type Parsed = {
   sliceName: string;
   nodes: Map<string, VisualNode>;
   edges: Edge[];
   warnings: ParseWarning[];
   boundaries: SliceBoundary[];
+  scenarios: ParsedScenario[];
 };
 
 export type Position = {

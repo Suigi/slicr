@@ -359,6 +359,52 @@ then:
     expect(parsed.nodes.get('todo-added')?.data).toBeNull();
   });
 
+  it('returns scenarios grouped by given/when/then in source order', () => {
+    const input = `slice "Scenarios"
+
+scenario "Complete TODO Item"
+given:
+  evt:todo-added
+
+when:
+  cmd:complete-todo
+
+then:
+  evt:todo-completed
+
+scenario "Reopen TODO Item"
+given:
+  evt:todo-completed
+
+when:
+  cmd:reopen-todo
+
+then:
+  evt:todo-reopened`;
+
+    const parsed = parseDsl(input);
+
+    expect(parsed.scenarios.map((scenario) => ({
+      name: scenario.name,
+      given: scenario.given.map((entry) => entry.key),
+      when: scenario.when?.key ?? null,
+      then: scenario.then.map((entry) => entry.key)
+    }))).toEqual([
+      {
+        name: 'Complete TODO Item',
+        given: ['todo-added'],
+        when: 'complete-todo',
+        then: ['todo-completed']
+      },
+      {
+        name: 'Reopen TODO Item',
+        given: ['todo-completed'],
+        when: 'reopen-todo',
+        then: ['todo-reopened']
+      }
+    ]);
+  });
+
   it('preserves top-level node dependency edges when scenarios coexist in the slice', () => {
     const input = `slice "Scenarios and top-level"
 

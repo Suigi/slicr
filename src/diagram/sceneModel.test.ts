@@ -25,7 +25,8 @@ function baseParsed(): Parsed {
     ]),
     edges: [{ from: 'a', to: 'b', label: 'ok' }],
     warnings: [],
-    boundaries: [{ after: 'a' }]
+    boundaries: [{ after: 'a' }],
+    scenarios: []
   };
 }
 

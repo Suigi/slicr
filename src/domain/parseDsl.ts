@@ -3,7 +3,7 @@ import * as terms from '../slicr.parser.terms';
 import { JSONPath } from 'jsonpath-plus';
 import { applyMappingsToNodes, MappingEntry, parseUsesBlocks } from './dataMapping';
 import { validateDataIntegrity } from './dataIntegrity';
-import { Edge, NodeData, Parsed, ParseWarning, SliceBoundary, VisualNode } from './types';
+import { Edge, NodeData, Parsed, ParsedScenario, ParsedScenarioEntry, ParseWarning, SliceBoundary, VisualNode } from './types';
 
 type NodeSpec = {
   line: number;
@@ -263,9 +263,10 @@ export function parseDsl(src: string): Parsed {
   applyOutboundMappedKeys({ nodes, edges, mappingsByRef });
   warnings.push(...validateDataIntegrity({ nodes, edges }));
   warnings.push(...collectScenarioWhenCardinalityWarnings(lines, lineStarts));
+  const scenarios = collectParsedScenarios(lines, lineStarts, refToKey);
   boundaries.push(...resolveBoundaries(specs, boundaryLines, refToKey));
 
-  return { sliceName, nodes, edges, warnings, boundaries };
+  return { sliceName, nodes, edges, warnings, boundaries, scenarios };
 }
 
 function collectScenarioWhenCardinalityWarnings(lines: string[], lineStarts: number[]): ParseWarning[] {
@@ -382,6 +383,103 @@ function collectScenarioNodeLines(lines: string[]) {
   }
 
   return scenarioNodeLines;
+}
+
+function collectParsedScenarios(lines: string[], lineStarts: number[], refToKey: Map<string, string>): ParsedScenario[] {
+  type ScenarioSection = 'given' | 'when' | 'then';
+  type ScenarioState = {
+    scenario: ParsedScenario;
+    activeSection: ScenarioSection | null;
+  };
+
+  const scenarios: ParsedScenario[] = [];
+  let state: ScenarioState | null = null;
+
+  const pushCurrentScenario = () => {
+    if (!state) {
+      return;
+    }
+    scenarios.push(state.scenario);
+    state = null;
+  };
+
+  const buildScenarioEntry = (line: string, lineIndex: number): ParsedScenarioEntry | null => {
+    const trimmed = line.trim();
+    const parsed = parseScenarioNodeLineInfo(trimmed);
+    if (!parsed) {
+      return null;
+    }
+
+    const from = lineStarts[lineIndex] + line.indexOf(trimmed);
+    const refId = toRefId(parsed.type, parsed.name);
+    return {
+      key: refToKey.get(refId) ?? parsed.name,
+      type: parsed.type,
+      name: parsed.name,
+      alias: parsed.alias,
+      srcRange: { from, to: from + trimmed.length }
+    };
+  };
+
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    const line = lines[lineIndex];
+    const trimmed = line.trim();
+    if (!trimmed) {
+      continue;
+    }
+
+    const indent = (line.match(/^(\s*)/)?.[1] ?? '').length;
+    if (indent === 0) {
+      const scenarioMatch = trimmed.match(/^scenario\s+("(?:[^"\\]|\\.)*")\s*$/);
+      if (scenarioMatch) {
+        pushCurrentScenario();
+        const token = `scenario ${scenarioMatch[1]}`;
+        const from = lineStarts[lineIndex] + line.indexOf(token);
+        state = {
+          scenario: {
+            name: unquote(scenarioMatch[1]),
+            srcRange: { from, to: from + token.length },
+            given: [],
+            when: null,
+            then: []
+          },
+          activeSection: null
+        };
+        continue;
+      }
+
+      if (state && (trimmed === 'given:' || trimmed === 'when:' || trimmed === 'then:')) {
+        state.activeSection = trimmed.slice(0, -1) as ScenarioSection;
+        continue;
+      }
+
+      pushCurrentScenario();
+      continue;
+    }
+
+    if (!state || !state.activeSection || !isScenarioNodeLine(trimmed)) {
+      continue;
+    }
+    const entry = buildScenarioEntry(line, lineIndex);
+    if (!entry) {
+      continue;
+    }
+
+    if (state.activeSection === 'given') {
+      state.scenario.given.push(entry);
+      continue;
+    }
+    if (state.activeSection === 'then') {
+      state.scenario.then.push(entry);
+      continue;
+    }
+    if (!state.scenario.when) {
+      state.scenario.when = entry;
+    }
+  }
+
+  pushCurrentScenario();
+  return scenarios;
 }
 
 function isScenarioNodeLine(trimmed: string) {
