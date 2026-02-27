@@ -23,6 +23,13 @@ function toScenarioNodeCardProps(entry: DiagramScenarioNode) {
   };
 }
 
+function scenarioAreaLeft(sceneModel: DiagramSceneModel): number {
+  if (sceneModel.nodes.length === 0) {
+    return 0;
+  }
+  return Math.min(...sceneModel.nodes.map((node) => node.x));
+}
+
 export type DiagramRendererAdapterProps = {
   sceneModel: DiagramSceneModel | null;
   canvasPanelRef: RefObject<HTMLDivElement>;
@@ -229,7 +236,10 @@ export function DomSvgDiagramRenderer({
             {sceneModel.scenarios.length > 0 && (
               <div
                 className="scenario-area"
-                style={{ top: `${sceneModel.worldHeight + 24}px` }}
+                style={{
+                  top: `${sceneModel.worldHeight + 24}px`,
+                  left: `${scenarioAreaLeft(sceneModel)}px`
+                }}
               >
                 {sceneModel.scenarios.map((scenario) => (
                   <section

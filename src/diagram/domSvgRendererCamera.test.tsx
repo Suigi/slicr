@@ -298,6 +298,7 @@ describe('DomSvgDiagramRendererCamera', () => {
     const box = document.querySelector('.scenario-box') as HTMLElement | null;
     expect(area).not.toBeNull();
     expect(area?.style.top).toBe('824px');
+    expect(area?.style.left).toBe('100px');
     expect(box).not.toBeNull();
     expect(box?.textContent).toContain('Complete TODO');
     expect(box?.textContent).toContain('Given');
@@ -336,6 +337,7 @@ describe('DomSvgDiagramRendererCamera', () => {
     expect(boxes).toHaveLength(2);
     expect(area).not.toBeNull();
     expect(area?.style.width ?? '').toBe('');
+    expect(area?.style.left).toBe('100px');
     expect(boxes[0]?.textContent).toContain('First Scenario');
     expect(boxes[1]?.textContent).toContain('Second Scenario');
     expect(boxes[0]?.style.left ?? '').toBe('');

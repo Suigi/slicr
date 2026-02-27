@@ -21,6 +21,13 @@ function toScenarioNodeCardProps(entry: DiagramScenarioNode) {
   };
 }
 
+function scenarioAreaLeft(sceneModel: NonNullable<DiagramRendererAdapterProps['sceneModel']>): number {
+  if (sceneModel.nodes.length === 0) {
+    return 0;
+  }
+  return Math.min(...sceneModel.nodes.map((node) => node.x));
+}
+
 export function DomSvgDiagramRendererCamera({
   sceneModel,
   canvasPanelRef,
@@ -371,7 +378,10 @@ export function DomSvgDiagramRendererCamera({
             {sceneModel.scenarios.length > 0 && (
               <div
                 className="scenario-area"
-                style={{ top: `${sceneModel.worldHeight + 24}px` }}
+                style={{
+                  top: `${sceneModel.worldHeight + 24}px`,
+                  left: `${scenarioAreaLeft(sceneModel)}px`
+                }}
               >
                 {sceneModel.scenarios.map((scenario) => (
                   <section

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { computeClassicDiagramLayout, computeDiagramLayout } from './diagramEngine';
 import { PAD_X } from './layoutGraph';
+import { parseDsl } from './parseDsl';
 import type { Parsed, VisualNode } from './types';
 
 function makeNode(key: string, name: string): VisualNode {
@@ -96,5 +97,39 @@ describe('diagramEngine dimensions plumbing', () => {
 
     expect(classic.layout.pos.main?.x).toBe(PAD_X);
     expect(classic.layout.pos['scenario-only']).toBeUndefined();
+  });
+
+  it('keeps main diagram left-aligned when scenarios are present in parsed DSL', () => {
+    const parsed = parseDsl(`slice "Untitled"
+
+ui:rename-todo-form
+rm:all-todos
+cmd:rename-todo <- ui:rename-todo-form
+
+scenario "Complete Single TODO Item"
+given:
+  evt:todo-added
+
+when:
+  cmd:complete-todo
+
+then:
+  evt:todo-completed
+
+scenario "Complete TODO List"
+given:
+  evt:todo-added
+
+when:
+  cmd:complete-todo-list
+
+then:
+  evt:todo-completed`);
+
+    const classic = computeClassicDiagramLayout(parsed);
+    const xValues = Object.values(classic.layout.pos).map((position) => position.x);
+
+    expect(parsed.scenarioOnlyNodeKeys.length).toBeGreaterThan(0);
+    expect(Math.min(...xValues)).toBe(PAD_X);
   });
 });
