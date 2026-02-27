@@ -1,6 +1,8 @@
 import { parseDsl } from './parseDsl';
 import { isTraceableNode } from './nodeTracing';
 import { toNodeAnalysisRef, toNodeAnalysisRefFromNode } from './nodeAnalysisKey';
+import type { ParsedSliceProjection } from './parsedSliceProjection';
+import type { Parsed } from './types';
 
 export type CrossSliceDocument = {
   id: string;
@@ -24,12 +26,19 @@ export type CrossSliceUsageQuery = {
   getCrossSliceUsage: (nodeId: string) => CrossSliceUsageRef[];
 };
 
+export type CrossSliceParsedDocument = ParsedSliceProjection<Parsed>;
+
 export function buildCrossSliceUsageIndex(slices: CrossSliceDocument[]): CrossSliceUsageIndex {
+  return buildCrossSliceUsageIndexFromParsed(
+    slices.map((slice) => ({ id: slice.id, dsl: slice.dsl, parsed: parseDsl(slice.dsl) }))
+  );
+}
+
+export function buildCrossSliceUsageIndexFromParsed(slices: CrossSliceParsedDocument[]): CrossSliceUsageIndex {
   const index: CrossSliceUsageIndex = {};
 
   for (const slice of slices) {
-    const parsed = parseDsl(slice.dsl);
-    for (const node of parsed.nodes.values()) {
+    for (const node of slice.parsed.nodes.values()) {
       if (!isTraceableNode(node)) {
         continue;
       }
@@ -56,7 +65,13 @@ export function getCrossSliceUsage(slices: CrossSliceDocument[], nodeKey: string
 }
 
 export function createCrossSliceUsageQuery(slices: CrossSliceDocument[]): CrossSliceUsageQuery {
-  const index = buildCrossSliceUsageIndex(slices);
+  return createCrossSliceUsageQueryFromParsed(
+    slices.map((slice) => ({ id: slice.id, dsl: slice.dsl, parsed: parseDsl(slice.dsl) }))
+  );
+}
+
+export function createCrossSliceUsageQueryFromParsed(slices: CrossSliceParsedDocument[]): CrossSliceUsageQuery {
+  const index = buildCrossSliceUsageIndexFromParsed(slices);
   return {
     getCrossSliceUsage(nodeId: string) {
       return index[toNodeAnalysisRef(nodeId)]?.sliceRefs ?? [];

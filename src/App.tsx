@@ -17,8 +17,8 @@ import {
   isDragAndDropEnabled,
   shouldShowDevDiagramControls
 } from './domain/runtimeFlags';
-import { createCrossSliceUsageQuery } from './domain/crossSliceUsage';
-import { getCrossSliceData } from './domain/crossSliceData';
+import { createCrossSliceUsageQueryFromParsed } from './domain/crossSliceUsage';
+import { getCrossSliceDataFromParsed } from './domain/crossSliceData';
 import { collectDataIssues, getAmbiguousSourceCandidates } from './domain/dataIssues';
 import { parseUsesBlocks } from './domain/dataMapping';
 import { traceData } from './domain/dataTrace';
@@ -26,6 +26,7 @@ import type { NodeDimensions } from './domain/nodeSizing';
 import { toNodeAnalysisRef, toNodeAnalysisRefFromNode } from './domain/nodeAnalysisKey';
 import { measureNodeDimensions, NODE_MEASURE_NODE_CLASS } from './nodeMeasurement';
 import type {Parsed, Position} from './domain/types';
+import { useParsedSliceProjection } from './useParsedSliceProjection';
 import {
   addNewSlice,
   appendSliceEdgeMovedEvent,
@@ -468,14 +469,21 @@ function App() {
   }, [parsed, selectedNodeAnalysisRef]);
 
   const usesMappingsByRef = useMemo(() => parseUsesBlocks(currentDsl), [currentDsl]);
+  const sliceDocuments = useMemo(
+    () => library.slices.map((slice) => ({ id: slice.id, dsl: slice.dsl })),
+    [library.slices]
+  );
+  const { bySliceId: parsedSliceProjections, list: parsedSliceProjectionList } = useParsedSliceProjection(
+    sliceDocuments
+  );
 
   const crossSliceUsage = useMemo(() => {
     if (!selectedNodeAnalysisRef) {
       return [];
     }
-    const query = createCrossSliceUsageQuery(library.slices.map((slice) => ({ id: slice.id, dsl: slice.dsl })));
+    const query = createCrossSliceUsageQueryFromParsed(parsedSliceProjectionList);
     return query.getCrossSliceUsage(selectedNodeAnalysisRef);
-  }, [library.slices, selectedNodeAnalysisRef]);
+  }, [parsedSliceProjectionList, selectedNodeAnalysisRef]);
 
   const dataIssues = useMemo(() => {
     if (!parsed) {
@@ -530,11 +538,11 @@ function App() {
     if (!selectedNodeAnalysisRef) {
       return { keys: [], byKey: {} };
     }
-    return getCrossSliceData(
-      library.slices.map((slice) => ({ id: slice.id, dsl: slice.dsl })),
+    return getCrossSliceDataFromParsed(
+      parsedSliceProjectionList,
       selectedNodeAnalysisRef
     );
-  }, [library.slices, selectedNodeAnalysisRef]);
+  }, [parsedSliceProjectionList, selectedNodeAnalysisRef]);
 
   const selectedNodeTraceResultsByKey = useMemo(() => {
     if (!parsed) {
@@ -567,16 +575,16 @@ function App() {
 
   const crossSliceUsageEntries = useMemo(() => {
     return crossSliceUsage.map((usage) => {
-      const slice = library.slices.find((item) => item.id === usage.sliceId) ?? null;
-      const sliceName = slice ? getSliceNameFromDsl(slice.dsl) : usage.sliceId;
-      const usageNode = slice ? parseDsl(slice.dsl).nodes.get(usage.nodeKey) ?? null : null;
+      const projection = parsedSliceProjections.get(usage.sliceId) ?? null;
+      const sliceName = projection ? getSliceNameFromDsl(projection.dsl) : usage.sliceId;
+      const usageNode = projection ? projection.parsed.nodes.get(usage.nodeKey) ?? null : null;
       return {
         usage,
         sliceName,
         node: usageNode
       };
     });
-  }, [crossSliceUsage, library.slices]);
+  }, [crossSliceUsage, parsedSliceProjections]);
 
   const crossSliceUsageGroups = useMemo(() => {
     const grouped = new Map<string, { sliceId: string; sliceName: string; entries: typeof crossSliceUsageEntries }>();

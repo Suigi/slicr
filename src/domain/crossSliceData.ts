@@ -1,6 +1,8 @@
 import { getSliceNameFromDsl } from '../sliceLibrary';
 import { parseDsl } from './parseDsl';
 import { toNodeAnalysisRef, toNodeAnalysisRefFromNode } from './nodeAnalysisKey';
+import type { ParsedSliceProjection } from './parsedSliceProjection';
+import type { Parsed } from './types';
 
 export type CrossSliceDataDocument = {
   id: string;
@@ -21,12 +23,20 @@ export type CrossSliceDataResult = {
 };
 
 export function getCrossSliceData(slices: CrossSliceDataDocument[], nodeRef: string): CrossSliceDataResult {
+  return getCrossSliceDataFromParsed(
+    slices.map((slice) => ({ id: slice.id, dsl: slice.dsl, parsed: parseDsl(slice.dsl) })),
+    nodeRef
+  );
+}
+
+export type CrossSliceDataParsedDocument = ParsedSliceProjection<Parsed>;
+
+export function getCrossSliceDataFromParsed(slices: CrossSliceDataParsedDocument[], nodeRef: string): CrossSliceDataResult {
   const byKey: CrossSliceDataByKey = {};
   const analysisRef = toNodeAnalysisRef(nodeRef);
 
   for (const slice of slices) {
-    const parsed = parseDsl(slice.dsl);
-    const matchingNodes = [...parsed.nodes.values()]
+    const matchingNodes = [...slice.parsed.nodes.values()]
       .filter((item) => toNodeAnalysisRefFromNode(item) === analysisRef);
     for (const node of matchingNodes) {
       if (node.type === 'generic' || !node.data) {
