@@ -164,6 +164,13 @@ describe('DomSvgDiagramRendererCamera', () => {
     expect(document.querySelector('.camera-zoom-toolbar')).toBeNull();
   });
 
+  it('does not render scenario area when no scenarios exist', () => {
+    renderRenderer();
+
+    expect(document.querySelector('.scenario-area')).toBeNull();
+    expect(document.querySelector('.scenario-box')).toBeNull();
+  });
+
   it('pans camera via background drag without mutating node world coordinates', () => {
     renderRenderer();
 

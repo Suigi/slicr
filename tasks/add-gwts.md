@@ -119,7 +119,7 @@ After completing the step, update this file and set the status to `[completed]`.
 - `[completed]` Extend scene model/renderer contract to include grouped scenario render data (`Given`, `When`, `Then`).
 - `[completed]` Render scenario boxes below the diagram with explicit section labels.
 - `[completed]` Render multiple scenarios horizontally in source order.
-- `[not started]` Confirm slices without scenarios render unchanged (no scenario area).
+- `[completed]` Confirm slices without scenarios render unchanged (no scenario area).
 - `[not started]` Run full validation suite: lint, full tests, `npx tsc -b`, and production build.
 
 ## Out of Scope (for this task)
