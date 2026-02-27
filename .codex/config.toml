@@ -1,3 +1,0 @@
-[mcp_servers.vitest]
-command = "npx"
-args = ["-y", "@djankies/vitest-mcp"]

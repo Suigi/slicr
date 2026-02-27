@@ -25,6 +25,7 @@
     "@codemirror/language": "^6.12.1",
     "@codemirror/state": "^6.5.4",
     "@codemirror/view": "^6.39.14",
+    "@djankies/vitest-mcp": "^0.5.1",
     "@eslint/js": "^9.39.2",
     "@lezer/generator": "^1.8.0",
     "@lezer/highlight": "^1.2.3",

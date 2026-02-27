@@ -114,6 +114,26 @@ evt:order-failed <- cmd:place-order`;
     expect(parsed.edges).toEqual([{ from: 'place-order', to: 'order-failed', label: null }]);
   });
 
+  it('does not parse scenario section keywords as top-level generic nodes', () => {
+    const input = `slice "Scenarios"
+
+scenario "Complete TODO Item"
+given:
+  evt:todo-added
+
+when:
+  cmd:complete-todo
+
+then:
+  evt:todo-completed
+
+evt:existing-top-level`;
+
+    const parsed = parseDsl(input);
+
+    expect([...parsed.nodes.keys()]).toEqual(['existing-top-level']);
+  });
+
   it('parses the room-opened flow with read-model update versions', () => {
     const input = `slice "Book Room"
 

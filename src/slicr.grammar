@@ -2,6 +2,10 @@
 
 Statement {
   SliceStatement |
+  ScenarioStatement |
+  GivenSectionStatement |
+  WhenSectionStatement |
+  ThenSectionStatement |
   NodeStatement |
   EdgeStatement |
   BoundaryStatement |
@@ -12,6 +16,22 @@ Statement {
 
 SliceStatement {
   kw<"slice"> String
+}
+
+ScenarioStatement {
+  kw_scenario String
+}
+
+GivenSectionStatement {
+  kw_given Colon
+}
+
+WhenSectionStatement {
+  kw_when Colon
+}
+
+ThenSectionStatement {
+  kw_then Colon
 }
 
 NodeStatement {
@@ -96,6 +116,10 @@ kw_evt { @specialize[@name=evtType]<Identifier, "evt"> }
 kw_exc { @specialize[@name=excType]<Identifier, "exc"> }
 kw_aut { @specialize[@name=autType]<Identifier, "aut"> }
 kw_ext { @specialize[@name=extType]<Identifier, "ext"> }
+kw_scenario { @specialize[@name=scenarioType]<Identifier, "scenario"> }
+kw_given { @specialize[@name=givenType]<Identifier, "given"> }
+kw_when { @specialize[@name=whenType]<Identifier, "when"> }
+kw_then { @specialize[@name=thenType]<Identifier, "then"> }
 
 kw<term> { @specialize[@name={term}]<Identifier, term> }
 
