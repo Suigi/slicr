@@ -297,7 +297,7 @@ describe('DomSvgDiagramRendererCamera', () => {
     const area = document.querySelector('.scenario-area') as HTMLElement | null;
     const box = document.querySelector('.scenario-box') as HTMLElement | null;
     expect(area).not.toBeNull();
-    expect(area?.style.top).toBe('848px');
+    expect(area?.style.top).toBe('824px');
     expect(box).not.toBeNull();
     expect(box?.textContent).toContain('Complete TODO');
     expect(box?.textContent).toContain('Given');
@@ -306,6 +306,8 @@ describe('DomSvgDiagramRendererCamera', () => {
     const scenarioNodeCards = box?.querySelectorAll('.scenario-node-card.node') ?? [];
     expect(scenarioNodeCards).toHaveLength(3);
     expect(scenarioNodeCards[0]?.textContent).toContain('todo-added');
+    expect((scenarioNodeCards[0] as HTMLElement | undefined)?.style.minWidth ?? '').toBe('');
+    expect((scenarioNodeCards[0] as HTMLElement | undefined)?.style.maxWidth ?? '').toBe('');
   });
 
   it('lays out multiple scenario boxes horizontally in source order', () => {
@@ -330,11 +332,13 @@ describe('DomSvgDiagramRendererCamera', () => {
     renderRenderer({ sceneModel: scene });
 
     const boxes = [...document.querySelectorAll('.scenario-box')] as HTMLElement[];
+    const area = document.querySelector('.scenario-area') as HTMLElement | null;
     expect(boxes).toHaveLength(2);
+    expect(area).not.toBeNull();
+    expect(area?.style.width ?? '').toBe('');
     expect(boxes[0]?.textContent).toContain('First Scenario');
     expect(boxes[1]?.textContent).toContain('Second Scenario');
-    expect(Number.parseInt(boxes[1]?.style.left ?? '0', 10)).toBeGreaterThan(
-      Number.parseInt(boxes[0]?.style.left ?? '0', 10)
-    );
+    expect(boxes[0]?.style.left ?? '').toBe('');
+    expect(boxes[1]?.style.left ?? '').toBe('');
   });
 });

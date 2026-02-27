@@ -260,4 +260,54 @@ describe('buildSceneModel', () => {
     expect(scene?.scenarios[0]?.given[0]?.key).toBe('scenario-node');
   });
 
+  it('omits the default event lane when only scenario-only event nodes occupy it', () => {
+    const parsed: Parsed = {
+      sliceName: 'Demo Slice',
+      nodes: new Map<string, VisualNode>([
+        ['cmd-node', node('cmd-node', 'cmd', 1, 2)],
+        ['scenario-event', node('scenario-event', 'evt', 3, 4)]
+      ]),
+      edges: [],
+      warnings: [],
+      boundaries: [],
+      scenarios: [
+        {
+          name: 'Scenario',
+          srcRange: { from: 10, to: 20 },
+          given: [{ key: 'scenario-event', type: 'evt', name: 'scenario-event', alias: null, srcRange: { from: 11, to: 12 } }],
+          when: null,
+          then: []
+        }
+      ],
+      scenarioOnlyNodeKeys: ['scenario-event']
+    };
+
+    const activeLayout: LayoutResult = {
+      pos: {
+        'cmd-node': { x: 100, y: 120, w: 180, h: 90 },
+        'scenario-event': { x: 420, y: 260, w: 180, h: 90 }
+      },
+      rowY: { 1: 120, 2: 260 },
+      usedRows: [1, 2],
+      rowStreamLabels: {},
+      w: 800,
+      h: 500
+    };
+
+    const scene = buildSceneModel({
+      parsed,
+      activeLayout,
+      displayedPos: activeLayout.pos,
+      renderedEdges: [],
+      routeMode: 'classic',
+      engineLayout: null,
+      activeNodeKeyFromEditor: null,
+      selectedNodeKey: null,
+      hoveredEdgeKey: null,
+      hoveredTraceNodeKey: null
+    });
+
+    expect(scene?.lanes.map((lane) => lane.row)).toEqual([1]);
+  });
+
 });

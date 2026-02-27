@@ -75,4 +75,26 @@ describe('diagramEngine dimensions plumbing', () => {
       (layout.layout.pos.anchor?.x ?? 0) + measuredAnchorWidth + 40 + PAD_X
     );
   });
+
+  it('does not let scenario-only nodes shift main diagram node columns', () => {
+    const scenarioOnly = makeNode('scenario-only', 'Scenario only');
+    const main = makeNode('main', 'Main node');
+    const parsed: Parsed = {
+      sliceName: 'slice',
+      nodes: new Map([
+        [scenarioOnly.key, scenarioOnly],
+        [main.key, main]
+      ]),
+      edges: [],
+      warnings: [],
+      boundaries: [],
+      scenarios: [],
+      scenarioOnlyNodeKeys: [scenarioOnly.key]
+    };
+
+    const classic = computeClassicDiagramLayout(parsed);
+
+    expect(classic.layout.pos.main?.x).toBe(PAD_X);
+    expect(classic.layout.pos['scenario-only']).toBeUndefined();
+  });
 });

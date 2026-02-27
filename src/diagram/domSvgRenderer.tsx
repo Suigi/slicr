@@ -8,9 +8,6 @@ import type { Range } from '../useDslEditor';
 import type { DragTooltipState } from '../useDiagramInteractions';
 import type { DiagramScenarioNode } from './rendererContract';
 
-const SCENARIO_BOX_WIDTH = 360;
-const SCENARIO_BOX_GAP = 16;
-
 function toScenarioNodeCardProps(entry: DiagramScenarioNode) {
   return {
     node: entry.node ?? {
@@ -232,17 +229,12 @@ export function DomSvgDiagramRenderer({
             {sceneModel.scenarios.length > 0 && (
               <div
                 className="scenario-area"
-                style={{
-                  top: `${sceneModel.worldHeight + 48}px`,
-                  width: `${(sceneModel.scenarios.length * SCENARIO_BOX_WIDTH)
-                    + (Math.max(0, sceneModel.scenarios.length - 1) * SCENARIO_BOX_GAP)}px`
-                }}
+                style={{ top: `${sceneModel.worldHeight + 24}px` }}
               >
-                {sceneModel.scenarios.map((scenario, scenarioIndex) => (
+                {sceneModel.scenarios.map((scenario) => (
                   <section
                     key={`${scenario.name}-${scenario.srcRange.from}`}
                     className="scenario-box"
-                    style={{ left: `${scenarioIndex * (SCENARIO_BOX_WIDTH + SCENARIO_BOX_GAP)}px` }}
                   >
                     <h3 className="scenario-title">{scenario.name}</h3>
                     <div className="scenario-section">

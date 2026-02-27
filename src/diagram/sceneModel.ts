@@ -27,7 +27,7 @@ const TYPE_LABEL: Record<string, string> = {
 
 const NODE_VERSION_SUFFIX = /@\d+$/;
 const DEFAULT_CANVAS_MARGIN = 900;
-const SCENARIO_AREA_TOP_GAP = 48;
+const SCENARIO_AREA_TOP_GAP = 24;
 const SCENARIO_BOX_HEIGHT = 176;
 const SCENARIO_BOX_GAP = 16;
 const SCENARIO_AREA_BOTTOM_PADDING = 24;
@@ -102,14 +102,28 @@ function buildLanes(
   routeMode: DiagramEngineId,
   engineLayout: DiagramEngineLayout | null,
   displayedPos: Record<string, Position>,
+  visibleNodeKeys: Set<string>,
   labelLeft: number
 ): DiagramLane[] {
   if (routeMode === 'classic') {
-    return activeLayout.usedRows.map((row, index) => {
+    const rowsWithVisibleNodes = new Set<number>();
+    for (const key of visibleNodeKeys) {
+      const position = displayedPos[key];
+      if (!position) {
+        continue;
+      }
+      const row = activeLayout.usedRows.find((candidate) => activeLayout.rowY[candidate] === position.y);
+      if (row !== undefined) {
+        rowsWithVisibleNodes.add(row);
+      }
+    }
+    const usedRows = activeLayout.usedRows.filter((row) => rowsWithVisibleNodes.has(row));
+
+    return usedRows.map((row, index) => {
       const bandTop = activeLayout.rowY[row] - 28;
       const bandHeight =
-        index < activeLayout.usedRows.length - 1
-          ? activeLayout.rowY[activeLayout.usedRows[index + 1]] - activeLayout.rowY[row]
+        index < usedRows.length - 1
+          ? activeLayout.rowY[usedRows[index + 1]] - activeLayout.rowY[row]
           : activeLayout.h - bandTop;
       const streamLabel = activeLayout.rowStreamLabels[row] ?? '';
       return {
@@ -273,8 +287,16 @@ export function buildSceneModel(input: BuildSceneModelInput): DiagramSceneModel 
   }
 
   const viewport = computeCanvasViewport(activeLayout, displayedPos, renderedEdges, canvasMargin, parsed.scenarios.length);
-  const lanes = buildLanes(parsed, activeLayout, routeMode, engineLayout, displayedPos, laneLabelLeft);
-  const boundaries = buildBoundaries(parsed, displayedPos, lanes, activeLayout.h);
+  const scenarioOnlyNodeKeys = new Set(parsed.scenarioOnlyNodeKeys);
+  const visibleNodeKeys = new Set([...parsed.nodes.keys()].filter((key) => !scenarioOnlyNodeKeys.has(key)));
+  const lanes = buildLanes(parsed, activeLayout, routeMode, engineLayout, displayedPos, visibleNodeKeys, laneLabelLeft);
+  const visibleDisplayedPos: Record<string, Position> = {};
+  for (const [key, position] of Object.entries(displayedPos)) {
+    if (visibleNodeKeys.has(key)) {
+      visibleDisplayedPos[key] = position;
+    }
+  }
+  const boundaries = buildBoundaries(parsed, visibleDisplayedPos, lanes, activeLayout.h);
   const title: DiagramTitle | null = parsed.sliceName
     ? { text: parsed.sliceName, top: 6, left: PAD_X }
     : null;
@@ -283,8 +305,6 @@ export function buildSceneModel(input: BuildSceneModelInput): DiagramSceneModel 
     ? renderedEdges.find(({ edgeKey }) => edgeKey === hoveredEdgeKey)
     : undefined;
   const hoveredEdgeNodeKeys = hoveredEdge ? new Set<string>([hoveredEdge.edge.from, hoveredEdge.edge.to]) : new Set<string>();
-  const scenarioOnlyNodeKeys = new Set(parsed.scenarioOnlyNodeKeys);
-
   const nodes: DiagramNode[] = [...parsed.nodes.values()]
     .filter((node) => !scenarioOnlyNodeKeys.has(node.key))
     .map((node) => {

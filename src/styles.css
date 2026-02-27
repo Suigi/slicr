@@ -2345,20 +2345,20 @@ g.related .arrow-path {
 .scenario-area {
   position: absolute;
   left: 0;
-  height: 200px;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: nowrap;
   padding-bottom: 24px;
 }
 
 .scenario-box {
-  position: absolute;
-  top: 0;
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 12px 14px;
   background: color-mix(in srgb, var(--surface) 90%, black 10%);
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
-  width: 360px;
 }
 
 .scenario-title {
@@ -2385,12 +2385,8 @@ g.related .arrow-path {
 }
 
 .scenario-node-card.node {
-  position: relative;
-  left: auto;
-  top: auto;
-  width: 100%;
-  min-width: 0;
-  max-width: none;
+  position: static;
+  width: auto;
   height: auto;
   padding: 8px 10px 9px;
 }

@@ -26,13 +26,35 @@ type DiagramLayoutOptions = {
   nodeDimensions?: Record<string, NodeDimensions>;
 };
 
+function toDiagramParsed(parsed: Parsed): Parsed {
+  if (parsed.scenarioOnlyNodeKeys.length === 0) {
+    return parsed;
+  }
+  const scenarioOnlyNodeKeys = new Set(parsed.scenarioOnlyNodeKeys);
+  const nodes = new Map(
+    [...parsed.nodes.entries()].filter(([key]) => !scenarioOnlyNodeKeys.has(key))
+  );
+  const edges = parsed.edges.filter(
+    (edge) => nodes.has(edge.from) && nodes.has(edge.to)
+  );
+  const boundaries = parsed.boundaries.filter((boundary) => nodes.has(boundary.after));
+  return {
+    ...parsed,
+    nodes,
+    edges,
+    boundaries,
+    scenarioOnlyNodeKeys: []
+  };
+}
+
 export async function computeDiagramLayout(
   parsed: Parsed,
   engine: DiagramEngineId,
   options: DiagramLayoutOptions = {}
 ): Promise<DiagramEngineLayout> {
+  const diagramParsed = toDiagramParsed(parsed);
   if (engine === 'elk') {
-    const elk = await computeElkLayout(parsed, options.nodeDimensions);
+    const elk = await computeElkLayout(diagramParsed, options.nodeDimensions);
     return {
       layout: {
         pos: elk.pos,
@@ -48,14 +70,15 @@ export async function computeDiagramLayout(
     };
   }
 
-  return computeClassicDiagramLayout(parsed, options);
+  return computeClassicDiagramLayout(diagramParsed, options);
 }
 
 export function computeClassicDiagramLayout(parsed: Parsed, options: DiagramLayoutOptions = {}): DiagramEngineLayout {
-  const classic = layoutGraph(parsed.nodes, parsed.edges, parsed.boundaries, projectNodeHeights(options.nodeDimensions));
+  const diagramParsed = toDiagramParsed(parsed);
+  const classic = layoutGraph(diagramParsed.nodes, diagramParsed.edges, diagramParsed.boundaries, projectNodeHeights(options.nodeDimensions));
   return {
     layout: classic,
-    laneByKey: buildElkLaneMeta(parsed).laneByKey,
+    laneByKey: buildElkLaneMeta(diagramParsed).laneByKey,
     rowStreamLabels: classic.rowStreamLabels
   };
 }
