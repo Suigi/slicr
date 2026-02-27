@@ -96,4 +96,29 @@ uses:
     });
     expect(issues.some((issue) => issue.code === 'ambiguous-source')).toBe(false);
   });
+
+  it('does not report missing-source for top-level uses when scenario nodes share the same ref', () => {
+    const dsl = `slice "Book Registration"
+
+cmd:register-book "Register Book"
+data:
+  Author: "Martin Dilger"
+
+evt:book-registered "Book Registered"
+<- cmd:register-book
+uses:
+  Author
+
+scenario "Register Duplicate ISBN"
+given:
+  evt:book-registered "Book Registered"
+  data:
+    Author: "Someone Else"
+when:
+  cmd:register-book "Scenario Register"`;
+
+    const parsed = parseDsl(dsl);
+    const issues = collectDataIssues({ dsl, nodes: parsed.nodes, edges: parsed.edges });
+    expect(issues).toEqual([]);
+  });
 });

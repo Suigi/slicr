@@ -27,6 +27,9 @@ export function collectDataIssues(input: IssueInput): DataIssue[] {
   const mappingsByRef = parseUsesBlocks(input.dsl);
   const nodesByRef = new Map<string, VisualNode>();
   for (const node of input.nodes.values()) {
+    if (isScenarioNodeKey(node.key)) {
+      continue;
+    }
     nodesByRef.set(`${node.type}:${node.name}`, node);
   }
 
@@ -76,10 +79,17 @@ export function getAmbiguousSourceCandidates(input: IssueInput, nodeKey: string,
   if (!node) {
     return [];
   }
+  if (isScenarioNodeKey(node.key)) {
+    return getAmbiguousSourceCandidatesForPath(input, node.key, key);
+  }
   const nodeRef = `${node.type}:${node.name}`;
   const mapping = mappingsByRef.get(nodeRef)?.find((entry) => entry.targetKey === key);
   const sourcePath = mapping?.sourcePath ?? key;
   return getAmbiguousSourceCandidatesForPath(input, node.key, sourcePath);
+}
+
+function isScenarioNodeKey(nodeKey: string): boolean {
+  return nodeKey.startsWith('scn:');
 }
 
 function getAmbiguousSourceCandidatesForPath(input: IssueInput, nodeKey: string, sourcePath: string): string[] {

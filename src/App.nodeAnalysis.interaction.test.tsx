@@ -928,6 +928,39 @@ describe('App node analysis interactions', () => {
     expect(sources).toContain('value: a2');
   });
 
+  it('does not show top-level data trace keys when selecting a scenario node with the same ref', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [
+          {
+            id: 'a',
+            dsl: 'slice "Book Registration"\n\ncmd:register-book "Register Book"\ndata:\n  Author: "Martin Dilger"\n\nevt:book-registered "Book Registered"\n<- cmd:register-book\nuses:\n  Author\n\nscenario "Register Duplicate ISBN"\ngiven:\n  evt:book-registered "Book Registered"\n  data:\n    Author: "Author"\nwhen:\n  cmd:register-book "Scenario Register"\nthen:\n  evt:book-registered "Book Registered"\n  data:\n    Author: "Scenario Author"\n'
+          }
+        ]
+      })
+    );
+
+    renderApp();
+    const scenarioThenEvent = [...document.querySelectorAll('.scenario-box .scenario-node-card.node')]
+      .find((el) => el.textContent?.includes('Book Registered')) as HTMLElement | undefined;
+    expect(scenarioThenEvent).toBeDefined();
+    act(() => {
+      scenarioThenEvent?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const traceTab = [...document.querySelectorAll('.cross-slice-panel-tab')]
+      .find((button) => button.textContent?.trim() === 'Data Trace') as HTMLButtonElement | undefined;
+    expect(traceTab).toBeDefined();
+    act(() => {
+      traceTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(document.querySelectorAll('.cross-slice-trace-key-toggle')).toHaveLength(0);
+    expect(document.querySelector('.cross-slice-trace-key-section.missing-source')).toBeNull();
+  });
+
   it('highlights trace-hop node when hovering over Data Trace list entry', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,

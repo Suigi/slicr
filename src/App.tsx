@@ -476,11 +476,14 @@ function App() {
   }, [selectedNodeAnalysisRef]);
 
   const selectedNodeAnalysisNodes = useMemo(() => {
-    if (!parsed || !selectedNodeAnalysisRef) {
+    if (!parsed || !selectedNodeAnalysisRef || !selectedNode) {
       return [];
     }
+    if (isScenarioNodeKey(selectedNode.key)) {
+      return [selectedNode];
+    }
     return [...parsed.nodes.values()].filter((node) => toNodeAnalysisRefFromNode(node) === selectedNodeAnalysisRef);
-  }, [parsed, selectedNodeAnalysisRef]);
+  }, [parsed, selectedNode, selectedNodeAnalysisRef]);
 
   const usesMappingsByRef = useMemo(() => parseUsesBlocks(currentDsl), [currentDsl]);
 
@@ -506,11 +509,14 @@ function App() {
   }, [currentDsl, library.selectedSliceId, parsed, sourceOverrides]);
 
   const selectedNodeIssues = useMemo(() => {
-    if (!selectedNodeAnalysisRef) {
+    if (!selectedNodeAnalysisRef || !selectedNode) {
       return [];
     }
+    if (isScenarioNodeKey(selectedNode.key)) {
+      return dataIssues.filter((issue) => issue.nodeKey === selectedNode.key);
+    }
     return dataIssues.filter((issue) => toNodeAnalysisRef(issue.nodeRef) === selectedNodeAnalysisRef);
-  }, [dataIssues, selectedNodeAnalysisRef]);
+  }, [dataIssues, selectedNode, selectedNodeAnalysisRef]);
 
   const selectedNodeIssuesByKey = useMemo(() => {
     const grouped: Record<string, typeof selectedNodeIssues> = {};
@@ -533,7 +539,7 @@ function App() {
     }
     const seen = new Set<string>();
     for (const node of selectedNodeAnalysisNodes) {
-      const mappings = usesMappingsByRef.get(toNodeRef(node)) ?? [];
+      const mappings = getUsesMappingsForNode(usesMappingsByRef, node);
       for (const mapping of mappings) {
         seen.add(mapping.targetKey);
       }
@@ -560,7 +566,7 @@ function App() {
     for (const traceKey of selectedNodeUsesKeys) {
       const matchingNodeKeys = selectedNodeAnalysisNodes
         .filter((node) => {
-          const mappings = usesMappingsByRef.get(toNodeRef(node)) ?? [];
+          const mappings = getUsesMappingsForNode(usesMappingsByRef, node);
           return mappings.some((mapping) => mapping.targetKey === traceKey);
         })
         .map((node) => node.key);
@@ -1679,4 +1685,18 @@ export default App;
 
 function toNodeRef(node: { type: string; name: string }) {
   return `${node.type}:${node.name}`;
+}
+
+function isScenarioNodeKey(nodeKey: string) {
+  return nodeKey.startsWith('scn:');
+}
+
+function getUsesMappingsForNode(
+  usesMappingsByRef: ReturnType<typeof parseUsesBlocks>,
+  node: { key: string; type: string; name: string }
+) {
+  if (isScenarioNodeKey(node.key)) {
+    return [];
+  }
+  return usesMappingsByRef.get(toNodeRef(node)) ?? [];
 }
