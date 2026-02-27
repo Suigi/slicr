@@ -5,6 +5,9 @@ import { NodeCard } from '../NodeCard';
 import { toWorldClientPoint, zoomCameraAroundClientPoint } from './cameraUtils';
 import type { DiagramRendererAdapterProps } from './domSvgRenderer';
 
+const SCENARIO_BOX_WIDTH = 360;
+const SCENARIO_BOX_GAP = 16;
+
 export function DomSvgDiagramRendererCamera({
   sceneModel,
   canvasPanelRef,
@@ -353,9 +356,20 @@ export function DomSvgDiagramRendererCamera({
             </svg>
 
             {sceneModel.scenarios.length > 0 && (
-              <div className="scenario-area" style={{ top: `${sceneModel.worldHeight + 48}px` }}>
-                {sceneModel.scenarios.map((scenario) => (
-                  <section key={`${scenario.name}-${scenario.srcRange.from}`} className="scenario-box">
+              <div
+                className="scenario-area"
+                style={{
+                  top: `${sceneModel.worldHeight + 48}px`,
+                  width: `${(sceneModel.scenarios.length * SCENARIO_BOX_WIDTH)
+                    + (Math.max(0, sceneModel.scenarios.length - 1) * SCENARIO_BOX_GAP)}px`
+                }}
+              >
+                {sceneModel.scenarios.map((scenario, scenarioIndex) => (
+                  <section
+                    key={`${scenario.name}-${scenario.srcRange.from}`}
+                    className="scenario-box"
+                    style={{ left: `${scenarioIndex * (SCENARIO_BOX_WIDTH + SCENARIO_BOX_GAP)}px` }}
+                  >
                     <h3 className="scenario-title">{scenario.name}</h3>
                     <div className="scenario-section">
                       <div className="scenario-section-label">Given</div>

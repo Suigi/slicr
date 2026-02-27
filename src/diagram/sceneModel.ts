@@ -27,6 +27,10 @@ const TYPE_LABEL: Record<string, string> = {
 
 const NODE_VERSION_SUFFIX = /@\d+$/;
 const DEFAULT_CANVAS_MARGIN = 900;
+const SCENARIO_AREA_TOP_GAP = 48;
+const SCENARIO_BOX_HEIGHT = 176;
+const SCENARIO_BOX_GAP = 16;
+const SCENARIO_AREA_BOTTOM_PADDING = 24;
 
 export type BuildSceneModelInput = {
   parsed: Parsed | null;
@@ -47,7 +51,8 @@ function computeCanvasViewport(
   activeLayout: LayoutResult,
   displayedPos: Record<string, Position>,
   renderedEdges: RenderedDiagramEdge[],
-  canvasMargin: number
+  canvasMargin: number,
+  scenarioCount: number
 ): DiagramViewport {
   let minX = 0;
   let minY = 0;
@@ -72,6 +77,13 @@ function computeCanvasViewport(
       maxX = Math.max(maxX, point.x);
       maxY = Math.max(maxY, point.y);
     }
+  }
+
+  if (scenarioCount > 0) {
+    const scenariosHeight = (scenarioCount * SCENARIO_BOX_HEIGHT)
+      + (Math.max(0, scenarioCount - 1) * SCENARIO_BOX_GAP)
+      + SCENARIO_AREA_BOTTOM_PADDING;
+    maxY = Math.max(maxY, activeLayout.h + SCENARIO_AREA_TOP_GAP + scenariosHeight);
   }
 
   const contentWidth = Math.max(1, maxX - minX);
@@ -249,7 +261,7 @@ export function buildSceneModel(input: BuildSceneModelInput): DiagramSceneModel 
     return null;
   }
 
-  const viewport = computeCanvasViewport(activeLayout, displayedPos, renderedEdges, canvasMargin);
+  const viewport = computeCanvasViewport(activeLayout, displayedPos, renderedEdges, canvasMargin, parsed.scenarios.length);
   const lanes = buildLanes(parsed, activeLayout, routeMode, engineLayout, displayedPos, laneLabelLeft);
   const boundaries = buildBoundaries(parsed, displayedPos, lanes, activeLayout.h);
   const title: DiagramTitle | null = parsed.sliceName

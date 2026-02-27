@@ -190,4 +190,34 @@ describe('buildSceneModel', () => {
     ]);
   });
 
+  it('expands viewport height when scenarios are present below the diagram', () => {
+    const parsed = baseParsed();
+    parsed.scenarios = [
+      {
+        name: 'Complete TODO',
+        srcRange: { from: 10, to: 30 },
+        given: [{ key: 'b', type: 'evt', name: 'b', alias: null, srcRange: { from: 11, to: 12 } }],
+        when: { key: 'a', type: 'cmd', name: 'a', alias: null, srcRange: { from: 13, to: 14 } },
+        then: [{ key: 'b', type: 'evt', name: 'b', alias: null, srcRange: { from: 15, to: 16 } }]
+      }
+    ];
+
+    const activeLayout = baseLayout();
+    const scene = buildSceneModel({
+      parsed,
+      activeLayout,
+      displayedPos: activeLayout.pos,
+      renderedEdges: baseRenderedEdges(),
+      routeMode: 'classic',
+      engineLayout: null,
+      activeNodeKeyFromEditor: null,
+      selectedNodeKey: null,
+      hoveredEdgeKey: null,
+      hoveredTraceNodeKey: null,
+      canvasMargin: 100
+    });
+
+    expect(scene?.viewport?.height).toBeGreaterThan(700);
+  });
+
 });

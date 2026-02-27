@@ -297,4 +297,34 @@ describe('DomSvgDiagramRendererCamera', () => {
     expect(box?.textContent).toContain('When');
     expect(box?.textContent).toContain('Then');
   });
+
+  it('lays out multiple scenario boxes horizontally in source order', () => {
+    const scene = baseScene();
+    scene.scenarios = [
+      {
+        name: 'First Scenario',
+        srcRange: { from: 20, to: 40 },
+        given: [{ key: 'node-1', type: 'evt', title: 'node-1', prefix: 'evt', srcRange: { from: 21, to: 22 } }],
+        when: { key: 'node-1', type: 'evt', title: 'node-1', prefix: 'evt', srcRange: { from: 23, to: 24 } },
+        then: [{ key: 'node-1', type: 'evt', title: 'node-1', prefix: 'evt', srcRange: { from: 25, to: 26 } }]
+      },
+      {
+        name: 'Second Scenario',
+        srcRange: { from: 41, to: 60 },
+        given: [{ key: 'node-1', type: 'evt', title: 'node-1', prefix: 'evt', srcRange: { from: 42, to: 43 } }],
+        when: { key: 'node-1', type: 'evt', title: 'node-1', prefix: 'evt', srcRange: { from: 44, to: 45 } },
+        then: [{ key: 'node-1', type: 'evt', title: 'node-1', prefix: 'evt', srcRange: { from: 46, to: 47 } }]
+      }
+    ];
+
+    renderRenderer({ sceneModel: scene });
+
+    const boxes = [...document.querySelectorAll('.scenario-box')] as HTMLElement[];
+    expect(boxes).toHaveLength(2);
+    expect(boxes[0]?.textContent).toContain('First Scenario');
+    expect(boxes[1]?.textContent).toContain('Second Scenario');
+    expect(Number.parseInt(boxes[1]?.style.left ?? '0', 10)).toBeGreaterThan(
+      Number.parseInt(boxes[0]?.style.left ?? '0', 10)
+    );
+  });
 });
