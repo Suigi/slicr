@@ -146,4 +146,48 @@ describe('buildSceneModel', () => {
     expect(scene?.lanes[1].y).toBe(360);
   });
 
+  it('maps parsed scenarios into grouped given/when/then scene data in source order', () => {
+    const parsed = baseParsed();
+    parsed.scenarios = [
+      {
+        name: 'Complete TODO',
+        srcRange: { from: 10, to: 30 },
+        given: [{ key: 'b', type: 'evt', name: 'b', alias: null, srcRange: { from: 11, to: 12 } }],
+        when: { key: 'a', type: 'cmd', name: 'a', alias: null, srcRange: { from: 13, to: 14 } },
+        then: [{ key: 'b', type: 'evt', name: 'b', alias: null, srcRange: { from: 15, to: 16 } }]
+      },
+      {
+        name: 'Retry TODO',
+        srcRange: { from: 31, to: 50 },
+        given: [{ key: 'a', type: 'cmd', name: 'a', alias: null, srcRange: { from: 32, to: 33 } }],
+        when: { key: 'b', type: 'evt', name: 'b', alias: null, srcRange: { from: 34, to: 35 } },
+        then: [{ key: 'a', type: 'cmd', name: 'a', alias: null, srcRange: { from: 36, to: 37 } }]
+      }
+    ];
+
+    const activeLayout = baseLayout();
+    const scene = buildSceneModel({
+      parsed,
+      activeLayout,
+      displayedPos: activeLayout.pos,
+      renderedEdges: baseRenderedEdges(),
+      routeMode: 'classic',
+      engineLayout: null,
+      activeNodeKeyFromEditor: null,
+      selectedNodeKey: null,
+      hoveredEdgeKey: null,
+      hoveredTraceNodeKey: null
+    });
+
+    expect(scene?.scenarios.map((scenario) => ({
+      name: scenario.name,
+      given: scenario.given.map((entry) => entry.key),
+      when: scenario.when?.key ?? null,
+      then: scenario.then.map((entry) => entry.key)
+    }))).toEqual([
+      { name: 'Complete TODO', given: ['b'], when: 'a', then: ['b'] },
+      { name: 'Retry TODO', given: ['a'], when: 'b', then: ['a'] }
+    ]);
+  });
+
 });

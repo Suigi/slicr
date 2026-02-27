@@ -52,6 +52,7 @@ function baseScene(): DiagramSceneModel {
     edges: [],
     lanes: [],
     boundaries: [],
+    scenarios: [],
     worldWidth: 1000,
     worldHeight: 800,
     title: null,

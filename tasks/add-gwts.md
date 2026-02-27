@@ -116,7 +116,7 @@ After completing the step, update this file and set the status to `[completed]`.
 - `[completed]` Add parser support for optional `data:` on scenario nodes using existing data parsing behavior.
 - `[completed]` Add regression coverage to ensure top-level node/edge parsing is unchanged when scenarios coexist.
 - `[completed]` Extend domain types and parsed output shape to carry scenario structures and source order.
-- `[not started]` Extend scene model/renderer contract to include grouped scenario render data (`Given`, `When`, `Then`).
+- `[completed]` Extend scene model/renderer contract to include grouped scenario render data (`Given`, `When`, `Then`).
 - `[not started]` Render scenario boxes below the diagram with explicit section labels.
 - `[not started]` Render multiple scenarios horizontally in source order.
 - `[not started]` Confirm slices without scenarios render unchanged (no scenario area).

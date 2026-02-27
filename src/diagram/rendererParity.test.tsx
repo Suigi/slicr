@@ -100,6 +100,7 @@ function createScene(): DiagramSceneModel {
     ],
     lanes: [],
     boundaries: [],
+    scenarios: [],
     worldWidth: 900,
     worldHeight: 700,
     title: null,

@@ -99,6 +99,7 @@ function createScene(overrides: Partial<DiagramSceneModel> = {}): DiagramSceneMo
       }
     ],
     boundaries: [],
+    scenarios: [],
     worldWidth: 600,
     worldHeight: 400,
     title: { text: 'Slice', top: 6, left: 8 },

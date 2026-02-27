@@ -32,6 +32,7 @@ function renderWithRegistryRenderer(rendererId: 'dom-svg' | 'dom-svg-camera') {
     edges: [],
     lanes: [],
     boundaries: [],
+    scenarios: [],
     worldWidth: 100,
     worldHeight: 100,
     title: null,

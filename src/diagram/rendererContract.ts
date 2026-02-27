@@ -79,11 +79,28 @@ export type DiagramViewport = {
   offsetY: number;
 };
 
+export type DiagramScenarioNode = {
+  key: string;
+  type: string;
+  title: string;
+  prefix: string;
+  srcRange: Range;
+};
+
+export type DiagramScenario = {
+  name: string;
+  srcRange: Range;
+  given: DiagramScenarioNode[];
+  when: DiagramScenarioNode | null;
+  then: DiagramScenarioNode[];
+};
+
 export type DiagramSceneModel = {
   nodes: DiagramNode[];
   edges: DiagramEdge[];
   lanes: DiagramLane[];
   boundaries: DiagramBoundary[];
+  scenarios: DiagramScenario[];
   worldWidth: number;
   worldHeight: number;
   title: DiagramTitle | null;

@@ -2,7 +2,17 @@ import { DiagramEngineId, DiagramEngineLayout, RenderedDiagramEdge } from '../do
 import { routeRoundedPolyline } from '../domain/diagramRouting';
 import { PAD_X, rowFor } from '../domain/layoutGraph';
 import type { LayoutResult, Parsed, Position, VisualNode } from '../domain/types';
-import type { DiagramBoundary, DiagramEdge, DiagramLane, DiagramNode, DiagramSceneModel, DiagramTitle, DiagramViewport } from './rendererContract';
+import type {
+  DiagramBoundary,
+  DiagramEdge,
+  DiagramLane,
+  DiagramNode,
+  DiagramScenario,
+  DiagramScenarioNode,
+  DiagramSceneModel,
+  DiagramTitle,
+  DiagramViewport
+} from './rendererContract';
 
 const TYPE_LABEL: Record<string, string> = {
   rm: 'rm',
@@ -194,6 +204,31 @@ function buildDraggableSegmentIndices(pointsLength: number): number[] {
   return [...indices].sort((a, b) => a - b);
 }
 
+function toScenarioNode(entry: Parsed['scenarios'][number]['given'][number], parsed: Parsed): DiagramScenarioNode {
+  const node = parsed.nodes.get(entry.key);
+  const displayNode = node ? toDisplayNode(node) : null;
+  const type = displayNode?.type ?? entry.type;
+  const prefix = TYPE_LABEL[type] ?? type;
+  const title = displayNode ? (displayNode.alias ?? displayNode.name) : (entry.alias ?? entry.name);
+  return {
+    key: entry.key,
+    type,
+    title,
+    prefix,
+    srcRange: entry.srcRange
+  };
+}
+
+function buildScenarios(parsed: Parsed): DiagramScenario[] {
+  return parsed.scenarios.map((scenario) => ({
+    name: scenario.name,
+    srcRange: scenario.srcRange,
+    given: scenario.given.map((entry) => toScenarioNode(entry, parsed)),
+    when: scenario.when ? toScenarioNode(scenario.when, parsed) : null,
+    then: scenario.then.map((entry) => toScenarioNode(entry, parsed))
+  }));
+}
+
 export function buildSceneModel(input: BuildSceneModelInput): DiagramSceneModel | null {
   const {
     parsed,
@@ -293,6 +328,7 @@ export function buildSceneModel(input: BuildSceneModelInput): DiagramSceneModel 
     edges,
     lanes,
     boundaries,
+    scenarios: buildScenarios(parsed),
     worldWidth: activeLayout.w,
     worldHeight: activeLayout.h,
     title,
