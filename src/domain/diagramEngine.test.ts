@@ -27,7 +27,8 @@ function makeParsed(): Parsed {
     edges: [{ from: first.key, to: second.key, label: null }],
     warnings: [],
     boundaries: [],
-    scenarios: []
+    scenarios: [],
+    scenarioOnlyNodeKeys: []
   };
 }
 
@@ -59,7 +60,8 @@ describe('diagramEngine dimensions plumbing', () => {
       edges: [{ from: before.key, to: anchor.key, label: null }],
       warnings: [],
       boundaries: [{ after: anchor.key }],
-      scenarios: []
+      scenarios: [],
+      scenarioOnlyNodeKeys: []
     };
     const measuredAnchorWidth = 320;
     const layout = await computeDiagramLayout(parsed, 'elk', {

@@ -272,8 +272,10 @@ export function buildSceneModel(input: BuildSceneModelInput): DiagramSceneModel 
     ? renderedEdges.find(({ edgeKey }) => edgeKey === hoveredEdgeKey)
     : undefined;
   const hoveredEdgeNodeKeys = hoveredEdge ? new Set<string>([hoveredEdge.edge.from, hoveredEdge.edge.to]) : new Set<string>();
+  const scenarioOnlyNodeKeys = new Set(parsed.scenarioOnlyNodeKeys);
 
   const nodes: DiagramNode[] = [...parsed.nodes.values()]
+    .filter((node) => !scenarioOnlyNodeKeys.has(node.key))
     .map((node) => {
       const position = displayedPos[node.key];
       if (!position) {

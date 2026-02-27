@@ -33,7 +33,8 @@ describe('traversal', () => {
     edges,
     warnings: [],
     boundaries: [],
-    scenarios: []
+    scenarios: [],
+    scenarioOnlyNodeKeys: []
   };
 
   it('finds related nodes and edges for a middle node', () => {

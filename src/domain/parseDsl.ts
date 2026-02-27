@@ -9,6 +9,7 @@ type NodeSpec = {
   line: number;
   type: string;
   name: string;
+  isScenario: boolean;
   alias: string | null;
   stream: string | null;
   incoming: ArtifactRef[];
@@ -112,6 +113,7 @@ export function parseDsl(src: string): Parsed {
         line: lineIndex,
         type: parsed.target.type,
         name: parsed.target.name,
+        isScenario: scenarioNodeLines.has(lineIndex),
         alias: parsed.alias,
         stream: null,
         incoming: parsed.incoming,
@@ -178,6 +180,7 @@ export function parseDsl(src: string): Parsed {
   const usedKeys = new Set<string>();
   const unresolvedEdges: Array<{ fromRef: string; toRef: string; range: { from: number; to: number } }> = [];
   const unresolvedEdgeSet = new Set<string>();
+  const nodeOriginByKey = new Map<string, { topLevel: boolean; scenario: boolean }>();
 
   for (const spec of specs) {
     const ref = toRefId(spec.type, spec.name);
@@ -190,6 +193,13 @@ export function parseDsl(src: string): Parsed {
       refToKey.set(ref, key);
       usedKeys.add(key);
     }
+    const origin = nodeOriginByKey.get(key) ?? { topLevel: false, scenario: false };
+    if (spec.isScenario) {
+      origin.scenario = true;
+    } else {
+      origin.topLevel = true;
+    }
+    nodeOriginByKey.set(key, origin);
 
     const finalRange = spec.dataEndPos
       ? { from: spec.srcRange.from, to: spec.dataEndPos }
@@ -264,9 +274,12 @@ export function parseDsl(src: string): Parsed {
   warnings.push(...validateDataIntegrity({ nodes, edges }));
   warnings.push(...collectScenarioWhenCardinalityWarnings(lines, lineStarts));
   const scenarios = collectParsedScenarios(lines, lineStarts, refToKey);
+  const scenarioOnlyNodeKeys = [...nodeOriginByKey.entries()]
+    .filter(([, origin]) => origin.scenario && !origin.topLevel)
+    .map(([key]) => key);
   boundaries.push(...resolveBoundaries(specs, boundaryLines, refToKey));
 
-  return { sliceName, nodes, edges, warnings, boundaries, scenarios };
+  return { sliceName, nodes, edges, warnings, boundaries, scenarios, scenarioOnlyNodeKeys };
 }
 
 function collectScenarioWhenCardinalityWarnings(lines: string[], lineStarts: number[]): ParseWarning[] {
@@ -499,6 +512,7 @@ function parseScenarioNodeSpecFromLine(line: string, lineIndex: number, lineStar
     line: lineIndex,
     type: parsed.type,
     name: parsed.name,
+    isScenario: true,
     alias: parsed.alias,
     stream: null,
     incoming: [],

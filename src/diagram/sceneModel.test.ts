@@ -26,7 +26,8 @@ function baseParsed(): Parsed {
     edges: [{ from: 'a', to: 'b', label: 'ok' }],
     warnings: [],
     boundaries: [{ after: 'a' }],
-    scenarios: []
+    scenarios: [],
+    scenarioOnlyNodeKeys: []
   };
 }
 
@@ -218,6 +219,45 @@ describe('buildSceneModel', () => {
     });
 
     expect(scene?.viewport?.height).toBeGreaterThan(700);
+  });
+
+  it('hides scenario-only nodes from main diagram nodes while keeping scenario content', () => {
+    const parsed = baseParsed();
+    parsed.nodes.set('scenario-node', node('scenario-node', 'evt', 40, 50));
+    parsed.scenarios = [
+      {
+        name: 'Scenario',
+        srcRange: { from: 30, to: 60 },
+        given: [{ key: 'scenario-node', type: 'evt', name: 'scenario-node', alias: null, srcRange: { from: 41, to: 42 } }],
+        when: null,
+        then: []
+      }
+    ];
+    parsed.scenarioOnlyNodeKeys = ['scenario-node'];
+
+    const activeLayout = {
+      ...baseLayout(),
+      pos: {
+        ...baseLayout().pos,
+        'scenario-node': { x: 700, y: 120, w: 180, h: 90 }
+      }
+    };
+
+    const scene = buildSceneModel({
+      parsed,
+      activeLayout,
+      displayedPos: activeLayout.pos,
+      renderedEdges: baseRenderedEdges(),
+      routeMode: 'classic',
+      engineLayout: null,
+      activeNodeKeyFromEditor: null,
+      selectedNodeKey: null,
+      hoveredEdgeKey: null,
+      hoveredTraceNodeKey: null
+    });
+
+    expect(scene?.nodes.some((entry) => entry.key === 'scenario-node')).toBe(false);
+    expect(scene?.scenarios[0]?.given[0]?.key).toBe('scenario-node');
   });
 
 });

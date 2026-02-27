@@ -54,6 +54,7 @@ export type Parsed = {
   warnings: ParseWarning[];
   boundaries: SliceBoundary[];
   scenarios: ParsedScenario[];
+  scenarioOnlyNodeKeys: string[];
 };
 
 export type Position = {
