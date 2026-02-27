@@ -272,4 +272,29 @@ describe('DomSvgDiagramRendererCamera', () => {
     expect(eventArg?.clientY).toBeCloseTo(210, 5);
     expect(beginNodeDrag.mock.calls[0]?.[1]).toBe('node-1');
   });
+
+  it('renders a scenario box below the main diagram world with Given/When/Then labels', () => {
+    const scene = baseScene();
+    scene.scenarios = [
+      {
+        name: 'Complete TODO',
+        srcRange: { from: 20, to: 40 },
+        given: [{ key: 'node-1', type: 'evt', title: 'node-1', prefix: 'evt', srcRange: { from: 21, to: 22 } }],
+        when: { key: 'node-1', type: 'evt', title: 'node-1', prefix: 'evt', srcRange: { from: 23, to: 24 } },
+        then: [{ key: 'node-1', type: 'evt', title: 'node-1', prefix: 'evt', srcRange: { from: 25, to: 26 } }]
+      }
+    ];
+
+    renderRenderer({ sceneModel: scene });
+
+    const area = document.querySelector('.scenario-area') as HTMLElement | null;
+    const box = document.querySelector('.scenario-box') as HTMLElement | null;
+    expect(area).not.toBeNull();
+    expect(area?.style.top).toBe('848px');
+    expect(box).not.toBeNull();
+    expect(box?.textContent).toContain('Complete TODO');
+    expect(box?.textContent).toContain('Given');
+    expect(box?.textContent).toContain('When');
+    expect(box?.textContent).toContain('Then');
+  });
 });

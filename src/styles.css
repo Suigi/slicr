@@ -2341,3 +2341,49 @@ g.related .arrow-path {
   color: var(--muted);
   opacity: 0.6;
 }
+
+.scenario-area {
+  position: absolute;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: max-content;
+  min-width: 360px;
+  padding-bottom: 24px;
+}
+
+.scenario-box {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--surface) 90%, black 10%);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  width: 360px;
+}
+
+.scenario-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+
+.scenario-section {
+  margin-top: 8px;
+}
+
+.scenario-section-label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.scenario-entry {
+  color: var(--text);
+  line-height: 1.4;
+}

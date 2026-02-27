@@ -351,6 +351,40 @@ export function DomSvgDiagramRendererCamera({
                 );
               })}
             </svg>
+
+            {sceneModel.scenarios.length > 0 && (
+              <div className="scenario-area" style={{ top: `${sceneModel.worldHeight + 48}px` }}>
+                {sceneModel.scenarios.map((scenario) => (
+                  <section key={`${scenario.name}-${scenario.srcRange.from}`} className="scenario-box">
+                    <h3 className="scenario-title">{scenario.name}</h3>
+                    <div className="scenario-section">
+                      <div className="scenario-section-label">Given</div>
+                      {scenario.given.map((entry, index) => (
+                        <div key={`${scenario.name}-given-${entry.key}-${index}`} className="scenario-entry">
+                          {entry.prefix ? `${entry.prefix}:` : ''}{entry.title}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="scenario-section">
+                      <div className="scenario-section-label">When</div>
+                      {scenario.when && (
+                        <div className="scenario-entry">
+                          {scenario.when.prefix ? `${scenario.when.prefix}:` : ''}{scenario.when.title}
+                        </div>
+                      )}
+                    </div>
+                    <div className="scenario-section">
+                      <div className="scenario-section-label">Then</div>
+                      {scenario.then.map((entry, index) => (
+                        <div key={`${scenario.name}-then-${entry.key}-${index}`} className="scenario-entry">
+                          {entry.prefix ? `${entry.prefix}:` : ''}{entry.title}
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
