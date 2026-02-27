@@ -120,7 +120,7 @@ After completing the step, update this file and set the status to `[completed]`.
 - `[completed]` Render scenario boxes below the diagram with explicit section labels.
 - `[completed]` Render multiple scenarios horizontally in source order.
 - `[completed]` Confirm slices without scenarios render unchanged (no scenario area).
-- `[not started]` Run full validation suite: lint, full tests, `npx tsc -b`, and production build.
+- `[completed]` Run full validation suite: lint, full tests, `npx tsc -b`, and production build.
 
 ## Out of Scope (for this task)
 
