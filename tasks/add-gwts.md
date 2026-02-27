@@ -111,7 +111,7 @@ After completing the step, update this file and set the status to `[completed]`.
 ## Steps
 
 - `[completed]` Update grammar to support `scenario`, `given`, `when`, `then` under `slice` while preserving backward compatibility.
-- `[not started]` Add parser support for scenarios with arbitrary node types in `given`/`when`/`then`.
+- `[completed]` Add parser support for scenarios with arbitrary node types in `given`/`when`/`then`.
 - `[not started]` Enforce parser rule that `when` contains exactly one node and report invalid structures.
 - `[not started]` Add parser support for optional `data:` on scenario nodes using existing data parsing behavior.
 - `[not started]` Add regression coverage to ensure top-level node/edge parsing is unchanged when scenarios coexist.

@@ -53,10 +53,21 @@ type StreamClauseSpec = {
   stream: string;
 };
 
+const SCENARIO_NODE_NAME_PATTERN = '[a-zA-Z_][a-zA-Z0-9_#-]*';
+const SCENARIO_NODE_VERSION_PATTERN = '(?:@[0-9]+(?:\\.[0-9]+)?)?';
+const SCENARIO_ALIAS_PATTERN = '(?:\\s+("(?:[^"\\\\]|\\\\.)*"))?';
+const SCENARIO_PREFIXED_NODE_RE = new RegExp(
+  `^(rm|ui|cmd|evt|exc|aut|ext):(${SCENARIO_NODE_NAME_PATTERN}${SCENARIO_NODE_VERSION_PATTERN})${SCENARIO_ALIAS_PATTERN}$`
+);
+const SCENARIO_GENERIC_NODE_RE = new RegExp(
+  `^(${SCENARIO_NODE_NAME_PATTERN}${SCENARIO_NODE_VERSION_PATTERN})${SCENARIO_ALIAS_PATTERN}$`
+);
+
 export function parseDsl(src: string): Parsed {
   const tree = parser.parse(src);
   const lines = src.split('\n');
   const lineStarts = buildLineStarts(lines);
+  const scenarioNodeLines = collectScenarioNodeLines(lines);
   const boundaryLines = collectBoundaryLines(lines);
   const usesBodyLines = collectUsesBodyLines(lines);
   const mappingsByRef = parseUsesBlocks(src);
@@ -88,7 +99,7 @@ export function parseDsl(src: string): Parsed {
       const lineIndex = getLineIndexAtPos(lineStarts, cursor.from);
       const lineStart = lineStarts[lineIndex];
       const prefix = src.slice(lineStart, cursor.from);
-      if (prefix.length > 0) {
+      if (prefix.length > 0 && !scenarioNodeLines.has(lineIndex)) {
         continue;
       }
 
@@ -141,6 +152,21 @@ export function parseDsl(src: string): Parsed {
       streamClauses.push({ line: lineIndex, stream: parsed.stream });
     }
   } while (cursor.next());
+
+  // Recover scenario lines that the parser surfaces as plain Identifier nodes.
+  const parsedNodeLines = new Set(specs.map((spec) => spec.line));
+  for (const lineIndex of [...scenarioNodeLines].sort((a, b) => a - b)) {
+    if (parsedNodeLines.has(lineIndex)) {
+      continue;
+    }
+    const recovered = parseScenarioNodeSpecFromLine(lines[lineIndex], lineIndex, lineStarts);
+    if (recovered) {
+      specs.push(recovered);
+      parsedNodeLines.add(lineIndex);
+    }
+  }
+
+  specs.sort((left, right) => left.line - right.line || left.srcRange.from - right.srcRange.from);
 
   attachStandaloneEdgeClauses(specs, edgeClauses);
   attachStandaloneStreamClauses(specs, streamClauses);
@@ -241,6 +267,95 @@ export function parseDsl(src: string): Parsed {
   return { sliceName, nodes, edges, warnings, boundaries };
 }
 
+function collectScenarioNodeLines(lines: string[]) {
+  const scenarioNodeLines = new Set<number>();
+  let inScenario = false;
+  let activeSection: 'given' | 'when' | 'then' | null = null;
+
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    const line = lines[lineIndex];
+    const trimmed = line.trim();
+    if (!trimmed) {
+      continue;
+    }
+
+    const indent = (line.match(/^(\s*)/)?.[1] ?? '').length;
+    if (indent === 0) {
+      if (/^scenario\s+"/.test(trimmed)) {
+        inScenario = true;
+        activeSection = null;
+        continue;
+      }
+      if (inScenario && (trimmed === 'given:' || trimmed === 'when:' || trimmed === 'then:')) {
+        activeSection = trimmed.slice(0, -1) as 'given' | 'when' | 'then';
+        continue;
+      }
+
+      inScenario = false;
+      activeSection = null;
+      continue;
+    }
+
+    if (!inScenario || !activeSection) {
+      continue;
+    }
+
+    if (isScenarioNodeLine(trimmed)) {
+      scenarioNodeLines.add(lineIndex);
+    }
+  }
+
+  return scenarioNodeLines;
+}
+
+function isScenarioNodeLine(trimmed: string) {
+  return parseScenarioNodeLineInfo(trimmed) !== null;
+}
+
+function parseScenarioNodeSpecFromLine(line: string, lineIndex: number, lineStarts: number[]): NodeSpec | null {
+  const trimmed = line.trim();
+  const parsed = parseScenarioNodeLineInfo(trimmed);
+  if (!parsed) {
+    return null;
+  }
+
+  const from = lineStarts[lineIndex] + line.indexOf(trimmed);
+  const to = from + trimmed.length;
+  return {
+    line: lineIndex,
+    type: parsed.type,
+    name: parsed.name,
+    alias: parsed.alias,
+    stream: null,
+    incoming: [],
+    outgoing: [],
+    data: null,
+    srcRange: { from, to }
+  };
+}
+
+function parseScenarioNodeLineInfo(trimmed: string): { type: string; name: string; alias: string | null } | null {
+  const prefixed = trimmed.match(SCENARIO_PREFIXED_NODE_RE);
+  if (prefixed) {
+    return {
+      type: prefixed[1],
+      name: prefixed[2],
+      alias: prefixed[3] ? unquote(prefixed[3]) : null
+    };
+  }
+
+  const generic = trimmed.match(SCENARIO_GENERIC_NODE_RE);
+  if (generic) {
+    return {
+      type: 'generic',
+      name: generic[1],
+      alias: generic[2] ? unquote(generic[2]) : null
+    };
+  }
+
+  return null;
+}
+
 function collectBoundaryLines(lines: string[]) {
   const boundaryLines: number[] = [];
   for (let i = 0; i < lines.length; i += 1) {
@@ -316,7 +431,7 @@ function parseNodeStatement(cursor: ParseCursor, src: string) {
   let alias: string | null = null;
   do {
     const typeId = cursorTypeId(cursor);
-    if (typeId === terms.ArtifactRef && !target) {
+    if (isArtifactRefType(typeId) && !target) {
       target = parseArtifactRef(cursor, src);
       continue;
     }
@@ -383,7 +498,7 @@ function parseClauseRefs(cursor: ParseCursor, src: string): ArtifactRef[] {
   const refs: ArtifactRef[] = [];
   cursor.firstChild(); // Arrow token
   while (cursor.nextSibling()) {
-    if (cursorTypeId(cursor) !== terms.ArtifactRef) {
+    if (!isArtifactRefType(cursorTypeId(cursor))) {
       continue;
     }
     const ref = parseArtifactRef(cursor, src);
@@ -442,13 +557,27 @@ function attachStandaloneStreamClauses(specs: NodeSpec[], streamClauses: StreamC
 }
 
 function parseArtifactRef(cursor: ParseCursor, src: string): ArtifactRef | null {
-  if (cursorTypeId(cursor) !== terms.ArtifactRef) {
+  const startTypeId = cursorTypeId(cursor);
+  const isDirectRef =
+    startTypeId === terms.RmRef ||
+    startTypeId === terms.UiRef ||
+    startTypeId === terms.CmdRef ||
+    startTypeId === terms.EvtRef ||
+    startTypeId === terms.ExcRef ||
+    startTypeId === terms.AutRef ||
+    startTypeId === terms.ExtRef ||
+    startTypeId === terms.GenericRef;
+  if (startTypeId !== terms.ArtifactRef && !isDirectRef) {
     return null;
   }
   const range = { from: cursor.from, to: cursor.to };
 
-  cursor.firstChild(); // Move to specific ref (RmRef, UiRef, etc.)
-  const typeId = cursorTypeId(cursor);
+  let typeId = startTypeId;
+  const hasWrapper = startTypeId === terms.ArtifactRef;
+  if (hasWrapper) {
+    cursor.firstChild(); // Move to specific ref (RmRef, UiRef, etc.)
+    typeId = cursorTypeId(cursor);
+  }
 
   let type = '';
   if (typeId === terms.RmRef) type = 'rm';
@@ -461,7 +590,9 @@ function parseArtifactRef(cursor: ParseCursor, src: string): ArtifactRef | null 
   else if (typeId === terms.GenericRef) type = 'generic';
 
   if (!type) {
-    cursor.parent();
+    if (hasWrapper) {
+      cursor.parent();
+    }
     return null;
   }
 
@@ -489,9 +620,25 @@ function parseArtifactRef(cursor: ParseCursor, src: string): ArtifactRef | null 
   } while (cursor.nextSibling());
 
   cursor.parent(); // Back to specific ref
-  cursor.parent(); // Back to ArtifactRef
+  if (hasWrapper) {
+    cursor.parent(); // Back to ArtifactRef
+  }
 
   return { type, name: name + version, range };
+}
+
+function isArtifactRefType(typeId: number) {
+  return (
+    typeId === terms.ArtifactRef ||
+    typeId === terms.RmRef ||
+    typeId === terms.UiRef ||
+    typeId === terms.CmdRef ||
+    typeId === terms.EvtRef ||
+    typeId === terms.ExcRef ||
+    typeId === terms.AutRef ||
+    typeId === terms.ExtRef ||
+    typeId === terms.GenericRef
+  );
 }
 
 function toRefId(type: string, name: string) {

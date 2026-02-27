@@ -114,7 +114,7 @@ evt:order-failed <- cmd:place-order`;
     expect(parsed.edges).toEqual([{ from: 'place-order', to: 'order-failed', label: null }]);
   });
 
-  it('does not parse scenario section keywords as top-level generic nodes', () => {
+  it('does not parse scenario section keywords as generic nodes', () => {
     const input = `slice "Scenarios"
 
 scenario "Complete TODO Item"
@@ -131,7 +131,84 @@ evt:existing-top-level`;
 
     const parsed = parseDsl(input);
 
-    expect([...parsed.nodes.keys()]).toEqual(['existing-top-level']);
+    expect(parsed.nodes.has('given')).toBe(false);
+    expect(parsed.nodes.has('when')).toBe(false);
+    expect(parsed.nodes.has('then')).toBe(false);
+    expect([...parsed.nodes.keys()]).toEqual(['todo-added', 'complete-todo', 'todo-completed', 'existing-top-level']);
+  });
+
+  it('parses arbitrary artifact reference types inside scenario sections', () => {
+    const input = `slice "Scenarios"
+
+scenario "Mixed refs"
+given:
+  rm:orders
+  ui:orders-page
+  alpha-context
+
+when:
+  cmd:submit-order
+
+then:
+  evt:order-submitted
+  exc:payment-failure
+  aut:approval-service
+  ext:tax-provider
+
+evt:existing-top-level`;
+
+    const parsed = parseDsl(input);
+
+    expect([...parsed.nodes.keys()]).toEqual([
+      'orders',
+      'orders-page',
+      'alpha-context',
+      'submit-order',
+      'order-submitted',
+      'payment-failure',
+      'approval-service',
+      'tax-provider',
+      'existing-top-level'
+    ]);
+    expect(parsed.nodes.has('given')).toBe(false);
+    expect(parsed.nodes.has('when')).toBe(false);
+    expect(parsed.nodes.has('then')).toBe(false);
+  });
+
+  it('parses generic scenario references with versions', () => {
+    const input = `slice "Scenarios"
+
+scenario "Versioned generic"
+given:
+  alpha-context@2
+
+when:
+  cmd:submit-order
+
+then:
+  evt:order-submitted`;
+
+    const parsed = parseDsl(input);
+
+    expect(parsed.nodes.has('alpha-context@2')).toBe(true);
+  });
+
+  it('parses scenario node aliases', () => {
+    const input = `slice "Scenarios"
+
+scenario "Aliases"
+given:
+  cmd:submit-order "Submit Order"
+
+when:
+  cmd:confirm-order
+
+then:
+  evt:order-submitted`;
+
+    const parsed = parseDsl(input);
+
+    expect(parsed.nodes.get('submit-order')?.alias).toBe('Submit Order');
   });
 
   it('parses the room-opened flow with read-model update versions', () => {

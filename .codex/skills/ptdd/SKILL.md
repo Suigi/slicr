@@ -108,8 +108,10 @@ Take a critical look at your test and production code. Evaluate the need to refa
 Refactoring goals include: removing duplication, improving names, improving separation of concerns. Do not add new behavior during this step.
 
 **11. Commit and continue**
-If any refactoring was done, commit with a message describing what was improved. Then return to your test list and move on to the next task.
+If any refactoring was done, commit with a message describing what was improved.
 
+**12. Repeat**
+Repeat steps 1-11 until all tests in the test list are [done].
 ---
 
 ## Testing Guidelines
