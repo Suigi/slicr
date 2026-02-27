@@ -64,6 +64,37 @@ const SCENARIO_GENERIC_NODE_RE = new RegExp(
   `^(${SCENARIO_NODE_NAME_PATTERN}${SCENARIO_NODE_VERSION_PATTERN})${SCENARIO_ALIAS_PATTERN}$`
 );
 
+type ParseTraceState = {
+  total: number;
+  byCaller: Map<string, number>;
+};
+
+const PARSE_TRACE_KEY = '__slicrParseTraceState';
+
+function getParseTraceState(): ParseTraceState {
+  const carrier = globalThis as typeof globalThis & { [PARSE_TRACE_KEY]?: ParseTraceState };
+  if (!carrier[PARSE_TRACE_KEY]) {
+    carrier[PARSE_TRACE_KEY] = {
+      total: 0,
+      byCaller: new Map<string, number>()
+    };
+  }
+  return carrier[PARSE_TRACE_KEY];
+}
+
+function getParseCaller(): string {
+  const stack = new Error().stack;
+  if (!stack) {
+    return 'unknown';
+  }
+  const lines = stack.split('\n').map((line) => line.trim());
+  const callerLine = lines.find((line) => (
+    !line.includes('parseDsl') &&
+    (line.includes('/src/') || line.includes('src/'))
+  ));
+  return callerLine ?? 'unknown';
+}
+
 export function parseDsl(src: string): Parsed {
   const tree = parser.parse(src);
   const lines = src.split('\n');
@@ -285,6 +316,15 @@ export function parseDsl(src: string): Parsed {
     .map(([key]) => key);
   boundaries.push(...resolveBoundaries(specs, boundaryLines, refToKey));
 
+  const trace = getParseTraceState();
+  const caller = getParseCaller();
+  trace.total += 1;
+  const callerCount = (trace.byCaller.get(caller) ?? 0) + 1;
+  trace.byCaller.set(caller, callerCount);
+
+  console.log(
+    `[parseDsl] parsed slice: ${sliceName || '(unnamed)'} | callerCount=${callerCount} | total=${trace.total} | caller=${caller}`
+  );
   return { sliceName, nodes, edges, warnings, boundaries, scenarios, scenarioOnlyNodeKeys };
 }
 

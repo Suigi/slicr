@@ -146,6 +146,17 @@ function App() {
   const currentSlice =
     library.slices.find((slice) => slice.id === library.selectedSliceId) ?? library.slices[0];
   const currentDsl = currentSlice?.dsl ?? DEFAULT_DSL;
+  const sliceDocuments = useMemo(
+    () => library.slices.map((slice) => ({ id: slice.id, dsl: slice.dsl })),
+    [library.slices]
+  );
+  const { bySliceId: parsedSliceProjections, list: parsedSliceProjectionList } = useParsedSliceProjection(
+    sliceDocuments
+  );
+  const currentSliceProjection = useMemo(
+    () => (currentSlice ? parsedSliceProjections.get(currentSlice.id) ?? null : null),
+    [currentSlice, parsedSliceProjections]
+  );
   const DiagramRenderer = useMemo(() => getDiagramRenderer(diagramRendererId), [diagramRendererId]);
 
   const setCurrentDsl: Dispatch<SetStateAction<string>> = (updater) => {
@@ -165,13 +176,16 @@ function App() {
   };
 
   const parseResult = useMemo<ParseResult>(() => {
+    if (currentSliceProjection && currentSliceProjection.dsl === currentDsl) {
+      return { parsed: currentSliceProjection.parsed, error: '', warnings: currentSliceProjection.parsed.warnings };
+    }
     try {
       const parsed = parseDsl(currentDsl);
       return { parsed, error: '', warnings: parsed.warnings };
     } catch (error) {
       return { parsed: null, error: `⚠ ${(error as Error).message}`, warnings: [] };
     }
-  }, [currentDsl]);
+  }, [currentDsl, currentSliceProjection]);
 
   const parsed = parseResult.parsed;
   const errorText = parseResult.error;
@@ -469,13 +483,6 @@ function App() {
   }, [parsed, selectedNodeAnalysisRef]);
 
   const usesMappingsByRef = useMemo(() => parseUsesBlocks(currentDsl), [currentDsl]);
-  const sliceDocuments = useMemo(
-    () => library.slices.map((slice) => ({ id: slice.id, dsl: slice.dsl })),
-    [library.slices]
-  );
-  const { bySliceId: parsedSliceProjections, list: parsedSliceProjectionList } = useParsedSliceProjection(
-    sliceDocuments
-  );
 
   const crossSliceUsage = useMemo(() => {
     if (!selectedNodeAnalysisRef) {

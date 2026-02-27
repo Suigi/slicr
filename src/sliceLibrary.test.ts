@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import * as parseDslModule from './domain/parseDsl';
 import { DEFAULT_DSL } from './defaultDsl';
 import {
   addNewSlice,
@@ -64,6 +65,51 @@ describe('sliceLibrary', () => {
     expect(storedLibrary).toBeNull();
     expect(localStorage.getItem('slicr.es.v1.index')).not.toBeNull();
     expect(localStorage.getItem(LEGACY_DSL_STORAGE_KEY)).toBeNull();
+  });
+
+  it('does not parse event streams while saving when only DSL projection is needed', () => {
+    localStorage.setItem(
+      'slicr.es.v1.index',
+      JSON.stringify({ sliceIds: ['slice-a'] })
+    );
+    localStorage.setItem(
+      'slicr.es.v1.stream.slice-a',
+      JSON.stringify([
+        {
+          id: 'e-1',
+          sliceId: 'slice-a',
+          version: 1,
+          at: '2026-01-01T00:00:01.000Z',
+          type: 'slice-created',
+          payload: { initialDsl: 'slice "A1"\n\nevt:a1' }
+        },
+        {
+          id: 'e-2',
+          sliceId: 'slice-a',
+          version: 2,
+          at: '2026-01-01T00:00:02.000Z',
+          type: 'text-edited',
+          payload: { dsl: 'slice "A2"\n\nevt:a2' }
+        },
+        {
+          id: 'e-3',
+          sliceId: 'slice-a',
+          version: 3,
+          at: '2026-01-01T00:00:03.000Z',
+          type: 'node-moved',
+          payload: { nodeKey: 'a2', x: 10, y: 20 }
+        }
+      ])
+    );
+    const parseSpy = vi.spyOn(parseDslModule, 'parseDsl');
+
+    saveSliceLibrary({
+      selectedSliceId: 'slice-a',
+      slices: [{ id: 'slice-a', dsl: 'slice "A2"\n\nevt:a2' }]
+    });
+
+    expect(parseSpy).not.toHaveBeenCalled();
+    parseSpy.mockRestore();
   });
 
   it('adds untitled slices with unique names', () => {

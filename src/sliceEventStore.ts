@@ -360,6 +360,16 @@ export function appendSliceEvent(
 
 export function applySliceEvent(projection: SliceProjection, event: SliceEvent): SliceProjection {
   if (event.type === 'text-edited') {
+    const hasManualOverrides =
+      Object.keys(projection.manualNodePositions).length > 0 ||
+      Object.keys(projection.manualEdgePoints).length > 0;
+    if (!hasManualOverrides) {
+      return {
+        ...projection,
+        dsl: event.payload.dsl
+      };
+    }
+
     let manualNodePositions = projection.manualNodePositions;
     let manualEdgePoints = projection.manualEdgePoints;
     try {

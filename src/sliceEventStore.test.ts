@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import * as parseDslModule from './domain/parseDsl';
 import {
   appendSliceEvent,
   createEmptyProjection,
@@ -118,6 +119,21 @@ describe('sliceEventStore', () => {
 
   it('returns an empty projection for empty events', () => {
     expect(foldSliceEvents([])).toEqual(createEmptyProjection());
+  });
+
+  it('does not parse text-edited events when no manual overrides exist', () => {
+    const parseSpy = vi.spyOn(parseDslModule, 'parseDsl');
+    const events: SliceEvent[] = [
+      textEditedEvent(1, 'slice "A1"\n\nevt:a1'),
+      textEditedEvent(2, 'slice "A2"\n\nevt:a2'),
+      textEditedEvent(3, 'slice "A3"\n\nevt:a3')
+    ];
+
+    const projection = foldSliceEvents(events);
+
+    expect(projection.dsl).toBe('slice "A3"\n\nevt:a3');
+    expect(parseSpy).not.toHaveBeenCalled();
+    parseSpy.mockRestore();
   });
 
   it('hydrates from snapshot and only folds events after the snapshot version', () => {

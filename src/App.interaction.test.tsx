@@ -2,7 +2,7 @@
 
 import { StrictMode, act } from 'react';
 import ReactDOM from 'react-dom/client';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { DEFAULT_DSL } from './defaultDsl';
 import {
@@ -12,6 +12,7 @@ import {
 } from './domain/runtimeFlags';
 import { SLICES_LAYOUT_STORAGE_KEY, SLICES_STORAGE_KEY } from './sliceLibrary';
 import { hydrateSliceProjection } from './sliceEventStore';
+import * as parseDslModule from './domain/parseDsl';
 
 let root: ReactDOM.Root | null = null;
 let host: HTMLDivElement | null = null;
@@ -153,6 +154,16 @@ rm:persisted-view`;
 
     const sliceTitle = document.querySelector('.slice-title');
     expect(sliceTitle?.textContent).toBe('Persisted Slice');
+  });
+
+  it('parses a selected slice only once on initial render', () => {
+    setSingleEventSlice('slice "A"\n\nevt:a');
+    const parseSpy = vi.spyOn(parseDslModule, 'parseDsl');
+
+    renderApp();
+
+    expect(parseSpy).toHaveBeenCalledTimes(1);
+    parseSpy.mockRestore();
   });
 
   it('switches between saved slices via header dropdown', () => {

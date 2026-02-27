@@ -125,6 +125,20 @@ function hasLayoutEvents(sliceId: string): boolean {
   );
 }
 
+function getProjectedDslFromEvents(events: ReturnType<typeof loadSliceEvents>): string {
+  let dsl = '';
+  for (const event of events) {
+    if (event.type === 'slice-created') {
+      dsl = event.payload.initialDsl;
+      continue;
+    }
+    if (event.type === 'text-edited') {
+      dsl = event.payload.dsl;
+    }
+  }
+  return dsl;
+}
+
 function migrateLegacyLayoutOverrides(sliceId: string): SliceLayoutOverrides | null {
   const map = loadLayoutMap();
   const legacy = map[sliceId];
@@ -484,10 +498,10 @@ function migrateLegacyLibraryToEvents(library: SliceLibrary): void {
 
   for (const slice of library.slices) {
     const events = loadSliceEvents(slice.id);
-    const projection = hydrateSliceProjection(slice.id);
+    const projectedDsl = getProjectedDslFromEvents(events);
     if (!events.some((event) => event.type === 'slice-created')) {
-      appendSliceCreatedEvent(slice.id, projection.dsl || slice.dsl);
-    } else if (!events.some((event) => event.type === 'text-edited') && !projection.dsl) {
+      appendSliceCreatedEvent(slice.id, projectedDsl || slice.dsl);
+    } else if (!events.some((event) => event.type === 'text-edited') && !projectedDsl) {
       appendSliceEvent(slice.id, {
         type: 'text-edited',
         payload: { dsl: slice.dsl }
@@ -518,8 +532,7 @@ function loadSliceLibraryFromEventIndex(): SliceLibrary | null {
         if (events.length === 0) {
           return null;
         }
-        const projection = hydrateSliceProjection(sliceId);
-        return { id: sliceId, dsl: projection.dsl };
+        return { id: sliceId, dsl: getProjectedDslFromEvents(events) };
       })
       .filter((slice): slice is StoredSlice => Boolean(slice));
 
@@ -592,8 +605,7 @@ export function saveSliceLibrary(library: SliceLibrary): void {
   writeEventIndex(library.slices.map((slice) => slice.id));
   for (const slice of library.slices) {
     const events = loadSliceEvents(slice.id);
-    const projection = hydrateSliceProjection(slice.id);
-    let projectedDsl = projection.dsl;
+    let projectedDsl = getProjectedDslFromEvents(events);
     if (!events.some((event) => event.type === 'slice-created')) {
       const initialDsl = projectedDsl || slice.dsl;
       appendSliceCreatedEvent(slice.id, initialDsl);
