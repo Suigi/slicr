@@ -211,6 +211,75 @@ then:
     expect(parsed.nodes.get('submit-order')?.alias).toBe('Submit Order');
   });
 
+  it('reports an error when a scenario has no when node', () => {
+    const input = `slice "Scenarios"
+
+scenario "Missing when"
+given:
+  evt:todo-added
+
+then:
+  evt:todo-completed`;
+
+    const parsed = parseDsl(input);
+
+    expect(parsed.warnings).toContainEqual({
+      message: 'Scenario "Missing when" must contain exactly one when node, found 0.',
+      range: {
+        from: input.indexOf('scenario "Missing when"'),
+        to: input.indexOf('scenario "Missing when"') + 'scenario "Missing when"'.length
+      },
+      level: 'error'
+    });
+  });
+
+  it('reports an error at the extra when node when a scenario has multiple when nodes', () => {
+    const input = `slice "Scenarios"
+
+scenario "Duplicate when"
+given:
+  evt:todo-added
+
+when:
+  cmd:complete-todo
+  cmd:reopen-todo
+
+then:
+  evt:todo-completed`;
+
+    const parsed = parseDsl(input);
+
+    expect(parsed.warnings).toContainEqual({
+      message: 'Scenario "Duplicate when" must contain exactly one when node, found 2.',
+      range: {
+        from: input.indexOf('cmd:reopen-todo'),
+        to: input.indexOf('cmd:reopen-todo') + 'cmd:reopen-todo'.length
+      },
+      level: 'error'
+    });
+  });
+
+  it('does not report when-cardinality errors for a scenario with exactly one when node', () => {
+    const input = `slice "Scenarios"
+
+scenario "Valid when"
+given:
+  evt:todo-added
+
+when:
+  cmd:complete-todo
+
+then:
+  evt:todo-completed`;
+
+    const parsed = parseDsl(input);
+    const cardinalityWarnings = parsed.warnings.filter((warning) =>
+      warning.message.includes('must contain exactly one when node')
+    );
+
+    expect(cardinalityWarnings).toEqual([]);
+  });
+
   it('parses the room-opened flow with read-model update versions', () => {
     const input = `slice "Book Room"
 

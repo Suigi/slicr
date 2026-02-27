@@ -262,9 +262,85 @@ export function parseDsl(src: string): Parsed {
   warnings.push(...applyMappingsToNodes({ nodes, edges, mappingsByRef }));
   applyOutboundMappedKeys({ nodes, edges, mappingsByRef });
   warnings.push(...validateDataIntegrity({ nodes, edges }));
+  warnings.push(...collectScenarioWhenCardinalityWarnings(lines, lineStarts));
   boundaries.push(...resolveBoundaries(specs, boundaryLines, refToKey));
 
   return { sliceName, nodes, edges, warnings, boundaries };
+}
+
+function collectScenarioWhenCardinalityWarnings(lines: string[], lineStarts: number[]): ParseWarning[] {
+  type ScenarioState = {
+    name: string;
+    whenCount: number;
+    scenarioRange: { from: number; to: number };
+    extraWhenRange: { from: number; to: number } | null;
+    activeSection: 'given' | 'when' | 'then' | null;
+  };
+
+  const warnings: ParseWarning[] = [];
+  let scenario: ScenarioState | null = null;
+
+  const pushWarning = (current: ScenarioState | null) => {
+    if (!current || current.whenCount === 1) {
+      return;
+    }
+
+    warnings.push({
+      message: `Scenario "${current.name}" must contain exactly one when node, found ${current.whenCount}.`,
+      range: current.whenCount > 1 && current.extraWhenRange ? current.extraWhenRange : current.scenarioRange,
+      level: 'error'
+    });
+  };
+
+  const startScenario = (line: string, lineIndex: number, rawName: string): ScenarioState => {
+    const token = `scenario ${rawName}`;
+    const from = lineStarts[lineIndex] + line.indexOf(token);
+    return {
+      name: unquote(rawName),
+      whenCount: 0,
+      scenarioRange: { from, to: from + token.length },
+      extraWhenRange: null,
+      activeSection: null
+    };
+  };
+
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    const line = lines[lineIndex];
+    const trimmed = line.trim();
+    if (!trimmed) {
+      continue;
+    }
+
+    const indent = (line.match(/^(\s*)/)?.[1] ?? '').length;
+    if (indent === 0) {
+      const scenarioMatch = trimmed.match(/^scenario\s+("(?:[^"\\]|\\.)*")\s*$/);
+      if (scenarioMatch) {
+        pushWarning(scenario);
+        scenario = startScenario(line, lineIndex, scenarioMatch[1]);
+        continue;
+      }
+
+      if (scenario && (trimmed === 'given:' || trimmed === 'when:' || trimmed === 'then:')) {
+        scenario.activeSection = trimmed.slice(0, -1) as 'given' | 'when' | 'then';
+        continue;
+      }
+
+      pushWarning(scenario);
+      scenario = null;
+      continue;
+    }
+
+    if (scenario && scenario.activeSection === 'when' && isScenarioNodeLine(trimmed)) {
+      scenario.whenCount += 1;
+      if (scenario.whenCount > 1 && !scenario.extraWhenRange) {
+        const from = lineStarts[lineIndex] + line.indexOf(trimmed);
+        scenario.extraWhenRange = { from, to: from + trimmed.length };
+      }
+    }
+  }
+
+  pushWarning(scenario);
+  return warnings;
 }
 
 function collectScenarioNodeLines(lines: string[]) {
