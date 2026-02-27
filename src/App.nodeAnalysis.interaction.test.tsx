@@ -928,7 +928,7 @@ describe('App node analysis interactions', () => {
     expect(sources).toContain('value: a2');
   });
 
-  it('does not show top-level data trace keys when selecting a scenario node with the same ref', () => {
+  it('hides Data Trace tab when selecting a scenario node with the same ref', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -950,15 +950,9 @@ describe('App node analysis interactions', () => {
       scenarioThenEvent?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    const traceTab = [...document.querySelectorAll('.cross-slice-panel-tab')]
-      .find((button) => button.textContent?.trim() === 'Data Trace') as HTMLButtonElement | undefined;
-    expect(traceTab).toBeDefined();
-    act(() => {
-      traceTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
-    expect(document.querySelectorAll('.cross-slice-trace-key-toggle')).toHaveLength(0);
-    expect(document.querySelector('.cross-slice-trace-key-section.missing-source')).toBeNull();
+    const tabLabels = [...document.querySelectorAll('.cross-slice-panel-tab')]
+      .map((button) => button.textContent?.trim());
+    expect(tabLabels).not.toContain('Data Trace');
   });
 
   it('highlights trace-hop node when hovering over Data Trace list entry', () => {

@@ -453,6 +453,13 @@ function App() {
     }
     return parsed.nodes.get(selectedNodeKey) ?? null;
   }, [parsed, selectedNodeKey]);
+  const showDataTraceTab = selectedNode ? !isScenarioNodeKey(selectedNode.key) : false;
+
+  useEffect(() => {
+    if (!showDataTraceTab && selectedNodePanelTab === 'trace') {
+      setSelectedNodePanelTab('usage');
+    }
+  }, [selectedNodePanelTab, showDataTraceTab]);
 
   const selectedNodeAnalysisRef = useMemo(() => {
     if (!selectedNode) {
@@ -762,7 +769,7 @@ function App() {
       }
 
       const isTraceShortcut = (event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 't';
-      if (isTraceShortcut && selectedNode) {
+      if (isTraceShortcut && selectedNode && showDataTraceTab) {
         event.preventDefault();
         const firstKey = selectedNodeUsesKeys[0] ?? null;
         if (firstKey) {
@@ -799,7 +806,7 @@ function App() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [selectedNode, selectedNodeUsesKeys]);
+  }, [selectedNode, selectedNodeUsesKeys, showDataTraceTab]);
 
   const renderMeasureDataLine = (line: string, index: number) => {
     const match = line.match(/^(\s*(?:-\s*)?)([^:\n]+:)(.*)$/);
@@ -1386,17 +1393,19 @@ function App() {
                   Cross-Slice Data
                 </button>
               )}
-              <button
-                type="button"
-                role="tab"
-                aria-selected={selectedNodePanelTab === 'trace'}
-                className={`cross-slice-panel-tab ${selectedNodePanelTab === 'trace' ? 'active' : ''} ${missingSourceIssueKeys.size > 0 ? 'has-missing-source' : ''}`}
-                onClick={() => {
-                  setSelectedNodePanelTab('trace');
-                }}
-              >
-                Data Trace
-              </button>
+              {showDataTraceTab && (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={selectedNodePanelTab === 'trace'}
+                  className={`cross-slice-panel-tab ${selectedNodePanelTab === 'trace' ? 'active' : ''} ${missingSourceIssueKeys.size > 0 ? 'has-missing-source' : ''}`}
+                  onClick={() => {
+                    setSelectedNodePanelTab('trace');
+                  }}
+                >
+                  Data Trace
+                </button>
+              )}
             </div>
             <div className="cross-slice-panel-divider" aria-hidden="true" />
             <div className={`cross-slice-usage-node ${selectedNodeAnalysisHeader.type}`.trim()}>
@@ -1521,7 +1530,7 @@ function App() {
                 })}
               </div>
             )}
-            {selectedNodePanelTab === 'trace' && (
+            {showDataTraceTab && selectedNodePanelTab === 'trace' && (
               <div className="cross-slice-trace-list">
                 {selectedNodeUsesKeys.map((traceKey) => {
                   const isExpanded = Boolean(crossSliceTraceExpandedKeys[traceKey]);
@@ -1647,7 +1656,7 @@ function App() {
               type="button"
               className="command-palette-item"
               onClick={() => {
-                if (selectedNode) {
+                if (selectedNode && showDataTraceTab) {
                   const firstKey = selectedNodeUsesKeys[0] ?? null;
                   if (firstKey) {
                     setCrossSliceTraceExpandedKeys({ [firstKey]: true });
