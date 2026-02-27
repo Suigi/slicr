@@ -70,6 +70,7 @@ export function applyMappingsToNodes(input: {
   nodes: Map<string, VisualNode>;
   edges: Edge[];
   mappingsByRef: Map<string, MappingEntry[]>;
+  targetNodeKeyByRef?: Map<string, string>;
 }): ParseWarning[] {
   const warnings: ParseWarning[] = [];
   const nodeByRef = new Map<string, VisualNode>();
@@ -78,7 +79,10 @@ export function applyMappingsToNodes(input: {
   }
 
   for (const [targetRef, mappings] of input.mappingsByRef.entries()) {
-    const targetNode = nodeByRef.get(targetRef);
+    const mappedTargetKey = input.targetNodeKeyByRef?.get(targetRef);
+    const targetNode = mappedTargetKey
+      ? input.nodes.get(mappedTargetKey)
+      : nodeByRef.get(targetRef);
     if (!targetNode || mappings.length === 0) {
       continue;
     }

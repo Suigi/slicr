@@ -176,22 +176,28 @@ export function parseDsl(src: string): Parsed {
   attachDataBlocks(lines, specs, lineStarts);
 
   const refToKey = new Map<string, string>();
-  const refToSpec = new Map<string, NodeSpec>();
   const usedKeys = new Set<string>();
+  const scenarioKeyByLine = new Map<number, string>();
   const unresolvedEdges: Array<{ fromRef: string; toRef: string; range: { from: number; to: number } }> = [];
   const unresolvedEdgeSet = new Set<string>();
   const nodeOriginByKey = new Map<string, { topLevel: boolean; scenario: boolean }>();
 
   for (const spec of specs) {
     const ref = toRefId(spec.type, spec.name);
-    if (!refToSpec.has(ref)) {
-      refToSpec.set(ref, spec);
-    }
-    let key = refToKey.get(ref);
-    if (!key) {
-      key = pickNodeKey(spec, usedKeys);
-      refToKey.set(ref, key);
+    let key: string;
+    if (spec.isScenario) {
+      key = pickScenarioNodeKey(spec, usedKeys);
       usedKeys.add(key);
+      scenarioKeyByLine.set(spec.line, key);
+    } else {
+      const existing = refToKey.get(ref);
+      if (existing) {
+        key = existing;
+      } else {
+        key = pickNodeKey(spec, usedKeys);
+        refToKey.set(ref, key);
+        usedKeys.add(key);
+      }
     }
     const origin = nodeOriginByKey.get(key) ?? { topLevel: false, scenario: false };
     if (spec.isScenario) {
@@ -269,11 +275,11 @@ export function parseDsl(src: string): Parsed {
     }
   }
 
-  warnings.push(...applyMappingsToNodes({ nodes, edges, mappingsByRef }));
+  warnings.push(...applyMappingsToNodes({ nodes, edges, mappingsByRef, targetNodeKeyByRef: refToKey }));
   applyOutboundMappedKeys({ nodes, edges, mappingsByRef });
   warnings.push(...validateDataIntegrity({ nodes, edges }));
   warnings.push(...collectScenarioWhenCardinalityWarnings(lines, lineStarts));
-  const scenarios = collectParsedScenarios(lines, lineStarts, refToKey);
+  const scenarios = collectParsedScenarios(lines, lineStarts, scenarioKeyByLine);
   const scenarioOnlyNodeKeys = [...nodeOriginByKey.entries()]
     .filter(([, origin]) => origin.scenario && !origin.topLevel)
     .map(([key]) => key);
@@ -398,7 +404,11 @@ function collectScenarioNodeLines(lines: string[]) {
   return scenarioNodeLines;
 }
 
-function collectParsedScenarios(lines: string[], lineStarts: number[], refToKey: Map<string, string>): ParsedScenario[] {
+function collectParsedScenarios(
+  lines: string[],
+  lineStarts: number[],
+  scenarioKeyByLine: Map<number, string>
+): ParsedScenario[] {
   type ScenarioSection = 'given' | 'when' | 'then';
   type ScenarioState = {
     scenario: ParsedScenario;
@@ -424,9 +434,8 @@ function collectParsedScenarios(lines: string[], lineStarts: number[], refToKey:
     }
 
     const from = lineStarts[lineIndex] + line.indexOf(trimmed);
-    const refId = toRefId(parsed.type, parsed.name);
     return {
-      key: refToKey.get(refId) ?? parsed.name,
+      key: scenarioKeyByLine.get(lineIndex) ?? fallbackScenarioKey(lineIndex, parsed.type, parsed.name),
       type: parsed.type,
       name: parsed.name,
       alias: parsed.alias,
@@ -878,6 +887,23 @@ function pickNodeKey(spec: NodeSpec, usedKeys: Set<string>) {
     suffix += 1;
   }
   return `${typed}#${suffix}`;
+}
+
+function pickScenarioNodeKey(spec: NodeSpec, usedKeys: Set<string>) {
+  const base = fallbackScenarioKey(spec.line, spec.type, spec.name);
+  if (!usedKeys.has(base)) {
+    return base;
+  }
+
+  let suffix = 2;
+  while (usedKeys.has(`${base}#${suffix}`)) {
+    suffix += 1;
+  }
+  return `${base}#${suffix}`;
+}
+
+function fallbackScenarioKey(line: number, type: string, name: string) {
+  return `scn:${line + 1}:${type}:${name}`;
 }
 
 function buildLineStarts(lines: string[]) {

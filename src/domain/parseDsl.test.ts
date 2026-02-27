@@ -134,7 +134,10 @@ evt:existing-top-level`;
     expect(parsed.nodes.has('given')).toBe(false);
     expect(parsed.nodes.has('when')).toBe(false);
     expect(parsed.nodes.has('then')).toBe(false);
-    expect([...parsed.nodes.keys()]).toEqual(['todo-added', 'complete-todo', 'todo-completed', 'existing-top-level']);
+    expect(parsed.nodes.has('existing-top-level')).toBe(true);
+    expect(parsed.scenarios[0]?.given[0]?.key).toMatch(/^scn:/);
+    expect(parsed.scenarios[0]?.when?.key).toMatch(/^scn:/);
+    expect(parsed.scenarios[0]?.then[0]?.key).toMatch(/^scn:/);
   });
 
   it('parses arbitrary artifact reference types inside scenario sections', () => {
@@ -159,7 +162,7 @@ evt:existing-top-level`;
 
     const parsed = parseDsl(input);
 
-    expect([...parsed.nodes.keys()]).toEqual([
+    expect([...parsed.nodes.values()].map((node) => node.name)).toEqual([
       'orders',
       'orders-page',
       'alpha-context',
@@ -190,7 +193,10 @@ then:
 
     const parsed = parseDsl(input);
 
-    expect(parsed.nodes.has('alpha-context@2')).toBe(true);
+    const given = parsed.scenarios[0]?.given[0];
+    expect(given?.name).toBe('alpha-context@2');
+    expect(given?.key).toMatch(/^scn:/);
+    expect(parsed.nodes.get(given?.key ?? '')?.name).toBe('alpha-context@2');
   });
 
   it('parses scenario node aliases', () => {
@@ -208,7 +214,8 @@ then:
 
     const parsed = parseDsl(input);
 
-    expect(parsed.nodes.get('submit-order')?.alias).toBe('Submit Order');
+    const given = parsed.scenarios[0]?.given[0];
+    expect(parsed.nodes.get(given?.key ?? '')?.alias).toBe('Submit Order');
   });
 
   it('reports an error when a scenario has no when node', () => {
@@ -301,15 +308,19 @@ then:
     id: 42`;
 
     const parsed = parseDsl(input);
+    const scenario = parsed.scenarios[0];
+    const givenKey = scenario?.given[0]?.key ?? '';
+    const whenKey = scenario?.when?.key ?? '';
+    const thenKey = scenario?.then[0]?.key ?? '';
 
-    expect(parsed.nodes.get('todo-added')?.data).toEqual({
+    expect(parsed.nodes.get(givenKey)?.data).toEqual({
       id: 42,
       task: 'mark me as completed'
     });
-    expect(parsed.nodes.get('complete-todo')?.data).toEqual({
+    expect(parsed.nodes.get(whenKey)?.data).toEqual({
       id: 42
     });
-    expect(parsed.nodes.get('todo-completed')?.data).toEqual({
+    expect(parsed.nodes.get(thenKey)?.data).toEqual({
       id: 42
     });
   });
@@ -331,13 +342,17 @@ then:
   data: {"id": 42}`;
 
     const parsed = parseDsl(input);
+    const scenario = parsed.scenarios[0];
+    const givenKey = scenario?.given[0]?.key ?? '';
+    const whenKey = scenario?.when?.key ?? '';
+    const thenKey = scenario?.then[0]?.key ?? '';
 
-    expect(parsed.nodes.get('todo-added')?.data).toEqual({
+    expect(parsed.nodes.get(givenKey)?.data).toEqual({
       id: 42,
       task: 'mark me as completed'
     });
-    expect(parsed.nodes.get('complete-todo')?.data).toEqual({ id: 42 });
-    expect(parsed.nodes.get('todo-completed')?.data).toEqual({ id: 42 });
+    expect(parsed.nodes.get(whenKey)?.data).toEqual({ id: 42 });
+    expect(parsed.nodes.get(thenKey)?.data).toEqual({ id: 42 });
   });
 
   it('ignores malformed inline JSON data for scenario nodes', () => {
@@ -355,8 +370,9 @@ then:
   evt:todo-completed`;
 
     const parsed = parseDsl(input);
+    const givenKey = parsed.scenarios[0]?.given[0]?.key ?? '';
 
-    expect(parsed.nodes.get('todo-added')?.data).toBeNull();
+    expect(parsed.nodes.get(givenKey)?.data).toBeNull();
   });
 
   it('returns scenarios grouped by given/when/then in source order', () => {
@@ -386,9 +402,9 @@ then:
 
     expect(parsed.scenarios.map((scenario) => ({
       name: scenario.name,
-      given: scenario.given.map((entry) => entry.key),
-      when: scenario.when?.key ?? null,
-      then: scenario.then.map((entry) => entry.key)
+      given: scenario.given.map((entry) => entry.name),
+      when: scenario.when?.name ?? null,
+      then: scenario.then.map((entry) => entry.name)
     }))).toEqual([
       {
         name: 'Complete TODO Item',
@@ -403,6 +419,102 @@ then:
         then: ['todo-reopened']
       }
     ]);
+  });
+
+  it('creates separate node instances for repeated scenario declarations without versions', () => {
+    const input = `slice "Scenarios"
+
+scenario "Duplicate refs"
+given:
+  evt:todo-added
+  evt:todo-added
+
+when:
+  cmd:complete-todo
+
+then:
+  evt:todo-completed
+  evt:todo-completed`;
+
+    const parsed = parseDsl(input);
+    const given = parsed.scenarios[0]?.given ?? [];
+    const then = parsed.scenarios[0]?.then ?? [];
+
+    expect(given).toHaveLength(2);
+    expect(then).toHaveLength(2);
+    expect(given[0]?.key).not.toBe(given[1]?.key);
+    expect(then[0]?.key).not.toBe(then[1]?.key);
+    expect(parsed.nodes.get(given[0]?.key ?? '')?.name).toBe('todo-added');
+    expect(parsed.nodes.get(given[1]?.key ?? '')?.name).toBe('todo-added');
+  });
+
+  it('assigns unique scenario keys even when refs match top-level nodes', () => {
+    const input = `slice "Scenario identity"
+
+cmd:register-book
+
+scenario "Register new Book"
+given:
+  evt:book-created
+
+when:
+  cmd:register-book
+
+then:
+  evt:book-registered`;
+
+    const parsed = parseDsl(input);
+    const topLevel = [...parsed.nodes.values()].find((node) => node.type === 'cmd' && node.name === 'register-book');
+    const whenEntry = parsed.scenarios[0]?.when;
+
+    expect(topLevel).toBeDefined();
+    expect(whenEntry).toBeDefined();
+    expect(whenEntry?.key).not.toBe(topLevel?.key);
+    expect(whenEntry?.key).toMatch(/^scn:/);
+  });
+
+  it('keeps scenario data isolated from matching top-level node instances', () => {
+    const input = `slice "Book Registration"
+
+cmd:register-book "RegisterBook"
+uses:
+  Author
+  ISBN
+  Title
+
+evt:book-registered "BookRegistered"
+<- cmd:register-book
+uses:
+  Author
+  ISBN
+  Title
+
+scenario "Register new Book"
+when:
+  cmd:register-book "Scenario Book"
+  data:
+    Author: Martin Dilger
+    ISBN: 1234
+    Title: Understanding Event Sourcing`;
+
+    const parsed = parseDsl(input);
+    const scenarioWhenKey = parsed.scenarios[0]?.when?.key ?? '';
+
+    expect(parsed.nodes.get('register-book')?.data).toEqual({
+      Author: '<missing>',
+      ISBN: '<missing>',
+      Title: '<missing>'
+    });
+    expect(parsed.nodes.get(scenarioWhenKey)?.data).toEqual({
+      Author: 'Martin Dilger',
+      ISBN: 1234,
+      Title: 'Understanding Event Sourcing'
+    });
+    expect(parsed.nodes.get('book-registered')?.data).toEqual({
+      Author: '<missing>',
+      ISBN: '<missing>',
+      Title: '<missing>'
+    });
   });
 
   it('preserves top-level node dependency edges when scenarios coexist in the slice', () => {
@@ -778,6 +890,38 @@ uses:
     expect(parsed.warnings.map((warning) => warning.message)).not.toContain(
       'Missing data source for key "id"'
     );
+  });
+
+  it('does not apply top-level uses mappings to scenario node instances with the same ref', () => {
+    const input = `slice "Scenario isolation for uses"
+
+cmd:my-cmd
+data:
+  one: 1
+  two: 2
+
+evt:my-event
+<- cmd:my-cmd
+uses:
+  one
+  two
+
+scenario "My Scenario"
+given:
+  evt:my-event
+  data:
+    one: 1
+
+when:
+  cmd:my-cmd`;
+
+    const parsed = parseDsl(input);
+    const scenarioGivenKey = parsed.scenarios[0]?.given[0]?.key ?? '';
+
+    expect(parsed.warnings).toEqual([]);
+    expect(parsed.nodes.get('my-cmd')?.data).toEqual({ one: 1, two: 2 });
+    expect(parsed.nodes.get('my-event')?.data).toEqual({ one: 1, two: 2 });
+    expect(parsed.nodes.get(scenarioGivenKey)?.data).toEqual({ one: 1 });
   });
 
   it('parses backwards arrows when the incoming clause is on a separate line', () => {
