@@ -395,7 +395,17 @@ export function DomSvgDiagramRendererCamera({
                         <NodeCard
                           key={`${scenario.name}-given-${entry.key}-${index}`}
                           {...toScenarioNodeCardProps(entry)}
-                          className="scenario-node-card"
+                          className={`scenario-node-card ${entry.className ?? ''}`.trim()}
+                          onMouseEnter={() => onNodeHoverRange(entry.srcRange)}
+                          onMouseLeave={() => onNodeHoverRange(null)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onNodeSelect(entry.key);
+                          }}
+                          onDoubleClick={(event) => {
+                            event.stopPropagation();
+                            onNodeOpenInEditor(entry.key, entry.srcRange);
+                          }}
                         />
                       ))}
                     </div>
@@ -404,7 +414,17 @@ export function DomSvgDiagramRendererCamera({
                       {scenario.when && (
                         <NodeCard
                           {...toScenarioNodeCardProps(scenario.when)}
-                          className="scenario-node-card"
+                          className={`scenario-node-card ${scenario.when.className ?? ''}`.trim()}
+                          onMouseEnter={() => onNodeHoverRange(scenario.when!.srcRange)}
+                          onMouseLeave={() => onNodeHoverRange(null)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onNodeSelect(scenario.when!.key);
+                          }}
+                          onDoubleClick={(event) => {
+                            event.stopPropagation();
+                            onNodeOpenInEditor(scenario.when!.key, scenario.when!.srcRange);
+                          }}
                         />
                       )}
                     </div>
@@ -414,7 +434,17 @@ export function DomSvgDiagramRendererCamera({
                         <NodeCard
                           key={`${scenario.name}-then-${entry.key}-${index}`}
                           {...toScenarioNodeCardProps(entry)}
-                          className="scenario-node-card"
+                          className={`scenario-node-card ${entry.className ?? ''}`.trim()}
+                          onMouseEnter={() => onNodeHoverRange(entry.srcRange)}
+                          onMouseLeave={() => onNodeHoverRange(null)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onNodeSelect(entry.key);
+                          }}
+                          onDoubleClick={(event) => {
+                            event.stopPropagation();
+                            onNodeOpenInEditor(entry.key, entry.srcRange);
+                          }}
                         />
                       ))}
                     </div>

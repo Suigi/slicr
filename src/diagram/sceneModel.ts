@@ -230,7 +230,12 @@ function buildDraggableSegmentIndices(pointsLength: number): number[] {
   return [...indices].sort((a, b) => a - b);
 }
 
-function toScenarioNode(entry: Parsed['scenarios'][number]['given'][number], parsed: Parsed): DiagramScenarioNode {
+function toScenarioNode(
+  entry: Parsed['scenarios'][number]['given'][number],
+  parsed: Parsed,
+  activeNodeKeyFromEditor: string | null,
+  selectedNodeKey: string | null
+): DiagramScenarioNode {
   const node = parsed.nodes.get(entry.key);
   const displayNode = node ? toDisplayNode(node) : null;
   const type = displayNode?.type ?? entry.type;
@@ -245,24 +250,33 @@ function toScenarioNode(entry: Parsed['scenarios'][number]['given'][number], par
     data: null,
     srcRange: entry.srcRange
   };
+  const highlighted = activeNodeKeyFromEditor === entry.key;
+  const selected = selectedNodeKey === entry.key;
+  const className = [
+    highlighted ? 'highlighted' : '',
+    selected ? 'selected' : ''
+  ].filter(Boolean).join(' ');
   return {
     key: entry.key,
     node: scenarioNode,
     nodePrefix: prefix,
+    className,
     type,
     title,
     prefix,
-    srcRange: entry.srcRange
+    srcRange: entry.srcRange,
+    highlighted,
+    selected
   };
 }
 
-function buildScenarios(parsed: Parsed): DiagramScenario[] {
+function buildScenarios(parsed: Parsed, activeNodeKeyFromEditor: string | null, selectedNodeKey: string | null): DiagramScenario[] {
   return parsed.scenarios.map((scenario) => ({
     name: scenario.name,
     srcRange: scenario.srcRange,
-    given: scenario.given.map((entry) => toScenarioNode(entry, parsed)),
-    when: scenario.when ? toScenarioNode(scenario.when, parsed) : null,
-    then: scenario.then.map((entry) => toScenarioNode(entry, parsed))
+    given: scenario.given.map((entry) => toScenarioNode(entry, parsed, activeNodeKeyFromEditor, selectedNodeKey)),
+    when: scenario.when ? toScenarioNode(scenario.when, parsed, activeNodeKeyFromEditor, selectedNodeKey) : null,
+    then: scenario.then.map((entry) => toScenarioNode(entry, parsed, activeNodeKeyFromEditor, selectedNodeKey))
   }));
 }
 
@@ -373,7 +387,7 @@ export function buildSceneModel(input: BuildSceneModelInput): DiagramSceneModel 
     edges,
     lanes,
     boundaries,
-    scenarios: buildScenarios(parsed),
+    scenarios: buildScenarios(parsed, activeNodeKeyFromEditor, selectedNodeKey),
     worldWidth: activeLayout.w,
     worldHeight: activeLayout.h,
     title,

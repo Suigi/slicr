@@ -174,8 +174,8 @@ describe('buildSceneModel', () => {
       renderedEdges: baseRenderedEdges(),
       routeMode: 'classic',
       engineLayout: null,
-      activeNodeKeyFromEditor: null,
-      selectedNodeKey: null,
+      activeNodeKeyFromEditor: 'b',
+      selectedNodeKey: 'a',
       hoveredEdgeKey: null,
       hoveredTraceNodeKey: null
     });
@@ -189,6 +189,9 @@ describe('buildSceneModel', () => {
       { name: 'Complete TODO', given: ['b'], when: 'a', then: ['b'] },
       { name: 'Retry TODO', given: ['a'], when: 'b', then: ['a'] }
     ]);
+    expect(scene?.scenarios[0]?.given[0]?.highlighted).toBe(true);
+    expect(scene?.scenarios[0]?.when?.selected).toBe(true);
+    expect(scene?.scenarios[0]?.given[0]?.className).toContain('highlighted');
   });
 
   it('expands viewport height when scenarios are present below the diagram', () => {

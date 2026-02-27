@@ -83,10 +83,13 @@ export type DiagramScenarioNode = {
   key: string;
   node?: VisualNode;
   nodePrefix?: string;
+  className?: string;
   type: string;
   title: string;
   prefix: string;
   srcRange: Range;
+  highlighted?: boolean;
+  selected?: boolean;
 };
 
 export type DiagramScenario = {

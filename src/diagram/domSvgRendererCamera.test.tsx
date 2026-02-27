@@ -343,4 +343,34 @@ describe('DomSvgDiagramRendererCamera', () => {
     expect(boxes[0]?.style.left ?? '').toBe('');
     expect(boxes[1]?.style.left ?? '').toBe('');
   });
+
+  it('wires scenario node hover and double-click to editor callbacks', () => {
+    const scene = baseScene();
+    scene.scenarios = [
+      {
+        name: 'Scenario',
+        srcRange: { from: 20, to: 40 },
+        given: [{ key: 'node-1', type: 'evt', title: 'todo-added', prefix: 'evt', srcRange: { from: 21, to: 22 } }],
+        when: { key: 'node-1', type: 'cmd', title: 'complete-todo', prefix: 'cmd', srcRange: { from: 23, to: 24 } },
+        then: []
+      }
+    ];
+
+    const onNodeHoverRange = vi.fn();
+    const onNodeOpenInEditor = vi.fn();
+    renderRenderer({ sceneModel: scene, onNodeHoverRange, onNodeOpenInEditor });
+
+    const scenarioNode = document.querySelector('.scenario-box .scenario-node-card.node') as HTMLElement | null;
+    expect(scenarioNode).not.toBeNull();
+
+    act(() => {
+      scenarioNode?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+      scenarioNode?.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+      scenarioNode?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    });
+
+    expect(onNodeHoverRange).toHaveBeenCalledWith({ from: 21, to: 22 });
+    expect(onNodeHoverRange).toHaveBeenCalledWith(null);
+    expect(onNodeOpenInEditor).toHaveBeenCalledWith('node-1', { from: 21, to: 22 });
+  });
 });
