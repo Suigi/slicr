@@ -113,7 +113,7 @@ After completing the step, update this file and set the status to `[completed]`.
 - `[completed]` Update grammar to support `scenario`, `given`, `when`, `then` under `slice` while preserving backward compatibility.
 - `[completed]` Add parser support for scenarios with arbitrary node types in `given`/`when`/`then`.
 - `[completed]` Enforce parser rule that `when` contains exactly one node and report invalid structures.
-- `[not started]` Add parser support for optional `data:` on scenario nodes using existing data parsing behavior.
+- `[completed]` Add parser support for optional `data:` on scenario nodes using existing data parsing behavior.
 - `[not started]` Add regression coverage to ensure top-level node/edge parsing is unchanged when scenarios coexist.
 - `[not started]` Extend domain types and parsed output shape to carry scenario structures and source order.
 - `[not started]` Extend scene model/renderer contract to include grouped scenario render data (`Given`, `When`, `Then`).

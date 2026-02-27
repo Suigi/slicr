@@ -280,6 +280,85 @@ then:
     expect(cardinalityWarnings).toEqual([]);
   });
 
+  it('parses multiline data blocks for scenario nodes', () => {
+    const input = `slice "Scenarios"
+
+scenario "Data in sections"
+given:
+  evt:todo-added
+  data:
+    id: 42
+    task: mark me as completed
+
+when:
+  cmd:complete-todo
+  data:
+    id: 42
+
+then:
+  evt:todo-completed
+  data:
+    id: 42`;
+
+    const parsed = parseDsl(input);
+
+    expect(parsed.nodes.get('todo-added')?.data).toEqual({
+      id: 42,
+      task: 'mark me as completed'
+    });
+    expect(parsed.nodes.get('complete-todo')?.data).toEqual({
+      id: 42
+    });
+    expect(parsed.nodes.get('todo-completed')?.data).toEqual({
+      id: 42
+    });
+  });
+
+  it('parses inline JSON data for scenario nodes', () => {
+    const input = `slice "Scenarios"
+
+scenario "Inline data"
+given:
+  evt:todo-added
+  data: {"id": 42, "task": "mark me as completed"}
+
+when:
+  cmd:complete-todo
+  data: {"id": 42}
+
+then:
+  evt:todo-completed
+  data: {"id": 42}`;
+
+    const parsed = parseDsl(input);
+
+    expect(parsed.nodes.get('todo-added')?.data).toEqual({
+      id: 42,
+      task: 'mark me as completed'
+    });
+    expect(parsed.nodes.get('complete-todo')?.data).toEqual({ id: 42 });
+    expect(parsed.nodes.get('todo-completed')?.data).toEqual({ id: 42 });
+  });
+
+  it('ignores malformed inline JSON data for scenario nodes', () => {
+    const input = `slice "Scenarios"
+
+scenario "Bad data"
+given:
+  evt:todo-added
+  data: {"id": }
+
+when:
+  cmd:complete-todo
+
+then:
+  evt:todo-completed`;
+
+    const parsed = parseDsl(input);
+
+    expect(parsed.nodes.get('todo-added')?.data).toBeNull();
+  });
+
   it('parses the room-opened flow with read-model update versions', () => {
     const input = `slice "Book Room"
 
