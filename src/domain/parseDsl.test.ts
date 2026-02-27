@@ -359,6 +359,61 @@ then:
     expect(parsed.nodes.get('todo-added')?.data).toBeNull();
   });
 
+  it('preserves top-level node dependency edges when scenarios coexist in the slice', () => {
+    const input = `slice "Scenarios and top-level"
+
+evt:order-created
+rm:orders <- evt:order-created
+
+scenario "Complete TODO Item"
+given:
+  evt:todo-added
+
+when:
+  cmd:complete-todo
+
+then:
+  evt:todo-completed
+
+ui:orders-list <- rm:orders
+cmd:submit-order <- ui:orders-list`;
+
+    const parsed = parseDsl(input);
+
+    expect(parsed.edges).toEqual([
+      { from: 'order-created', to: 'orders', label: null },
+      { from: 'orders', to: 'orders-list', label: null },
+      { from: 'orders-list', to: 'submit-order', label: null }
+    ]);
+  });
+
+  it('preserves top-level unresolved dependency warning ranges when scenarios coexist', () => {
+    const input = `slice "Scenarios and warnings"
+
+scenario "Complete TODO Item"
+given:
+  evt:todo-added
+
+when:
+  cmd:complete-todo
+
+then:
+  evt:todo-completed
+
+rm:orders <- evt:missing`;
+
+    const parsed = parseDsl(input);
+
+    expect(parsed.warnings).toContainEqual({
+      message: 'Unresolved dependency: missing',
+      range: {
+        from: input.indexOf('evt:missing'),
+        to: input.indexOf('evt:missing') + 'evt:missing'.length
+      },
+      level: 'error'
+    });
+  });
+
   it('parses the room-opened flow with read-model update versions', () => {
     const input = `slice "Book Room"
 
