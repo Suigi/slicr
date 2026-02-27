@@ -222,8 +222,19 @@ function toScenarioNode(entry: Parsed['scenarios'][number]['given'][number], par
   const type = displayNode?.type ?? entry.type;
   const prefix = TYPE_LABEL[type] ?? type;
   const title = displayNode ? (displayNode.alias ?? displayNode.name) : (entry.alias ?? entry.name);
+  const scenarioNode = displayNode ?? {
+    type,
+    name: entry.name,
+    alias: entry.alias,
+    stream: null,
+    key: entry.key,
+    data: null,
+    srcRange: entry.srcRange
+  };
   return {
     key: entry.key,
+    node: scenarioNode,
+    nodePrefix: prefix,
     type,
     title,
     prefix,

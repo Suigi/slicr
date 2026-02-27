@@ -286,9 +286,9 @@ describe('DomSvgDiagramRendererCamera', () => {
       {
         name: 'Complete TODO',
         srcRange: { from: 20, to: 40 },
-        given: [{ key: 'node-1', type: 'evt', title: 'node-1', prefix: 'evt', srcRange: { from: 21, to: 22 } }],
-        when: { key: 'node-1', type: 'evt', title: 'node-1', prefix: 'evt', srcRange: { from: 23, to: 24 } },
-        then: [{ key: 'node-1', type: 'evt', title: 'node-1', prefix: 'evt', srcRange: { from: 25, to: 26 } }]
+        given: [{ key: 'node-1', type: 'evt', title: 'todo-added', prefix: 'evt', srcRange: { from: 21, to: 22 } }],
+        when: { key: 'node-1', type: 'cmd', title: 'complete-todo', prefix: 'cmd', srcRange: { from: 23, to: 24 } },
+        then: [{ key: 'node-1', type: 'evt', title: 'todo-completed', prefix: 'evt', srcRange: { from: 25, to: 26 } }]
       }
     ];
 
@@ -303,6 +303,9 @@ describe('DomSvgDiagramRendererCamera', () => {
     expect(box?.textContent).toContain('Given');
     expect(box?.textContent).toContain('When');
     expect(box?.textContent).toContain('Then');
+    const scenarioNodeCards = box?.querySelectorAll('.scenario-node-card.node') ?? [];
+    expect(scenarioNodeCards).toHaveLength(3);
+    expect(scenarioNodeCards[0]?.textContent).toContain('todo-added');
   });
 
   it('lays out multiple scenario boxes horizontally in source order', () => {

@@ -4,9 +4,25 @@ import { supportsEditableEdgePoints } from '../domain/diagramEngine';
 import { NodeCard } from '../NodeCard';
 import { toWorldClientPoint, zoomCameraAroundClientPoint } from './cameraUtils';
 import type { DiagramRendererAdapterProps } from './domSvgRenderer';
+import type { DiagramScenarioNode } from './rendererContract';
 
 const SCENARIO_BOX_WIDTH = 360;
 const SCENARIO_BOX_GAP = 16;
+
+function toScenarioNodeCardProps(entry: DiagramScenarioNode) {
+  return {
+    node: entry.node ?? {
+      type: entry.type,
+      name: entry.title,
+      alias: null,
+      stream: null,
+      key: entry.key,
+      data: null,
+      srcRange: entry.srcRange
+    },
+    nodePrefix: entry.nodePrefix ?? entry.prefix
+  };
+}
 
 export function DomSvgDiagramRendererCamera({
   sceneModel,
@@ -374,25 +390,30 @@ export function DomSvgDiagramRendererCamera({
                     <div className="scenario-section">
                       <div className="scenario-section-label">Given</div>
                       {scenario.given.map((entry, index) => (
-                        <div key={`${scenario.name}-given-${entry.key}-${index}`} className="scenario-entry">
-                          {entry.prefix ? `${entry.prefix}:` : ''}{entry.title}
-                        </div>
+                        <NodeCard
+                          key={`${scenario.name}-given-${entry.key}-${index}`}
+                          {...toScenarioNodeCardProps(entry)}
+                          className="scenario-node-card"
+                        />
                       ))}
                     </div>
                     <div className="scenario-section">
                       <div className="scenario-section-label">When</div>
                       {scenario.when && (
-                        <div className="scenario-entry">
-                          {scenario.when.prefix ? `${scenario.when.prefix}:` : ''}{scenario.when.title}
-                        </div>
+                        <NodeCard
+                          {...toScenarioNodeCardProps(scenario.when)}
+                          className="scenario-node-card"
+                        />
                       )}
                     </div>
                     <div className="scenario-section">
                       <div className="scenario-section-label">Then</div>
                       {scenario.then.map((entry, index) => (
-                        <div key={`${scenario.name}-then-${entry.key}-${index}`} className="scenario-entry">
-                          {entry.prefix ? `${entry.prefix}:` : ''}{entry.title}
-                        </div>
+                        <NodeCard
+                          key={`${scenario.name}-then-${entry.key}-${index}`}
+                          {...toScenarioNodeCardProps(entry)}
+                          className="scenario-node-card"
+                        />
                       ))}
                     </div>
                   </section>

@@ -2370,6 +2370,9 @@ g.related .arrow-path {
 
 .scenario-section {
   margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .scenario-section-label {
@@ -2381,7 +2384,13 @@ g.related .arrow-path {
   margin-bottom: 4px;
 }
 
-.scenario-entry {
-  color: var(--text);
-  line-height: 1.4;
+.scenario-node-card.node {
+  position: relative;
+  left: auto;
+  top: auto;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  height: auto;
+  padding: 8px 10px 9px;
 }

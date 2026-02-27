@@ -81,6 +81,8 @@ export type DiagramViewport = {
 
 export type DiagramScenarioNode = {
   key: string;
+  node?: VisualNode;
+  nodePrefix?: string;
   type: string;
   title: string;
   prefix: string;
