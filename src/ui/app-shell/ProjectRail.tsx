@@ -98,7 +98,6 @@ export function ProjectRail({ header, actions, auxPanels }: ProjectRailProps) {
               onBlur={() => {
                 requestAnimationFrame(() => {
                   const active = document.activeElement;
-                  console.log(active);
                   if (active instanceof HTMLBodyElement) {
                     actions.onCloseCreateProjectDialog();
                   }

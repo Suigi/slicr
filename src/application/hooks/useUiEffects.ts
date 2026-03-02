@@ -293,7 +293,6 @@ export function useUiEffects(args: UseUiEffectsArgs) {
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (isEscapeKey(event.key)) {
-        console.log("escape detected")
         event.preventDefault();
         setCommandPaletteOpen(false);
         if (createProjectDialogOpen) {

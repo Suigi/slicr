@@ -33,13 +33,44 @@ export function CommandPalette({ auxPanels, actions, header }: CommandPalettePro
     ],
     [actions, header.projectIndex.projects, header.selectedProjectId]
   );
+
+  const isFuzzyMatch = (queryText: string, targetText: string) => {
+    const normalizedQuery = queryText.toLowerCase().replace(/\s+/g, '');
+    if (!normalizedQuery) {
+      return true;
+    }
+    const normalizedTarget = targetText.toLowerCase().replace(/\s+/g, '');
+    let queryIndex = 0;
+    for (const char of normalizedTarget) {
+      if (char === normalizedQuery[queryIndex]) {
+        queryIndex += 1;
+        if (queryIndex >= normalizedQuery.length) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+
   const filteredCommands = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
+    const trimmed = query.trim();
+    const isSliceMode = trimmed.startsWith('.');
+    if (isSliceMode) {
+      const fuzzyQuery = trimmed.slice(1);
+      const projectSlices = header.library.slices.map((slice) => ({
+        id: `slice:${slice.id}`,
+        label: header.getSliceNameFromDsl(slice.dsl),
+        context: 'Switch Slice',
+        run: () => actions.onSelectSlice(slice.id)
+      }));
+      return projectSlices.filter((command) => isFuzzyMatch(fuzzyQuery, command.label));
+    }
+    const normalized = trimmed.toLowerCase();
     if (!normalized) {
       return commands;
     }
     return commands.filter((command) => command.label.toLowerCase().includes(normalized));
-  }, [commands, query]);
+  }, [actions, commands, header, query]);
   const activeIndex = filteredCommands.length === 0 ? 0 : Math.min(selectedIndex, filteredCommands.length - 1);
 
   useEffect(() => {

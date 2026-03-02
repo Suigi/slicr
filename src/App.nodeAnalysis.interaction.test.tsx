@@ -1065,6 +1065,56 @@ describe('App node analysis interactions', () => {
     expect(filteredItems).toEqual(['Switch Project: Project C']);
   });
 
+  it('shows slices on dot-prefix search and switches to fuzzy-matched slice on Enter', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'slice-a',
+        slices: [
+          { id: 'slice-a', dsl: 'slice "Alpha A"\n\ncmd:buy "Buy A"' },
+          { id: 'slice-b', dsl: 'slice "Gamma Billing"\n\ncmd:pay "Pay"' },
+          { id: 'slice-c', dsl: 'slice "Beta C"\n\ncmd:ship "Ship"' }
+        ]
+      })
+    );
+
+    renderApp();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+    });
+    const search = document.querySelector('.command-palette-search') as HTMLInputElement | null;
+    expect(search).not.toBeNull();
+    act(() => {
+      if (search) {
+        const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+        valueSetter?.call(search, '.');
+        search.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+
+    const dotItems = [...document.querySelectorAll('.command-palette-item-title')].map((item) => item.textContent?.trim());
+    expect(dotItems).toEqual(['Alpha A', 'Gamma Billing', 'Beta C']);
+    expect(dotItems.some((text) => text?.includes('Create Project'))).toBe(false);
+    expect(dotItems.some((text) => text?.includes('Switch Project:'))).toBe(false);
+
+    act(() => {
+      if (search) {
+        const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+        valueSetter?.call(search, '.gbl');
+        search.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+    const fuzzyItems = [...document.querySelectorAll('.command-palette-item-title')].map((item) => item.textContent?.trim());
+    expect(fuzzyItems).toEqual(['Gamma Billing']);
+
+    act(() => {
+      search?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    expect(document.querySelector('.command-palette')).toBeNull();
+    expect(document.querySelector('.slice-select-label')?.textContent).toContain('Gamma Billing');
+  });
+
   it('selects all command palette input text when reopened', () => {
     renderApp();
 
