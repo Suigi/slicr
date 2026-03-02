@@ -668,7 +668,7 @@ uses:
 
     renderApp();
 
-    const allFields = [...document.querySelectorAll('.node-field')];
+    const allFields = [...document.querySelectorAll('.canvas-panel .node-field')];
     const mapped = allFields.filter((field) => field.classList.contains('mapped'));
     expect(mapped).toHaveLength(1);
     expect(mapped[0]?.textContent).toContain('alpha:');
@@ -802,7 +802,7 @@ data:
 
     renderApp();
 
-    const value = document.querySelector('.node-measure-layer .node-measure-field-val');
+    const value = document.querySelector('.node-measure-layer .node-field-val');
     expect(value?.textContent).toBe('ALPHA');
   });
 

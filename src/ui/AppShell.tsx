@@ -38,8 +38,6 @@ export function AppShell(props: AppShellProps) {
         editorOpen={editor.editorOpen}
       />
 
-      <NodeMeasureLayer diagram={diagram} constants={constants} />
-
       <div className="main">
         <div ref={editorRef} className={`editor-panel ${editorOpen ? 'open' : ''}`}>
           <div className="panel-label">
@@ -102,6 +100,8 @@ export function AppShell(props: AppShellProps) {
           </div>
         )}
       </div>
+
+      <NodeMeasureLayer diagram={diagram} constants={constants} />
     </>
   );
 }

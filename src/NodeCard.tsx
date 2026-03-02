@@ -6,6 +6,7 @@ import { VisualNode } from './domain/types';
 type NodeCardProps = {
   node: VisualNode;
   nodePrefix: string;
+  rootClassName?: string;
   className?: string;
   style?: CSSProperties;
   maxFields?: number;
@@ -19,7 +20,7 @@ type NodeCardProps = {
 export function NodeCard(props: NodeCardProps) {
   const fields = formatNodeData(props.node.data);
   const displayedFields = props.maxFields ? fields.slice(0, props.maxFields) : fields;
-  const classes = ['node', props.node.type || 'rm', props.className ?? ''].filter(Boolean).join(' ');
+  const classes = [props.rootClassName ?? 'node', props.node.type || 'rm', props.className ?? ''].filter(Boolean).join(' ');
 
   return (
     <div
