@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it } from 'vitest';
-import { DEFAULT_PROJECT_ID, PROJECTS_INDEX_STORAGE_KEY, loadProjectIndex } from './projectLibrary';
+import { APP_EVENT_STREAM_STORAGE_KEY, DEFAULT_PROJECT_ID, loadProjectIndex } from './projectLibrary';
 
 afterEach(() => {
   localStorage.clear();
@@ -33,6 +33,9 @@ describe('projectLibrary', () => {
 
     expect(index.selectedProjectId).toBe(DEFAULT_PROJECT_ID);
     expect(index.projects).toEqual([{ id: DEFAULT_PROJECT_ID, name: 'Default' }]);
-    expect(localStorage.getItem(PROJECTS_INDEX_STORAGE_KEY)).not.toBeNull();
+    const appStreamRaw = localStorage.getItem(APP_EVENT_STREAM_STORAGE_KEY);
+    expect(appStreamRaw).not.toBeNull();
+    const appEvents = JSON.parse(appStreamRaw ?? '[]') as Array<{ type?: string; payload?: { projectId?: string } }>;
+    expect(appEvents.some((event) => event.type === 'project-created' && event.payload?.projectId === DEFAULT_PROJECT_ID)).toBe(true);
   });
 });

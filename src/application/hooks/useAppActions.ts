@@ -1,6 +1,6 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { addNewSlice, loadSliceLibrary, selectSlice, type SliceLibrary } from '../../sliceLibrary';
-import { selectProject, type ProjectIndex } from '../../projectLibrary';
+import { appendProjectCreatedEvent, appendProjectSelectedEvent, loadProjectIndex, selectProject, type ProjectIndex } from '../../projectLibrary';
 import { DEFAULT_DSL } from '../../defaultDsl';
 import type { Parsed, Position } from '../../domain/types';
 import type { DiagramPoint } from '../../domain/diagramRouting';
@@ -104,8 +104,11 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
       return;
     }
 
+    appendProjectSelectedEvent(nextProjectIndex.selectedProjectId);
+    const projectedIndex = loadProjectIndex();
+
     const nextLibrary = loadSliceLibrary(DEFAULT_DSL, nextProjectIndex.selectedProjectId);
-    setProjectIndex(nextProjectIndex);
+    setProjectIndex(projectedIndex);
     setLibrary(nextLibrary);
     setSelectedNodeKey(null);
     setHighlightRange(null);
@@ -113,6 +116,27 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
     setHoveredTraceNodeKey(null);
     applySelectedSliceOverrides(nextLibrary.selectedSliceId, nextProjectIndex.selectedProjectId);
     setCommandPaletteOpen(false);
+  };
+
+  const onCreateProject = (name: string) => {
+    const trimmed = name.trim();
+    if (trimmed.length === 0) {
+      return;
+    }
+    const id = ('randomUUID' in crypto)
+      ? crypto.randomUUID()
+      : `project-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    appendProjectCreatedEvent(id, trimmed);
+    appendProjectSelectedEvent(id);
+    const projectedIndex = loadProjectIndex();
+    const nextLibrary = loadSliceLibrary(DEFAULT_DSL, id);
+    setProjectIndex(projectedIndex);
+    setLibrary(nextLibrary);
+    setSelectedNodeKey(null);
+    setHighlightRange(null);
+    setHoveredEdgeKey(null);
+    setHoveredTraceNodeKey(null);
+    applySelectedSliceOverrides(nextLibrary.selectedSliceId, id);
   };
 
   const onPrintGeometry = async () => {
@@ -215,6 +239,7 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
     onSelectSlice,
     onCreateSlice,
     onSwitchProject,
+    onCreateProject,
     onResetManualLayout: resetManualLayout,
     onPrintGeometry,
     onNodeOpenInEditor: (nodeKey, range) => {

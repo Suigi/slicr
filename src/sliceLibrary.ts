@@ -1,17 +1,11 @@
 import { DEFAULT_DSL } from './defaultDsl';
 import { appendSliceEvent, hydrateSliceProjection, loadSliceEvents } from './sliceEventStore';
-import { DEFAULT_PROJECT_ID } from './projectLibrary';
+import { APP_EVENT_STREAM_STORAGE_KEY, DEFAULT_PROJECT_ID } from './projectLibrary';
 
 export const SLICES_STORAGE_KEY = 'slicr.slices';
 export const LEGACY_DSL_STORAGE_KEY = 'slicr.dsl';
 export const SLICES_LAYOUT_STORAGE_KEY = 'slicr.sliceLayout';
-export const SLICES_EVENT_INDEX_STORAGE_KEY = 'slicr.es.v2.project.default.index';
-export const APP_SELECTION_STREAM_STORAGE_KEY = 'slicr.es.v2.project.default.stream.app';
-const PROJECT_INDEX_KEY_PREFIX = 'slicr.es.v2.project.';
 const LEGACY_SLICES_EVENT_INDEX_STORAGE_KEY = 'slicr.es.v1.index';
-const LEGACY_APP_SELECTION_STREAM_STORAGE_KEY = 'slicr.es.v1.stream.app';
-const LEGACY_STREAM_KEY_PREFIX = 'slicr.es.v1.stream.';
-const LEGACY_SNAPSHOT_KEY_PREFIX = 'slicr.es.v1.snapshot.';
 
 export type StoredSlice = {
   id: string;
@@ -32,9 +26,19 @@ type SaveLayoutOptions = {
   emitEvents?: boolean;
 };
 type StoredSliceLayoutMap = Record<string, SliceLayoutOverrides>;
-type StoredEventIndex = {
+type LegacyStoredEventIndex = {
   selectedSliceId?: string;
   sliceIds: string[];
+};
+type AppSliceLinkEvent = {
+  id: string;
+  version: number;
+  at: string;
+  type: 'slice-added-to-project';
+  payload: {
+    projectId: string;
+    sliceId: string;
+  };
 };
 type AppSelectionEvent = {
   id: string;
@@ -42,66 +46,130 @@ type AppSelectionEvent = {
   at: string;
   type: 'slice-selected';
   payload: {
+    projectId: string;
     selectedSliceId: string;
   };
 };
+type AppSliceEvent = AppSliceLinkEvent | AppSelectionEvent;
 
-function eventIndexStorageKey(projectId = DEFAULT_PROJECT_ID): string {
-  return `${PROJECT_INDEX_KEY_PREFIX}${projectId}.index`;
-}
+const inMemoryProjectLibraries = new Map<string, SliceLibrary>();
 
-function appSelectionStreamStorageKey(projectId = DEFAULT_PROJECT_ID): string {
-  return `${PROJECT_INDEX_KEY_PREFIX}${projectId}.stream.app`;
-}
-
-function streamStorageKey(projectId: string, sliceId: string): string {
-  return `${PROJECT_INDEX_KEY_PREFIX}${projectId}.stream.${sliceId}`;
-}
-
-function snapshotStorageKey(projectId: string, sliceId: string): string {
-  return `${PROJECT_INDEX_KEY_PREFIX}${projectId}.snapshot.${sliceId}`;
-}
-
-function migrateLegacyDefaultProjectEventStorage(): void {
-  try {
-    if (localStorage.getItem(eventIndexStorageKey(DEFAULT_PROJECT_ID))) {
-      return;
-    }
-    const legacyRaw = localStorage.getItem(LEGACY_SLICES_EVENT_INDEX_STORAGE_KEY);
-    if (!legacyRaw) {
-      return;
-    }
-    const legacyIndex = asEventIndex(JSON.parse(legacyRaw));
-    if (!legacyIndex) {
-      localStorage.removeItem(LEGACY_SLICES_EVENT_INDEX_STORAGE_KEY);
-      localStorage.removeItem(LEGACY_APP_SELECTION_STREAM_STORAGE_KEY);
-      return;
-    }
-
-    localStorage.setItem(eventIndexStorageKey(DEFAULT_PROJECT_ID), JSON.stringify(legacyIndex));
-    const legacyAppStream = localStorage.getItem(LEGACY_APP_SELECTION_STREAM_STORAGE_KEY);
-    if (legacyAppStream) {
-      localStorage.setItem(appSelectionStreamStorageKey(DEFAULT_PROJECT_ID), legacyAppStream);
-    }
-
-    for (const sliceId of legacyIndex.sliceIds) {
-      const legacyStream = localStorage.getItem(`${LEGACY_STREAM_KEY_PREFIX}${sliceId}`);
-      if (legacyStream) {
-        localStorage.setItem(streamStorageKey(DEFAULT_PROJECT_ID, sliceId), legacyStream);
-      }
-      const legacySnapshot = localStorage.getItem(`${LEGACY_SNAPSHOT_KEY_PREFIX}${sliceId}`);
-      if (legacySnapshot) {
-        localStorage.setItem(snapshotStorageKey(DEFAULT_PROJECT_ID, sliceId), legacySnapshot);
-      }
-      localStorage.removeItem(`${LEGACY_STREAM_KEY_PREFIX}${sliceId}`);
-      localStorage.removeItem(`${LEGACY_SNAPSHOT_KEY_PREFIX}${sliceId}`);
-    }
-
-    localStorage.removeItem(LEGACY_SLICES_EVENT_INDEX_STORAGE_KEY);
-    localStorage.removeItem(LEGACY_APP_SELECTION_STREAM_STORAGE_KEY);
-  } catch {
-    // Ignore migration failures and fall back.
+function makeEventId(): string {
+  if ('randomUUID' in crypto) {
+    return crypto.randomUUID();
   }
+  return `evt-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function readRawAppStream(): Array<Record<string, unknown>> {
+  try {
+    const raw = localStorage.getItem(APP_EVENT_STREAM_STORAGE_KEY);
+    if (!raw) {
+      return [];
+    }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((event): event is Record<string, unknown> => Boolean(event && typeof event === 'object')) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeRawAppStream(events: Array<Record<string, unknown>>): void {
+  localStorage.setItem(APP_EVENT_STREAM_STORAGE_KEY, JSON.stringify(events));
+}
+
+function nextAppStreamVersion(events: Array<Record<string, unknown>>): number {
+  const versions = events
+    .map((event) => event.version)
+    .filter((version): version is number => isFiniteNumber(version));
+  if (versions.length === 0) {
+    return 1;
+  }
+  return Math.max(...versions) + 1;
+}
+
+function parseAppSliceEvent(value: unknown): AppSliceEvent | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const maybe = value as {
+    id?: unknown;
+    version?: unknown;
+    at?: unknown;
+    type?: unknown;
+    payload?: unknown;
+  };
+  if (
+    typeof maybe.id !== 'string'
+    || !isFiniteNumber(maybe.version)
+    || typeof maybe.at !== 'string'
+    || typeof maybe.type !== 'string'
+    || !maybe.payload
+    || typeof maybe.payload !== 'object'
+  ) {
+    return null;
+  }
+  if (maybe.type === 'slice-added-to-project') {
+    const payload = maybe.payload as { projectId?: unknown; sliceId?: unknown };
+    if (typeof payload.projectId !== 'string' || payload.projectId.length === 0 || typeof payload.sliceId !== 'string' || payload.sliceId.length === 0) {
+      return null;
+    }
+    return {
+      id: maybe.id,
+      version: maybe.version,
+      at: maybe.at,
+      type: 'slice-added-to-project',
+      payload: { projectId: payload.projectId, sliceId: payload.sliceId }
+    };
+  }
+  if (maybe.type === 'slice-selected') {
+    const payload = maybe.payload as { projectId?: unknown; selectedSliceId?: unknown };
+    if (
+      typeof payload.projectId !== 'string'
+      || payload.projectId.length === 0
+      || typeof payload.selectedSliceId !== 'string'
+      || payload.selectedSliceId.length === 0
+    ) {
+      return null;
+    }
+    return {
+      id: maybe.id,
+      version: maybe.version,
+      at: maybe.at,
+      type: 'slice-selected',
+      payload: {
+        projectId: payload.projectId,
+        selectedSliceId: payload.selectedSliceId
+      }
+    };
+  }
+  return null;
+}
+
+function loadAppSliceEvents(): AppSliceEvent[] {
+  return readRawAppStream()
+    .map((event) => parseAppSliceEvent(event))
+    .filter((event): event is AppSliceEvent => event !== null)
+    .sort((a, b) => a.version - b.version);
+}
+
+function appendAppSliceEvent(event: Omit<AppSliceEvent, 'id' | 'version' | 'at'>): void {
+  const existing = readRawAppStream();
+  const next: Record<string, unknown> = {
+    id: makeEventId(),
+    version: nextAppStreamVersion(existing),
+    at: new Date().toISOString(),
+    type: event.type,
+    payload: event.payload
+  };
+  writeRawAppStream([...existing, next]);
+}
+
+function appendSliceToProjectEvent(sliceId: string, projectId = DEFAULT_PROJECT_ID): void {
+  appendAppSliceEvent({
+    type: 'slice-added-to-project',
+    payload: { projectId, sliceId }
+  });
 }
 
 function emptyLayoutOverrides(): SliceLayoutOverrides {
@@ -279,81 +347,19 @@ export function appendSliceSelectedEvent(sliceId: string, projectId = DEFAULT_PR
   }, projectId);
 }
 
-function asAppSelectionEvent(value: unknown): AppSelectionEvent | null {
-  if (!value || typeof value !== 'object') {
-    return null;
-  }
-  const maybe = value as {
-    id?: unknown;
-    version?: unknown;
-    at?: unknown;
-    type?: unknown;
-    payload?: unknown;
-  };
-  if (
-    typeof maybe.id !== 'string'
-    || !isFiniteNumber(maybe.version)
-    || typeof maybe.at !== 'string'
-    || maybe.type !== 'slice-selected'
-    || !maybe.payload
-    || typeof maybe.payload !== 'object'
-  ) {
-    return null;
-  }
-  const payload = maybe.payload as { selectedSliceId?: unknown };
-  if (typeof payload.selectedSliceId !== 'string' || payload.selectedSliceId.length === 0) {
-    return null;
-  }
-  return {
-    id: maybe.id,
-    version: maybe.version,
-    at: maybe.at,
-    type: 'slice-selected',
-    payload: {
-      selectedSliceId: payload.selectedSliceId
-    }
-  };
-}
-
 function loadAppSelectedEvents(projectId = DEFAULT_PROJECT_ID): AppSelectionEvent[] {
-  try {
-    const raw = localStorage.getItem(appSelectionStreamStorageKey(projectId));
-    if (!raw) {
-      return [];
-    }
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-    return parsed
-      .map((event) => asAppSelectionEvent(event))
-      .filter((event): event is AppSelectionEvent => event !== null)
-      .sort((a, b) => a.version - b.version);
-  } catch {
-    return [];
-  }
-}
-
-function makeEventId(): string {
-  if ('randomUUID' in crypto) {
-    return crypto.randomUUID();
-  }
-  return `evt-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return loadAppSliceEvents()
+    .filter((event): event is AppSelectionEvent => event.type === 'slice-selected' && event.payload.projectId === projectId);
 }
 
 export function appendAppSelectedEvent(sliceId: string, projectId = DEFAULT_PROJECT_ID): void {
-  const existing = loadAppSelectedEvents(projectId);
-  const nextVersion = existing.length === 0 ? 1 : existing[existing.length - 1].version + 1;
-  const event: AppSelectionEvent = {
-    id: makeEventId(),
-    version: nextVersion,
-    at: new Date().toISOString(),
+  appendAppSliceEvent({
     type: 'slice-selected',
     payload: {
+      projectId,
       selectedSliceId: sliceId
     }
-  };
-  localStorage.setItem(appSelectionStreamStorageKey(projectId), JSON.stringify([...existing, event]));
+  });
 }
 
 export function saveSliceLayoutOverrides(
@@ -455,7 +461,7 @@ function asLibrary(value: unknown): SliceLibrary | null {
   return { selectedSliceId, slices };
 }
 
-function asEventIndex(value: unknown): StoredEventIndex | null {
+function asEventIndex(value: unknown): LegacyStoredEventIndex | null {
   if (!value || typeof value !== 'object') {
     return null;
   }
@@ -511,6 +517,22 @@ function deriveSelectedSliceId(sliceIds: string[], projectId = DEFAULT_PROJECT_I
   return deriveSelectedSliceIdFromLegacySliceEvents(sliceIds, projectId);
 }
 
+function deriveProjectSliceIdsFromAppEvents(projectId = DEFAULT_PROJECT_ID): string[] {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const event of loadAppSliceEvents()) {
+    if (event.type !== 'slice-added-to-project' || event.payload.projectId !== projectId) {
+      continue;
+    }
+    if (seen.has(event.payload.sliceId)) {
+      continue;
+    }
+    seen.add(event.payload.sliceId);
+    ids.push(event.payload.sliceId);
+  }
+  return ids;
+}
+
 function migrateMapsDslToUses(dsl: string): string {
   return dsl.replace(/^(\s*)maps:(\s*)$/gm, '$1uses:$2');
 }
@@ -547,13 +569,78 @@ function migrateLibraryMapsKeyword(library: SliceLibrary, projectId = DEFAULT_PR
   };
 }
 
-function writeEventIndex(sliceIds: string[], projectId = DEFAULT_PROJECT_ID): void {
-  localStorage.setItem(
-    eventIndexStorageKey(projectId),
-    JSON.stringify({
-      sliceIds
-    })
-  );
+function appendMissingSliceProjectLinks(sliceIds: string[], projectId = DEFAULT_PROJECT_ID): void {
+  const existing = new Set(deriveProjectSliceIdsFromAppEvents(projectId));
+  for (const sliceId of sliceIds) {
+    if (!existing.has(sliceId)) {
+      appendSliceToProjectEvent(sliceId, projectId);
+      existing.add(sliceId);
+    }
+  }
+}
+
+function migrateLegacyProjectIndexesToAppEvents(): void {
+  const legacyIndexKeys: string[] = [];
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const key = localStorage.key(i);
+    if (!key || !key.startsWith('slicr.es.v2.project.') || !key.endsWith('.index')) {
+      continue;
+    }
+    legacyIndexKeys.push(key);
+  }
+  for (const key of legacyIndexKeys) {
+    const projectId = key.slice('slicr.es.v2.project.'.length, -'.index'.length);
+    if (!projectId) {
+      localStorage.removeItem(key);
+      continue;
+    }
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) {
+        localStorage.removeItem(key);
+        continue;
+      }
+      const index = asEventIndex(JSON.parse(raw));
+      if (!index) {
+        localStorage.removeItem(key);
+        continue;
+      }
+      appendMissingSliceProjectLinks(index.sliceIds, projectId);
+      if (index.selectedSliceId) {
+        const known = new Set(deriveProjectSliceIdsFromAppEvents(projectId));
+        if (known.has(index.selectedSliceId)) {
+          appendAppSelectedEvent(index.selectedSliceId, projectId);
+        }
+      }
+    } catch {
+      // Ignore broken legacy payloads.
+    }
+    localStorage.removeItem(key);
+  }
+}
+
+function migrateLegacyV1IndexToAppEvents(projectId = DEFAULT_PROJECT_ID): void {
+  try {
+    const legacyRaw = localStorage.getItem(LEGACY_SLICES_EVENT_INDEX_STORAGE_KEY);
+    if (!legacyRaw) {
+      return;
+    }
+    const legacyIndex = asEventIndex(JSON.parse(legacyRaw));
+    if (!legacyIndex) {
+      localStorage.removeItem(LEGACY_SLICES_EVENT_INDEX_STORAGE_KEY);
+      return;
+    }
+    appendMissingSliceProjectLinks(legacyIndex.sliceIds, projectId);
+    if (legacyIndex.selectedSliceId) {
+      const known = new Set(deriveProjectSliceIdsFromAppEvents(projectId));
+      if (known.has(legacyIndex.selectedSliceId)) {
+        appendAppSelectedEvent(legacyIndex.selectedSliceId, projectId);
+      }
+    }
+    localStorage.removeItem(LEGACY_SLICES_EVENT_INDEX_STORAGE_KEY);
+  } catch {
+    // Ignore broken legacy payloads.
+  }
 }
 
 function migrateLegacyLibraryToEvents(library: SliceLibrary, projectId = DEFAULT_PROJECT_ID): void {
@@ -561,7 +648,7 @@ function migrateLegacyLibraryToEvents(library: SliceLibrary, projectId = DEFAULT
     localStorage.removeItem(SLICES_STORAGE_KEY);
     localStorage.removeItem(LEGACY_DSL_STORAGE_KEY);
   }
-  writeEventIndex(library.slices.map((slice) => slice.id), projectId);
+  appendMissingSliceProjectLinks(library.slices.map((slice) => slice.id), projectId);
 
   for (const slice of library.slices) {
     const events = loadSliceEvents(slice.id, projectId);
@@ -582,18 +669,13 @@ function migrateLegacyLibraryToEvents(library: SliceLibrary, projectId = DEFAULT
   }
 }
 
-function loadSliceLibraryFromEventIndex(projectId = DEFAULT_PROJECT_ID): SliceLibrary | null {
+function loadSliceLibraryFromAppProjection(projectId = DEFAULT_PROJECT_ID): SliceLibrary | null {
   try {
-    const raw = localStorage.getItem(eventIndexStorageKey(projectId));
-    if (!raw) {
+    const sliceIds = deriveProjectSliceIdsFromAppEvents(projectId);
+    if (sliceIds.length === 0) {
       return null;
     }
-    const index = asEventIndex(JSON.parse(raw));
-    if (!index) {
-      return null;
-    }
-
-    const slices = index.sliceIds
+    const slices = sliceIds
       .map((sliceId) => {
         const events = loadSliceEvents(sliceId, projectId);
         if (events.length === 0) {
@@ -627,27 +709,27 @@ export function createInitialLibrary(defaultDsl = DEFAULT_DSL): SliceLibrary {
 }
 
 export function loadSliceLibrary(defaultDsl = DEFAULT_DSL, projectId = DEFAULT_PROJECT_ID): SliceLibrary {
+  migrateLegacyProjectIndexesToAppEvents();
   if (projectId === DEFAULT_PROJECT_ID) {
-    migrateLegacyDefaultProjectEventStorage();
+    migrateLegacyV1IndexToAppEvents(projectId);
   }
-  const eventLibrary = loadSliceLibraryFromEventIndex(projectId);
+  const eventLibrary = loadSliceLibraryFromAppProjection(projectId);
   if (eventLibrary) {
-    return migrateLibraryMapsKeyword(eventLibrary, projectId);
+    const migrated = migrateLibraryMapsKeyword(eventLibrary, projectId);
+    inMemoryProjectLibraries.set(projectId, migrated);
+    return migrated;
   }
-
-  if (projectId !== DEFAULT_PROJECT_ID) {
-    return createInitialLibrary(defaultDsl);
-  }
-
   try {
     const stored = localStorage.getItem(SLICES_STORAGE_KEY);
     if (stored) {
       const parsed = asLibrary(JSON.parse(stored));
       if (parsed) {
         migrateLegacyLibraryToEvents(parsed, projectId);
-        const migrated = loadSliceLibraryFromEventIndex(projectId);
+        const migrated = loadSliceLibraryFromAppProjection(projectId);
         if (migrated) {
-          return migrateLibraryMapsKeyword(migrated, projectId);
+          const withMapsMigration = migrateLibraryMapsKeyword(migrated, projectId);
+          inMemoryProjectLibraries.set(projectId, withMapsMigration);
+          return withMapsMigration;
         }
       }
     }
@@ -660,17 +742,22 @@ export function loadSliceLibrary(defaultDsl = DEFAULT_DSL, projectId = DEFAULT_P
     if (legacyDsl) {
       const migrated = createInitialLibrary(legacyDsl);
       migrateLegacyLibraryToEvents(migrated, projectId);
-      const fromEvents = loadSliceLibraryFromEventIndex(projectId);
+      const fromEvents = loadSliceLibraryFromAppProjection(projectId);
       if (fromEvents) {
-        return migrateLibraryMapsKeyword(fromEvents, projectId);
+        const withMapsMigration = migrateLibraryMapsKeyword(fromEvents, projectId);
+        inMemoryProjectLibraries.set(projectId, withMapsMigration);
+        return withMapsMigration;
       }
+      inMemoryProjectLibraries.set(projectId, migrated);
       return migrated;
     }
   } catch {
     // Ignore storage errors and fall back.
   }
 
-  return createInitialLibrary(defaultDsl);
+  const created = createInitialLibrary(defaultDsl);
+  inMemoryProjectLibraries.set(projectId, created);
+  return created;
 }
 
 export function saveSliceLibrary(library: SliceLibrary, projectId = DEFAULT_PROJECT_ID): void {
@@ -678,7 +765,7 @@ export function saveSliceLibrary(library: SliceLibrary, projectId = DEFAULT_PROJ
     localStorage.removeItem(SLICES_STORAGE_KEY);
     localStorage.removeItem(LEGACY_DSL_STORAGE_KEY);
   }
-  writeEventIndex(library.slices.map((slice) => slice.id), projectId);
+  appendMissingSliceProjectLinks(library.slices.map((slice) => slice.id), projectId);
   for (const slice of library.slices) {
     const events = loadSliceEvents(slice.id, projectId);
     let projectedDsl = getProjectedDslFromEvents(events);
@@ -699,6 +786,7 @@ export function saveSliceLibrary(library: SliceLibrary, projectId = DEFAULT_PROJ
   if (selectedFromEvents !== library.selectedSliceId) {
     appendAppSelectedEvent(library.selectedSliceId, projectId);
   }
+  inMemoryProjectLibraries.set(projectId, library);
 }
 
 function nextUntitledName(existingNames: string[]): string {

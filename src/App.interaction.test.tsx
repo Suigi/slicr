@@ -53,23 +53,22 @@ function renderAppStrict() {
 }
 
 function readStoredLibrary() {
-  const indexRaw = localStorage.getItem('slicr.es.v2.project.default.index');
-  if (!indexRaw) {
-    return null;
-  }
-  const parsed = JSON.parse(indexRaw) as { sliceIds?: unknown };
-  if (!parsed || !Array.isArray(parsed.sliceIds) || parsed.sliceIds.length === 0) {
-    return null;
-  }
-  const sliceIds = parsed.sliceIds.filter((id): id is string => typeof id === 'string' && id.length > 0);
+  const appStreamRaw = localStorage.getItem('slicr.es.v1.stream.app');
+  const appEvents = appStreamRaw
+    ? (JSON.parse(appStreamRaw) as Array<{ version?: number; type?: string; payload?: { projectId?: string; sliceId?: string; selectedSliceId?: string } }>)
+    : [];
+  const added = appEvents
+    .filter((event) => event.type === 'slice-added-to-project' && event.payload?.projectId === 'default' && typeof event.payload?.sliceId === 'string')
+    .sort((a, b) => (a.version ?? 0) - (b.version ?? 0));
+  const sliceIds = [...new Set(added.map((event) => event.payload?.sliceId as string))];
   if (sliceIds.length === 0) {
     return null;
   }
-  const appStreamRaw = localStorage.getItem('slicr.es.v2.project.default.stream.app');
-  const appEvents = appStreamRaw ? (JSON.parse(appStreamRaw) as Array<{ version?: number; payload?: { selectedSliceId?: string } }>) : [];
   const selectedEvents = appEvents
     .filter((event): event is { version: number; payload: { selectedSliceId: string } } => (
-      typeof event.version === 'number'
+      event.type === 'slice-selected'
+      && event.payload?.projectId === 'default'
+      && typeof event.version === 'number'
       && typeof event.payload?.selectedSliceId === 'string'
       && event.payload.selectedSliceId.length > 0
     ))
@@ -138,7 +137,7 @@ describe('App interactions', () => {
 
     expect(sliceTitle?.textContent).toBe(defaultName);
     expect(document.title).toBe(`${localPrefix}Slicer - ${defaultName}`);
-    expect(localStorage.getItem('slicr.es.v2.project.default.index')).not.toBeNull();
+    expect(localStorage.getItem('slicr.es.v1.stream.app')).not.toBeNull();
     expect(localStorage.getItem('slicr.dsl')).toBeNull();
     const stored = readStoredLibrary();
     expect(stored?.slices[0]?.dsl).toBe(DEFAULT_DSL);
@@ -189,10 +188,233 @@ rm:persisted-view`;
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Beta');
     expect(document.title).toBe(`${localPrefix}Slicer - Beta`);
-    const streamRaw = localStorage.getItem('slicr.es.v2.project.default.stream.app');
+    const streamRaw = localStorage.getItem('slicr.es.v1.stream.app');
     expect(streamRaw).not.toBeNull();
-    const events = JSON.parse(streamRaw ?? '[]') as Array<{ type: string; payload?: { selectedSliceId?: string } }>;
-    expect(events.some((event) => event.type === 'slice-selected' && event.payload?.selectedSliceId === 'b')).toBe(true);
+    const events = JSON.parse(streamRaw ?? '[]') as Array<{ type: string; payload?: { projectId?: string; selectedSliceId?: string } }>;
+    expect(events.some((event) => event.type === 'slice-selected' && event.payload?.projectId === 'default' && event.payload?.selectedSliceId === 'b')).toBe(true);
+  });
+
+  it('renders a project rail with all slices from the current project', () => {
+    localStorage.setItem(
+      'slicr.es.v1.stream.app',
+      JSON.stringify([
+        {
+          id: 'p-1',
+          version: 1,
+          at: '2026-01-01T00:00:01.000Z',
+          type: 'project-created',
+          payload: { projectId: 'project-a', name: 'Project A' }
+        },
+        {
+          id: 'p-2',
+          version: 2,
+          at: '2026-01-01T00:00:02.000Z',
+          type: 'project-created',
+          payload: { projectId: 'project-b', name: 'Project B' }
+        },
+        {
+          id: 'p-3',
+          version: 3,
+          at: '2026-01-01T00:00:03.000Z',
+          type: 'project-selected',
+          payload: { projectId: 'project-a' }
+        },
+        {
+          id: 'p-4',
+          version: 4,
+          at: '2026-01-01T00:00:04.000Z',
+          type: 'slice-added-to-project',
+          payload: { projectId: 'project-a', sliceId: 'slice-a1' }
+        },
+        {
+          id: 'p-5',
+          version: 5,
+          at: '2026-01-01T00:00:05.000Z',
+          type: 'slice-added-to-project',
+          payload: { projectId: 'project-a', sliceId: 'slice-a2' }
+        },
+        {
+          id: 'p-6',
+          version: 6,
+          at: '2026-01-01T00:00:06.000Z',
+          type: 'slice-selected',
+          payload: { projectId: 'project-a', selectedSliceId: 'slice-a1' }
+        }
+      ])
+    );
+    localStorage.setItem(
+      'slicr.es.v1.stream.slice-a1',
+      JSON.stringify([
+        {
+          id: 'a1-1',
+          sliceId: 'slice-a1',
+          version: 1,
+          at: '2026-01-01T00:00:01.000Z',
+          type: 'slice-created',
+          payload: { initialDsl: 'slice "Alpha One"\n\nrm:a1' }
+        }
+      ])
+    );
+    localStorage.setItem(
+      'slicr.es.v1.stream.slice-a2',
+      JSON.stringify([
+        {
+          id: 'a2-1',
+          sliceId: 'slice-a2',
+          version: 1,
+          at: '2026-01-01T00:00:01.000Z',
+          type: 'slice-created',
+          payload: { initialDsl: 'slice "Alpha Two"\n\nrm:a2' }
+        }
+      ])
+    );
+
+    renderApp();
+
+    const rail = document.querySelector('.project-rail');
+    expect(rail).not.toBeNull();
+    const items = [...document.querySelectorAll('.project-rail-slice-item')].map((el) => el.textContent?.trim());
+    expect(items).toEqual(['Alpha One', 'Alpha Two']);
+  });
+
+  it('switches project from a dropdown at the top of the project rail', () => {
+    localStorage.setItem(
+      'slicr.es.v1.stream.app',
+      JSON.stringify([
+        {
+          id: 'p-1',
+          version: 1,
+          at: '2026-01-01T00:00:01.000Z',
+          type: 'project-created',
+          payload: { projectId: 'project-a', name: 'Project A' }
+        },
+        {
+          id: 'p-2',
+          version: 2,
+          at: '2026-01-01T00:00:02.000Z',
+          type: 'project-created',
+          payload: { projectId: 'project-b', name: 'Project B' }
+        },
+        {
+          id: 'p-3',
+          version: 3,
+          at: '2026-01-01T00:00:03.000Z',
+          type: 'project-selected',
+          payload: { projectId: 'project-a' }
+        },
+        {
+          id: 'p-4',
+          version: 4,
+          at: '2026-01-01T00:00:04.000Z',
+          type: 'slice-added-to-project',
+          payload: { projectId: 'project-a', sliceId: 'slice-a1' }
+        },
+        {
+          id: 'p-5',
+          version: 5,
+          at: '2026-01-01T00:00:05.000Z',
+          type: 'slice-added-to-project',
+          payload: { projectId: 'project-b', sliceId: 'slice-b1' }
+        },
+        {
+          id: 'p-6',
+          version: 6,
+          at: '2026-01-01T00:00:06.000Z',
+          type: 'slice-selected',
+          payload: { projectId: 'project-a', selectedSliceId: 'slice-a1' }
+        }
+      ])
+    );
+    localStorage.setItem(
+      'slicr.es.v1.stream.slice-a1',
+      JSON.stringify([
+        {
+          id: 'a1-1',
+          sliceId: 'slice-a1',
+          version: 1,
+          at: '2026-01-01T00:00:01.000Z',
+          type: 'slice-created',
+          payload: { initialDsl: 'slice "Alpha One"\n\nrm:a1' }
+        }
+      ])
+    );
+    localStorage.setItem(
+      'slicr.es.v1.stream.slice-b1',
+      JSON.stringify([
+        {
+          id: 'b1-1',
+          sliceId: 'slice-b1',
+          version: 1,
+          at: '2026-01-01T00:00:01.000Z',
+          type: 'slice-created',
+          payload: { initialDsl: 'slice "Beta One"\n\nrm:b1' }
+        }
+      ])
+    );
+
+    renderApp();
+
+    const rail = document.querySelector('.project-rail');
+    expect(rail).not.toBeNull();
+
+    const projectToggle = rail?.querySelector('button[aria-label="Select project"]') as HTMLButtonElement | null;
+    expect(projectToggle).not.toBeNull();
+    act(() => {
+      projectToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const projectBItem = [...(rail?.querySelectorAll('.project-menu-item') ?? [])]
+      .find((button) => button.textContent?.includes('Project B')) as HTMLButtonElement | undefined;
+    expect(projectBItem).toBeDefined();
+    act(() => {
+      projectBItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const items = [...document.querySelectorAll('.project-rail-slice-item')].map((el) => el.textContent?.trim());
+    expect(items).toEqual(['Beta One']);
+    expect(document.querySelector('.slice-title')?.textContent).toBe('Beta One');
+  });
+
+  it('creates a project from the rail dropdown and appends a project-created event', () => {
+    renderApp();
+    const rail = document.querySelector('.project-rail');
+    expect(rail).not.toBeNull();
+
+    const projectToggle = rail?.querySelector('button[aria-label="Select project"]') as HTMLButtonElement | null;
+    expect(projectToggle).not.toBeNull();
+    act(() => {
+      projectToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const createProjectItem = [...(rail?.querySelectorAll('.project-menu-item') ?? [])]
+      .find((button) => button.textContent?.includes('Create Project')) as HTMLButtonElement | undefined;
+    expect(createProjectItem).toBeDefined();
+    act(() => {
+      createProjectItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const modal = document.querySelector('.project-modal');
+    expect(modal).not.toBeNull();
+    const input = document.querySelector('#project-name-input') as HTMLInputElement | null;
+    expect(input).not.toBeNull();
+    act(() => {
+      if (input) {
+        const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+        valueSetter?.call(input, 'Payments');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+    const createButton = [...document.querySelectorAll('.project-modal-button')]
+      .find((button) => button.textContent?.trim() === 'Create') as HTMLButtonElement | undefined;
+    expect(createButton).toBeDefined();
+    act(() => {
+      createButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const appStreamRaw = localStorage.getItem('slicr.es.v1.stream.app');
+    expect(appStreamRaw).not.toBeNull();
+    const appEvents = JSON.parse(appStreamRaw ?? '[]') as Array<{ type?: string; payload?: { name?: string } }>;
+    expect(appEvents.some((event) => event.type === 'project-created' && event.payload?.name === 'Payments')).toBe(true);
   });
 
   it('switches to the next slice on Cmd/Ctrl+Shift+J', () => {
@@ -217,10 +439,10 @@ rm:persisted-view`;
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Beta');
 
-    const streamRaw = localStorage.getItem('slicr.es.v2.project.default.stream.app');
+    const streamRaw = localStorage.getItem('slicr.es.v1.stream.app');
     expect(streamRaw).not.toBeNull();
-    const events = JSON.parse(streamRaw ?? '[]') as Array<{ type: string; payload?: { selectedSliceId?: string } }>;
-    expect(events.some((event) => event.type === 'slice-selected' && event.payload?.selectedSliceId === 'b')).toBe(true);
+    const events = JSON.parse(streamRaw ?? '[]') as Array<{ type: string; payload?: { projectId?: string; selectedSliceId?: string } }>;
+    expect(events.some((event) => event.type === 'slice-selected' && event.payload?.projectId === 'default' && event.payload?.selectedSliceId === 'b')).toBe(true);
   });
 
   it('switches to the previous slice on Cmd/Ctrl+Shift+K', () => {
@@ -245,10 +467,10 @@ rm:persisted-view`;
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Alpha');
 
-    const streamRaw = localStorage.getItem('slicr.es.v2.project.default.stream.app');
+    const streamRaw = localStorage.getItem('slicr.es.v1.stream.app');
     expect(streamRaw).not.toBeNull();
-    const events = JSON.parse(streamRaw ?? '[]') as Array<{ type: string; payload?: { selectedSliceId?: string } }>;
-    expect(events.some((event) => event.type === 'slice-selected' && event.payload?.selectedSliceId === 'a')).toBe(true);
+    const events = JSON.parse(streamRaw ?? '[]') as Array<{ type: string; payload?: { projectId?: string; selectedSliceId?: string } }>;
+    expect(events.some((event) => event.type === 'slice-selected' && event.payload?.projectId === 'default' && event.payload?.selectedSliceId === 'a')).toBe(true);
   });
 
   it('does not change slice on Cmd/Ctrl+Shift+J when already on the last slice', () => {
@@ -266,7 +488,7 @@ rm:persisted-view`;
     renderApp();
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Beta');
-    const beforeRaw = localStorage.getItem('slicr.es.v2.project.default.stream.app');
+    const beforeRaw = localStorage.getItem('slicr.es.v1.stream.app');
     const beforeEvents = JSON.parse(beforeRaw ?? '[]') as Array<{ type: string }>;
     const beforeSelectedCount = beforeEvents.filter((event) => event.type === 'slice-selected').length;
 
@@ -275,7 +497,7 @@ rm:persisted-view`;
     });
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Beta');
-    const afterRaw = localStorage.getItem('slicr.es.v2.project.default.stream.app');
+    const afterRaw = localStorage.getItem('slicr.es.v1.stream.app');
     const afterEvents = JSON.parse(afterRaw ?? '[]') as Array<{ type: string }>;
     const afterSelectedCount = afterEvents.filter((event) => event.type === 'slice-selected').length;
     expect(afterSelectedCount).toBe(beforeSelectedCount);
@@ -296,7 +518,7 @@ rm:persisted-view`;
     renderApp();
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Alpha');
-    const beforeRaw = localStorage.getItem('slicr.es.v2.project.default.stream.app');
+    const beforeRaw = localStorage.getItem('slicr.es.v1.stream.app');
     const beforeEvents = JSON.parse(beforeRaw ?? '[]') as Array<{ type: string }>;
     const beforeSelectedCount = beforeEvents.filter((event) => event.type === 'slice-selected').length;
 
@@ -305,7 +527,7 @@ rm:persisted-view`;
     });
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Alpha');
-    const afterRaw = localStorage.getItem('slicr.es.v2.project.default.stream.app');
+    const afterRaw = localStorage.getItem('slicr.es.v1.stream.app');
     const afterEvents = JSON.parse(afterRaw ?? '[]') as Array<{ type: string }>;
     const afterSelectedCount = afterEvents.filter((event) => event.type === 'slice-selected').length;
     expect(afterSelectedCount).toBe(beforeSelectedCount);
@@ -346,7 +568,7 @@ rm:persisted-view`;
     expect(stored).not.toBeNull();
     const selected = stored?.slices.find((slice) => slice.id === stored.selectedSliceId);
     expect(selected?.dsl).toContain('slice "Untitled"');
-    const streamRaw = localStorage.getItem(`slicr.es.v2.project.default.stream.${stored?.selectedSliceId ?? ''}`);
+    const streamRaw = localStorage.getItem(`slicr.es.v1.stream.${stored?.selectedSliceId ?? ''}`);
     expect(streamRaw).not.toBeNull();
     const events = JSON.parse(streamRaw ?? '[]') as Array<{ type: string }>;
     expect(events.some((event) => event.type === 'slice-created')).toBe(true);
@@ -1166,7 +1388,7 @@ uses:
     const node = document.querySelector('.node.evt') as HTMLElement | null;
     expect(node).not.toBeNull();
 
-    const beforeRaw = localStorage.getItem('slicr.es.v2.project.default.stream.a');
+    const beforeRaw = localStorage.getItem('slicr.es.v1.stream.a');
     const beforeEvents = beforeRaw ? (JSON.parse(beforeRaw) as Array<{ type: string }>) : [];
     const beforeNodeMoveCount = beforeEvents.filter((event) => event.type === 'node-moved').length;
 
@@ -1176,7 +1398,7 @@ uses:
       window.dispatchEvent(new PointerCtor('pointermove', { bubbles: true, buttons: 1, clientX: 180, clientY: 180, pointerId: 1 }));
     });
 
-    const midRaw = localStorage.getItem('slicr.es.v2.project.default.stream.a');
+    const midRaw = localStorage.getItem('slicr.es.v1.stream.a');
     const midEvents = midRaw ? (JSON.parse(midRaw) as Array<{ type: string }>) : [];
     const midNodeMoveCount = midEvents.filter((event) => event.type === 'node-moved').length;
     expect(midNodeMoveCount).toBe(beforeNodeMoveCount);
@@ -1185,7 +1407,7 @@ uses:
       window.dispatchEvent(new PointerCtor('pointerup', { bubbles: true, button: 0, clientX: 180, clientY: 180, pointerId: 1 }));
     });
 
-    const afterRaw = localStorage.getItem('slicr.es.v2.project.default.stream.a');
+    const afterRaw = localStorage.getItem('slicr.es.v1.stream.a');
     const afterEvents = afterRaw ? (JSON.parse(afterRaw) as Array<{ type: string }>) : [];
     const afterNodeMoveCount = afterEvents.filter((event) => event.type === 'node-moved').length;
     expect(afterNodeMoveCount).toBe(beforeNodeMoveCount + 1);
@@ -1237,7 +1459,7 @@ uses:
     const node = document.querySelector('.node.evt') as HTMLElement | null;
     expect(node).not.toBeNull();
 
-    const beforeRaw = localStorage.getItem('slicr.es.v2.project.default.stream.a');
+    const beforeRaw = localStorage.getItem('slicr.es.v1.stream.a');
     const beforeEvents = beforeRaw ? (JSON.parse(beforeRaw) as Array<{ type: string }>) : [];
     const beforeNodeMoveCount = beforeEvents.filter((event) => event.type === 'node-moved').length;
 
@@ -1248,7 +1470,7 @@ uses:
       window.dispatchEvent(new PointerCtor('pointerup', { bubbles: true, button: 0, clientX: 180, clientY: 180, pointerId: 1 }));
     });
 
-    const afterRaw = localStorage.getItem('slicr.es.v2.project.default.stream.a');
+    const afterRaw = localStorage.getItem('slicr.es.v1.stream.a');
     const afterEvents = afterRaw ? (JSON.parse(afterRaw) as Array<{ type: string }>) : [];
     const afterNodeMoveCount = afterEvents.filter((event) => event.type === 'node-moved').length;
     expect(afterNodeMoveCount).toBe(beforeNodeMoveCount);
@@ -1282,14 +1504,14 @@ uses:
 
     renderApp();
 
-    const beforeRaw = localStorage.getItem('slicr.es.v2.project.default.stream.a');
+    const beforeRaw = localStorage.getItem('slicr.es.v1.stream.a');
     const beforeEvents = beforeRaw ? (JSON.parse(beforeRaw) as Array<{ type: string }>) : [];
     const beforeResetCount = beforeEvents.filter((event) => event.type === 'layout-reset').length;
 
     openRenderModeMenu();
     clickResetPositionsButton();
 
-    const afterRaw = localStorage.getItem('slicr.es.v2.project.default.stream.a');
+    const afterRaw = localStorage.getItem('slicr.es.v1.stream.a');
     const afterEvents = afterRaw ? (JSON.parse(afterRaw) as Array<{ type: string }>) : [];
     const afterResetCount = afterEvents.filter((event) => event.type === 'layout-reset').length;
     expect(afterResetCount).toBe(beforeResetCount + 1);

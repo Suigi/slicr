@@ -5,6 +5,7 @@ import { CommandPalette } from './app-shell/CommandPalette';
 import { DiagramCanvas } from './app-shell/DiagramCanvas';
 import { NodeAnalysisPanel } from './app-shell/NodeAnalysisPanel';
 import { NodeMeasureLayer } from './app-shell/NodeMeasureLayer';
+import { ProjectRail } from './app-shell/ProjectRail';
 import { AnalysisProvider } from './app-shell/contexts/AnalysisContext';
 import { DiagramInteractionProvider } from './app-shell/contexts/DiagramInteractionContext';
 import { HeaderUiProvider } from './app-shell/contexts/HeaderUiContext';
@@ -28,10 +29,11 @@ export function AppShell(props: AppShellProps) {
       </HeaderUiProvider>
 
       <div className="main">
+        <ProjectRail header={header} actions={actions} />
+
         <div ref={editorRef} className={`editor-panel ${editorOpen ? 'open' : ''}`}>
           <div className="panel-label">
             <div className="panel-handle" />
-            <span>DSL</span>
             <button type="button" className="panel-action" onClick={collapseAllDataRegions} aria-label="Collapse all data regions" title="Collapse data regions">
               <svg className="panel-action-icon" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                 <path d="M2.5 2.5 5 5M5 5V3.6M5 5H3.6M9.5 9.5 7 7M7 7V8.4M7 7H8.4M4.2 7.8 7.8 4.2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />

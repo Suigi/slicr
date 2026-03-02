@@ -6,7 +6,6 @@ import { afterEach, describe, expect, it } from 'vitest';
 import App from './App';
 import { CROSS_SLICE_DATA_FLAG_STORAGE_KEY } from './domain/runtimeFlags';
 import { SLICES_STORAGE_KEY } from './sliceLibrary';
-import { PROJECTS_INDEX_STORAGE_KEY } from './projectLibrary';
 import { hydrateSliceProjection } from './sliceEventStore';
 
 let root: ReactDOM.Root | null = null;
@@ -48,23 +47,22 @@ function renderAppStrict() {
 }
 
 function readStoredLibrary() {
-  const indexRaw = localStorage.getItem('slicr.es.v2.project.default.index');
-  if (!indexRaw) {
-    return null;
-  }
-  const parsed = JSON.parse(indexRaw) as { sliceIds?: unknown };
-  if (!parsed || !Array.isArray(parsed.sliceIds) || parsed.sliceIds.length === 0) {
-    return null;
-  }
-  const sliceIds = parsed.sliceIds.filter((id): id is string => typeof id === 'string' && id.length > 0);
+  const appStreamRaw = localStorage.getItem('slicr.es.v1.stream.app');
+  const appEvents = appStreamRaw
+    ? (JSON.parse(appStreamRaw) as Array<{ version?: number; type?: string; payload?: { projectId?: string; sliceId?: string; selectedSliceId?: string } }>)
+    : [];
+  const added = appEvents
+    .filter((event) => event.type === 'slice-added-to-project' && event.payload?.projectId === 'default' && typeof event.payload?.sliceId === 'string')
+    .sort((a, b) => (a.version ?? 0) - (b.version ?? 0));
+  const sliceIds = [...new Set(added.map((event) => event.payload?.sliceId as string))];
   if (sliceIds.length === 0) {
     return null;
   }
-  const appStreamRaw = localStorage.getItem('slicr.es.v2.project.default.stream.app');
-  const appEvents = appStreamRaw ? (JSON.parse(appStreamRaw) as Array<{ version?: number; payload?: { selectedSliceId?: string } }>) : [];
   const selectedEvents = appEvents
     .filter((event): event is { version: number; payload: { selectedSliceId: string } } => (
-      typeof event.version === 'number'
+      event.type === 'slice-selected'
+      && event.payload?.projectId === 'default'
+      && typeof event.version === 'number'
       && typeof event.payload?.selectedSliceId === 'string'
       && event.payload.selectedSliceId.length > 0
     ))
@@ -763,31 +761,54 @@ describe('App node analysis interactions', () => {
 
   it('switches project from command palette and scopes active slice', () => {
     localStorage.setItem(
-      PROJECTS_INDEX_STORAGE_KEY,
-      JSON.stringify({
-        selectedProjectId: 'project-a',
-        projects: [
-          { id: 'project-a', name: 'Project A' },
-          { id: 'project-b', name: 'Project B' }
-        ]
-      })
+      'slicr.es.v1.stream.app',
+      JSON.stringify([
+        {
+          id: 'p-1',
+          version: 1,
+          at: '2026-01-01T00:00:01.000Z',
+          type: 'project-created',
+          payload: { projectId: 'project-a', name: 'Project A' }
+        },
+        {
+          id: 'p-2',
+          version: 2,
+          at: '2026-01-01T00:00:02.000Z',
+          type: 'project-created',
+          payload: { projectId: 'project-b', name: 'Project B' }
+        },
+        {
+          id: 'p-3',
+          version: 3,
+          at: '2026-01-01T00:00:03.000Z',
+          type: 'project-selected',
+          payload: { projectId: 'project-a' }
+        },
+        {
+          id: 'p-4',
+          version: 4,
+          at: '2026-01-01T00:00:04.000Z',
+          type: 'slice-added-to-project',
+          payload: { projectId: 'project-a', sliceId: 'slice-a' }
+        },
+        {
+          id: 'p-5',
+          version: 5,
+          at: '2026-01-01T00:00:05.000Z',
+          type: 'slice-added-to-project',
+          payload: { projectId: 'project-b', sliceId: 'slice-b' }
+        },
+        {
+          id: 'p-6',
+          version: 6,
+          at: '2026-01-01T00:00:06.000Z',
+          type: 'slice-selected',
+          payload: { projectId: 'project-a', selectedSliceId: 'slice-a' }
+        }
+      ])
     );
     localStorage.setItem(
-      'slicr.es.v2.project.project-a.index',
-      JSON.stringify({
-        selectedSliceId: 'slice-a',
-        sliceIds: ['slice-a']
-      })
-    );
-    localStorage.setItem(
-      'slicr.es.v2.project.project-b.index',
-      JSON.stringify({
-        selectedSliceId: 'slice-b',
-        sliceIds: ['slice-b']
-      })
-    );
-    localStorage.setItem(
-      'slicr.es.v2.project.project-a.stream.slice-a',
+      'slicr.es.v1.stream.slice-a',
       JSON.stringify([
         {
           id: 'a-1',
@@ -800,7 +821,7 @@ describe('App node analysis interactions', () => {
       ])
     );
     localStorage.setItem(
-      'slicr.es.v2.project.project-b.stream.slice-b',
+      'slicr.es.v1.stream.slice-b',
       JSON.stringify([
         {
           id: 'b-1',

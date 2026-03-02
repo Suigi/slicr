@@ -139,6 +139,7 @@ export type ActionsSection = {
   onSelectSlice: (sliceId: string) => void;
   onCreateSlice: () => void;
   onSwitchProject: (projectId: string) => void;
+  onCreateProject: (name: string) => void;
   onResetManualLayout: () => void;
   onPrintGeometry: () => Promise<void>;
   onNodeOpenInEditor: (nodeKey: string, range: Range) => void;

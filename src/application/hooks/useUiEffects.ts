@@ -3,7 +3,6 @@ import { useEffect } from 'react';
 import type { SliceLibrary } from '../../sliceLibrary';
 import { saveSliceLibrary, saveSliceLayoutOverrides, selectSlice } from '../../sliceLibrary';
 import type { ProjectIndex } from '../../projectLibrary';
-import { saveProjectIndex } from '../../projectLibrary';
 
 export type UseUiEffectsArgs = {
   projectIndex: ProjectIndex;
@@ -88,13 +87,7 @@ export function useUiEffects(args: UseUiEffectsArgs) {
     }
   }, [library, selectedProjectId]);
 
-  useEffect(() => {
-    try {
-      saveProjectIndex(projectIndex);
-    } catch {
-      // Ignore storage failures.
-    }
-  }, [projectIndex]);
+  void projectIndex;
 
   useEffect(() => {
     if (skipNextLayoutSaveRef.current) {
