@@ -2,24 +2,15 @@ import { DocumentationPanel } from '../DocumentationPanel';
 import type { AppShellProps } from '../application/appViewModel';
 import { AppHeader } from './app-shell/AppHeader';
 import { CommandPalette } from './app-shell/CommandPalette';
+import { DiagramCanvas } from './app-shell/DiagramCanvas';
 import { NodeAnalysisPanel } from './app-shell/NodeAnalysisPanel';
 import { NodeMeasureLayer } from './app-shell/NodeMeasureLayer';
+import { AnalysisProvider } from './app-shell/contexts/AnalysisContext';
+import { DiagramInteractionProvider } from './app-shell/contexts/DiagramInteractionContext';
+import { HeaderUiProvider } from './app-shell/contexts/HeaderUiContext';
 
 export function AppShell(props: AppShellProps) {
   const { header, editor, diagram, analysisPanel, auxPanels, constants, actions } = props;
-  const {
-    DiagramRenderer,
-    rendererViewportKey,
-    sceneModel,
-    initialCamera,
-    dragTooltip,
-    dragAndDropEnabled,
-    isPanning,
-    canvasPanelRef,
-    beginCanvasPan,
-    beginNodeDrag,
-    beginEdgeSegmentDrag
-  } = diagram;
   const {
     editorOpen,
     editorRef,
@@ -32,11 +23,9 @@ export function AppShell(props: AppShellProps) {
 
   return (
     <>
-      <AppHeader
-        header={header}
-        actions={actions}
-        editorOpen={editor.editorOpen}
-      />
+      <HeaderUiProvider value={{ header, actions, editorOpen: editor.editorOpen }}>
+        <AppHeader />
+      </HeaderUiProvider>
 
       <div className="main">
         <div ref={editorRef} className={`editor-panel ${editorOpen ? 'open' : ''}`}>
@@ -66,31 +55,55 @@ export function AppShell(props: AppShellProps) {
           {errorText && <div className="error-bar">{errorText}</div>}
         </div>
 
-        <DiagramRenderer
-          key={rendererViewportKey}
-          sceneModel={sceneModel}
-          canvasPanelRef={canvasPanelRef}
-          isPanning={isPanning}
-          docsOpen={auxPanels.docsOpen}
-          dragTooltip={dragTooltip}
-          dragAndDropEnabled={dragAndDropEnabled}
-          routeMode={header.routeMode}
-          beginCanvasPan={beginCanvasPan}
-          beginNodeDrag={beginNodeDrag}
-          beginEdgeSegmentDrag={beginEdgeSegmentDrag}
-          onNodeHoverRange={actions.onNodeHoverRange}
-          onNodeSelect={actions.onNodeSelect}
-          onNodeOpenInEditor={actions.onNodeOpenInEditor}
-          onEdgeHover={actions.onEdgeHover}
-          initialCamera={initialCamera}
-        />
+        <DiagramInteractionProvider
+          value={{
+            diagram: {
+              DiagramRenderer: diagram.DiagramRenderer,
+              rendererViewportKey: diagram.rendererViewportKey,
+              sceneModel: diagram.sceneModel,
+              initialCamera: diagram.initialCamera,
+              dragTooltip: diagram.dragTooltip,
+              dragAndDropEnabled: diagram.dragAndDropEnabled,
+              isPanning: diagram.isPanning,
+              canvasPanelRef: diagram.canvasPanelRef,
+              beginCanvasPan: diagram.beginCanvasPan,
+              beginNodeDrag: diagram.beginNodeDrag,
+              beginEdgeSegmentDrag: diagram.beginEdgeSegmentDrag
+            },
+            docsOpen: auxPanels.docsOpen,
+            routeMode: header.routeMode,
+            actions: {
+              onNodeHoverRange: actions.onNodeHoverRange,
+              onNodeSelect: actions.onNodeSelect,
+              onNodeOpenInEditor: actions.onNodeOpenInEditor,
+              onEdgeHover: actions.onEdgeHover
+            }
+          }}
+        >
+          <DiagramCanvas />
+        </DiagramInteractionProvider>
 
-        <NodeAnalysisPanel
-          analysisPanel={analysisPanel}
-          diagram={diagram}
-          constants={constants}
-          actions={actions}
-        />
+        <AnalysisProvider
+          value={{
+            analysisPanel,
+            diagram: { parsed: diagram.parsed, currentDsl: diagram.currentDsl },
+            constants: {
+              TYPE_LABEL: constants.TYPE_LABEL,
+              formatTraceSource: constants.formatTraceSource,
+              getAmbiguousSourceCandidates: constants.getAmbiguousSourceCandidates
+            },
+            actions: {
+              onSelectedNodePanelTabChange: actions.onSelectedNodePanelTabChange,
+              onToggleCrossSliceDataExpanded: actions.onToggleCrossSliceDataExpanded,
+              onToggleCrossSliceTraceExpanded: actions.onToggleCrossSliceTraceExpanded,
+              onTraceNodeHover: actions.onTraceNodeHover,
+              onSetSourceOverride: actions.onSetSourceOverride,
+              onJumpToUsage: actions.onJumpToUsage
+            }
+          }}
+        >
+          <NodeAnalysisPanel />
+        </AnalysisProvider>
 
         <CommandPalette auxPanels={auxPanels} actions={actions} />
 

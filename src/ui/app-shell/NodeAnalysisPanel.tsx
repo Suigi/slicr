@@ -1,14 +1,8 @@
 import { NodeCard } from '../../NodeCard';
-import type { ActionsSection, AnalysisPanelSection, ConstantsSection, DiagramSection } from '../../application/appViewModel';
+import { useAnalysisContext } from './contexts/AnalysisContext';
 
-type NodeAnalysisPanelProps = {
-  analysisPanel: AnalysisPanelSection;
-  diagram: DiagramSection;
-  constants: ConstantsSection;
-  actions: ActionsSection;
-};
-
-export function NodeAnalysisPanel({ analysisPanel, diagram, constants, actions }: NodeAnalysisPanelProps) {
+export function NodeAnalysisPanel() {
+  const { analysisPanel, diagram, constants, actions } = useAnalysisContext();
   const {
     selectedNode,
     selectedNodePanelTab,

@@ -1,16 +1,12 @@
-import type { ActionsSection, HeaderSection, ThemeMode } from '../../application/appViewModel';
-
-type AppHeaderProps = {
-  header: HeaderSection;
-  actions: ActionsSection;
-  editorOpen: boolean;
-};
+import type { ThemeMode } from '../../application/appViewModel';
+import { useHeaderUiContext } from './contexts/HeaderUiContext';
 
 function themeLabel(theme: ThemeMode): string {
   return theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme';
 }
 
-export function AppHeader({ header, actions, editorOpen }: AppHeaderProps) {
+export function AppHeader() {
+  const { header, actions, editorOpen } = useHeaderUiContext();
   const {
     currentSliceName,
     library,
