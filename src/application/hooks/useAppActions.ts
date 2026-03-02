@@ -34,6 +34,7 @@ type UseAppActionsArgs = {
   focusRange: (range: Range) => void;
   setSliceMenuOpen: Dispatch<SetStateAction<boolean>>;
   setRouteMenuOpen: Dispatch<SetStateAction<boolean>>;
+  setProjectRailOpen: Dispatch<SetStateAction<boolean>>;
   setMobileMenuOpen: Dispatch<SetStateAction<boolean>>;
   setCreateProjectDialogOpen: Dispatch<SetStateAction<boolean>>;
   setTheme: Dispatch<SetStateAction<'dark' | 'light'>>;
@@ -72,6 +73,7 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
     focusRange,
     setSliceMenuOpen,
     setRouteMenuOpen,
+    setProjectRailOpen,
     setMobileMenuOpen,
     setCreateProjectDialogOpen,
     setTheme,
@@ -233,6 +235,7 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
   return {
     onToggleSliceMenu: () => setSliceMenuOpen((current) => !current),
     onToggleRouteMenu: () => setRouteMenuOpen((current) => !current),
+    onToggleProjectRail: () => setProjectRailOpen((current) => !current),
     onToggleMobileMenu: () => setMobileMenuOpen((current) => !current),
     onCloseMobileMenu: () => setMobileMenuOpen(false),
     onToggleTheme: () => setTheme((current) => (current === 'dark' ? 'light' : 'dark')),

@@ -127,6 +127,22 @@ function clickResetPositionsButton() {
   });
 }
 
+function ensureProjectRailOpen() {
+  const existingRail = document.querySelector('.project-rail') as HTMLElement | null;
+  if (existingRail && !existingRail.classList.contains('hidden')) {
+    return existingRail;
+  }
+  const railToggle = document.querySelector('button[aria-label="Toggle project rail"]') as HTMLButtonElement | null;
+  expect(railToggle).not.toBeNull();
+  act(() => {
+    railToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+  const rail = document.querySelector('.project-rail') as HTMLElement | null;
+  expect(rail).not.toBeNull();
+  expect(rail?.classList.contains('hidden')).toBe(false);
+  return rail as HTMLElement;
+}
+
 describe('App interactions', () => {
   it('loads default DSL when storage is empty and persists it', () => {
     renderApp();
@@ -271,10 +287,27 @@ rm:persisted-view`;
 
     renderApp();
 
-    const rail = document.querySelector('.project-rail');
-    expect(rail).not.toBeNull();
+    ensureProjectRailOpen();
     const items = [...document.querySelectorAll('.project-rail-slice-item')].map((el) => el.textContent?.trim());
     expect(items).toEqual(['Alpha One', 'Alpha Two']);
+  });
+
+  it('toggles project rail visibility from header hamburger button', () => {
+    renderApp();
+
+    expect(document.querySelector('.project-rail')?.classList.contains('hidden')).toBe(true);
+    const railToggle = document.querySelector('button[aria-label="Toggle project rail"]') as HTMLButtonElement | null;
+    expect(railToggle).not.toBeNull();
+
+    act(() => {
+      railToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(document.querySelector('.project-rail')?.classList.contains('hidden')).toBe(false);
+
+    act(() => {
+      railToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(document.querySelector('.project-rail')?.classList.contains('hidden')).toBe(true);
   });
 
   it('switches project from a dropdown at the top of the project rail', () => {
@@ -354,8 +387,7 @@ rm:persisted-view`;
 
     renderApp();
 
-    const rail = document.querySelector('.project-rail');
-    expect(rail).not.toBeNull();
+    const rail = ensureProjectRailOpen();
 
     const projectToggle = rail?.querySelector('button[aria-label="Select project"]') as HTMLButtonElement | null;
     expect(projectToggle).not.toBeNull();
@@ -377,8 +409,7 @@ rm:persisted-view`;
 
   it('creates a project from the rail dropdown and appends a project-created event', () => {
     renderApp();
-    const rail = document.querySelector('.project-rail');
-    expect(rail).not.toBeNull();
+    const rail = ensureProjectRailOpen();
 
     const projectToggle = rail?.querySelector('button[aria-label="Select project"]') as HTMLButtonElement | null;
     expect(projectToggle).not.toBeNull();
@@ -439,8 +470,7 @@ rm:persisted-view`;
 
   it('closes create project dialog on Escape', () => {
     renderApp();
-    const rail = document.querySelector('.project-rail');
-    expect(rail).not.toBeNull();
+    const rail = ensureProjectRailOpen();
 
     const projectToggle = rail?.querySelector('button[aria-label="Select project"]') as HTMLButtonElement | null;
     expect(projectToggle).not.toBeNull();
@@ -466,8 +496,7 @@ rm:persisted-view`;
 
   it('closes create project dialog on Escape keyup after input blur', () => {
     renderApp();
-    const rail = document.querySelector('.project-rail');
-    expect(rail).not.toBeNull();
+    const rail = ensureProjectRailOpen();
 
     const projectToggle = rail?.querySelector('button[aria-label="Select project"]') as HTMLButtonElement | null;
     expect(projectToggle).not.toBeNull();
@@ -494,8 +523,7 @@ rm:persisted-view`;
 
   it('creates project on Enter in the create project dialog', () => {
     renderApp();
-    const rail = document.querySelector('.project-rail');
-    expect(rail).not.toBeNull();
+    const rail = ensureProjectRailOpen();
 
     const projectToggle = rail?.querySelector('button[aria-label="Select project"]') as HTMLButtonElement | null;
     expect(projectToggle).not.toBeNull();

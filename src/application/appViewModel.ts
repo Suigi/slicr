@@ -58,6 +58,7 @@ export type HeaderSection = {
   sliceMenuOpen: boolean;
   routeMenuOpen: boolean;
   mobileMenuOpen: boolean;
+  projectRailOpen: boolean;
   sliceMenuRef: RefObject<HTMLDivElement>;
   routeMenuRef: RefObject<HTMLDivElement>;
   mobileMenuRef: RefObject<HTMLDivElement>;
@@ -131,6 +132,7 @@ export type ConstantsSection = {
 export type ActionsSection = {
   onToggleSliceMenu: () => void;
   onToggleRouteMenu: () => void;
+  onToggleProjectRail: () => void;
   onToggleMobileMenu: () => void;
   onCloseMobileMenu: () => void;
   onToggleTheme: () => void;

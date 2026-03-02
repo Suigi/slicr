@@ -19,6 +19,7 @@ export function AppHeader() {
     sliceMenuOpen,
     routeMenuOpen,
     mobileMenuOpen,
+    projectRailOpen,
     sliceMenuRef,
     routeMenuRef,
     mobileMenuRef,
@@ -27,6 +28,23 @@ export function AppHeader() {
 
   return (
     <header>
+      <button
+        type="button"
+        className="project-rail-toggle"
+        aria-label="Toggle project rail"
+        title={projectRailOpen ? 'Hide project rail' : 'Show project rail'}
+        onClick={actions.onToggleProjectRail}
+        style={{
+          color: projectRailOpen ? 'var(--text)' : undefined,
+          borderColor: projectRailOpen ? 'var(--text)' : undefined
+        }}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <line x1="4" y1="7" x2="20" y2="7" />
+          <line x1="4" y1="12" x2="20" y2="12" />
+          <line x1="4" y1="17" x2="20" y2="17" />
+        </svg>
+      </button>
       <h1>Slicer</h1>
       <div className="legend">
         <div className="legend-item">

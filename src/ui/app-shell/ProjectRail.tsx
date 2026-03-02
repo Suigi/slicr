@@ -5,9 +5,10 @@ type ProjectRailProps = {
   header: HeaderSection;
   actions: ActionsSection;
   auxPanels: AuxPanelsSection;
+  visible: boolean;
 };
 
-export function ProjectRail({ header, actions, auxPanels }: ProjectRailProps) {
+export function ProjectRail({ header, actions, auxPanels, visible }: ProjectRailProps) {
   const { currentProjectName, library, getSliceNameFromDsl, projectIndex, selectedProjectId } = header;
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
@@ -15,7 +16,7 @@ export function ProjectRail({ header, actions, auxPanels }: ProjectRailProps) {
   const createProjectDialogRef = useRef<HTMLDivElement>(null);
 
   return (
-    <aside className="project-rail" aria-label="Project rail">
+    <aside className={`project-rail ${visible ? '' : 'hidden'}`} aria-label="Project rail">
       <div className="project-rail-header">
         <span className="project-rail-label">Project</span>
         <div className="project-menu project-menu-inline">

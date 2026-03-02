@@ -64,6 +64,7 @@ export function useAppLocalState() {
   const [sliceMenuOpen, setSliceMenuOpen] = useState(false);
   const [routeMenuOpen, setRouteMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [projectRailOpen, setProjectRailOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [createProjectDialogOpen, setCreateProjectDialogOpen] = useState(false);
   const [manualNodePositions, setManualNodePositions] = useState<Record<string, { x: number; y: number }>>(
@@ -127,6 +128,8 @@ export function useAppLocalState() {
     setRouteMenuOpen,
     mobileMenuOpen,
     setMobileMenuOpen,
+    projectRailOpen,
+    setProjectRailOpen,
     commandPaletteOpen,
     setCommandPaletteOpen,
     createProjectDialogOpen,

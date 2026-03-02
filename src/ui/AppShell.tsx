@@ -29,7 +29,7 @@ export function AppShell(props: AppShellProps) {
       </HeaderUiProvider>
 
       <div className="main">
-        <ProjectRail header={header} actions={actions} auxPanels={auxPanels} />
+        <ProjectRail header={header} actions={actions} auxPanels={auxPanels} visible={header.projectRailOpen} />
 
         <div ref={editorRef} className={`editor-panel ${editorOpen ? 'open' : ''}`}>
           <div className="panel-label">
