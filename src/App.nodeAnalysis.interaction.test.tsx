@@ -1065,6 +1065,37 @@ describe('App node analysis interactions', () => {
     expect(filteredItems).toEqual(['Switch Project: Project C']);
   });
 
+  it('selects all command palette input text when reopened', () => {
+    renderApp();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+    });
+
+    const search = document.querySelector('.command-palette-search') as HTMLInputElement | null;
+    expect(search).not.toBeNull();
+    act(() => {
+      if (search) {
+        const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+        valueSetter?.call(search, 'switch project');
+        search.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+    });
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+    });
+
+    const reopened = document.querySelector('.command-palette-search') as HTMLInputElement | null;
+    expect(reopened).not.toBeNull();
+    expect(reopened?.value).toBe('switch project');
+    expect(reopened?.selectionStart).toBe(0);
+    expect(reopened?.selectionEnd).toBe('switch project'.length);
+  });
+
   it('runs the default create project command on Enter and closes', () => {
     localStorage.setItem(
       'slicr.es.v1.stream.app',

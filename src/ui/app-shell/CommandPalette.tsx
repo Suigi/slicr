@@ -12,6 +12,7 @@ export function CommandPalette({ auxPanels, actions, header }: CommandPalettePro
   const [selectedIndex, setSelectedIndex] = useState(0);
   const paletteRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const shouldSelectOnFocusRef = useRef(false);
 
   const commands = useMemo(
     () => [
@@ -43,6 +44,7 @@ export function CommandPalette({ auxPanels, actions, header }: CommandPalettePro
 
   useEffect(() => {
     if (!auxPanels.commandPaletteOpen) return;
+    shouldSelectOnFocusRef.current = true;
     searchRef.current?.focus();
   }, [auxPanels.commandPaletteOpen]);
 
@@ -70,6 +72,13 @@ export function CommandPalette({ auxPanels, actions, header }: CommandPalettePro
           aria-label="Filter commands"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
+          onFocus={(event) => {
+            if (!shouldSelectOnFocusRef.current) {
+              return;
+            }
+            shouldSelectOnFocusRef.current = false;
+            event.currentTarget.setSelectionRange(0, event.currentTarget.value.length);
+          }}
           onBlur={() => {
             requestAnimationFrame(() => {
               const active = document.activeElement;
