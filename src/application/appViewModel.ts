@@ -89,6 +89,7 @@ export type DiagramSection = {
 
 export type AnalysisPanelSection = {
   selectedNode: VisualNode | null;
+  selectedSliceId: string;
   selectedNodePanelTab: NodePanelTab;
   selectedNodeAnalysisRef: string | null;
   selectedNodeAnalysisHeader: { type: string; key: string };

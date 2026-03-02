@@ -300,6 +300,7 @@ export function useAppState(): UseAppStateResult {
     },
     analysisPanel: {
       selectedNode: analysis.selectedNode,
+      selectedSliceId: library.selectedSliceId,
       selectedNodePanelTab: analysis.selectedNodePanelTab,
       selectedNodeAnalysisRef: analysis.selectedNodeAnalysisRef,
       selectedNodeAnalysisHeader: analysis.selectedNodeAnalysisHeader,

@@ -105,6 +105,34 @@ describe('App node analysis interactions', () => {
     expect(document.querySelector('.cross-slice-usage-item .node .node-header')).not.toBeNull();
   });
 
+  it('marks the usage card for the currently selected node as selected', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [
+          { id: 'a', dsl: 'slice "Alpha"\n\ncmd:buy "Buy Here"\n' },
+          { id: 'b', dsl: 'slice "Beta"\n\ncmd:buy "Buy There"\n' }
+        ]
+      })
+    );
+
+    renderApp();
+
+    const node = document.querySelector('.node.cmd') as HTMLElement | null;
+    expect(node).not.toBeNull();
+    act(() => {
+      node?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const selectedUsageNode = document.querySelector('.cross-slice-usage-item[data-slice-id="a"] .node') as HTMLElement | null;
+    const otherUsageNode = document.querySelector('.cross-slice-usage-item[data-slice-id="b"] .node') as HTMLElement | null;
+    expect(selectedUsageNode).not.toBeNull();
+    expect(otherUsageNode).not.toBeNull();
+    expect(selectedUsageNode?.classList.contains('selected')).toBe(true);
+    expect(otherUsageNode?.classList.contains('selected')).toBe(false);
+  });
+
   it('groups Cross-Slice Usage entries by slice', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,

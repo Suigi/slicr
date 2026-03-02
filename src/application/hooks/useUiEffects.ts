@@ -125,6 +125,9 @@ export function useUiEffects(args: UseUiEffectsArgs) {
 
   useEffect(() => {
     const deselectOnCanvasClick = (event: PointerEvent) => {
+      if (event.button !== 0) {
+        return;
+      }
       const target = event.target;
       if (!(target instanceof Node)) {
         return;
@@ -137,7 +140,50 @@ export function useUiEffects(args: UseUiEffectsArgs) {
       const isEdgeHandleClick = targetElement.closest('.edge-segment-handle');
 
       if (isCanvasClick && !isNodeClick && !isEdgeHandleClick) {
-        setSelectedNodeKey(null);
+        const pointerId = event.pointerId;
+        const startX = event.clientX;
+        const startY = event.clientY;
+        let moved = false;
+        const DRAG_THRESHOLD_PX = 4;
+
+        const cleanup = () => {
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', onUp);
+          window.removeEventListener('pointercancel', onCancel);
+        };
+
+        const onMove = (moveEvent: PointerEvent) => {
+          if (moveEvent.pointerId !== pointerId) {
+            return;
+          }
+          if (
+            Math.abs(moveEvent.clientX - startX) > DRAG_THRESHOLD_PX
+            || Math.abs(moveEvent.clientY - startY) > DRAG_THRESHOLD_PX
+          ) {
+            moved = true;
+          }
+        };
+
+        const onUp = (upEvent: PointerEvent) => {
+          if (upEvent.pointerId !== pointerId) {
+            return;
+          }
+          cleanup();
+          if (!moved) {
+            setSelectedNodeKey(null);
+          }
+        };
+
+        const onCancel = (cancelEvent: PointerEvent) => {
+          if (cancelEvent.pointerId !== pointerId) {
+            return;
+          }
+          cleanup();
+        };
+
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+        window.addEventListener('pointercancel', onCancel);
       }
     };
 

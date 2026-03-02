@@ -13,10 +13,10 @@ describe('nodeMeasurement', () => {
     measuredNode.getBoundingClientRect = () => ({
       x: 0,
       y: 0,
-      width: 180,
+      width: 180.2,
       height: 97.4,
       top: 0,
-      right: 180,
+      right: 180.2,
       bottom: 97.4,
       left: 0,
       toJSON: () => ({})
@@ -41,7 +41,7 @@ describe('nodeMeasurement', () => {
 
     expect(NODE_MEASURE_NODE_SELECTOR).toBe(`.${NODE_MEASURE_NODE_CLASS}[data-node-key]`);
     expect(measureNodeDimensions(container)).toEqual({
-      'buy-ticket': { width: 180, height: 97 }
+      'buy-ticket': { width: 181, height: 98 }
     });
   });
 

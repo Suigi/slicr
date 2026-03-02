@@ -1191,6 +1191,37 @@ uses:
     expect(afterNodeMoveCount).toBe(beforeNodeMoveCount + 1);
   });
 
+  it('keeps the selected node selected while left-button panning the canvas', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{ id: 'a', dsl: 'slice "A"\n\nevt:simple-event' }]
+      })
+    );
+
+    renderApp();
+
+    const node = document.querySelector('.node.evt') as HTMLElement | null;
+    const canvas = document.getElementById('canvas') as HTMLElement | null;
+    expect(node).not.toBeNull();
+    expect(canvas).not.toBeNull();
+
+    act(() => {
+      node?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(node?.classList.contains('selected')).toBe(true);
+
+    const PointerCtor = window.PointerEvent ?? window.MouseEvent;
+    act(() => {
+      canvas?.dispatchEvent(new PointerCtor('pointerdown', { bubbles: true, button: 0, clientX: 120, clientY: 120, pointerId: 7 }));
+      window.dispatchEvent(new PointerCtor('pointermove', { bubbles: true, buttons: 1, clientX: 170, clientY: 170, pointerId: 7 }));
+      window.dispatchEvent(new PointerCtor('pointerup', { bubbles: true, button: 0, clientX: 170, clientY: 170, pointerId: 7 }));
+    });
+
+    expect(node?.classList.contains('selected')).toBe(true);
+  });
+
   it('does not drag nodes when drag-and-drop flag is disabled', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,

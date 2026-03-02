@@ -5,6 +5,7 @@ export function NodeAnalysisPanel() {
   const { analysisPanel, diagram, constants, actions } = useAnalysisContext();
   const {
     selectedNode,
+    selectedSliceId,
     selectedNodePanelTab,
     selectedNodeAnalysisRef,
     selectedNodeAnalysisHeader,
@@ -80,6 +81,7 @@ export function NodeAnalysisPanel() {
                   {group.entries.map(({ usage, node }) => {
                     const nodeType = node?.type ?? '';
                     const nodePrefix = TYPE_LABEL[nodeType] ?? nodeType;
+                    const isSelectedUsageNode = usage.sliceId === selectedSliceId && usage.nodeKey === selectedNode.key;
                     return (
                       <button
                         key={`${usage.sliceId}:${usage.nodeKey}`}
@@ -99,7 +101,7 @@ export function NodeAnalysisPanel() {
                             srcRange: { from: 0, to: 0 }
                           }}
                           nodePrefix={nodePrefix}
-                          className="cross-slice-usage-node-card"
+                          className={`cross-slice-usage-node-card ${isSelectedUsageNode ? 'selected' : ''}`.trim()}
                           maxFields={2}
                         />
                       </button>

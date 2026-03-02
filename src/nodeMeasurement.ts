@@ -11,8 +11,8 @@ export function measureNodeDimensions(root: ParentNode = document): Record<strin
     if (!key) {
       return;
     }
-    const width = Math.round(element.getBoundingClientRect().width);
-    const height = Math.round(element.getBoundingClientRect().height);
+    const width = Math.ceil(element.getBoundingClientRect().width);
+    const height = Math.ceil(element.getBoundingClientRect().height);
     if (Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0) {
       measured[key] = { width, height };
     }
