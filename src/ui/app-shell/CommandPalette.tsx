@@ -1,11 +1,12 @@
-import type { ActionsSection, AuxPanelsSection } from '../../application/appViewModel';
+import type { ActionsSection, AuxPanelsSection, HeaderSection } from '../../application/appViewModel';
 
 type CommandPaletteProps = {
   auxPanels: AuxPanelsSection;
   actions: ActionsSection;
+  header: HeaderSection;
 };
 
-export function CommandPalette({ auxPanels, actions }: CommandPaletteProps) {
+export function CommandPalette({ auxPanels, actions, header }: CommandPaletteProps) {
   if (!auxPanels.commandPaletteOpen) {
     return null;
   }
@@ -18,6 +19,18 @@ export function CommandPalette({ auxPanels, actions }: CommandPaletteProps) {
       <button type="button" className="command-palette-item" onClick={actions.onShowUsageCommand}>
         Show cross-slice usage
       </button>
+      {header.projectIndex.projects
+        .filter((project) => project.id !== header.selectedProjectId)
+        .map((project) => (
+          <button
+            key={project.id}
+            type="button"
+            className="command-palette-item"
+            onClick={() => actions.onSwitchProject(project.id)}
+          >
+            {`Switch Project: ${project.name}`}
+          </button>
+        ))}
     </div>
   );
 }

@@ -105,7 +105,7 @@ export function AppShell(props: AppShellProps) {
           <NodeAnalysisPanel />
         </AnalysisProvider>
 
-        <CommandPalette auxPanels={auxPanels} actions={actions} />
+        <CommandPalette auxPanels={auxPanels} actions={actions} header={header} />
 
         {(auxPanels.hasOpenedDocs || auxPanels.docsOpen) && (
           <div className={`docs-panel-shell ${auxPanels.docsOpen ? '' : 'hidden'}`} aria-hidden={!auxPanels.docsOpen}>

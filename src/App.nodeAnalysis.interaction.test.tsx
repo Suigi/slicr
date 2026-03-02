@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import App from './App';
 import { CROSS_SLICE_DATA_FLAG_STORAGE_KEY } from './domain/runtimeFlags';
 import { SLICES_STORAGE_KEY } from './sliceLibrary';
+import { PROJECTS_INDEX_STORAGE_KEY } from './projectLibrary';
 import { hydrateSliceProjection } from './sliceEventStore';
 
 let root: ReactDOM.Root | null = null;
@@ -47,7 +48,7 @@ function renderAppStrict() {
 }
 
 function readStoredLibrary() {
-  const indexRaw = localStorage.getItem('slicr.es.v1.index');
+  const indexRaw = localStorage.getItem('slicr.es.v2.project.default.index');
   if (!indexRaw) {
     return null;
   }
@@ -59,7 +60,7 @@ function readStoredLibrary() {
   if (sliceIds.length === 0) {
     return null;
   }
-  const appStreamRaw = localStorage.getItem('slicr.es.v1.stream.app');
+  const appStreamRaw = localStorage.getItem('slicr.es.v2.project.default.stream.app');
   const appEvents = appStreamRaw ? (JSON.parse(appStreamRaw) as Array<{ version?: number; payload?: { selectedSliceId?: string } }>) : [];
   const selectedEvents = appEvents
     .filter((event): event is { version: number; payload: { selectedSliceId: string } } => (
@@ -758,6 +759,74 @@ describe('App node analysis interactions', () => {
     });
 
     expect(document.querySelector('.command-palette')).toBeNull();
+  });
+
+  it('switches project from command palette and scopes active slice', () => {
+    localStorage.setItem(
+      PROJECTS_INDEX_STORAGE_KEY,
+      JSON.stringify({
+        selectedProjectId: 'project-a',
+        projects: [
+          { id: 'project-a', name: 'Project A' },
+          { id: 'project-b', name: 'Project B' }
+        ]
+      })
+    );
+    localStorage.setItem(
+      'slicr.es.v2.project.project-a.index',
+      JSON.stringify({
+        selectedSliceId: 'slice-a',
+        sliceIds: ['slice-a']
+      })
+    );
+    localStorage.setItem(
+      'slicr.es.v2.project.project-b.index',
+      JSON.stringify({
+        selectedSliceId: 'slice-b',
+        sliceIds: ['slice-b']
+      })
+    );
+    localStorage.setItem(
+      'slicr.es.v2.project.project-a.stream.slice-a',
+      JSON.stringify([
+        {
+          id: 'a-1',
+          sliceId: 'slice-a',
+          version: 1,
+          at: '2026-01-01T00:00:01.000Z',
+          type: 'slice-created',
+          payload: { initialDsl: 'slice "Alpha A"\n\ncmd:buy "Buy A"' }
+        }
+      ])
+    );
+    localStorage.setItem(
+      'slicr.es.v2.project.project-b.stream.slice-b',
+      JSON.stringify([
+        {
+          id: 'b-1',
+          sliceId: 'slice-b',
+          version: 1,
+          at: '2026-01-01T00:00:01.000Z',
+          type: 'slice-created',
+          payload: { initialDsl: 'slice "Beta B"\n\ncmd:buy "Buy B"' }
+        }
+      ])
+    );
+
+    renderApp();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+    });
+
+    const switchProject = [...document.querySelectorAll('.command-palette-item')]
+      .find((button) => button.textContent?.trim() === 'Switch Project: Project B') as HTMLButtonElement | undefined;
+    expect(switchProject).toBeDefined();
+    act(() => {
+      switchProject?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(document.querySelector('.slice-select-label')?.textContent).toContain('Beta B');
   });
 
   it('runs trace with keyboard shortcut for selected nodes', () => {

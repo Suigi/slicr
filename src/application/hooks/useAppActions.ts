@@ -1,5 +1,7 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
-import { addNewSlice, selectSlice, type SliceLibrary } from '../../sliceLibrary';
+import { addNewSlice, loadSliceLibrary, selectSlice, type SliceLibrary } from '../../sliceLibrary';
+import { selectProject, type ProjectIndex } from '../../projectLibrary';
+import { DEFAULT_DSL } from '../../defaultDsl';
 import type { Parsed, Position } from '../../domain/types';
 import type { DiagramPoint } from '../../domain/diagramRouting';
 import type { ActionsSection, NodePanelTab } from '../appViewModel';
@@ -22,7 +24,10 @@ type UseAppActionsArgs = {
   setSelectedNodeKey: Dispatch<SetStateAction<string | null>>;
   setHighlightRange: Dispatch<SetStateAction<Range | null>>;
   setLibrary: Dispatch<SetStateAction<SliceLibrary>>;
-  applySelectedSliceOverrides: (sliceId: string) => void;
+  projectIndex: ProjectIndex;
+  setProjectIndex: Dispatch<SetStateAction<ProjectIndex>>;
+  selectedProjectId: string;
+  applySelectedSliceOverrides: (sliceId: string, projectId?: string) => void;
   pendingFocusNodeKeyRef: MutableRefObject<string | null>;
   setFocusRequestVersion: Dispatch<SetStateAction<number>>;
   setEditorOpen: Dispatch<SetStateAction<boolean>>;
@@ -56,6 +61,9 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
     setSelectedNodeKey,
     setHighlightRange,
     setLibrary,
+    projectIndex,
+    setProjectIndex,
+    selectedProjectId,
     applySelectedSliceOverrides,
     pendingFocusNodeKeyRef,
     setFocusRequestVersion,
@@ -83,6 +91,28 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
       applySelectedSliceOverrides(nextLibrary.selectedSliceId);
     }
     return nextLibrary;
+  };
+
+  const onSwitchProject = (projectId: string) => {
+    if (projectId === selectedProjectId) {
+      setCommandPaletteOpen(false);
+      return;
+    }
+    const nextProjectIndex = selectProject(projectIndex, projectId);
+    if (nextProjectIndex.selectedProjectId === selectedProjectId) {
+      setCommandPaletteOpen(false);
+      return;
+    }
+
+    const nextLibrary = loadSliceLibrary(DEFAULT_DSL, nextProjectIndex.selectedProjectId);
+    setProjectIndex(nextProjectIndex);
+    setLibrary(nextLibrary);
+    setSelectedNodeKey(null);
+    setHighlightRange(null);
+    setHoveredEdgeKey(null);
+    setHoveredTraceNodeKey(null);
+    applySelectedSliceOverrides(nextLibrary.selectedSliceId, nextProjectIndex.selectedProjectId);
+    setCommandPaletteOpen(false);
   };
 
   const onPrintGeometry = async () => {
@@ -184,6 +214,7 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
     onRouteModeChange: (mode) => setRouteMode(mode),
     onSelectSlice,
     onCreateSlice,
+    onSwitchProject,
     onResetManualLayout: resetManualLayout,
     onPrintGeometry,
     onNodeOpenInEditor: (nodeKey, range) => {

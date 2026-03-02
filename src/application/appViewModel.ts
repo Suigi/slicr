@@ -7,6 +7,7 @@ import type { DiagramRendererId } from '../domain/runtimeFlags';
 import type { DragTooltipState } from '../useDiagramInteractions';
 import type { Range } from '../useDslEditor';
 import type { SliceLibrary } from '../sliceLibrary';
+import type { ProjectIndex } from '../projectLibrary';
 import type { Parsed, VisualNode } from '../domain/types';
 import type { FormattedNodeField } from '../domain/formatNodeData';
 import type { DataIssue } from '../domain/dataIssues';
@@ -43,6 +44,9 @@ export type RangeHoverHandler = (range: Range | null) => void;
 export type TraceNodeHoverHandler = ValueChangeHandler<string | null>;
 
 export type HeaderSection = {
+  projectIndex: ProjectIndex;
+  selectedProjectId: string;
+  currentProjectName: string;
   currentSliceName: string;
   library: SliceLibrary;
   getSliceNameFromDsl: (dsl: string) => string;
@@ -134,6 +138,7 @@ export type ActionsSection = {
   onRouteModeChange: (mode: DiagramEngineId) => void;
   onSelectSlice: (sliceId: string) => void;
   onCreateSlice: () => void;
+  onSwitchProject: (projectId: string) => void;
   onResetManualLayout: () => void;
   onPrintGeometry: () => Promise<void>;
   onNodeOpenInEditor: (nodeKey: string, range: Range) => void;

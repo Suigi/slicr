@@ -53,7 +53,7 @@ function renderAppStrict() {
 }
 
 function readStoredLibrary() {
-  const indexRaw = localStorage.getItem('slicr.es.v1.index');
+  const indexRaw = localStorage.getItem('slicr.es.v2.project.default.index');
   if (!indexRaw) {
     return null;
   }
@@ -65,7 +65,7 @@ function readStoredLibrary() {
   if (sliceIds.length === 0) {
     return null;
   }
-  const appStreamRaw = localStorage.getItem('slicr.es.v1.stream.app');
+  const appStreamRaw = localStorage.getItem('slicr.es.v2.project.default.stream.app');
   const appEvents = appStreamRaw ? (JSON.parse(appStreamRaw) as Array<{ version?: number; payload?: { selectedSliceId?: string } }>) : [];
   const selectedEvents = appEvents
     .filter((event): event is { version: number; payload: { selectedSliceId: string } } => (
@@ -138,7 +138,7 @@ describe('App interactions', () => {
 
     expect(sliceTitle?.textContent).toBe(defaultName);
     expect(document.title).toBe(`${localPrefix}Slicer - ${defaultName}`);
-    expect(localStorage.getItem('slicr.es.v1.index')).not.toBeNull();
+    expect(localStorage.getItem('slicr.es.v2.project.default.index')).not.toBeNull();
     expect(localStorage.getItem('slicr.dsl')).toBeNull();
     const stored = readStoredLibrary();
     expect(stored?.slices[0]?.dsl).toBe(DEFAULT_DSL);
@@ -189,7 +189,7 @@ rm:persisted-view`;
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Beta');
     expect(document.title).toBe(`${localPrefix}Slicer - Beta`);
-    const streamRaw = localStorage.getItem('slicr.es.v1.stream.app');
+    const streamRaw = localStorage.getItem('slicr.es.v2.project.default.stream.app');
     expect(streamRaw).not.toBeNull();
     const events = JSON.parse(streamRaw ?? '[]') as Array<{ type: string; payload?: { selectedSliceId?: string } }>;
     expect(events.some((event) => event.type === 'slice-selected' && event.payload?.selectedSliceId === 'b')).toBe(true);
@@ -217,7 +217,7 @@ rm:persisted-view`;
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Beta');
 
-    const streamRaw = localStorage.getItem('slicr.es.v1.stream.app');
+    const streamRaw = localStorage.getItem('slicr.es.v2.project.default.stream.app');
     expect(streamRaw).not.toBeNull();
     const events = JSON.parse(streamRaw ?? '[]') as Array<{ type: string; payload?: { selectedSliceId?: string } }>;
     expect(events.some((event) => event.type === 'slice-selected' && event.payload?.selectedSliceId === 'b')).toBe(true);
@@ -245,7 +245,7 @@ rm:persisted-view`;
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Alpha');
 
-    const streamRaw = localStorage.getItem('slicr.es.v1.stream.app');
+    const streamRaw = localStorage.getItem('slicr.es.v2.project.default.stream.app');
     expect(streamRaw).not.toBeNull();
     const events = JSON.parse(streamRaw ?? '[]') as Array<{ type: string; payload?: { selectedSliceId?: string } }>;
     expect(events.some((event) => event.type === 'slice-selected' && event.payload?.selectedSliceId === 'a')).toBe(true);
@@ -266,7 +266,7 @@ rm:persisted-view`;
     renderApp();
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Beta');
-    const beforeRaw = localStorage.getItem('slicr.es.v1.stream.app');
+    const beforeRaw = localStorage.getItem('slicr.es.v2.project.default.stream.app');
     const beforeEvents = JSON.parse(beforeRaw ?? '[]') as Array<{ type: string }>;
     const beforeSelectedCount = beforeEvents.filter((event) => event.type === 'slice-selected').length;
 
@@ -275,7 +275,7 @@ rm:persisted-view`;
     });
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Beta');
-    const afterRaw = localStorage.getItem('slicr.es.v1.stream.app');
+    const afterRaw = localStorage.getItem('slicr.es.v2.project.default.stream.app');
     const afterEvents = JSON.parse(afterRaw ?? '[]') as Array<{ type: string }>;
     const afterSelectedCount = afterEvents.filter((event) => event.type === 'slice-selected').length;
     expect(afterSelectedCount).toBe(beforeSelectedCount);
@@ -296,7 +296,7 @@ rm:persisted-view`;
     renderApp();
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Alpha');
-    const beforeRaw = localStorage.getItem('slicr.es.v1.stream.app');
+    const beforeRaw = localStorage.getItem('slicr.es.v2.project.default.stream.app');
     const beforeEvents = JSON.parse(beforeRaw ?? '[]') as Array<{ type: string }>;
     const beforeSelectedCount = beforeEvents.filter((event) => event.type === 'slice-selected').length;
 
@@ -305,7 +305,7 @@ rm:persisted-view`;
     });
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Alpha');
-    const afterRaw = localStorage.getItem('slicr.es.v1.stream.app');
+    const afterRaw = localStorage.getItem('slicr.es.v2.project.default.stream.app');
     const afterEvents = JSON.parse(afterRaw ?? '[]') as Array<{ type: string }>;
     const afterSelectedCount = afterEvents.filter((event) => event.type === 'slice-selected').length;
     expect(afterSelectedCount).toBe(beforeSelectedCount);
@@ -346,7 +346,7 @@ rm:persisted-view`;
     expect(stored).not.toBeNull();
     const selected = stored?.slices.find((slice) => slice.id === stored.selectedSliceId);
     expect(selected?.dsl).toContain('slice "Untitled"');
-    const streamRaw = localStorage.getItem(`slicr.es.v1.stream.${stored?.selectedSliceId ?? ''}`);
+    const streamRaw = localStorage.getItem(`slicr.es.v2.project.default.stream.${stored?.selectedSliceId ?? ''}`);
     expect(streamRaw).not.toBeNull();
     const events = JSON.parse(streamRaw ?? '[]') as Array<{ type: string }>;
     expect(events.some((event) => event.type === 'slice-created')).toBe(true);
@@ -1166,7 +1166,7 @@ uses:
     const node = document.querySelector('.node.evt') as HTMLElement | null;
     expect(node).not.toBeNull();
 
-    const beforeRaw = localStorage.getItem('slicr.es.v1.stream.a');
+    const beforeRaw = localStorage.getItem('slicr.es.v2.project.default.stream.a');
     const beforeEvents = beforeRaw ? (JSON.parse(beforeRaw) as Array<{ type: string }>) : [];
     const beforeNodeMoveCount = beforeEvents.filter((event) => event.type === 'node-moved').length;
 
@@ -1176,7 +1176,7 @@ uses:
       window.dispatchEvent(new PointerCtor('pointermove', { bubbles: true, buttons: 1, clientX: 180, clientY: 180, pointerId: 1 }));
     });
 
-    const midRaw = localStorage.getItem('slicr.es.v1.stream.a');
+    const midRaw = localStorage.getItem('slicr.es.v2.project.default.stream.a');
     const midEvents = midRaw ? (JSON.parse(midRaw) as Array<{ type: string }>) : [];
     const midNodeMoveCount = midEvents.filter((event) => event.type === 'node-moved').length;
     expect(midNodeMoveCount).toBe(beforeNodeMoveCount);
@@ -1185,7 +1185,7 @@ uses:
       window.dispatchEvent(new PointerCtor('pointerup', { bubbles: true, button: 0, clientX: 180, clientY: 180, pointerId: 1 }));
     });
 
-    const afterRaw = localStorage.getItem('slicr.es.v1.stream.a');
+    const afterRaw = localStorage.getItem('slicr.es.v2.project.default.stream.a');
     const afterEvents = afterRaw ? (JSON.parse(afterRaw) as Array<{ type: string }>) : [];
     const afterNodeMoveCount = afterEvents.filter((event) => event.type === 'node-moved').length;
     expect(afterNodeMoveCount).toBe(beforeNodeMoveCount + 1);
@@ -1237,7 +1237,7 @@ uses:
     const node = document.querySelector('.node.evt') as HTMLElement | null;
     expect(node).not.toBeNull();
 
-    const beforeRaw = localStorage.getItem('slicr.es.v1.stream.a');
+    const beforeRaw = localStorage.getItem('slicr.es.v2.project.default.stream.a');
     const beforeEvents = beforeRaw ? (JSON.parse(beforeRaw) as Array<{ type: string }>) : [];
     const beforeNodeMoveCount = beforeEvents.filter((event) => event.type === 'node-moved').length;
 
@@ -1248,7 +1248,7 @@ uses:
       window.dispatchEvent(new PointerCtor('pointerup', { bubbles: true, button: 0, clientX: 180, clientY: 180, pointerId: 1 }));
     });
 
-    const afterRaw = localStorage.getItem('slicr.es.v1.stream.a');
+    const afterRaw = localStorage.getItem('slicr.es.v2.project.default.stream.a');
     const afterEvents = afterRaw ? (JSON.parse(afterRaw) as Array<{ type: string }>) : [];
     const afterNodeMoveCount = afterEvents.filter((event) => event.type === 'node-moved').length;
     expect(afterNodeMoveCount).toBe(beforeNodeMoveCount);
@@ -1282,14 +1282,14 @@ uses:
 
     renderApp();
 
-    const beforeRaw = localStorage.getItem('slicr.es.v1.stream.a');
+    const beforeRaw = localStorage.getItem('slicr.es.v2.project.default.stream.a');
     const beforeEvents = beforeRaw ? (JSON.parse(beforeRaw) as Array<{ type: string }>) : [];
     const beforeResetCount = beforeEvents.filter((event) => event.type === 'layout-reset').length;
 
     openRenderModeMenu();
     clickResetPositionsButton();
 
-    const afterRaw = localStorage.getItem('slicr.es.v1.stream.a');
+    const afterRaw = localStorage.getItem('slicr.es.v2.project.default.stream.a');
     const afterEvents = afterRaw ? (JSON.parse(afterRaw) as Array<{ type: string }>) : [];
     const afterResetCount = afterEvents.filter((event) => event.type === 'layout-reset').length;
     expect(afterResetCount).toBe(beforeResetCount + 1);

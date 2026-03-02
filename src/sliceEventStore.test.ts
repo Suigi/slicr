@@ -14,6 +14,8 @@ import {
   type SliceProjection
 } from './sliceEventStore';
 
+const DEFAULT_PROJECT_PREFIX = 'slicr.es.v2.project.default';
+
 afterEach(() => {
   localStorage.clear();
 });
@@ -104,7 +106,7 @@ describe('sliceEventStore', () => {
       at: '2026-01-01T00:00:02.000Z'
     });
 
-    localStorage.setItem('slicr.es.v1.stream.slice-a', JSON.stringify([
+    localStorage.setItem(`${DEFAULT_PROJECT_PREFIX}.stream.slice-a`, JSON.stringify([
       ...loadSliceEvents('slice-a'),
       { bad: true },
       { id: 'oops', sliceId: 'slice-a', version: 'x', at: 'nope', type: 'text-edited', payload: {} }
@@ -165,7 +167,7 @@ describe('sliceEventStore', () => {
   });
 
   it('ignores malformed snapshot payloads', () => {
-    localStorage.setItem('slicr.es.v1.snapshot.slice-a', JSON.stringify({ bad: true }));
+    localStorage.setItem(`${DEFAULT_PROJECT_PREFIX}.snapshot.slice-a`, JSON.stringify({ bad: true }));
     expect(loadSliceProjectionSnapshot('slice-a')).toBeNull();
   });
 
@@ -261,5 +263,26 @@ describe('sliceEventStore', () => {
 
     const projection = foldSliceEvents(events);
     expect(projection.dsl).toBe('slice "Created"\n\nevt:created');
+  });
+
+  it('isolates events by project when slice ids overlap', () => {
+    appendSliceEvent('slice-a', {
+      type: 'text-edited',
+      payload: { dsl: 'slice "A"\n\nevt:project-a' },
+      at: '2026-01-01T00:00:01.000Z'
+    }, 'project-a');
+    appendSliceEvent('slice-a', {
+      type: 'text-edited',
+      payload: { dsl: 'slice "A"\n\nevt:project-b' },
+      at: '2026-01-01T00:00:02.000Z'
+    }, 'project-b');
+
+    const aEvents = loadSliceEvents('slice-a', 'project-a');
+    const bEvents = loadSliceEvents('slice-a', 'project-b');
+
+    expect(aEvents).toHaveLength(1);
+    expect(bEvents).toHaveLength(1);
+    expect(hydrateSliceProjection('slice-a', 'project-a').dsl).toContain('project-a');
+    expect(hydrateSliceProjection('slice-a', 'project-b').dsl).toContain('project-b');
   });
 });

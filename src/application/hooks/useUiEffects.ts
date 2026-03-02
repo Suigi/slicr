@@ -2,8 +2,12 @@ import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'reac
 import { useEffect } from 'react';
 import type { SliceLibrary } from '../../sliceLibrary';
 import { saveSliceLibrary, saveSliceLayoutOverrides, selectSlice } from '../../sliceLibrary';
+import type { ProjectIndex } from '../../projectLibrary';
+import { saveProjectIndex } from '../../projectLibrary';
 
 export type UseUiEffectsArgs = {
+  projectIndex: ProjectIndex;
+  selectedProjectId: string;
   library: SliceLibrary;
   manualNodePositions: Record<string, { x: number; y: number }>;
   manualEdgePoints: Record<string, Array<{ x: number; y: number }>>;
@@ -40,6 +44,8 @@ export type UseUiEffectsArgs = {
 
 export function useUiEffects(args: UseUiEffectsArgs) {
   const {
+    projectIndex,
+    selectedProjectId,
     library,
     manualNodePositions,
     manualEdgePoints,
@@ -76,11 +82,19 @@ export function useUiEffects(args: UseUiEffectsArgs) {
 
   useEffect(() => {
     try {
-      saveSliceLibrary(library);
+      saveSliceLibrary(library, selectedProjectId);
     } catch {
       // Ignore storage failures.
     }
-  }, [library]);
+  }, [library, selectedProjectId]);
+
+  useEffect(() => {
+    try {
+      saveProjectIndex(projectIndex);
+    } catch {
+      // Ignore storage failures.
+    }
+  }, [projectIndex]);
 
   useEffect(() => {
     if (skipNextLayoutSaveRef.current) {
@@ -94,12 +108,13 @@ export function useUiEffects(args: UseUiEffectsArgs) {
           nodes: manualNodePositions,
           edges: manualEdgePoints
         },
-        { emitEvents: false }
+        { emitEvents: false },
+        selectedProjectId
       );
     } catch {
       // Ignore storage failures.
     }
-  }, [library.selectedSliceId, manualNodePositions, manualEdgePoints, skipNextLayoutSaveRef]);
+  }, [library.selectedSliceId, manualNodePositions, manualEdgePoints, skipNextLayoutSaveRef, selectedProjectId]);
 
   useEffect(() => {
     const closeOnOutside = (event: PointerEvent) => {

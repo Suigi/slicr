@@ -1,8 +1,9 @@
 import type { DiagramPoint } from './domain/diagramRouting';
 import { parseDsl } from './domain/parseDsl';
+import { DEFAULT_PROJECT_ID } from './projectLibrary';
 
-const EVENT_STREAM_KEY_PREFIX = 'slicr.es.v1.stream.';
-const SNAPSHOT_KEY_PREFIX = 'slicr.es.v1.snapshot.';
+const PROJECT_EVENT_STREAM_KEY_PREFIX = 'slicr.es.v2.project.';
+const PROJECT_SNAPSHOT_KEY_PREFIX = 'slicr.es.v2.project.';
 const SNAPSHOT_INTERVAL = 100;
 
 type BaseSliceEvent = {
@@ -69,12 +70,12 @@ export function createEmptyProjection(): SliceProjection {
   };
 }
 
-function streamStorageKey(sliceId: string): string {
-  return `${EVENT_STREAM_KEY_PREFIX}${sliceId}`;
+function streamStorageKey(sliceId: string, projectId = DEFAULT_PROJECT_ID): string {
+  return `${PROJECT_EVENT_STREAM_KEY_PREFIX}${projectId}.stream.${sliceId}`;
 }
 
-function snapshotStorageKey(sliceId: string): string {
-  return `${SNAPSHOT_KEY_PREFIX}${sliceId}`;
+function snapshotStorageKey(sliceId: string, projectId = DEFAULT_PROJECT_ID): string {
+  return `${PROJECT_SNAPSHOT_KEY_PREFIX}${projectId}.snapshot.${sliceId}`;
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -273,9 +274,9 @@ function parseSnapshot(value: unknown): SliceProjectionSnapshot | null {
   };
 }
 
-function loadRawEvents(sliceId: string): SliceEvent[] {
+function loadRawEvents(sliceId: string, projectId = DEFAULT_PROJECT_ID): SliceEvent[] {
   try {
-    const raw = localStorage.getItem(streamStorageKey(sliceId));
+    const raw = localStorage.getItem(streamStorageKey(sliceId, projectId));
     if (!raw) {
       return [];
     }
@@ -293,13 +294,13 @@ function loadRawEvents(sliceId: string): SliceEvent[] {
   }
 }
 
-export function loadSliceEvents(sliceId: string): SliceEvent[] {
-  return loadRawEvents(sliceId);
+export function loadSliceEvents(sliceId: string, projectId = DEFAULT_PROJECT_ID): SliceEvent[] {
+  return loadRawEvents(sliceId, projectId);
 }
 
-export function loadSliceProjectionSnapshot(sliceId: string): SliceProjectionSnapshot | null {
+export function loadSliceProjectionSnapshot(sliceId: string, projectId = DEFAULT_PROJECT_ID): SliceProjectionSnapshot | null {
   try {
-    const raw = localStorage.getItem(snapshotStorageKey(sliceId));
+    const raw = localStorage.getItem(snapshotStorageKey(sliceId, projectId));
     if (!raw) {
       return null;
     }
@@ -309,8 +310,8 @@ export function loadSliceProjectionSnapshot(sliceId: string): SliceProjectionSna
   }
 }
 
-export function saveSliceProjectionSnapshot(sliceId: string, snapshot: SliceProjectionSnapshot): void {
-  localStorage.setItem(snapshotStorageKey(sliceId), JSON.stringify(snapshot));
+export function saveSliceProjectionSnapshot(sliceId: string, snapshot: SliceProjectionSnapshot, projectId = DEFAULT_PROJECT_ID): void {
+  localStorage.setItem(snapshotStorageKey(sliceId, projectId), JSON.stringify(snapshot));
 }
 
 function nextVersion(events: SliceEvent[]): number {
@@ -335,9 +336,10 @@ export function appendSliceEvent(
     | { type: 'edge-moved'; at?: string; payload: EdgeMovedEvent['payload'] }
     | { type: 'layout-reset'; at?: string; payload: LayoutResetEvent['payload'] }
     | { type: 'slice-created'; at?: string; payload: SliceCreatedEvent['payload'] }
-    | { type: 'slice-selected'; at?: string; payload: SliceSelectedEvent['payload'] }
+    | { type: 'slice-selected'; at?: string; payload: SliceSelectedEvent['payload'] },
+  projectId = DEFAULT_PROJECT_ID
 ): SliceEvent {
-  const existing = loadRawEvents(sliceId);
+  const existing = loadRawEvents(sliceId, projectId);
   const event: SliceEvent = {
     id: makeEventId(),
     sliceId,
@@ -348,12 +350,12 @@ export function appendSliceEvent(
   } as SliceEvent;
 
   const next = [...existing, event];
-  localStorage.setItem(streamStorageKey(sliceId), JSON.stringify(next));
+  localStorage.setItem(streamStorageKey(sliceId, projectId), JSON.stringify(next));
   if (event.version % SNAPSHOT_INTERVAL === 0) {
     saveSliceProjectionSnapshot(sliceId, {
       version: event.version,
       projection: foldSliceEvents(next)
-    });
+    }, projectId);
   }
   return event;
 }
@@ -441,10 +443,10 @@ export function foldSliceEvents(events: SliceEvent[], initialProjection = create
     .reduce((projection, event) => applySliceEvent(projection, event), initialProjection);
 }
 
-export function hydrateSliceProjection(sliceId: string): SliceProjection {
-  const snapshot = loadSliceProjectionSnapshot(sliceId);
+export function hydrateSliceProjection(sliceId: string, projectId = DEFAULT_PROJECT_ID): SliceProjection {
+  const snapshot = loadSliceProjectionSnapshot(sliceId, projectId);
   const baseProjection = snapshot?.projection ?? createEmptyProjection();
   const fromVersion = snapshot?.version ?? 0;
-  const events = loadRawEvents(sliceId).filter((event) => event.version > fromVersion);
+  const events = loadRawEvents(sliceId, projectId).filter((event) => event.version > fromVersion);
   return foldSliceEvents(events, baseProjection);
 }

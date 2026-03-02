@@ -4,6 +4,7 @@ import type { DiagramPoint } from '../../domain/diagramRouting';
 import type { DiagramEngineId } from '../../domain/diagramEngine';
 import { getDiagramRendererId, isCrossSliceDataEnabled, isDragAndDropEnabled, shouldShowDevDiagramControls } from '../../domain/runtimeFlags';
 import { getSliceNameFromDsl, loadSliceLayoutOverrides, loadSliceLibrary, type SliceLibrary } from '../../sliceLibrary';
+import { loadProjectIndex } from '../../projectLibrary';
 import type { Range } from '../../useDslEditor';
 
 const THEME_STORAGE_KEY = 'slicr.theme';
@@ -14,16 +15,20 @@ export type RouteMode = DiagramEngineId;
 
 export function useAppLocalState() {
   const [initialSnapshot] = useState<{
+    projectIndex: ReturnType<typeof loadProjectIndex>;
     library: SliceLibrary;
     overrides: ReturnType<typeof loadSliceLayoutOverrides>;
   }>(() => {
-    const initialLibrary = loadSliceLibrary();
+    const projectIndex = loadProjectIndex();
+    const initialLibrary = loadSliceLibrary(DEFAULT_DSL, projectIndex.selectedProjectId);
     return {
+      projectIndex,
       library: initialLibrary,
-      overrides: loadSliceLayoutOverrides(initialLibrary.selectedSliceId)
+      overrides: loadSliceLayoutOverrides(initialLibrary.selectedSliceId, projectIndex.selectedProjectId)
     };
   });
 
+  const [projectIndex, setProjectIndex] = useState(initialSnapshot.projectIndex);
   const [library, setLibrary] = useState(initialSnapshot.library);
   const [theme, setTheme] = useState<ThemeMode>(() => {
     try {
@@ -75,11 +80,18 @@ export function useAppLocalState() {
   const dragAndDropEnabled = isDragAndDropEnabled(window.location.hostname);
   const crossSliceDataEnabled = isCrossSliceDataEnabled(window.location.hostname);
 
+  const selectedProjectId = projectIndex.selectedProjectId;
+  const currentProject = projectIndex.projects.find((project) => project.id === selectedProjectId) ?? projectIndex.projects[0];
+  const currentProjectName = currentProject?.name ?? 'Default';
   const currentSlice = library.slices.find((slice) => slice.id === library.selectedSliceId) ?? library.slices[0];
   const currentDsl = currentSlice?.dsl ?? DEFAULT_DSL;
   const currentSliceName = getSliceNameFromDsl(currentDsl);
 
   return {
+    projectIndex,
+    setProjectIndex,
+    selectedProjectId,
+    currentProjectName,
     library,
     setLibrary,
     theme,

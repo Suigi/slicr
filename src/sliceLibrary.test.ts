@@ -20,6 +20,8 @@ import {
   updateSelectedSliceDsl
 } from './sliceLibrary';
 
+const DEFAULT_PROJECT_PREFIX = 'slicr.es.v2.project.default';
+
 afterEach(() => {
   localStorage.clear();
 });
@@ -63,17 +65,17 @@ describe('sliceLibrary', () => {
 
     const storedLibrary = localStorage.getItem(SLICES_STORAGE_KEY);
     expect(storedLibrary).toBeNull();
-    expect(localStorage.getItem('slicr.es.v1.index')).not.toBeNull();
+    expect(localStorage.getItem(`${DEFAULT_PROJECT_PREFIX}.index`)).not.toBeNull();
     expect(localStorage.getItem(LEGACY_DSL_STORAGE_KEY)).toBeNull();
   });
 
   it('does not parse event streams while saving when only DSL projection is needed', () => {
     localStorage.setItem(
-      'slicr.es.v1.index',
+      `${DEFAULT_PROJECT_PREFIX}.index`,
       JSON.stringify({ sliceIds: ['slice-a'] })
     );
     localStorage.setItem(
-      'slicr.es.v1.stream.slice-a',
+      `${DEFAULT_PROJECT_PREFIX}.stream.slice-a`,
       JSON.stringify([
         {
           id: 'e-1',
@@ -174,7 +176,7 @@ describe('sliceLibrary', () => {
       edges: { 'a->b#0': [{ x: 1, y: 2 }, { x: 3, y: 4 }] }
     }, { emitEvents: false });
 
-    expect(localStorage.getItem('slicr.es.v1.stream.slice-a')).toBeNull();
+    expect(localStorage.getItem(`${DEFAULT_PROJECT_PREFIX}.stream.slice-a`)).toBeNull();
     expect(localStorage.getItem(SLICES_LAYOUT_STORAGE_KEY)).toBeNull();
     expect(loadSliceLayoutOverrides('slice-a')).toEqual({ nodes: {}, edges: {} });
   });
@@ -184,7 +186,7 @@ describe('sliceLibrary', () => {
     appendSliceEdgeMovedEvent('slice-a', 'a->b#0', [{ x: 1, y: 2 }, { x: 3, y: 4 }]);
     appendSliceLayoutResetEvent('slice-a');
 
-    const raw = localStorage.getItem('slicr.es.v1.stream.slice-a');
+    const raw = localStorage.getItem(`${DEFAULT_PROJECT_PREFIX}.stream.slice-a`);
     expect(raw).not.toBeNull();
     const events = JSON.parse(raw ?? '[]') as Array<{ type: string; version: number }>;
     expect(events.map((event) => event.type)).toEqual(['node-moved', 'edge-moved', 'layout-reset']);
@@ -225,14 +227,14 @@ describe('sliceLibrary', () => {
 
     saveSliceLibrary(library);
 
-    const raw = localStorage.getItem('slicr.es.v1.stream.slice-a');
+    const raw = localStorage.getItem(`${DEFAULT_PROJECT_PREFIX}.stream.slice-a`);
     expect(raw).not.toBeNull();
     const events = JSON.parse(raw ?? '[]') as Array<{ type: string; version: number; payload: { dsl: string } }>;
     expect(events.some((event) => event.type === 'slice-created')).toBe(true);
     expect(events.some((event) => event.type === 'text-edited')).toBe(false);
 
     saveSliceLibrary(library);
-    const second = JSON.parse(localStorage.getItem('slicr.es.v1.stream.slice-a') ?? '[]') as Array<unknown>;
+    const second = JSON.parse(localStorage.getItem(`${DEFAULT_PROJECT_PREFIX}.stream.slice-a`) ?? '[]') as Array<unknown>;
     expect(second).toHaveLength(events.length);
   });
 
@@ -260,7 +262,7 @@ describe('sliceLibrary', () => {
       edges: {}
     });
 
-    const raw = localStorage.getItem('slicr.es.v1.stream.slice-a');
+    const raw = localStorage.getItem(`${DEFAULT_PROJECT_PREFIX}.stream.slice-a`);
     expect(raw).not.toBeNull();
     const events = JSON.parse(raw ?? '[]') as Array<{ type: string }>;
     expect(events[events.length - 1]?.type).toBe('layout-reset');
@@ -325,7 +327,7 @@ describe('sliceLibrary', () => {
     const loaded = loadSliceLibrary();
     expect(loaded.slices).toEqual([{ id: 'slice-a', dsl: 'slice "Legacy"\n\nrm:legacy\nuses:\n  alpha' }]);
 
-    const events = JSON.parse(localStorage.getItem('slicr.es.v1.stream.slice-a') ?? '[]') as Array<{
+    const events = JSON.parse(localStorage.getItem(`${DEFAULT_PROJECT_PREFIX}.stream.slice-a`) ?? '[]') as Array<{
       type: string;
       payload?: { dsl?: string };
     }>;
@@ -356,9 +358,9 @@ describe('sliceLibrary', () => {
     );
 
     loadSliceLibrary();
-    const afterFirstLoad = JSON.parse(localStorage.getItem('slicr.es.v1.stream.slice-a') ?? '[]') as Array<unknown>;
+    const afterFirstLoad = JSON.parse(localStorage.getItem(`${DEFAULT_PROJECT_PREFIX}.stream.slice-a`) ?? '[]') as Array<unknown>;
     loadSliceLibrary();
-    const afterSecondLoad = JSON.parse(localStorage.getItem('slicr.es.v1.stream.slice-a') ?? '[]') as Array<unknown>;
+    const afterSecondLoad = JSON.parse(localStorage.getItem(`${DEFAULT_PROJECT_PREFIX}.stream.slice-a`) ?? '[]') as Array<unknown>;
     expect(afterSecondLoad).toHaveLength(afterFirstLoad.length);
   });
 
@@ -371,7 +373,7 @@ describe('sliceLibrary', () => {
       })
     );
     localStorage.setItem(
-      'slicr.es.v1.stream.slice-a',
+      `${DEFAULT_PROJECT_PREFIX}.stream.slice-a`,
       JSON.stringify([
         {
           id: 'e-1',
@@ -390,13 +392,13 @@ describe('sliceLibrary', () => {
 
   it('keeps slices with intentionally empty DSL when loading from event index', () => {
     localStorage.setItem(
-      'slicr.es.v1.index',
+      `${DEFAULT_PROJECT_PREFIX}.index`,
       JSON.stringify({
         sliceIds: ['slice-a']
       })
     );
     localStorage.setItem(
-      'slicr.es.v1.stream.slice-a',
+      `${DEFAULT_PROJECT_PREFIX}.stream.slice-a`,
       JSON.stringify([
         {
           id: 'e-1',
@@ -412,5 +414,72 @@ describe('sliceLibrary', () => {
     const loaded = loadSliceLibrary();
     expect(loaded.slices).toEqual([{ id: 'slice-a', dsl: '' }]);
     expect(loaded.selectedSliceId).toBe('slice-a');
+  });
+
+  it('loads and saves slice libraries independently per project', () => {
+    saveSliceLibrary(
+      {
+        selectedSliceId: 'slice-a',
+        slices: [{ id: 'slice-a', dsl: 'slice "A"\n\nevt:project-a' }]
+      },
+      'project-a'
+    );
+    saveSliceLibrary(
+      {
+        selectedSliceId: 'slice-a',
+        slices: [{ id: 'slice-a', dsl: 'slice "A"\n\nevt:project-b' }]
+      },
+      'project-b'
+    );
+
+    const loadedA = loadSliceLibrary(DEFAULT_DSL, 'project-a');
+    const loadedB = loadSliceLibrary(DEFAULT_DSL, 'project-b');
+
+    expect(loadedA.slices).toEqual([{ id: 'slice-a', dsl: 'slice "A"\n\nevt:project-a' }]);
+    expect(loadedB.slices).toEqual([{ id: 'slice-a', dsl: 'slice "A"\n\nevt:project-b' }]);
+  });
+
+  it('migrates default project storage from v1 keys to v2 project keys', () => {
+    localStorage.setItem(
+      'slicr.es.v1.index',
+      JSON.stringify({
+        selectedSliceId: 'slice-a',
+        sliceIds: ['slice-a']
+      })
+    );
+    localStorage.setItem(
+      'slicr.es.v1.stream.app',
+      JSON.stringify([
+        {
+          id: 'app-1',
+          version: 1,
+          at: '2026-01-01T00:00:01.000Z',
+          type: 'slice-selected',
+          payload: { selectedSliceId: 'slice-a' }
+        }
+      ])
+    );
+    localStorage.setItem(
+      'slicr.es.v1.stream.slice-a',
+      JSON.stringify([
+        {
+          id: 'e-1',
+          sliceId: 'slice-a',
+          version: 1,
+          at: '2026-01-01T00:00:01.000Z',
+          type: 'slice-created',
+          payload: { initialDsl: 'slice "A"\n\nevt:a' }
+        }
+      ])
+    );
+
+    const loaded = loadSliceLibrary();
+
+    expect(loaded.slices).toEqual([{ id: 'slice-a', dsl: 'slice "A"\n\nevt:a' }]);
+    expect(localStorage.getItem('slicr.es.v2.project.default.index')).not.toBeNull();
+    expect(localStorage.getItem('slicr.es.v2.project.default.stream.app')).not.toBeNull();
+    expect(localStorage.getItem('slicr.es.v2.project.default.stream.slice-a')).not.toBeNull();
+    expect(localStorage.getItem('slicr.es.v1.index')).toBeNull();
+    expect(localStorage.getItem('slicr.es.v1.stream.app')).toBeNull();
   });
 });

@@ -24,6 +24,10 @@ import { formatTraceSource, NODE_VERSION_SUFFIX, ParseResult, TYPE_LABEL } from 
 export function useAppState(): UseAppStateResult {
   const local = useAppLocalState();
   const {
+    projectIndex,
+    setProjectIndex,
+    selectedProjectId,
+    currentProjectName,
     library,
     setLibrary,
     theme,
@@ -164,8 +168,8 @@ export function useAppState(): UseAppStateResult {
 
   const DiagramRenderer = useMemo(() => getDiagramRenderer(diagramRendererId), [diagramRendererId]);
 
-  const applySelectedSliceOverrides = (sliceId: string) => {
-    const overrides = loadSliceLayoutOverrides(sliceId);
+  const applySelectedSliceOverrides = (sliceId: string, projectId = selectedProjectId) => {
+    const overrides = loadSliceLayoutOverrides(sliceId, projectId);
     skipNextLayoutSaveRef.current = true;
     setManualNodePositions(overrides.nodes);
     setManualEdgePoints(overrides.edges);
@@ -184,10 +188,12 @@ export function useAppState(): UseAppStateResult {
   const resetManualLayout = () => {
     setManualNodePositions({});
     setManualEdgePoints({});
-    appendSliceLayoutResetEvent(library.selectedSliceId);
+    appendSliceLayoutResetEvent(library.selectedSliceId, selectedProjectId);
   };
 
   useUiEffects({
+    projectIndex,
+    selectedProjectId,
     library,
     manualNodePositions,
     manualEdgePoints,
@@ -237,6 +243,9 @@ export function useAppState(): UseAppStateResult {
     setSelectedNodeKey,
     setHighlightRange,
     setLibrary,
+    projectIndex,
+    setProjectIndex,
+    selectedProjectId,
     applySelectedSliceOverrides,
     pendingFocusNodeKeyRef,
     setFocusRequestVersion,
@@ -257,6 +266,9 @@ export function useAppState(): UseAppStateResult {
 
   return {
     header: {
+      projectIndex,
+      selectedProjectId,
+      currentProjectName,
       currentSliceName,
       library,
       getSliceNameFromDsl,
