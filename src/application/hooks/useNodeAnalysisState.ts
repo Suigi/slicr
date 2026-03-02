@@ -156,18 +156,16 @@ export function useNodeAnalysisState(args: UseNodeAnalysisStateArgs) {
   );
 
   const selectedNodeUsesKeys = useMemo(() => {
-    if (selectedNodeAnalysisNodes.length === 0) {
+    if (!selectedNode || isScenarioNodeKey(selectedNode.key)) {
       return [];
     }
     const seen = new Set<string>();
-    for (const node of selectedNodeAnalysisNodes) {
-      const mappings = getUsesMappingsForNode(usesMappingsByRef, node);
-      for (const mapping of mappings) {
-        seen.add(mapping.targetKey);
-      }
+    const mappings = getUsesMappingsForNode(usesMappingsByRef, selectedNode);
+    for (const mapping of mappings) {
+      seen.add(mapping.targetKey);
     }
     return [...seen].sort((left, right) => left.localeCompare(right));
-  }, [selectedNodeAnalysisNodes, usesMappingsByRef]);
+  }, [selectedNode, usesMappingsByRef]);
 
   const selectedNodeCrossSliceData = useMemo(() => {
     if (!selectedNodeAnalysisRef) {
@@ -177,22 +175,13 @@ export function useNodeAnalysisState(args: UseNodeAnalysisStateArgs) {
   }, [parsedSliceProjectionList, selectedNodeAnalysisRef]);
 
   const selectedNodeTraceResultsByKey = useMemo(() => {
-    if (!parsed) {
+    if (!parsed || !selectedNode) {
       return {} as Record<string, Array<{ nodeKey: string; result: NonNullable<ReturnType<typeof traceData>> }>>;
     }
 
     const byKey: Record<string, Array<{ nodeKey: string; result: NonNullable<ReturnType<typeof traceData>> }>> = {};
     for (const traceKey of selectedNodeUsesKeys) {
-      const matchingNodeKeys = selectedNodeAnalysisNodes
-        .filter((node) => {
-          const mappings = getUsesMappingsForNode(usesMappingsByRef, node);
-          return mappings.some((mapping) => mapping.targetKey === traceKey);
-        })
-        .map((node) => node.key);
-
-      const traceNodeKeys = matchingNodeKeys.length > 0 ? matchingNodeKeys : selectedNode ? [selectedNode.key] : [];
-
-      byKey[traceKey] = traceNodeKeys
+      byKey[traceKey] = [selectedNode.key]
         .map((nodeKey) => ({
           nodeKey,
           result: traceData({ dsl: currentDsl, nodes: parsed.nodes, edges: parsed.edges }, nodeKey, traceKey)
@@ -203,7 +192,7 @@ export function useNodeAnalysisState(args: UseNodeAnalysisStateArgs) {
     }
 
     return byKey;
-  }, [currentDsl, parsed, selectedNode, selectedNodeAnalysisNodes, selectedNodeUsesKeys, usesMappingsByRef]);
+  }, [currentDsl, parsed, selectedNode, selectedNodeUsesKeys]);
 
   const crossSliceUsageEntries = useMemo(() => {
     return crossSliceUsage.map((usage) => {

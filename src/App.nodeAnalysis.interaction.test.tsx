@@ -598,7 +598,7 @@ describe('App node analysis interactions', () => {
     expect(document.querySelector('.cross-slice-trace-source.missing-source')).toBeNull();
   });
 
-  it('aggregates issues and trace keys across node versions under one analysis key', () => {
+  it('shows trace keys only for the selected node version', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -632,7 +632,7 @@ describe('App node analysis interactions', () => {
 
     const traceKeys = [...document.querySelectorAll('.cross-slice-trace-key-toggle')]
       .map((button) => button.textContent?.trim());
-    expect(traceKeys).toEqual(['alpha', 'beta']);
+    expect(traceKeys).toEqual(['alpha']);
     expect([...document.querySelectorAll('.cross-slice-trace-key-toggle')]
       .every((button) => button.getAttribute('aria-expanded') === 'false')).toBe(true);
     expect(traceTab?.classList.contains('has-missing-source')).toBe(true);
@@ -887,7 +887,7 @@ describe('App node analysis interactions', () => {
     expect(hops).toContain('thing-added@2.collect({id,name})');
   });
 
-  it('shows data trace results for each node version with the selected uses key', () => {
+  it('shows data trace results only for the selected node version', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -902,11 +902,11 @@ describe('App node analysis interactions', () => {
     );
 
     renderApp();
-    const buyOneNode = [...document.querySelectorAll('.node.cmd')]
-      .find((el) => el.querySelector('.node-title')?.textContent?.trim() === 'Buy One') as HTMLElement | undefined;
-    expect(buyOneNode).toBeDefined();
+    const buyTwoNode = [...document.querySelectorAll('.node.cmd')]
+      .find((el) => el.querySelector('.node-title')?.textContent?.trim() === 'Buy Two') as HTMLElement | undefined;
+    expect(buyTwoNode).toBeDefined();
     act(() => {
-      buyOneNode?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      buyTwoNode?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
     const traceTab = [...document.querySelectorAll('.cross-slice-panel-tab')]
@@ -924,8 +924,7 @@ describe('App node analysis interactions', () => {
 
     const sources = [...document.querySelectorAll('.cross-slice-trace-source')]
       .map((el) => el.textContent?.trim());
-    expect(sources).toContain('value: a1');
-    expect(sources).toContain('value: a2');
+    expect(sources).toEqual(['value: a2']);
   });
 
   it('hides Data Trace tab when selecting a scenario node with the same ref', () => {
