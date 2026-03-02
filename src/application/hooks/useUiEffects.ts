@@ -1,0 +1,292 @@
+import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
+import { useEffect } from 'react';
+import type { SliceLibrary } from '../../sliceLibrary';
+import { saveSliceLibrary, saveSliceLayoutOverrides, selectSlice } from '../../sliceLibrary';
+
+export type UseUiEffectsArgs = {
+  library: SliceLibrary;
+  manualNodePositions: Record<string, { x: number; y: number }>;
+  manualEdgePoints: Record<string, Array<{ x: number; y: number }>>;
+  skipNextLayoutSaveRef: MutableRefObject<boolean>;
+  editorOpen: boolean;
+  editorRef: RefObject<HTMLDivElement>;
+  toggleRef: RefObject<HTMLButtonElement>;
+  sliceMenuOpen: boolean;
+  routeMenuOpen: boolean;
+  mobileMenuOpen: boolean;
+  sliceMenuRef: RefObject<HTMLDivElement>;
+  routeMenuRef: RefObject<HTMLDivElement>;
+  mobileMenuRef: RefObject<HTMLDivElement>;
+  currentSliceName: string;
+  theme: string;
+  themeStorageKey: string;
+  routeMode: string;
+  routeStorageKey: string;
+  selectedNode: { key: string } | null;
+  showDataTraceTab: boolean;
+  selectedNodeUsesKeys: string[];
+  setSelectedNodeKey: Dispatch<SetStateAction<string | null>>;
+  setHighlightRange: Dispatch<SetStateAction<{ from: number; to: number } | null>>;
+  setLibrary: Dispatch<SetStateAction<SliceLibrary>>;
+  setEditorOpen: Dispatch<SetStateAction<boolean>>;
+  setSliceMenuOpen: Dispatch<SetStateAction<boolean>>;
+  setRouteMenuOpen: Dispatch<SetStateAction<boolean>>;
+  setMobileMenuOpen: Dispatch<SetStateAction<boolean>>;
+  setCommandPaletteOpen: Dispatch<SetStateAction<boolean>>;
+  setCrossSliceTraceExpandedKeys: Dispatch<SetStateAction<Record<string, boolean>>>;
+  setSelectedNodePanelTab: Dispatch<SetStateAction<'usage' | 'crossSliceData' | 'trace'>>;
+  applySelectedSliceOverrides: (sliceId: string) => void;
+};
+
+export function useUiEffects(args: UseUiEffectsArgs) {
+  const {
+    library,
+    manualNodePositions,
+    manualEdgePoints,
+    skipNextLayoutSaveRef,
+    editorOpen,
+    editorRef,
+    toggleRef,
+    sliceMenuOpen,
+    routeMenuOpen,
+    mobileMenuOpen,
+    sliceMenuRef,
+    routeMenuRef,
+    mobileMenuRef,
+    currentSliceName,
+    theme,
+    themeStorageKey,
+    routeMode,
+    routeStorageKey,
+    selectedNode,
+    showDataTraceTab,
+    selectedNodeUsesKeys,
+    setSelectedNodeKey,
+    setHighlightRange,
+    setLibrary,
+    setEditorOpen,
+    setSliceMenuOpen,
+    setRouteMenuOpen,
+    setMobileMenuOpen,
+    setCommandPaletteOpen,
+    setCrossSliceTraceExpandedKeys,
+    setSelectedNodePanelTab,
+    applySelectedSliceOverrides
+  } = args;
+
+  useEffect(() => {
+    try {
+      saveSliceLibrary(library);
+    } catch {
+      // Ignore storage failures.
+    }
+  }, [library]);
+
+  useEffect(() => {
+    if (skipNextLayoutSaveRef.current) {
+      skipNextLayoutSaveRef.current = false;
+      return;
+    }
+    try {
+      saveSliceLayoutOverrides(
+        library.selectedSliceId,
+        {
+          nodes: manualNodePositions,
+          edges: manualEdgePoints
+        },
+        { emitEvents: false }
+      );
+    } catch {
+      // Ignore storage failures.
+    }
+  }, [library.selectedSliceId, manualNodePositions, manualEdgePoints, skipNextLayoutSaveRef]);
+
+  useEffect(() => {
+    const closeOnOutside = (event: PointerEvent) => {
+      if (!editorOpen) {
+        return;
+      }
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+      const clickedEditor = editorRef.current?.contains(target) ?? false;
+      const clickedToggle = toggleRef.current?.contains(target) ?? false;
+      if (!clickedEditor && !clickedToggle) {
+        setEditorOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', closeOnOutside);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutside);
+    };
+  }, [editorOpen, editorRef, toggleRef, setEditorOpen]);
+
+  useEffect(() => {
+    const deselectOnCanvasClick = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+
+      const canvas = document.getElementById('canvas');
+      const targetElement = target as HTMLElement;
+      const isCanvasClick = canvas?.contains(target) ?? false;
+      const isNodeClick = targetElement.closest('.node');
+      const isEdgeHandleClick = targetElement.closest('.edge-segment-handle');
+
+      if (isCanvasClick && !isNodeClick && !isEdgeHandleClick) {
+        setSelectedNodeKey(null);
+      }
+    };
+
+    document.addEventListener('pointerdown', deselectOnCanvasClick);
+    return () => document.removeEventListener('pointerdown', deselectOnCanvasClick);
+  }, [setSelectedNodeKey]);
+
+  useEffect(() => {
+    const localPrefix = window.location.hostname === 'localhost' ? '[local] ' : '';
+    document.title = `${localPrefix}Slicer - ${currentSliceName}`;
+  }, [currentSliceName]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    try {
+      localStorage.setItem(themeStorageKey, theme);
+    } catch {
+      // Ignore storage failures.
+    }
+  }, [theme, themeStorageKey]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(routeStorageKey, routeMode);
+    } catch {
+      // Ignore storage failures.
+    }
+  }, [routeMode, routeStorageKey]);
+
+  useEffect(() => {
+    const closeOnOutside = (event: PointerEvent) => {
+      if (!sliceMenuOpen) {
+        return;
+      }
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+      const clickedMenu = sliceMenuRef.current?.contains(target) ?? false;
+      if (!clickedMenu) {
+        setSliceMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', closeOnOutside);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutside);
+    };
+  }, [sliceMenuOpen, sliceMenuRef, setSliceMenuOpen]);
+
+  useEffect(() => {
+    const closeOnOutside = (event: PointerEvent) => {
+      if (!routeMenuOpen) {
+        return;
+      }
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+      const clickedMenu = routeMenuRef.current?.contains(target) ?? false;
+      if (!clickedMenu) {
+        setRouteMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', closeOnOutside);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutside);
+    };
+  }, [routeMenuOpen, routeMenuRef, setRouteMenuOpen]);
+
+  useEffect(() => {
+    const closeOnOutside = (event: PointerEvent) => {
+      if (!mobileMenuOpen) {
+        return;
+      }
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+      const clickedMenu = mobileMenuRef.current?.contains(target) ?? false;
+      if (!clickedMenu) {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', closeOnOutside);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutside);
+    };
+  }, [mobileMenuOpen, mobileMenuRef, setMobileMenuOpen]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const isCommandPalette = (event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === 'k';
+      if (isCommandPalette) {
+        event.preventDefault();
+        setCommandPaletteOpen((open) => !open);
+        return;
+      }
+
+      const isTraceShortcut = (event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 't';
+      if (isTraceShortcut && selectedNode && showDataTraceTab) {
+        event.preventDefault();
+        const firstKey = selectedNodeUsesKeys[0] ?? null;
+        if (firstKey) {
+          setCrossSliceTraceExpandedKeys({ [firstKey]: true });
+        }
+        setSelectedNodePanelTab('trace');
+        return;
+      }
+
+      const isNextSliceShortcut = (event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'j';
+      const isPreviousSliceShortcut = (event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'k';
+      if (isNextSliceShortcut || isPreviousSliceShortcut) {
+        event.preventDefault();
+        const delta = isNextSliceShortcut ? 1 : -1;
+        setSelectedNodeKey(null);
+        setHighlightRange(null);
+        setLibrary((currentLibrary) => {
+          const currentIndex = currentLibrary.slices.findIndex((slice) => slice.id === currentLibrary.selectedSliceId);
+          if (currentIndex < 0) {
+            return currentLibrary;
+          }
+          const nextSlice = currentLibrary.slices[currentIndex + delta];
+          if (!nextSlice) {
+            return currentLibrary;
+          }
+          const nextLibrary = selectSlice(currentLibrary, nextSlice.id);
+          if (nextLibrary.selectedSliceId !== currentLibrary.selectedSliceId) {
+            applySelectedSliceOverrides(nextLibrary.selectedSliceId);
+          }
+          return nextLibrary;
+        });
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [
+    selectedNode,
+    showDataTraceTab,
+    selectedNodeUsesKeys,
+    setCommandPaletteOpen,
+    setCrossSliceTraceExpandedKeys,
+    setSelectedNodePanelTab,
+    setSelectedNodeKey,
+    setHighlightRange,
+    setLibrary,
+    applySelectedSliceOverrides
+  ]);
+}
