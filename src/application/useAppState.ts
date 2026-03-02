@@ -64,6 +64,8 @@ export function useAppState(): UseAppStateResult {
     setMobileMenuOpen,
     commandPaletteOpen,
     setCommandPaletteOpen,
+    createProjectDialogOpen,
+    setCreateProjectDialogOpen,
     manualNodePositions,
     setManualNodePositions,
     manualEdgePoints,
@@ -204,6 +206,7 @@ export function useAppState(): UseAppStateResult {
     sliceMenuOpen,
     routeMenuOpen,
     mobileMenuOpen,
+    createProjectDialogOpen,
     sliceMenuRef,
     routeMenuRef,
     mobileMenuRef,
@@ -223,6 +226,7 @@ export function useAppState(): UseAppStateResult {
     setRouteMenuOpen,
     setMobileMenuOpen,
     setCommandPaletteOpen,
+    setCreateProjectDialogOpen,
     setCrossSliceTraceExpandedKeys: analysis.setCrossSliceTraceExpandedKeys,
     setSelectedNodePanelTab: analysis.setSelectedNodePanelTab,
     applySelectedSliceOverrides
@@ -256,6 +260,7 @@ export function useAppState(): UseAppStateResult {
     setMobileMenuOpen,
     setTheme,
     setRouteMode,
+    setCreateProjectDialogOpen,
     setHoveredEdgeKey,
     setHoveredTraceNodeKey: analysis.setHoveredTraceNodeKey,
     setSourceOverrides: analysis.setSourceOverrides,
@@ -332,7 +337,8 @@ export function useAppState(): UseAppStateResult {
     auxPanels: {
       docsOpen,
       hasOpenedDocs,
-      commandPaletteOpen
+      commandPaletteOpen,
+      createProjectDialogOpen
     },
     constants: {
       TYPE_LABEL,

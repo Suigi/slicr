@@ -417,6 +417,119 @@ rm:persisted-view`;
     expect(appEvents.some((event) => event.type === 'project-created' && event.payload?.name === 'Payments')).toBe(true);
   });
 
+  it('opens create project dialog from command palette', () => {
+    renderApp();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+    });
+
+    const createProjectItem = (
+      [...document.querySelectorAll('.command-palette-item')]
+        .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Create Project...')
+    ) as HTMLButtonElement | undefined;
+    expect(createProjectItem).toBeDefined();
+
+    act(() => {
+      createProjectItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(document.querySelector('.project-modal')).not.toBeNull();
+  });
+
+  it('closes create project dialog on Escape', () => {
+    renderApp();
+    const rail = document.querySelector('.project-rail');
+    expect(rail).not.toBeNull();
+
+    const projectToggle = rail?.querySelector('button[aria-label="Select project"]') as HTMLButtonElement | null;
+    expect(projectToggle).not.toBeNull();
+    act(() => {
+      projectToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const createProjectItem = [...(rail?.querySelectorAll('.project-menu-item') ?? [])]
+      .find((button) => button.textContent?.includes('Create Project')) as HTMLButtonElement | undefined;
+    expect(createProjectItem).toBeDefined();
+    act(() => {
+      createProjectItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    const input = document.querySelector('#project-name-input') as HTMLInputElement | null;
+    expect(input).not.toBeNull();
+
+    act(() => {
+      input?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+
+    expect(document.querySelector('.project-modal')).toBeNull();
+  });
+
+  it('closes create project dialog on Escape keyup after input blur', () => {
+    renderApp();
+    const rail = document.querySelector('.project-rail');
+    expect(rail).not.toBeNull();
+
+    const projectToggle = rail?.querySelector('button[aria-label="Select project"]') as HTMLButtonElement | null;
+    expect(projectToggle).not.toBeNull();
+    act(() => {
+      projectToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const createProjectItem = [...(rail?.querySelectorAll('.project-menu-item') ?? [])]
+      .find((button) => button.textContent?.includes('Create Project')) as HTMLButtonElement | undefined;
+    expect(createProjectItem).toBeDefined();
+    act(() => {
+      createProjectItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    const input = document.querySelector('#project-name-input') as HTMLInputElement | null;
+    expect(input).not.toBeNull();
+
+    act(() => {
+      input?.blur();
+      window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Escape', bubbles: true }));
+    });
+
+    expect(document.querySelector('.project-modal')).toBeNull();
+  });
+
+  it('creates project on Enter in the create project dialog', () => {
+    renderApp();
+    const rail = document.querySelector('.project-rail');
+    expect(rail).not.toBeNull();
+
+    const projectToggle = rail?.querySelector('button[aria-label="Select project"]') as HTMLButtonElement | null;
+    expect(projectToggle).not.toBeNull();
+    act(() => {
+      projectToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const createProjectItem = [...(rail?.querySelectorAll('.project-menu-item') ?? [])]
+      .find((button) => button.textContent?.includes('Create Project')) as HTMLButtonElement | undefined;
+    expect(createProjectItem).toBeDefined();
+    act(() => {
+      createProjectItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    const input = document.querySelector('#project-name-input') as HTMLInputElement | null;
+    expect(input).not.toBeNull();
+    act(() => {
+      if (input) {
+        const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+        valueSetter?.call(input, 'Ledger');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+
+    act(() => {
+      input?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+
+    expect(document.querySelector('.project-modal')).toBeNull();
+    const appStreamRaw = localStorage.getItem('slicr.es.v1.stream.app');
+    expect(appStreamRaw).not.toBeNull();
+    const appEvents = JSON.parse(appStreamRaw ?? '[]') as Array<{ type?: string; payload?: { name?: string } }>;
+    expect(appEvents.some((event) => event.type === 'project-created' && event.payload?.name === 'Ledger')).toBe(true);
+  });
+
   it('switches to the next slice on Cmd/Ctrl+Shift+J', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,

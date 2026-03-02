@@ -1,17 +1,18 @@
-import { useMemo, useState } from 'react';
-import type { ActionsSection, HeaderSection } from '../../application/appViewModel';
+import {useMemo, useRef, useState} from 'react';
+import type { ActionsSection, AuxPanelsSection, HeaderSection } from '../../application/appViewModel';
 
 type ProjectRailProps = {
   header: HeaderSection;
   actions: ActionsSection;
+  auxPanels: AuxPanelsSection;
 };
 
-export function ProjectRail({ header, actions }: ProjectRailProps) {
+export function ProjectRail({ header, actions, auxPanels }: ProjectRailProps) {
   const { currentProjectName, library, getSliceNameFromDsl, projectIndex, selectedProjectId } = header;
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
-  const [createModalOpen, setCreateModalOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const currentProjectLabel = useMemo(() => currentProjectName || 'Default', [currentProjectName]);
+  const createProjectDialogRef = useRef<HTMLDivElement>(null);
 
   return (
     <aside className="project-rail" aria-label="Project rail">
@@ -55,7 +56,7 @@ export function ProjectRail({ header, actions }: ProjectRailProps) {
                 className="project-menu-item"
                 onClick={() => {
                   setProjectMenuOpen(false);
-                  setCreateModalOpen(true);
+                  actions.onOpenCreateProjectDialog();
                 }}
               >
                 <span className="project-menu-check" aria-hidden="true">+</span>
@@ -77,9 +78,10 @@ export function ProjectRail({ header, actions }: ProjectRailProps) {
           </button>
         ))}
       </div>
-      {createModalOpen && (
-        <div className="project-modal-backdrop" role="presentation" onClick={() => setCreateModalOpen(false)}>
+      {auxPanels.createProjectDialogOpen && (
+        <div className="project-modal-backdrop" role="presentation" onClick={actions.onCloseCreateProjectDialog}>
           <div
+            ref={createProjectDialogRef}
             className="project-modal"
             role="dialog"
             aria-modal="true"
@@ -93,17 +95,37 @@ export function ProjectRail({ header, actions }: ProjectRailProps) {
               className="project-modal-input"
               value={newProjectName}
               onChange={(event) => setNewProjectName(event.target.value)}
+              onBlur={() => {
+                requestAnimationFrame(() => {
+                  const active = document.activeElement;
+                  console.log(active);
+                  if (active instanceof HTMLBodyElement) {
+                    actions.onCloseCreateProjectDialog();
+                  }
+                });
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  event.preventDefault();
+                  actions.onCloseCreateProjectDialog();
+                  return;
+                }
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  actions.onCreateProject(newProjectName);
+                  setNewProjectName('');
+                }
+              }}
               autoFocus
             />
             <div className="project-modal-actions">
-              <button type="button" className="project-modal-button" onClick={() => setCreateModalOpen(false)}>Cancel</button>
+              <button type="button" className="project-modal-button" onClick={actions.onCloseCreateProjectDialog}>Cancel</button>
               <button
                 type="button"
                 className="project-modal-button primary"
                 onClick={() => {
                   actions.onCreateProject(newProjectName);
                   setNewProjectName('');
-                  setCreateModalOpen(false);
                 }}
               >
                 Create

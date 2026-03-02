@@ -17,6 +17,7 @@ export type UseUiEffectsArgs = {
   sliceMenuOpen: boolean;
   routeMenuOpen: boolean;
   mobileMenuOpen: boolean;
+  createProjectDialogOpen: boolean;
   sliceMenuRef: RefObject<HTMLDivElement>;
   routeMenuRef: RefObject<HTMLDivElement>;
   mobileMenuRef: RefObject<HTMLDivElement>;
@@ -36,6 +37,7 @@ export type UseUiEffectsArgs = {
   setRouteMenuOpen: Dispatch<SetStateAction<boolean>>;
   setMobileMenuOpen: Dispatch<SetStateAction<boolean>>;
   setCommandPaletteOpen: Dispatch<SetStateAction<boolean>>;
+  setCreateProjectDialogOpen: Dispatch<SetStateAction<boolean>>;
   setCrossSliceTraceExpandedKeys: Dispatch<SetStateAction<Record<string, boolean>>>;
   setSelectedNodePanelTab: Dispatch<SetStateAction<'usage' | 'crossSliceData' | 'trace'>>;
   applySelectedSliceOverrides: (sliceId: string) => void;
@@ -55,6 +57,7 @@ export function useUiEffects(args: UseUiEffectsArgs) {
     sliceMenuOpen,
     routeMenuOpen,
     mobileMenuOpen,
+    createProjectDialogOpen,
     sliceMenuRef,
     routeMenuRef,
     mobileMenuRef,
@@ -74,6 +77,7 @@ export function useUiEffects(args: UseUiEffectsArgs) {
     setRouteMenuOpen,
     setMobileMenuOpen,
     setCommandPaletteOpen,
+    setCreateProjectDialogOpen,
     setCrossSliceTraceExpandedKeys,
     setSelectedNodePanelTab,
     applySelectedSliceOverrides
@@ -285,7 +289,19 @@ export function useUiEffects(args: UseUiEffectsArgs) {
   }, [mobileMenuOpen, mobileMenuRef, setMobileMenuOpen]);
 
   useEffect(() => {
+    const isEscapeKey = (key: string) => key === 'Escape' || key === 'Esc';
+
     const onKeyDown = (event: KeyboardEvent) => {
+      if (isEscapeKey(event.key)) {
+        console.log("escape detected")
+        event.preventDefault();
+        setCommandPaletteOpen(false);
+        if (createProjectDialogOpen) {
+          setCreateProjectDialogOpen(false);
+        }
+        return;
+      }
+
       const isCommandPalette = (event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === 'k';
       if (isCommandPalette) {
         event.preventDefault();
@@ -329,13 +345,30 @@ export function useUiEffects(args: UseUiEffectsArgs) {
       }
     };
 
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (!isEscapeKey(event.key)) {
+        return;
+      }
+      event.preventDefault();
+      setCommandPaletteOpen(false);
+      if (createProjectDialogOpen) {
+        setCreateProjectDialogOpen(false);
+      }
+    };
+
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
   }, [
     selectedNode,
     showDataTraceTab,
     selectedNodeUsesKeys,
+    createProjectDialogOpen,
     setCommandPaletteOpen,
+    setCreateProjectDialogOpen,
     setCrossSliceTraceExpandedKeys,
     setSelectedNodePanelTab,
     setSelectedNodeKey,

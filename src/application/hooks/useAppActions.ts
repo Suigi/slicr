@@ -35,6 +35,7 @@ type UseAppActionsArgs = {
   setSliceMenuOpen: Dispatch<SetStateAction<boolean>>;
   setRouteMenuOpen: Dispatch<SetStateAction<boolean>>;
   setMobileMenuOpen: Dispatch<SetStateAction<boolean>>;
+  setCreateProjectDialogOpen: Dispatch<SetStateAction<boolean>>;
   setTheme: Dispatch<SetStateAction<'dark' | 'light'>>;
   setRouteMode: Dispatch<SetStateAction<'classic' | 'elk'>>;
   setHoveredEdgeKey: Dispatch<SetStateAction<string | null>>;
@@ -72,6 +73,7 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
     setSliceMenuOpen,
     setRouteMenuOpen,
     setMobileMenuOpen,
+    setCreateProjectDialogOpen,
     setTheme,
     setRouteMode,
     setHoveredEdgeKey,
@@ -137,6 +139,7 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
     setHoveredEdgeKey(null);
     setHoveredTraceNodeKey(null);
     applySelectedSliceOverrides(nextLibrary.selectedSliceId, id);
+    setCreateProjectDialogOpen(false);
   };
 
   const onPrintGeometry = async () => {
@@ -262,6 +265,12 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
         [`${issueNodeKey}:${issueKey}`]: candidate
       })),
     onJumpToUsage,
+    onCloseCommandPalette: () => setCommandPaletteOpen(false),
+    onOpenCreateProjectDialog: () => {
+      setCommandPaletteOpen(false);
+      setCreateProjectDialogOpen(true);
+    },
+    onCloseCreateProjectDialog: () => setCreateProjectDialogOpen(false),
     onRunTraceCommand,
     onShowUsageCommand
   };

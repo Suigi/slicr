@@ -712,48 +712,135 @@ describe('App node analysis interactions', () => {
     expect(document.querySelector('.cross-slice-trace-issue-code')).toBeNull();
   });
 
-  it('opens command palette and runs Trace data action', () => {
+  it('does not list Trace Data or cross-slice usage commands in the palette', () => {
+    renderApp();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+    });
+
+    const items = [...document.querySelectorAll('.command-palette-item')].map((button) => button.textContent?.trim() ?? '');
+    expect(items.some((text) => text.toLowerCase().includes('trace data'))).toBe(false);
+    expect(items.some((text) => text.toLowerCase().includes('cross-slice usage'))).toBe(false);
+  });
+
+  it('renders command palette rows with title and secondary context', () => {
     localStorage.setItem(
-      SLICES_STORAGE_KEY,
-      JSON.stringify({
-        selectedSliceId: 'a',
-        slices: [{ id: 'a', dsl: 'slice "Alpha"\n\nevt:seed "Seed"\ndata:\n  alpha: "a"\n\ncmd:consume "Consume"\n<- evt:seed\nuses:\n  alpha\n' }]
-      })
+      'slicr.es.v1.stream.app',
+      JSON.stringify([
+        {
+          id: 'p-1',
+          version: 1,
+          at: '2026-01-01T00:00:01.000Z',
+          type: 'project-created',
+          payload: { projectId: 'project-a', name: 'Project A' }
+        },
+        {
+          id: 'p-2',
+          version: 2,
+          at: '2026-01-01T00:00:02.000Z',
+          type: 'project-created',
+          payload: { projectId: 'project-b', name: 'Project B' }
+        },
+        {
+          id: 'p-3',
+          version: 3,
+          at: '2026-01-01T00:00:03.000Z',
+          type: 'project-selected',
+          payload: { projectId: 'project-a' }
+        }
+      ])
     );
 
     renderApp();
-    const cmdNode = document.querySelector('.node.cmd') as HTMLElement | null;
-    expect(cmdNode).not.toBeNull();
-    act(() => {
-      cmdNode?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
 
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
     });
 
-    const traceAction = [...document.querySelectorAll('.command-palette-item')]
-      .find((button) => button.textContent?.trim() === 'Trace data') as HTMLButtonElement | undefined;
-    expect(traceAction).toBeDefined();
-    act(() => {
-      traceAction?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
-    expect(document.querySelector('.cross-slice-panel-tab.active')?.textContent?.trim()).toBe('Data Trace');
+    const firstTitle = document.querySelector('.command-palette-item-title');
+    const firstMeta = document.querySelector('.command-palette-item-meta');
+    expect(firstTitle).not.toBeNull();
+    expect(firstMeta).not.toBeNull();
+    expect(firstMeta?.textContent?.trim().length ?? 0).toBeGreaterThan(0);
   });
 
-  it('runs Show cross-slice usage command from the palette', () => {
+  it('opens Create Project dialog from command palette command', () => {
     renderApp();
 
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
     });
 
-    const usageAction = [...document.querySelectorAll('.command-palette-item')]
-      .find((button) => button.textContent?.trim() === 'Show cross-slice usage') as HTMLButtonElement | undefined;
-    expect(usageAction).toBeDefined();
+    const createProjectItem = (
+      [...document.querySelectorAll('.command-palette-item')]
+        .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Create Project...')
+    ) as HTMLButtonElement | undefined;
+    expect(createProjectItem).toBeDefined();
+
     act(() => {
-      usageAction?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      createProjectItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(document.querySelector('.project-modal')).not.toBeNull();
+  });
+
+  it('closes command palette on Escape', () => {
+    renderApp();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+    });
+    expect(document.querySelector('.command-palette')).not.toBeNull();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+
+    expect(document.querySelector('.command-palette')).toBeNull();
+  });
+
+  it('closes palette immediately when Escape is pressed right after Ctrl+K', () => {
+    renderApp();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+
+    expect(document.querySelector('.command-palette')).toBeNull();
+  });
+
+  it('closes palette immediately when Escape keyup is pressed right after Cmd+K', () => {
+    renderApp();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }));
+    });
+    const search = document.querySelector('.command-palette-search') as HTMLInputElement | null;
+    expect(search).not.toBeNull();
+
+    act(() => {
+      search?.dispatchEvent(new KeyboardEvent('keyup', { key: 'Escape', bubbles: true }));
+    });
+
+    expect(document.querySelector('.command-palette')).toBeNull();
+  });
+
+  it('closes command palette when the search input blurs', async () => {
+    renderApp();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+    });
+    const search = document.querySelector('.command-palette-search') as HTMLInputElement | null;
+    expect(search).not.toBeNull();
+
+    act(() => {
+      search?.blur();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
     expect(document.querySelector('.command-palette')).toBeNull();
@@ -841,13 +928,259 @@ describe('App node analysis interactions', () => {
     });
 
     const switchProject = [...document.querySelectorAll('.command-palette-item')]
-      .find((button) => button.textContent?.trim() === 'Switch Project: Project B') as HTMLButtonElement | undefined;
+      .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Switch Project: Project B') as HTMLButtonElement | undefined;
     expect(switchProject).toBeDefined();
     act(() => {
       switchProject?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
     expect(document.querySelector('.slice-select-label')?.textContent).toContain('Beta B');
+  });
+
+  it('filters command palette actions by search text', () => {
+    localStorage.setItem(
+      'slicr.es.v1.stream.app',
+      JSON.stringify([
+        {
+          id: 'p-1',
+          version: 1,
+          at: '2026-01-01T00:00:01.000Z',
+          type: 'project-created',
+          payload: { projectId: 'project-a', name: 'Project A' }
+        },
+        {
+          id: 'p-2',
+          version: 2,
+          at: '2026-01-01T00:00:02.000Z',
+          type: 'project-created',
+          payload: { projectId: 'project-b', name: 'Project B' }
+        },
+        {
+          id: 'p-3',
+          version: 3,
+          at: '2026-01-01T00:00:03.000Z',
+          type: 'project-created',
+          payload: { projectId: 'project-c', name: 'Project C' }
+        },
+        {
+          id: 'p-4',
+          version: 4,
+          at: '2026-01-01T00:00:04.000Z',
+          type: 'project-selected',
+          payload: { projectId: 'project-a' }
+        }
+      ])
+    );
+    localStorage.setItem(
+      'slicr.es.v1.stream.slice-a',
+      JSON.stringify([
+        {
+          id: 'a-1',
+          sliceId: 'slice-a',
+          version: 1,
+          at: '2026-01-01T00:00:01.000Z',
+          type: 'slice-created',
+          payload: { initialDsl: 'slice "Alpha A"\n\ncmd:buy "Buy A"' }
+        }
+      ])
+    );
+    localStorage.setItem(
+      'slicr.es.v1.stream.slice-b',
+      JSON.stringify([
+        {
+          id: 'b-1',
+          sliceId: 'slice-b',
+          version: 1,
+          at: '2026-01-01T00:00:01.000Z',
+          type: 'slice-created',
+          payload: { initialDsl: 'slice "Beta B"\n\ncmd:buy "Buy B"' }
+        }
+      ])
+    );
+    localStorage.setItem(
+      'slicr.es.v1.stream.slice-c',
+      JSON.stringify([
+        {
+          id: 'c-1',
+          sliceId: 'slice-c',
+          version: 1,
+          at: '2026-01-01T00:00:01.000Z',
+          type: 'slice-created',
+          payload: { initialDsl: 'slice "Gamma C"\n\ncmd:buy "Buy C"' }
+        }
+      ])
+    );
+    localStorage.setItem(
+      'slicr.es.v1.stream.app',
+      JSON.stringify([
+        ...JSON.parse(localStorage.getItem('slicr.es.v1.stream.app') ?? '[]'),
+        {
+          id: 'p-5',
+          version: 5,
+          at: '2026-01-01T00:00:05.000Z',
+          type: 'slice-added-to-project',
+          payload: { projectId: 'project-a', sliceId: 'slice-a' }
+        },
+        {
+          id: 'p-6',
+          version: 6,
+          at: '2026-01-01T00:00:06.000Z',
+          type: 'slice-added-to-project',
+          payload: { projectId: 'project-b', sliceId: 'slice-b' }
+        },
+        {
+          id: 'p-7',
+          version: 7,
+          at: '2026-01-01T00:00:07.000Z',
+          type: 'slice-added-to-project',
+          payload: { projectId: 'project-c', sliceId: 'slice-c' }
+        },
+        {
+          id: 'p-8',
+          version: 8,
+          at: '2026-01-01T00:00:08.000Z',
+          type: 'slice-selected',
+          payload: { projectId: 'project-a', selectedSliceId: 'slice-a' }
+        }
+      ])
+    );
+
+    renderApp();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+    });
+
+    const search = document.querySelector('.command-palette-search') as HTMLInputElement | null;
+    expect(search).not.toBeNull();
+    act(() => {
+      if (search) {
+        const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+        valueSetter?.call(search, 'project c');
+        search.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+
+    const filteredItems = [...document.querySelectorAll('.command-palette-item-title')].map((item) => item.textContent?.trim());
+    expect(filteredItems).toEqual(['Switch Project: Project C']);
+  });
+
+  it('runs the default create project command on Enter and closes', () => {
+    localStorage.setItem(
+      'slicr.es.v1.stream.app',
+      JSON.stringify([
+        {
+          id: 'p-1',
+          version: 1,
+          at: '2026-01-01T00:00:01.000Z',
+          type: 'project-created',
+          payload: { projectId: 'project-a', name: 'Project A' }
+        },
+        {
+          id: 'p-2',
+          version: 2,
+          at: '2026-01-01T00:00:02.000Z',
+          type: 'project-created',
+          payload: { projectId: 'project-b', name: 'Project B' }
+        },
+        {
+          id: 'p-3',
+          version: 3,
+          at: '2026-01-01T00:00:03.000Z',
+          type: 'project-created',
+          payload: { projectId: 'project-c', name: 'Project C' }
+        },
+        {
+          id: 'p-4',
+          version: 4,
+          at: '2026-01-01T00:00:04.000Z',
+          type: 'project-selected',
+          payload: { projectId: 'project-a' }
+        },
+        {
+          id: 'p-5',
+          version: 5,
+          at: '2026-01-01T00:00:05.000Z',
+          type: 'slice-added-to-project',
+          payload: { projectId: 'project-a', sliceId: 'slice-a' }
+        },
+        {
+          id: 'p-6',
+          version: 6,
+          at: '2026-01-01T00:00:06.000Z',
+          type: 'slice-added-to-project',
+          payload: { projectId: 'project-b', sliceId: 'slice-b' }
+        },
+        {
+          id: 'p-7',
+          version: 7,
+          at: '2026-01-01T00:00:07.000Z',
+          type: 'slice-added-to-project',
+          payload: { projectId: 'project-c', sliceId: 'slice-c' }
+        },
+        {
+          id: 'p-8',
+          version: 8,
+          at: '2026-01-01T00:00:08.000Z',
+          type: 'slice-selected',
+          payload: { projectId: 'project-a', selectedSliceId: 'slice-a' }
+        }
+      ])
+    );
+    localStorage.setItem(
+      'slicr.es.v1.stream.slice-a',
+      JSON.stringify([
+        {
+          id: 'a-1',
+          sliceId: 'slice-a',
+          version: 1,
+          at: '2026-01-01T00:00:01.000Z',
+          type: 'slice-created',
+          payload: { initialDsl: 'slice "Alpha A"\n\ncmd:buy "Buy A"' }
+        }
+      ])
+    );
+    localStorage.setItem(
+      'slicr.es.v1.stream.slice-b',
+      JSON.stringify([
+        {
+          id: 'b-1',
+          sliceId: 'slice-b',
+          version: 1,
+          at: '2026-01-01T00:00:01.000Z',
+          type: 'slice-created',
+          payload: { initialDsl: 'slice "Beta B"\n\ncmd:buy "Buy B"' }
+        }
+      ])
+    );
+    localStorage.setItem(
+      'slicr.es.v1.stream.slice-c',
+      JSON.stringify([
+        {
+          id: 'c-1',
+          sliceId: 'slice-c',
+          version: 1,
+          at: '2026-01-01T00:00:01.000Z',
+          type: 'slice-created',
+          payload: { initialDsl: 'slice "Gamma C"\n\ncmd:buy "Buy C"' }
+        }
+      ])
+    );
+
+    renderApp();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+    });
+    const search = document.querySelector('.command-palette-search') as HTMLInputElement | null;
+    expect(search).not.toBeNull();
+
+    act(() => {
+      search?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+
+    expect(document.querySelector('.command-palette')).toBeNull();
+    expect(document.querySelector('.project-modal')).not.toBeNull();
   });
 
   it('runs trace with keyboard shortcut for selected nodes', () => {

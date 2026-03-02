@@ -115,6 +115,7 @@ export type AuxPanelsSection = {
   docsOpen: boolean;
   hasOpenedDocs: boolean;
   commandPaletteOpen: boolean;
+  createProjectDialogOpen: boolean;
 };
 
 export type ConstantsSection = {
@@ -152,6 +153,9 @@ export type ActionsSection = {
   onTraceNodeHover: TraceNodeHoverHandler;
   onSetSourceOverride: (issueNodeKey: string, issueKey: string, candidate: string) => void;
   onJumpToUsage: (sliceId: string, nodeKey: string) => void;
+  onCloseCommandPalette: () => void;
+  onOpenCreateProjectDialog: () => void;
+  onCloseCreateProjectDialog: () => void;
   onRunTraceCommand: () => void;
   onShowUsageCommand: () => void;
 };
