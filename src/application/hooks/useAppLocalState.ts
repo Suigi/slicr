@@ -71,6 +71,7 @@ export function useAppLocalState() {
   const [compactEventsSummary, setCompactEventsSummary] = useState<string | null>(null);
   const [addNodeDialogOpen, setAddNodeDialogOpen] = useState(false);
   const [importNodeDialogOpen, setImportNodeDialogOpen] = useState(false);
+  const [createSliceTemplateDialogOpen, setCreateSliceTemplateDialogOpen] = useState(false);
   const [manualNodePositions, setManualNodePositions] = useState<Record<string, { x: number; y: number }>>(
     initialSnapshot.overrides.nodes
   );
@@ -146,6 +147,8 @@ export function useAppLocalState() {
     setAddNodeDialogOpen,
     importNodeDialogOpen,
     setImportNodeDialogOpen,
+    createSliceTemplateDialogOpen,
+    setCreateSliceTemplateDialogOpen,
     manualNodePositions,
     setManualNodePositions,
     manualEdgePoints,

@@ -21,6 +21,7 @@ export type UseUiEffectsArgs = {
   compactEventsDialogOpen: boolean;
   addNodeDialogOpen: boolean;
   importNodeDialogOpen: boolean;
+  createSliceTemplateDialogOpen: boolean;
   sliceMenuRef: RefObject<HTMLDivElement>;
   routeMenuRef: RefObject<HTMLDivElement>;
   mobileMenuRef: RefObject<HTMLDivElement>;
@@ -44,6 +45,7 @@ export type UseUiEffectsArgs = {
   setCompactEventsDialogOpen: Dispatch<SetStateAction<boolean>>;
   setAddNodeDialogOpen: Dispatch<SetStateAction<boolean>>;
   setImportNodeDialogOpen: Dispatch<SetStateAction<boolean>>;
+  setCreateSliceTemplateDialogOpen: Dispatch<SetStateAction<boolean>>;
   setCrossSliceTraceExpandedKeys: Dispatch<SetStateAction<Record<string, boolean>>>;
   setSelectedNodePanelTab: Dispatch<SetStateAction<'usage' | 'crossSliceData' | 'trace'>>;
   applySelectedSliceOverrides: (sliceId: string) => void;
@@ -67,6 +69,7 @@ export function useUiEffects(args: UseUiEffectsArgs) {
     compactEventsDialogOpen,
     addNodeDialogOpen,
     importNodeDialogOpen,
+    createSliceTemplateDialogOpen,
     sliceMenuRef,
     routeMenuRef,
     mobileMenuRef,
@@ -90,6 +93,7 @@ export function useUiEffects(args: UseUiEffectsArgs) {
     setCompactEventsDialogOpen,
     setAddNodeDialogOpen,
     setImportNodeDialogOpen,
+    setCreateSliceTemplateDialogOpen,
     setCrossSliceTraceExpandedKeys,
     setSelectedNodePanelTab,
     applySelectedSliceOverrides
@@ -319,6 +323,9 @@ export function useUiEffects(args: UseUiEffectsArgs) {
         if (importNodeDialogOpen) {
           setImportNodeDialogOpen(false);
         }
+        if (createSliceTemplateDialogOpen) {
+          setCreateSliceTemplateDialogOpen(false);
+        }
         return;
       }
 
@@ -383,6 +390,9 @@ export function useUiEffects(args: UseUiEffectsArgs) {
       if (importNodeDialogOpen) {
         setImportNodeDialogOpen(false);
       }
+      if (createSliceTemplateDialogOpen) {
+        setCreateSliceTemplateDialogOpen(false);
+      }
     };
 
     window.addEventListener('keydown', onKeyDown);
@@ -399,11 +409,13 @@ export function useUiEffects(args: UseUiEffectsArgs) {
     compactEventsDialogOpen,
     addNodeDialogOpen,
     importNodeDialogOpen,
+    createSliceTemplateDialogOpen,
     setCommandPaletteOpen,
     setCreateProjectDialogOpen,
     setCompactEventsDialogOpen,
     setAddNodeDialogOpen,
     setImportNodeDialogOpen,
+    setCreateSliceTemplateDialogOpen,
     setCrossSliceTraceExpandedKeys,
     setSelectedNodePanelTab,
     setSelectedNodeKey,

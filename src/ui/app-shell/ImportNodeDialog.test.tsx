@@ -207,7 +207,7 @@ describe('ImportNodeDialog', () => {
     const payload = onSubmit.mock.calls[0][0] as { dslBlock: string };
     expect(payload.dslBlock.startsWith('evt:payment-authorized "Payment Authorized"')).toBe(true);
     expect(payload.dslBlock.includes('data:')).toBe(true);
-    expect(payload.dslBlock.includes('paymentId: "pay-774"')).toBe(true);
-    expect(payload.dslBlock.includes('amount: "89.00"')).toBe(false);
+    expect(payload.dslBlock.includes('paymentId: pay-774')).toBe(true);
+    expect(payload.dslBlock.includes('amount: 89.00')).toBe(false);
   });
 });

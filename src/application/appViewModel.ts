@@ -124,6 +124,7 @@ export type AuxPanelsSection = {
   compactEventsSummary: string | null;
   addNodeDialogOpen: boolean;
   importNodeDialogOpen: boolean;
+  createSliceTemplateDialogOpen: boolean;
 };
 
 export type ConstantsSection = {
@@ -174,6 +175,9 @@ export type ActionsSection = {
   onOpenImportNodeDialog: () => void;
   onCloseImportNodeDialog: () => void;
   onCreateImportedNodeFromDialog: (args: { dslBlock: string; insertionHint?: { preferCursor: boolean } }) => void;
+  onOpenCreateSliceTemplateDialog: () => void;
+  onCloseCreateSliceTemplateDialog: () => void;
+  onApplySliceTemplateFromDialog: (args: { targetMode: 'create-new' | 'add-current'; text: string }) => void;
   onRunTraceCommand: () => void;
   onShowUsageCommand: () => void;
 };

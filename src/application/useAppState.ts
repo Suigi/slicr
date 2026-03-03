@@ -76,6 +76,8 @@ export function useAppState(): UseAppStateResult {
     setAddNodeDialogOpen,
     importNodeDialogOpen,
     setImportNodeDialogOpen,
+    createSliceTemplateDialogOpen,
+    setCreateSliceTemplateDialogOpen,
     manualNodePositions,
     setManualNodePositions,
     manualEdgePoints,
@@ -220,6 +222,7 @@ export function useAppState(): UseAppStateResult {
     compactEventsDialogOpen,
     addNodeDialogOpen,
     importNodeDialogOpen,
+    createSliceTemplateDialogOpen,
     sliceMenuRef,
     routeMenuRef,
     mobileMenuRef,
@@ -243,6 +246,7 @@ export function useAppState(): UseAppStateResult {
     setCompactEventsDialogOpen,
     setAddNodeDialogOpen,
     setImportNodeDialogOpen,
+    setCreateSliceTemplateDialogOpen,
     setCrossSliceTraceExpandedKeys: analysis.setCrossSliceTraceExpandedKeys,
     setSelectedNodePanelTab: analysis.setSelectedNodePanelTab,
     applySelectedSliceOverrides
@@ -282,6 +286,7 @@ export function useAppState(): UseAppStateResult {
     setCompactEventsSummary,
     setAddNodeDialogOpen,
     setImportNodeDialogOpen,
+    setCreateSliceTemplateDialogOpen,
     hasFocusedCursor,
     insertAtCursorOrEnd,
     setHoveredEdgeKey,
@@ -367,7 +372,8 @@ export function useAppState(): UseAppStateResult {
       compactEventsDialogOpen,
       compactEventsSummary,
       addNodeDialogOpen,
-      importNodeDialogOpen
+      importNodeDialogOpen,
+      createSliceTemplateDialogOpen
     },
     constants: {
       TYPE_LABEL,

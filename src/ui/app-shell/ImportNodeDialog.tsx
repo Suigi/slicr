@@ -5,7 +5,7 @@ import type { ParsedSliceProjection } from '../../domain/parsedSliceProjection';
 import { DataKeyChecklist, type DataChecklistRow } from './dialogs/DataKeyChecklist';
 import { DialogFrame } from './dialogs/DialogFrame';
 import { NodeSearchCombobox, type NodeSearchOption } from './dialogs/NodeSearchCombobox';
-import { colorClassForNodeType, flattenDataKeysWithValue, kebabToTitle, stringifyValue } from './dialogs/dialogShared';
+import { colorClassForNodeType, kebabToTitle, stringifyValue } from './dialogs/dialogShared';
 
 type ImportNodeDialogProps = {
   parsedSliceProjectionList: ParsedSliceProjection<Parsed>[];
@@ -28,6 +28,10 @@ function aliasForNode(node: { alias: string | null; name: string }): string {
   return node.alias?.trim() || kebabToTitle(node.name);
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
 export function ImportNodeDialog({ parsedSliceProjectionList, targetSliceId, onCancel, onSubmit }: ImportNodeDialogProps) {
   const [query, setQuery] = useState('');
   const [alias, setAlias] = useState('');
@@ -45,11 +49,12 @@ export function ImportNodeDialog({ parsedSliceProjectionList, targetSliceId, onC
       const sliceName = sliceProjection.parsed.sliceName;
       for (const node of sliceProjection.parsed.nodes.values()) {
         if (scenarioOnlyKeys.has(node.key)) continue;
-        const dataRows = flattenDataKeysWithValue(node.data).map((entry) => ({
-          id: `${node.key}:${entry.key}`,
-          key: entry.key,
-          value: stringifyValue(entry.value),
-          rawValue: entry.value
+        const dataEntries = isRecord(node.data) ? Object.entries(node.data) : [];
+        const dataRows = dataEntries.map(([key, value]) => ({
+          id: `${node.key}:${key}`,
+          key,
+          value: stringifyValue(value),
+          rawValue: value
         }));
         options.push({
           id: `${sliceProjection.id}:${node.key}`,

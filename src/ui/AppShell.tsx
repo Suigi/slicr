@@ -9,6 +9,7 @@ import { ProjectRail } from './app-shell/ProjectRail';
 import { AddNodeDialog } from './app-shell/AddNodeDialog';
 import { ImportNodeDialog } from './app-shell/ImportNodeDialog';
 import { CompactEventsDialog } from './app-shell/CompactEventsDialog';
+import { CreateSliceTemplateDialog } from './app-shell/CreateSliceTemplateDialog';
 import { AnalysisProvider } from './app-shell/contexts/AnalysisContext';
 import { DiagramInteractionProvider } from './app-shell/contexts/DiagramInteractionContext';
 import { HeaderUiProvider } from './app-shell/contexts/HeaderUiContext';
@@ -127,6 +128,14 @@ export function AppShell(props: AppShellProps) {
             targetSliceId={analysisPanel.selectedSliceId}
             onCancel={actions.onCloseImportNodeDialog}
             onSubmit={actions.onCreateImportedNodeFromDialog}
+          />
+        )}
+        {auxPanels.createSliceTemplateDialogOpen && (
+          <CreateSliceTemplateDialog
+            parsedSliceProjectionList={diagram.parsedSliceProjectionList}
+            targetSliceId={analysisPanel.selectedSliceId}
+            onCancel={actions.onCloseCreateSliceTemplateDialog}
+            onSubmit={actions.onApplySliceTemplateFromDialog}
           />
         )}
         {auxPanels.compactEventsDialogOpen && (

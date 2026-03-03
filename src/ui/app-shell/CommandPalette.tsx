@@ -29,6 +29,12 @@ export function CommandPalette({ auxPanels, actions, header }: CommandPalettePro
         run: actions.onOpenImportNodeDialog
       },
       {
+        id: 'apply-slice-template',
+        label: 'Apply Slice Template...',
+        context: 'Slice | Modeling',
+        run: actions.onOpenCreateSliceTemplateDialog
+      },
+      {
         id: 'create-project',
         label: 'Create Project...',
         context: 'Window | Projects',

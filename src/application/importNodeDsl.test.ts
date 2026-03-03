@@ -28,8 +28,8 @@ describe('buildImportNodeDsl', () => {
     });
 
     expect(dsl.includes('data:')).toBe(true);
-    expect(dsl.includes('capturedAt: "2026-03-03T09:13:00Z"')).toBe(true);
-    expect(dsl.includes('status: "approved"')).toBe(false);
+    expect(dsl.includes('capturedAt: 2026-03-03T09:13:00Z')).toBe(true);
+    expect(dsl.includes('status: approved')).toBe(false);
   });
 
   it('emits data: {} when no rows are selected', () => {
@@ -69,5 +69,30 @@ describe('buildImportNodeDsl', () => {
 
     expect(parsed.nodes.has('sample')).toBe(true);
     expect(parsed.warnings.length).toBe(0);
+  });
+
+  it('formats selected array/object values with YAML-like DSL structure', () => {
+    const dsl = buildImportNodeDsl({
+      sourceRef: 'rm:active-wish-list',
+      alias: 'Active Wish List',
+      dataRows: [
+        { id: 'listId', key: 'listId', value: 'L_97' },
+        { id: 'name', key: 'name', value: "Ken's Birthday" },
+        {
+          id: 'wishes',
+          key: 'wishes',
+          value: [
+            { wishId: 'W_454', description: 'Football' }
+          ]
+        }
+      ],
+      selectedRowIds: ['listId', 'name', 'wishes']
+    });
+
+    expect(dsl).toContain('rm:active-wish-list "Active Wish List"');
+    expect(dsl).toContain('data:');
+    expect(dsl).toContain('  wishes:');
+    expect(dsl).toContain('    - wishId: W_454');
+    expect(dsl).toContain('      description: Football');
   });
 });

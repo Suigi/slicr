@@ -1,3 +1,5 @@
+import { formatNodeData } from '../domain/formatNodeData';
+
 export type ImportNodeDslRow = {
   id: string;
   key: string;
@@ -31,32 +33,28 @@ function quote(value: string): string {
   return JSON.stringify(value);
 }
 
-function formatDataKey(key: string): string {
-  return /^[A-Za-z_][A-Za-z0-9_\-#]*$/.test(key) ? key : quote(key);
-}
-
-function formatDataValue(value: unknown): string {
-  if (value === null) return 'null';
-  if (value === undefined) return quote('undefined');
-  if (typeof value === 'string') return quote(value);
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  return JSON.stringify(value);
-}
-
 export function buildImportNodeDsl(args: BuildImportNodeDslArgs): string {
   const alias = args.alias?.trim() ?? '';
   const header = alias ? `${args.sourceRef.trim()} ${quote(alias)}` : args.sourceRef.trim();
 
   const selected = uniqueNonEmpty(args.selectedRowIds);
   const rowsById = new Map(args.dataRows.map((row) => [row.id, row]));
-  const lines = selected
+  const selectedRows = selected
     .map((rowId) => rowsById.get(rowId))
-    .filter((row): row is ImportNodeDslRow => Boolean(row))
-    .map((row) => `  ${formatDataKey(row.key)}: ${formatDataValue(row.value)}`);
+    .filter((row): row is ImportNodeDslRow => Boolean(row));
 
-  if (lines.length === 0) {
+  if (selectedRows.length === 0) {
     return `${header}\ndata: {}`;
   }
+
+  const selectedData: Record<string, unknown> = {};
+  for (const row of selectedRows) {
+    selectedData[row.key] = row.value;
+  }
+
+  const lines = formatNodeData(selectedData)
+    .flatMap((field) => field.text.split('\n'))
+    .map((line) => `  ${line}`);
 
   return [header, 'data:', ...lines].join('\n');
 }

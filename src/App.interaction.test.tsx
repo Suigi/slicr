@@ -508,6 +508,94 @@ rm:persisted-view`;
     expect(document.querySelector('.import-node-dialog')).not.toBeNull();
   });
 
+  it('opens apply slice template dialog from command palette', () => {
+    renderApp();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+    });
+
+    const applyTemplateItem = (
+      [...document.querySelectorAll('.command-palette-item')]
+        .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Apply Slice Template...')
+    ) as HTMLButtonElement | undefined;
+    expect(applyTemplateItem).toBeDefined();
+
+    act(() => {
+      applyTemplateItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(document.querySelector('.create-slice-template-dialog')).not.toBeNull();
+  });
+
+  it('applies template in create-new mode by creating and selecting a new slice', () => {
+    renderApp();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+    });
+
+    const applyTemplateItem = (
+      [...document.querySelectorAll('.command-palette-item')]
+        .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Apply Slice Template...')
+    ) as HTMLButtonElement | undefined;
+    expect(applyTemplateItem).toBeDefined();
+    act(() => {
+      applyTemplateItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const apply = [...document.querySelectorAll('.project-modal-button.primary')]
+      .find((button) => button.textContent?.trim() === 'Apply Template') as HTMLButtonElement | undefined;
+    expect(apply).toBeDefined();
+    act(() => {
+      apply?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const stored = readStoredLibrary();
+    expect(stored).not.toBeNull();
+    expect(stored?.slices.length).toBe(2);
+    const selected = stored?.slices.find((slice) => slice.id === stored.selectedSliceId);
+    expect(selected?.dsl.startsWith('slice "Payment Fulfillment"')).toBe(true);
+    expect(selected?.dsl.includes('ui:checkout-form')).toBe(true);
+  });
+
+  it('applies template in add-current mode by inserting text into current slice', () => {
+    renderApp();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+    });
+
+    const applyTemplateItem = (
+      [...document.querySelectorAll('.command-palette-item')]
+        .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Apply Slice Template...')
+    ) as HTMLButtonElement | undefined;
+    expect(applyTemplateItem).toBeDefined();
+    act(() => {
+      applyTemplateItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const addCurrent = document.querySelector('#slice-template-target-add-current') as HTMLInputElement | null;
+    expect(addCurrent).not.toBeNull();
+    act(() => {
+      addCurrent?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const apply = [...document.querySelectorAll('.project-modal-button.primary')]
+      .find((button) => button.textContent?.trim() === 'Apply Template') as HTMLButtonElement | undefined;
+    expect(apply).toBeDefined();
+    act(() => {
+      apply?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const stored = readStoredLibrary();
+    expect(stored).not.toBeNull();
+    expect(stored?.slices.length).toBe(1);
+    const selected = stored?.slices.find((slice) => slice.id === stored?.selectedSliceId);
+    expect(selected?.dsl.includes('ui:checkout-form')).toBe(true);
+    expect((selected?.dsl.match(/^\s*slice\s+"/gm) ?? []).length).toBe(1);
+  });
+
   it('opens compact event streams dialog from command palette', () => {
     renderApp();
 

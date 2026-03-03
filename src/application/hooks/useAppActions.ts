@@ -1,5 +1,5 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
-import { addNewSlice, loadSliceLibrary, selectSlice, type SliceLibrary } from '../../sliceLibrary';
+import { addNewSlice, loadSliceLibrary, selectSlice, updateSelectedSliceDsl, type SliceLibrary } from '../../sliceLibrary';
 import { appendProjectCreatedEvent, appendProjectSelectedEvent, loadProjectIndex, selectProject, type ProjectIndex } from '../../projectLibrary';
 import { DEFAULT_DSL } from '../../defaultDsl';
 import type { Parsed, Position } from '../../domain/types';
@@ -42,6 +42,7 @@ type UseAppActionsArgs = {
   setCompactEventsSummary: Dispatch<SetStateAction<string | null>>;
   setAddNodeDialogOpen: Dispatch<SetStateAction<boolean>>;
   setImportNodeDialogOpen: Dispatch<SetStateAction<boolean>>;
+  setCreateSliceTemplateDialogOpen: Dispatch<SetStateAction<boolean>>;
   hasFocusedCursor: () => boolean;
   insertAtCursorOrEnd: (block: string) => { from: number; to: number };
   setTheme: Dispatch<SetStateAction<'dark' | 'light'>>;
@@ -87,6 +88,7 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
     setCompactEventsSummary,
     setAddNodeDialogOpen,
     setImportNodeDialogOpen,
+    setCreateSliceTemplateDialogOpen,
     hasFocusedCursor,
     insertAtCursorOrEnd,
     setTheme,
@@ -341,6 +343,36 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
         focusRange(inserted);
       }
       setImportNodeDialogOpen(false);
+      setCommandPaletteOpen(false);
+    },
+    onOpenCreateSliceTemplateDialog: () => {
+      setCommandPaletteOpen(false);
+      setCreateSliceTemplateDialogOpen(true);
+    },
+    onCloseCreateSliceTemplateDialog: () => setCreateSliceTemplateDialogOpen(false),
+    onApplySliceTemplateFromDialog: ({ targetMode, text }) => {
+      if (targetMode === 'create-new') {
+        let nextSelectedSliceId: string | null = null;
+        setLibrary((currentLibrary) => {
+          const withNewSlice = addNewSlice(currentLibrary);
+          const updated = updateSelectedSliceDsl(withNewSlice, text);
+          nextSelectedSliceId = updated.selectedSliceId;
+          return updated;
+        });
+        if (nextSelectedSliceId) {
+          applySelectedSliceOverrides(nextSelectedSliceId);
+        }
+      } else {
+        const shouldOpenEditor = !hasFocusedCursor();
+        if (shouldOpenEditor) {
+          setEditorOpen(true);
+        }
+        const inserted = insertAtCursorOrEnd(text);
+        if (inserted.to > inserted.from) {
+          focusRange(inserted);
+        }
+      }
+      setCreateSliceTemplateDialogOpen(false);
       setCommandPaletteOpen(false);
     },
     onRunTraceCommand,
