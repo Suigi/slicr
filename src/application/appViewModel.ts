@@ -9,6 +9,7 @@ import type { Range } from '../useDslEditor';
 import type { SliceLibrary } from '../sliceLibrary';
 import type { ProjectIndex } from '../projectLibrary';
 import type { Parsed, VisualNode } from '../domain/types';
+import type { ParsedSliceProjection } from '../domain/parsedSliceProjection';
 import type { FormattedNodeField } from '../domain/formatNodeData';
 import type { DataIssue } from '../domain/dataIssues';
 import type { CrossSliceUsageRef } from '../domain/crossSliceUsage';
@@ -77,6 +78,7 @@ export type EditorSection = {
 
 export type DiagramSection = {
   parsed: Parsed | null;
+  parsedSliceProjectionList: ParsedSliceProjection<Parsed>[];
   currentDsl: string;
   sceneModel: DiagramSceneModel | null;
   DiagramRenderer: DiagramRendererComponent;
@@ -118,6 +120,7 @@ export type AuxPanelsSection = {
   commandPaletteOpen: boolean;
   createProjectDialogOpen: boolean;
   addNodeDialogOpen: boolean;
+  importNodeDialogOpen: boolean;
 };
 
 export type ConstantsSection = {
@@ -162,6 +165,9 @@ export type ActionsSection = {
   onOpenAddNodeDialog: () => void;
   onCloseAddNodeDialog: () => void;
   onCreateNodeFromDialog: (args: { dslBlock: string; insertionHint?: { preferCursor: boolean } }) => void;
+  onOpenImportNodeDialog: () => void;
+  onCloseImportNodeDialog: () => void;
+  onCreateImportedNodeFromDialog: (args: { dslBlock: string; insertionHint?: { preferCursor: boolean } }) => void;
   onRunTraceCommand: () => void;
   onShowUsageCommand: () => void;
 };

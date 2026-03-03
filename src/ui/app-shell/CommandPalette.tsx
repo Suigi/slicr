@@ -23,6 +23,12 @@ export function CommandPalette({ auxPanels, actions, header }: CommandPalettePro
         run: actions.onOpenAddNodeDialog
       },
       {
+        id: 'import-node',
+        label: 'Import Node...',
+        context: 'Slice | Modeling',
+        run: actions.onOpenImportNodeDialog
+      },
+      {
         id: 'create-project',
         label: 'Create Project...',
         context: 'Window | Projects',

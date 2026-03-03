@@ -38,6 +38,7 @@ type UseAppActionsArgs = {
   setMobileMenuOpen: Dispatch<SetStateAction<boolean>>;
   setCreateProjectDialogOpen: Dispatch<SetStateAction<boolean>>;
   setAddNodeDialogOpen: Dispatch<SetStateAction<boolean>>;
+  setImportNodeDialogOpen: Dispatch<SetStateAction<boolean>>;
   hasFocusedCursor: () => boolean;
   insertAtCursorOrEnd: (block: string) => { from: number; to: number };
   setTheme: Dispatch<SetStateAction<'dark' | 'light'>>;
@@ -80,6 +81,7 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
     setMobileMenuOpen,
     setCreateProjectDialogOpen,
     setAddNodeDialogOpen,
+    setImportNodeDialogOpen,
     hasFocusedCursor,
     insertAtCursorOrEnd,
     setTheme,
@@ -295,6 +297,23 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
         focusRange(inserted);
       }
       setAddNodeDialogOpen(false);
+      setCommandPaletteOpen(false);
+    },
+    onOpenImportNodeDialog: () => {
+      setCommandPaletteOpen(false);
+      setImportNodeDialogOpen(true);
+    },
+    onCloseImportNodeDialog: () => setImportNodeDialogOpen(false),
+    onCreateImportedNodeFromDialog: ({ dslBlock }) => {
+      const shouldOpenEditor = !hasFocusedCursor();
+      if (shouldOpenEditor) {
+        setEditorOpen(true);
+      }
+      const inserted = insertAtCursorOrEnd(dslBlock);
+      if (inserted.to > inserted.from) {
+        focusRange(inserted);
+      }
+      setImportNodeDialogOpen(false);
       setCommandPaletteOpen(false);
     },
     onRunTraceCommand,

@@ -7,6 +7,7 @@ import { NodeAnalysisPanel } from './app-shell/NodeAnalysisPanel';
 import { NodeMeasureLayer } from './app-shell/NodeMeasureLayer';
 import { ProjectRail } from './app-shell/ProjectRail';
 import { AddNodeDialog } from './app-shell/AddNodeDialog';
+import { ImportNodeDialog } from './app-shell/ImportNodeDialog';
 import { AnalysisProvider } from './app-shell/contexts/AnalysisContext';
 import { DiagramInteractionProvider } from './app-shell/contexts/DiagramInteractionContext';
 import { HeaderUiProvider } from './app-shell/contexts/HeaderUiContext';
@@ -114,6 +115,14 @@ export function AppShell(props: AppShellProps) {
             parsed={diagram.parsed}
             onCancel={actions.onCloseAddNodeDialog}
             onSubmit={actions.onCreateNodeFromDialog}
+          />
+        )}
+        {auxPanels.importNodeDialogOpen && (
+          <ImportNodeDialog
+            parsedSliceProjectionList={diagram.parsedSliceProjectionList}
+            targetSliceId={analysisPanel.selectedSliceId}
+            onCancel={actions.onCloseImportNodeDialog}
+            onSubmit={actions.onCreateImportedNodeFromDialog}
           />
         )}
 

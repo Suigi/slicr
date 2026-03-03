@@ -70,6 +70,8 @@ export function useAppState(): UseAppStateResult {
     setCreateProjectDialogOpen,
     addNodeDialogOpen,
     setAddNodeDialogOpen,
+    importNodeDialogOpen,
+    setImportNodeDialogOpen,
     manualNodePositions,
     setManualNodePositions,
     manualEdgePoints,
@@ -212,6 +214,7 @@ export function useAppState(): UseAppStateResult {
     mobileMenuOpen,
     createProjectDialogOpen,
     addNodeDialogOpen,
+    importNodeDialogOpen,
     sliceMenuRef,
     routeMenuRef,
     mobileMenuRef,
@@ -233,6 +236,7 @@ export function useAppState(): UseAppStateResult {
     setCommandPaletteOpen,
     setCreateProjectDialogOpen,
     setAddNodeDialogOpen,
+    setImportNodeDialogOpen,
     setCrossSliceTraceExpandedKeys: analysis.setCrossSliceTraceExpandedKeys,
     setSelectedNodePanelTab: analysis.setSelectedNodePanelTab,
     applySelectedSliceOverrides
@@ -269,6 +273,7 @@ export function useAppState(): UseAppStateResult {
     setRouteMode,
     setCreateProjectDialogOpen,
     setAddNodeDialogOpen,
+    setImportNodeDialogOpen,
     hasFocusedCursor,
     insertAtCursorOrEnd,
     setHoveredEdgeKey,
@@ -312,6 +317,7 @@ export function useAppState(): UseAppStateResult {
     },
     diagram: {
       parsed,
+      parsedSliceProjectionList,
       currentDsl,
       sceneModel: diagramView.sceneModel,
       DiagramRenderer,
@@ -350,7 +356,8 @@ export function useAppState(): UseAppStateResult {
       hasOpenedDocs,
       commandPaletteOpen,
       createProjectDialogOpen,
-      addNodeDialogOpen
+      addNodeDialogOpen,
+      importNodeDialogOpen
     },
     constants: {
       TYPE_LABEL,

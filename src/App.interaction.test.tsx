@@ -488,6 +488,26 @@ rm:persisted-view`;
     expect(document.querySelector('.add-node-dialog')).not.toBeNull();
   });
 
+  it('opens import node dialog from command palette', () => {
+    renderApp();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+    });
+
+    const importNodeItem = (
+      [...document.querySelectorAll('.command-palette-item')]
+        .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Import Node...')
+    ) as HTMLButtonElement | undefined;
+    expect(importNodeItem).toBeDefined();
+
+    act(() => {
+      importNodeItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(document.querySelector('.import-node-dialog')).not.toBeNull();
+  });
+
   it('closes create project dialog on Escape', () => {
     renderApp();
     const rail = ensureProjectRailOpen();

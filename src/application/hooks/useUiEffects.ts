@@ -19,6 +19,7 @@ export type UseUiEffectsArgs = {
   mobileMenuOpen: boolean;
   createProjectDialogOpen: boolean;
   addNodeDialogOpen: boolean;
+  importNodeDialogOpen: boolean;
   sliceMenuRef: RefObject<HTMLDivElement>;
   routeMenuRef: RefObject<HTMLDivElement>;
   mobileMenuRef: RefObject<HTMLDivElement>;
@@ -40,6 +41,7 @@ export type UseUiEffectsArgs = {
   setCommandPaletteOpen: Dispatch<SetStateAction<boolean>>;
   setCreateProjectDialogOpen: Dispatch<SetStateAction<boolean>>;
   setAddNodeDialogOpen: Dispatch<SetStateAction<boolean>>;
+  setImportNodeDialogOpen: Dispatch<SetStateAction<boolean>>;
   setCrossSliceTraceExpandedKeys: Dispatch<SetStateAction<Record<string, boolean>>>;
   setSelectedNodePanelTab: Dispatch<SetStateAction<'usage' | 'crossSliceData' | 'trace'>>;
   applySelectedSliceOverrides: (sliceId: string) => void;
@@ -61,6 +63,7 @@ export function useUiEffects(args: UseUiEffectsArgs) {
     mobileMenuOpen,
     createProjectDialogOpen,
     addNodeDialogOpen,
+    importNodeDialogOpen,
     sliceMenuRef,
     routeMenuRef,
     mobileMenuRef,
@@ -82,6 +85,7 @@ export function useUiEffects(args: UseUiEffectsArgs) {
     setCommandPaletteOpen,
     setCreateProjectDialogOpen,
     setAddNodeDialogOpen,
+    setImportNodeDialogOpen,
     setCrossSliceTraceExpandedKeys,
     setSelectedNodePanelTab,
     applySelectedSliceOverrides
@@ -305,6 +309,9 @@ export function useUiEffects(args: UseUiEffectsArgs) {
         if (addNodeDialogOpen) {
           setAddNodeDialogOpen(false);
         }
+        if (importNodeDialogOpen) {
+          setImportNodeDialogOpen(false);
+        }
         return;
       }
 
@@ -363,6 +370,9 @@ export function useUiEffects(args: UseUiEffectsArgs) {
       if (addNodeDialogOpen) {
         setAddNodeDialogOpen(false);
       }
+      if (importNodeDialogOpen) {
+        setImportNodeDialogOpen(false);
+      }
     };
 
     window.addEventListener('keydown', onKeyDown);
@@ -377,9 +387,11 @@ export function useUiEffects(args: UseUiEffectsArgs) {
     selectedNodeUsesKeys,
     createProjectDialogOpen,
     addNodeDialogOpen,
+    importNodeDialogOpen,
     setCommandPaletteOpen,
     setCreateProjectDialogOpen,
     setAddNodeDialogOpen,
+    setImportNodeDialogOpen,
     setCrossSliceTraceExpandedKeys,
     setSelectedNodePanelTab,
     setSelectedNodeKey,

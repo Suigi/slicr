@@ -1,6 +1,10 @@
-import { FocusEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { buildAddNodeDsl, type AddNodeType } from '../../application/addNodeDsl';
 import type { Parsed, VisualNode } from '../../domain/types';
+import { DataKeyChecklist, type DataChecklistRow } from './dialogs/DataKeyChecklist';
+import { DialogFrame } from './dialogs/DialogFrame';
+import { NodeSearchCombobox } from './dialogs/NodeSearchCombobox';
+import { colorClassForNodeType, flattenDataKeysWithValue, kebabToTitle, selectAllInputText, stringifyValue } from './dialogs/dialogShared';
 
 type AddNodeDialogProps = {
   parsed: Parsed | null;
@@ -11,12 +15,6 @@ type AddNodeDialogProps = {
 type TypeOption = {
   value: AddNodeType;
   colorClass: string;
-};
-
-type IncomingDataRow = {
-  id: string;
-  key: string;
-  value: string;
 };
 
 type IncomingCollection = {
@@ -36,44 +34,6 @@ const TYPE_OPTIONS: TypeOption[] = [
   { value: 'external', colorClass: 'type-external' }
 ];
 
-function kebabToTitle(value: string): string {
-  return value
-    .trim()
-    .replace(/[\s_]+/g, '-')
-    .split('-')
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-}
-
-function flattenDataKeysWithValue(data: unknown, prefix = ''): Array<{ key: string; value: unknown }> {
-  if (!data || typeof data !== 'object' || Array.isArray(data)) {
-    return [];
-  }
-
-  const entries: Array<{ key: string; value: unknown }> = [];
-  for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
-    const full = prefix ? `${prefix}.${key}` : key;
-    entries.push({ key: full, value });
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
-      entries.push(...flattenDataKeysWithValue(value, full));
-    }
-  }
-  return entries;
-}
-
-function stringifyValue(value: unknown): string {
-  if (value === null) return 'null';
-  if (value === undefined) return 'undefined';
-  if (typeof value === 'string') return value;
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
-}
-
 function nodeRef(node: VisualNode): string {
   return node.type === 'generic' ? node.name : `${node.type}:${node.name}`;
 }
@@ -81,18 +41,6 @@ function nodeRef(node: VisualNode): string {
 function incomingRowIdsForNode(node: VisualNode): string[] {
   const ref = nodeRef(node);
   return flattenDataKeysWithValue(node.data).map((entry) => `${ref}:${entry.key}`);
-}
-
-function colorClassForNodeType(type: string): string {
-  if (type === 'generic') return 'type-generic';
-  if (type === 'evt') return 'type-event';
-  if (type === 'rm') return 'type-read-model';
-  if (type === 'ui') return 'type-ui';
-  if (type === 'cmd') return 'type-command';
-  if (type === 'exc') return 'type-exception';
-  if (type === 'aut') return 'type-automation';
-  if (type === 'ext') return 'type-external';
-  return '';
 }
 
 function syntaxHighlightDsl(dsl: string): string {
@@ -107,10 +55,6 @@ function syntaxHighlightDsl(dsl: string): string {
     .replace(/\b(uses|data|collect)\b/g, '<span class="dsl-keyword">$1</span>');
 }
 
-function selectAllInputText(event: FocusEvent<HTMLInputElement>) {
-  event.currentTarget.setSelectionRange(0, event.currentTarget.value.length);
-}
-
 export function AddNodeDialog({ parsed, onCancel, onSubmit }: AddNodeDialogProps) {
   const [typeInput, setTypeInput] = useState<AddNodeType>('event');
   const [typeQuery, setTypeQuery] = useState('event');
@@ -122,8 +66,6 @@ export function AddNodeDialog({ parsed, onCancel, onSubmit }: AddNodeDialogProps
   const [aliasTouched, setAliasTouched] = useState(false);
 
   const [incomingQuery, setIncomingQuery] = useState('');
-  const [incomingActiveIndex, setIncomingActiveIndex] = useState(-1);
-  const [hideIncomingSuggestionsUntilInput, setHideIncomingSuggestionsUntilInput] = useState(false);
   const [selectedPredecessorRefs, setSelectedPredecessorRefs] = useState<string[]>([]);
   const [selectedIncomingRows, setSelectedIncomingRows] = useState<string[]>([]);
   const [collections, setCollections] = useState<IncomingCollection[]>([]);
@@ -132,8 +74,6 @@ export function AddNodeDialog({ parsed, onCancel, onSubmit }: AddNodeDialogProps
   const nameInputRef = useRef<HTMLInputElement>(null);
   const focusNameAfterTypeBlurRef = useRef(false);
   const typeSuggestionsRef = useRef<HTMLDivElement>(null);
-  const incomingInputRef = useRef<HTMLInputElement>(null);
-  const incomingSuggestionsRef = useRef<HTMLDivElement>(null);
   const pendingCollectionFocusIdRef = useRef<string | null>(null);
 
   const candidateNodes = useMemo(() => {
@@ -177,7 +117,7 @@ export function AddNodeDialog({ parsed, onCancel, onSubmit }: AddNodeDialogProps
   }, [candidateNodes, selectedPredecessorRefs]);
 
   const incomingRows = useMemo(() => {
-    const rows: IncomingDataRow[] = [];
+    const rows: DataChecklistRow[] = [];
     for (const node of selectedPredecessors) {
       const ref = nodeRef(node);
       for (const entry of flattenDataKeysWithValue(node.data)) {
@@ -258,24 +198,6 @@ export function AddNodeDialog({ parsed, onCancel, onSubmit }: AddNodeDialogProps
     if (active) (active as HTMLElement).scrollIntoView({ block: 'nearest' });
   };
 
-  const closeIncomingSuggestions = () => {
-    if (incomingSuggestionsRef.current) {
-      incomingSuggestionsRef.current.style.display = 'none';
-    }
-  };
-
-  const renderIncomingSuggestionsVisible = () => {
-    if (!incomingSuggestionsRef.current) return;
-    const shouldShow = document.activeElement === incomingInputRef.current && !hideIncomingSuggestionsUntilInput;
-    incomingSuggestionsRef.current.style.display = shouldShow ? 'block' : 'none';
-  };
-
-  const scrollIncomingActiveIntoView = () => {
-    if (!incomingSuggestionsRef.current) return;
-    const active = incomingSuggestionsRef.current.querySelector('.add-node-dialog__incoming-item.active');
-    if (active) (active as HTMLElement).scrollIntoView({ block: 'nearest' });
-  };
-
   const addIncomingNode = (node: VisualNode) => {
     const ref = nodeRef(node);
     setSelectedPredecessorRefs((current) => [...current, ref]);
@@ -303,20 +225,13 @@ export function AddNodeDialog({ parsed, onCancel, onSubmit }: AddNodeDialogProps
   }, [collections]);
 
   return (
-    <div className="add-node-dialog-backdrop" role="presentation" onClick={onCancel}>
-      <div
-        className="add-node-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Add node"
-        onClick={(event) => event.stopPropagation()}
-        onKeyDown={(event) => {
-          if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
-            event.preventDefault();
-            submitDialog();
-          }
-        }}
-      >
+    <DialogFrame
+      backdropClassName="add-node-dialog-backdrop"
+      panelClassName="add-node-dialog"
+      ariaLabel="Add node"
+      onCancel={onCancel}
+      onSubmitShortcut={submitDialog}
+    >
         <h2>Add Node</h2>
 
         <div className="add-node-dialog__top-row">
@@ -462,94 +377,34 @@ export function AddNodeDialog({ parsed, onCancel, onSubmit }: AddNodeDialogProps
           <section className="add-node-dialog__left">
             <div className="add-node-dialog__field add-node-dialog__incoming-picker">
               <label htmlFor="add-node-incoming">Incoming Nodes</label>
-              <input
-                ref={incomingInputRef}
-                id="add-node-incoming"
-                className="add-node-dialog__input"
-                value={incomingQuery}
-                onChange={(event) => {
-                  setIncomingQuery(event.target.value);
-                  setIncomingActiveIndex(-1);
-                  setHideIncomingSuggestionsUntilInput(false);
-                  renderIncomingSuggestionsVisible();
-                }}
-                onFocus={(event) => {
-                  selectAllInputText(event);
-                  renderIncomingSuggestionsVisible();
-                }}
-                onBlur={() => {
-                  window.setTimeout(() => {
-                    setIncomingActiveIndex(-1);
-                    closeIncomingSuggestions();
-                  }, 60);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'ArrowDown') {
-                    if (hideIncomingSuggestionsUntilInput || filteredIncomingNodes.length === 0) return;
-                    event.preventDefault();
-                    setIncomingActiveIndex((current) => {
-                      const next = (current + 1 + filteredIncomingNodes.length) % filteredIncomingNodes.length;
-                      window.setTimeout(scrollIncomingActiveIntoView, 0);
-                      return next;
-                    });
-                    return;
-                  }
-                  if (event.key === 'ArrowUp') {
-                    if (hideIncomingSuggestionsUntilInput || filteredIncomingNodes.length === 0) return;
-                    event.preventDefault();
-                    setIncomingActiveIndex((current) => {
-                      if (current < 0) {
-                        window.setTimeout(scrollIncomingActiveIntoView, 0);
-                        return filteredIncomingNodes.length - 1;
-                      }
-                      const next = (current - 1 + filteredIncomingNodes.length) % filteredIncomingNodes.length;
-                      window.setTimeout(scrollIncomingActiveIntoView, 0);
-                      return next;
-                    });
-                    return;
-                  }
-                  if (event.key === 'Enter') {
-                    if (hideIncomingSuggestionsUntilInput || filteredIncomingNodes.length === 0) return;
-                    event.preventDefault();
-                    const picked = filteredIncomingNodes[incomingActiveIndex >= 0 ? incomingActiveIndex : 0];
-                    addIncomingNode(picked);
-                    setIncomingQuery('');
-                    setIncomingActiveIndex(-1);
-                    setHideIncomingSuggestionsUntilInput(true);
-                    closeIncomingSuggestions();
-                  }
-                }}
+              <NodeSearchCombobox
+                inputId="add-node-incoming"
+                inputClassName="add-node-dialog__input"
+                pickerClassName="add-node-dialog__incoming-picker"
+                suggestionsClassName="add-node-dialog__suggestions"
+                itemClassName="add-node-dialog__incoming-item"
+                activeClassName="active"
+                emptyClassName="add-node-dialog__empty"
+                primaryClassName="add-node-dialog__incoming-main"
+                secondaryClassName="add-node-dialog__incoming-meta"
                 placeholder="Search by name, alias, or type"
-                autoComplete="off"
+                options={filteredIncomingNodes.map((node) => {
+                  const ref = nodeRef(node);
+                  const typeClass = colorClassForNodeType(node.type);
+                  return {
+                    id: ref,
+                    primary: node.alias ?? node.name,
+                    secondary: ref,
+                    colorClassName: typeClass,
+                    value: node
+                  };
+                })}
+                query={incomingQuery}
+                onQueryChange={setIncomingQuery}
+                onPick={(option) => addIncomingNode(option.value)}
+                onEscape={onCancel}
+                selectAllOnFocus
               />
-              <div ref={incomingSuggestionsRef} className="add-node-dialog__suggestions">
-                {filteredIncomingNodes.length === 0 ? (
-                  <div className="add-node-dialog__empty">No suggestions.</div>
-                ) : (
-                  filteredIncomingNodes.map((node, index) => {
-                    const ref = nodeRef(node);
-                    const typeClass = colorClassForNodeType(node.type);
-                    return (
-                      <button
-                        key={ref}
-                        type="button"
-                        className={`add-node-dialog__incoming-item ${index === incomingActiveIndex ? 'active' : ''}`}
-                        onMouseDown={(event) => {
-                          event.preventDefault();
-                          addIncomingNode(node);
-                          setIncomingQuery('');
-                          setIncomingActiveIndex(-1);
-                          setHideIncomingSuggestionsUntilInput(true);
-                          closeIncomingSuggestions();
-                        }}
-                      >
-                        <div className={`add-node-dialog__incoming-main ${typeClass}`}>{node.alias ?? node.name}</div>
-                        <div className={`add-node-dialog__incoming-meta ${typeClass}`}>{ref}</div>
-                      </button>
-                    );
-                  })
-                )}
-              </div>
             </div>
 
             <div className="add-node-dialog__field">
@@ -595,32 +450,22 @@ export function AddNodeDialog({ parsed, onCancel, onSubmit }: AddNodeDialogProps
                 <button type="button" className="project-modal-button" onClick={addCollection}>+ collection</button>
               </div>
 
-              <div className="add-node-dialog__rows">
-                {incomingRows.length === 0 ? (
-                  <div className="add-node-dialog__empty">Select incoming nodes to see data keys.</div>
-                ) : (
-                  incomingRows.map((row) => {
-                    const checked = selectedIncomingRows.includes(row.id);
-                    return (
-                      <label key={row.id} className="add-node-dialog__row">
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={(event) => {
-                            if (event.target.checked) {
-                              setSelectedIncomingRows((current) => [...current, row.id]);
-                            } else {
-                              setSelectedIncomingRows((current) => current.filter((id) => id !== row.id));
-                            }
-                          }}
-                        />
-                        <span>{row.key}</span>
-                        <span className="add-node-dialog__row-value">{row.value}</span>
-                      </label>
-                    );
-                  })
-                )}
-              </div>
+              <DataKeyChecklist
+                rows={incomingRows}
+                selectedIds={selectedIncomingRows}
+                onToggle={(rowId, checked) => {
+                  if (checked) {
+                    setSelectedIncomingRows((current) => [...current, rowId]);
+                    return;
+                  }
+                  setSelectedIncomingRows((current) => current.filter((id) => id !== rowId));
+                }}
+                listClassName="add-node-dialog__rows"
+                rowClassName="add-node-dialog__row"
+                valueClassName="add-node-dialog__row-value"
+                emptyClassName="add-node-dialog__empty"
+                emptyText="Select incoming nodes to see data keys."
+              />
 
               {collections.map((collection, index) => (
                 <div key={collection.id} className="add-node-dialog__collection">
@@ -640,34 +485,24 @@ export function AddNodeDialog({ parsed, onCancel, onSubmit }: AddNodeDialogProps
                       placeholder={`collection-${index + 1}`}
                     />
                   </div>
-                  <div className="add-node-dialog__rows">
-                    {incomingRows.length === 0 ? (
-                      <div className="add-node-dialog__empty">Select incoming nodes to see data keys.</div>
-                    ) : (
-                      incomingRows.map((row) => {
-                        const checked = collection.selectedRowIds.includes(row.id);
-                        return (
-                          <label key={`${collection.id}:${row.id}`} className="add-node-dialog__row">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={(event) => {
-                                setCollections((current) => current.map((item) => {
-                                  if (item.id !== collection.id) return item;
-                                  if (event.target.checked) {
-                                    return { ...item, selectedRowIds: [...item.selectedRowIds, row.id] };
-                                  }
-                                  return { ...item, selectedRowIds: item.selectedRowIds.filter((id) => id !== row.id) };
-                                }));
-                              }}
-                            />
-                            <span>{row.key}</span>
-                            <span className="add-node-dialog__row-value">{row.value}</span>
-                          </label>
-                        );
-                      })
-                    )}
-                  </div>
+                  <DataKeyChecklist
+                    rows={incomingRows}
+                    selectedIds={collection.selectedRowIds}
+                    onToggle={(rowId, checked) => {
+                      setCollections((current) => current.map((item) => {
+                        if (item.id !== collection.id) return item;
+                        if (checked) {
+                          return { ...item, selectedRowIds: [...item.selectedRowIds, rowId] };
+                        }
+                        return { ...item, selectedRowIds: item.selectedRowIds.filter((id) => id !== rowId) };
+                      }));
+                    }}
+                    listClassName="add-node-dialog__rows"
+                    rowClassName="add-node-dialog__row"
+                    valueClassName="add-node-dialog__row-value"
+                    emptyClassName="add-node-dialog__empty"
+                    emptyText="Select incoming nodes to see data keys."
+                  />
                 </div>
               ))}
             </div>
@@ -686,7 +521,6 @@ export function AddNodeDialog({ parsed, onCancel, onSubmit }: AddNodeDialogProps
           <button type="button" className="project-modal-button" onClick={onCancel}>Cancel</button>
           <button type="button" className="project-modal-button primary" onClick={submitDialog}>Add Node</button>
         </div>
-      </div>
-    </div>
+    </DialogFrame>
   );
 }
