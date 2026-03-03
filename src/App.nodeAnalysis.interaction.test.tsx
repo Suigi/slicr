@@ -785,6 +785,26 @@ describe('App node analysis interactions', () => {
     expect(document.querySelector('.project-modal')).not.toBeNull();
   });
 
+  it('opens Add Node dialog from command palette command', () => {
+    renderApp();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+    });
+
+    const addNodeItem = (
+      [...document.querySelectorAll('.command-palette-item')]
+        .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Add Node...')
+    ) as HTMLButtonElement | undefined;
+    expect(addNodeItem).toBeDefined();
+
+    act(() => {
+      addNodeItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(document.querySelector('.add-node-dialog')).not.toBeNull();
+  });
+
   it('closes command palette on Escape', () => {
     renderApp();
 
@@ -1255,6 +1275,14 @@ describe('App node analysis interactions', () => {
     });
     const search = document.querySelector('.command-palette-search') as HTMLInputElement | null;
     expect(search).not.toBeNull();
+
+    act(() => {
+      if (search) {
+        const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+        valueSetter?.call(search, 'create project');
+        search.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
 
     act(() => {
       search?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));

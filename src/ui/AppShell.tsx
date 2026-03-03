@@ -6,6 +6,7 @@ import { DiagramCanvas } from './app-shell/DiagramCanvas';
 import { NodeAnalysisPanel } from './app-shell/NodeAnalysisPanel';
 import { NodeMeasureLayer } from './app-shell/NodeMeasureLayer';
 import { ProjectRail } from './app-shell/ProjectRail';
+import { AddNodeDialog } from './app-shell/AddNodeDialog';
 import { AnalysisProvider } from './app-shell/contexts/AnalysisContext';
 import { DiagramInteractionProvider } from './app-shell/contexts/DiagramInteractionContext';
 import { HeaderUiProvider } from './app-shell/contexts/HeaderUiContext';
@@ -108,6 +109,13 @@ export function AppShell(props: AppShellProps) {
         </AnalysisProvider>
 
         <CommandPalette auxPanels={auxPanels} actions={actions} header={header} />
+        {auxPanels.addNodeDialogOpen && (
+          <AddNodeDialog
+            parsed={diagram.parsed}
+            onCancel={actions.onCloseAddNodeDialog}
+            onSubmit={actions.onCreateNodeFromDialog}
+          />
+        )}
 
         {(auxPanels.hasOpenedDocs || auxPanels.docsOpen) && (
           <div className={`docs-panel-shell ${auxPanels.docsOpen ? '' : 'hidden'}`} aria-hidden={!auxPanels.docsOpen}>

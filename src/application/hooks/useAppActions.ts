@@ -37,6 +37,9 @@ type UseAppActionsArgs = {
   setProjectRailOpen: Dispatch<SetStateAction<boolean>>;
   setMobileMenuOpen: Dispatch<SetStateAction<boolean>>;
   setCreateProjectDialogOpen: Dispatch<SetStateAction<boolean>>;
+  setAddNodeDialogOpen: Dispatch<SetStateAction<boolean>>;
+  hasFocusedCursor: () => boolean;
+  insertAtCursorOrEnd: (block: string) => { from: number; to: number };
   setTheme: Dispatch<SetStateAction<'dark' | 'light'>>;
   setRouteMode: Dispatch<SetStateAction<'classic' | 'elk'>>;
   setHoveredEdgeKey: Dispatch<SetStateAction<string | null>>;
@@ -76,6 +79,9 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
     setProjectRailOpen,
     setMobileMenuOpen,
     setCreateProjectDialogOpen,
+    setAddNodeDialogOpen,
+    hasFocusedCursor,
+    insertAtCursorOrEnd,
     setTheme,
     setRouteMode,
     setHoveredEdgeKey,
@@ -274,6 +280,23 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
       setCreateProjectDialogOpen(true);
     },
     onCloseCreateProjectDialog: () => setCreateProjectDialogOpen(false),
+    onOpenAddNodeDialog: () => {
+      setCommandPaletteOpen(false);
+      setAddNodeDialogOpen(true);
+    },
+    onCloseAddNodeDialog: () => setAddNodeDialogOpen(false),
+    onCreateNodeFromDialog: ({ dslBlock }) => {
+      const shouldOpenEditor = !hasFocusedCursor();
+      if (shouldOpenEditor) {
+        setEditorOpen(true);
+      }
+      const inserted = insertAtCursorOrEnd(dslBlock);
+      if (inserted.to > inserted.from) {
+        focusRange(inserted);
+      }
+      setAddNodeDialogOpen(false);
+      setCommandPaletteOpen(false);
+    },
     onRunTraceCommand,
     onShowUsageCommand
   };

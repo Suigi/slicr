@@ -17,6 +17,12 @@ export function CommandPalette({ auxPanels, actions, header }: CommandPalettePro
   const commands = useMemo(
     () => [
       {
+        id: 'add-node',
+        label: 'Add Node...',
+        context: 'Slice | Modeling',
+        run: actions.onOpenAddNodeDialog
+      },
+      {
         id: 'create-project',
         label: 'Create Project...',
         context: 'Window | Projects',

@@ -117,6 +117,7 @@ export type AuxPanelsSection = {
   hasOpenedDocs: boolean;
   commandPaletteOpen: boolean;
   createProjectDialogOpen: boolean;
+  addNodeDialogOpen: boolean;
 };
 
 export type ConstantsSection = {
@@ -158,6 +159,9 @@ export type ActionsSection = {
   onCloseCommandPalette: () => void;
   onOpenCreateProjectDialog: () => void;
   onCloseCreateProjectDialog: () => void;
+  onOpenAddNodeDialog: () => void;
+  onCloseAddNodeDialog: () => void;
+  onCreateNodeFromDialog: (args: { dslBlock: string; insertionHint?: { preferCursor: boolean } }) => void;
   onRunTraceCommand: () => void;
   onShowUsageCommand: () => void;
 };

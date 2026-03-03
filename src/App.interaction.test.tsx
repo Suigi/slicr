@@ -468,6 +468,26 @@ rm:persisted-view`;
     expect(document.querySelector('.project-modal')).not.toBeNull();
   });
 
+  it('opens add node dialog from command palette', () => {
+    renderApp();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+    });
+
+    const addNodeItem = (
+      [...document.querySelectorAll('.command-palette-item')]
+        .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Add Node...')
+    ) as HTMLButtonElement | undefined;
+    expect(addNodeItem).toBeDefined();
+
+    act(() => {
+      addNodeItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(document.querySelector('.add-node-dialog')).not.toBeNull();
+  });
+
   it('closes create project dialog on Escape', () => {
     renderApp();
     const rail = ensureProjectRailOpen();

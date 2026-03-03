@@ -455,6 +455,70 @@ describe('sliceLibrary', () => {
     expect(loadedB.slices).toEqual([{ id: 'slice-b1', dsl: 'slice "B"\n\nevt:project-b' }]);
   });
 
+  it('ignores legacy v2 project slice streams', () => {
+    localStorage.setItem(
+      'slicr.es.v1.stream.app',
+      JSON.stringify([
+        {
+          id: 'app-1',
+          version: 1,
+          at: '2026-01-01T00:00:01.000Z',
+          type: 'project-created',
+          payload: { projectId: 'project-a', name: 'Project A' }
+        },
+        {
+          id: 'app-2',
+          version: 2,
+          at: '2026-01-01T00:00:02.000Z',
+          type: 'project-selected',
+          payload: { projectId: 'project-a' }
+        },
+        {
+          id: 'app-3',
+          version: 3,
+          at: '2026-01-01T00:00:03.000Z',
+          type: 'slice-added-to-project',
+          payload: { projectId: 'project-a', sliceId: 'slice-a' }
+        },
+        {
+          id: 'app-4',
+          version: 4,
+          at: '2026-01-01T00:00:04.000Z',
+          type: 'slice-selected',
+          payload: { projectId: 'project-a', selectedSliceId: 'slice-a' }
+        }
+      ])
+    );
+    localStorage.setItem(
+      'slicr.es.v2.project.project-a.stream.slice-a',
+      JSON.stringify([
+        {
+          id: 'e-1',
+          sliceId: 'slice-a',
+          version: 1,
+          at: '2026-01-01T00:00:01.000Z',
+          type: 'slice-created',
+          payload: { initialDsl: 'slice "Legacy Project"\n\nevt:before' }
+        },
+        {
+          id: 'e-2',
+          sliceId: 'slice-a',
+          version: 2,
+          at: '2026-01-01T00:00:02.000Z',
+          type: 'text-edited',
+          payload: { dsl: 'slice "Legacy Project"\n\nevt:after' }
+        }
+      ])
+    );
+
+    const loaded = loadSliceLibrary(DEFAULT_DSL, 'project-a');
+
+    expect(loaded.selectedSliceId).not.toBe('slice-a');
+    expect(loaded.slices.some((slice) => slice.id === 'slice-a')).toBe(false);
+    expect(localStorage.getItem('slicr.es.v1.stream.slice-a')).toBeNull();
+    expect(localStorage.getItem('slicr.es.v2.project.project-a.stream.slice-a')).not.toBeNull();
+  });
+
   it('migrates default project storage from v1 index to app stream project slice events', () => {
     localStorage.setItem(
       'slicr.es.v1.index',

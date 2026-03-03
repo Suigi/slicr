@@ -67,6 +67,7 @@ export function useAppLocalState() {
   const [projectRailOpen, setProjectRailOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [createProjectDialogOpen, setCreateProjectDialogOpen] = useState(false);
+  const [addNodeDialogOpen, setAddNodeDialogOpen] = useState(false);
   const [manualNodePositions, setManualNodePositions] = useState<Record<string, { x: number; y: number }>>(
     initialSnapshot.overrides.nodes
   );
@@ -134,6 +135,8 @@ export function useAppLocalState() {
     setCommandPaletteOpen,
     createProjectDialogOpen,
     setCreateProjectDialogOpen,
+    addNodeDialogOpen,
+    setAddNodeDialogOpen,
     manualNodePositions,
     setManualNodePositions,
     manualEdgePoints,

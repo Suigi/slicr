@@ -847,6 +847,62 @@ export function useDslEditor({
     editorView.focus();
   };
 
+  const hasFocusedCursor = () => {
+    const editorView = editorViewRef.current;
+    return editorView instanceof EditorView && editorView.hasFocus;
+  };
+
+  const insertAtCursorOrEnd = (block: string): Range => {
+    const editorView = editorViewRef.current;
+    const trimmed = block.trim();
+
+    if (!trimmed) {
+      return { from: 0, to: 0 };
+    }
+
+    if (!editorView || !(editorView instanceof EditorView)) {
+      onDocChangedRef.current((current) => {
+        if (!current.trim()) {
+          return trimmed;
+        }
+        if (current.endsWith('\n\n')) {
+          return `${current}${trimmed}`;
+        }
+        if (current.endsWith('\n')) {
+          return `${current}\n${trimmed}`;
+        }
+        return `${current}\n\n${trimmed}`;
+      });
+      return { from: 0, to: 0 };
+    }
+
+    if (editorView.hasFocus) {
+      const range = editorView.state.selection.main;
+      editorView.dispatch({
+        changes: { from: range.from, to: range.to, insert: trimmed },
+        selection: { anchor: range.from + trimmed.length }
+      });
+      return { from: range.from, to: range.from + trimmed.length };
+    }
+
+    const docLength = editorView.state.doc.length;
+    const current = editorView.state.doc.toString();
+    const separator = !current.trim()
+      ? ''
+      : current.endsWith('\n\n')
+        ? ''
+        : current.endsWith('\n')
+          ? '\n'
+          : '\n\n';
+    const insert = `${separator}${trimmed}`;
+    const from = docLength + separator.length;
+    editorView.dispatch({
+      changes: { from: docLength, to: docLength, insert },
+      selection: { anchor: from + trimmed.length }
+    });
+    return { from, to: from + trimmed.length };
+  };
+
   useEffect(() => {
     const editorView = editorViewRef.current;
     if (!editorView || !(editorView instanceof EditorView)) {
@@ -1013,5 +1069,12 @@ export function useDslEditor({
     });
   }, [dsl]);
 
-  return { collapseAllDataRegions, collapseAllRegions, expandAllRegions, focusRange };
+  return {
+    collapseAllDataRegions,
+    collapseAllRegions,
+    expandAllRegions,
+    focusRange,
+    hasFocusedCursor,
+    insertAtCursorOrEnd
+  };
 }

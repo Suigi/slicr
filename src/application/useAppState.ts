@@ -68,6 +68,8 @@ export function useAppState(): UseAppStateResult {
     setCommandPaletteOpen,
     createProjectDialogOpen,
     setCreateProjectDialogOpen,
+    addNodeDialogOpen,
+    setAddNodeDialogOpen,
     manualNodePositions,
     setManualNodePositions,
     manualEdgePoints,
@@ -127,7 +129,7 @@ export function useAppState(): UseAppStateResult {
   const parsed = parseResult.parsed;
   const errorText = parseResult.error;
 
-  const { collapseAllDataRegions, collapseAllRegions, expandAllRegions, focusRange } = useDslEditor({
+  const { collapseAllDataRegions, collapseAllRegions, expandAllRegions, focusRange, hasFocusedCursor, insertAtCursorOrEnd } = useDslEditor({
     dsl: currentDsl,
     onDslChange: setCurrentDsl,
     onRangeHover: setHoveredEditorRange,
@@ -209,6 +211,7 @@ export function useAppState(): UseAppStateResult {
     routeMenuOpen,
     mobileMenuOpen,
     createProjectDialogOpen,
+    addNodeDialogOpen,
     sliceMenuRef,
     routeMenuRef,
     mobileMenuRef,
@@ -229,6 +232,7 @@ export function useAppState(): UseAppStateResult {
     setMobileMenuOpen,
     setCommandPaletteOpen,
     setCreateProjectDialogOpen,
+    setAddNodeDialogOpen,
     setCrossSliceTraceExpandedKeys: analysis.setCrossSliceTraceExpandedKeys,
     setSelectedNodePanelTab: analysis.setSelectedNodePanelTab,
     applySelectedSliceOverrides
@@ -264,6 +268,9 @@ export function useAppState(): UseAppStateResult {
     setTheme,
     setRouteMode,
     setCreateProjectDialogOpen,
+    setAddNodeDialogOpen,
+    hasFocusedCursor,
+    insertAtCursorOrEnd,
     setHoveredEdgeKey,
     setHoveredTraceNodeKey: analysis.setHoveredTraceNodeKey,
     setSourceOverrides: analysis.setSourceOverrides,
@@ -342,7 +349,8 @@ export function useAppState(): UseAppStateResult {
       docsOpen,
       hasOpenedDocs,
       commandPaletteOpen,
-      createProjectDialogOpen
+      createProjectDialogOpen,
+      addNodeDialogOpen
     },
     constants: {
       TYPE_LABEL,
