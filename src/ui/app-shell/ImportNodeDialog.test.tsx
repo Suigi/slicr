@@ -10,9 +10,12 @@ import { ImportNodeDialog } from './ImportNodeDialog';
 let root: ReactDOM.Root | null = null;
 let host: HTMLDivElement | null = null;
 
-function makeParsed(nodes: Array<{ key: string; type: string; name: string; alias: string | null; data: Record<string, unknown> | null }>): Parsed {
+function makeParsed(
+  nodes: Array<{ key: string; type: string; name: string; alias: string | null; data: Record<string, unknown> | null }>,
+  sliceName = 'Test'
+): Parsed {
   return {
-    sliceName: 'Test',
+    sliceName,
     nodes: new Map(
       nodes.map((node) => [
         node.key,
@@ -33,6 +36,7 @@ function makeParsed(nodes: Array<{ key: string; type: string; name: string; alia
 
 function renderDialog(props?: {
   projections?: ParsedSliceProjection<Parsed>[];
+  targetSliceId?: string;
   onSubmit?: (args: { dslBlock: string; insertionHint?: { preferCursor: boolean } }) => void;
 }) {
   const projections = props?.projections ?? [
@@ -50,7 +54,7 @@ function renderDialog(props?: {
             amount: '89.00'
           }
         }
-      ])
+      ], 'Payments')
     },
     {
       id: 'support',
@@ -65,7 +69,7 @@ function renderDialog(props?: {
             ticketId: 'tck-771'
           }
         }
-      ])
+      ], 'Support')
     }
   ];
 
@@ -77,7 +81,7 @@ function renderDialog(props?: {
     root?.render(
       <ImportNodeDialog
         parsedSliceProjectionList={projections}
-        targetSliceId="checkout"
+        targetSliceId={props?.targetSliceId ?? 'checkout'}
         onCancel={() => undefined}
         onSubmit={props?.onSubmit ?? (() => undefined)}
       />
@@ -125,7 +129,30 @@ describe('ImportNodeDialog', () => {
 
     const list = document.querySelector('.import-node-dialog__suggestions');
     expect(list?.textContent?.includes('Override Approved')).toBe(true);
+    expect(list?.textContent?.includes('Support')).toBe(true);
+    expect(list?.textContent?.includes('support')).toBe(false);
     expect(list?.querySelector('.type-event')).not.toBeNull();
+  });
+
+  it('excludes nodes from the current target slice', () => {
+    renderDialog({
+      targetSliceId: 'payments'
+    });
+
+    const search = document.querySelector('#import-node-search') as HTMLInputElement | null;
+    expect(search).not.toBeNull();
+
+    act(() => {
+      if (search) {
+        search.focus();
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+        setter?.call(search, 'payment');
+        search.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+
+    const list = document.querySelector('.import-node-dialog__suggestions');
+    expect(list?.textContent?.includes('Payment Authorized')).toBe(false);
   });
 
   it('prefills alias and pre-checks all data keys when a node is selected', () => {

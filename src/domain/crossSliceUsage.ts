@@ -38,7 +38,11 @@ export function buildCrossSliceUsageIndexFromParsed(slices: CrossSliceParsedDocu
   const index: CrossSliceUsageIndex = {};
 
   for (const slice of slices) {
+    const scenarioOnlyNodeKeys = new Set(slice.parsed.scenarioOnlyNodeKeys);
     for (const node of slice.parsed.nodes.values()) {
+      if (scenarioOnlyNodeKeys.has(node.key)) {
+        continue;
+      }
       if (!isTraceableNode(node)) {
         continue;
       }

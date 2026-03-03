@@ -8,6 +8,7 @@ import { NodeMeasureLayer } from './app-shell/NodeMeasureLayer';
 import { ProjectRail } from './app-shell/ProjectRail';
 import { AddNodeDialog } from './app-shell/AddNodeDialog';
 import { ImportNodeDialog } from './app-shell/ImportNodeDialog';
+import { CompactEventsDialog } from './app-shell/CompactEventsDialog';
 import { AnalysisProvider } from './app-shell/contexts/AnalysisContext';
 import { DiagramInteractionProvider } from './app-shell/contexts/DiagramInteractionContext';
 import { HeaderUiProvider } from './app-shell/contexts/HeaderUiContext';
@@ -110,6 +111,9 @@ export function AppShell(props: AppShellProps) {
         </AnalysisProvider>
 
         <CommandPalette auxPanels={auxPanels} actions={actions} header={header} />
+        {auxPanels.compactEventsSummary ? (
+          <div className="compact-events-summary" role="status">{auxPanels.compactEventsSummary}</div>
+        ) : null}
         {auxPanels.addNodeDialogOpen && (
           <AddNodeDialog
             parsed={diagram.parsed}
@@ -123,6 +127,12 @@ export function AppShell(props: AppShellProps) {
             targetSliceId={analysisPanel.selectedSliceId}
             onCancel={actions.onCloseImportNodeDialog}
             onSubmit={actions.onCreateImportedNodeFromDialog}
+          />
+        )}
+        {auxPanels.compactEventsDialogOpen && (
+          <CompactEventsDialog
+            onCancel={actions.onCloseCompactEventsDialog}
+            onCompact={actions.onRunEventCompaction}
           />
         )}
 

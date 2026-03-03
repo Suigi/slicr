@@ -18,6 +18,7 @@ export type UseUiEffectsArgs = {
   routeMenuOpen: boolean;
   mobileMenuOpen: boolean;
   createProjectDialogOpen: boolean;
+  compactEventsDialogOpen: boolean;
   addNodeDialogOpen: boolean;
   importNodeDialogOpen: boolean;
   sliceMenuRef: RefObject<HTMLDivElement>;
@@ -40,6 +41,7 @@ export type UseUiEffectsArgs = {
   setMobileMenuOpen: Dispatch<SetStateAction<boolean>>;
   setCommandPaletteOpen: Dispatch<SetStateAction<boolean>>;
   setCreateProjectDialogOpen: Dispatch<SetStateAction<boolean>>;
+  setCompactEventsDialogOpen: Dispatch<SetStateAction<boolean>>;
   setAddNodeDialogOpen: Dispatch<SetStateAction<boolean>>;
   setImportNodeDialogOpen: Dispatch<SetStateAction<boolean>>;
   setCrossSliceTraceExpandedKeys: Dispatch<SetStateAction<Record<string, boolean>>>;
@@ -62,6 +64,7 @@ export function useUiEffects(args: UseUiEffectsArgs) {
     routeMenuOpen,
     mobileMenuOpen,
     createProjectDialogOpen,
+    compactEventsDialogOpen,
     addNodeDialogOpen,
     importNodeDialogOpen,
     sliceMenuRef,
@@ -84,6 +87,7 @@ export function useUiEffects(args: UseUiEffectsArgs) {
     setMobileMenuOpen,
     setCommandPaletteOpen,
     setCreateProjectDialogOpen,
+    setCompactEventsDialogOpen,
     setAddNodeDialogOpen,
     setImportNodeDialogOpen,
     setCrossSliceTraceExpandedKeys,
@@ -306,6 +310,9 @@ export function useUiEffects(args: UseUiEffectsArgs) {
         if (createProjectDialogOpen) {
           setCreateProjectDialogOpen(false);
         }
+        if (compactEventsDialogOpen) {
+          setCompactEventsDialogOpen(false);
+        }
         if (addNodeDialogOpen) {
           setAddNodeDialogOpen(false);
         }
@@ -367,6 +374,9 @@ export function useUiEffects(args: UseUiEffectsArgs) {
       if (createProjectDialogOpen) {
         setCreateProjectDialogOpen(false);
       }
+      if (compactEventsDialogOpen) {
+        setCompactEventsDialogOpen(false);
+      }
       if (addNodeDialogOpen) {
         setAddNodeDialogOpen(false);
       }
@@ -386,10 +396,12 @@ export function useUiEffects(args: UseUiEffectsArgs) {
     showDataTraceTab,
     selectedNodeUsesKeys,
     createProjectDialogOpen,
+    compactEventsDialogOpen,
     addNodeDialogOpen,
     importNodeDialogOpen,
     setCommandPaletteOpen,
     setCreateProjectDialogOpen,
+    setCompactEventsDialogOpen,
     setAddNodeDialogOpen,
     setImportNodeDialogOpen,
     setCrossSliceTraceExpandedKeys,

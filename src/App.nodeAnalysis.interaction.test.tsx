@@ -1514,6 +1514,34 @@ describe('App node analysis interactions', () => {
     expect(tabLabels).not.toContain('Data Trace');
   });
 
+  it('does not show scenario-only nodes in the Cross-Slice Usage tab', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [
+          {
+            id: 'a',
+            dsl: 'slice "Book Registration"\n\ncmd:register-book "Register Book"\n\nscenario "Register Duplicate ISBN"\nwhen:\n  cmd:register-book "Scenario Register"\n'
+          }
+        ]
+      })
+    );
+
+    renderApp();
+    const topLevelCmd = [...document.querySelectorAll('.node.cmd')]
+      .find((el) => el.querySelector('.node-title')?.textContent?.trim() === 'Register Book') as HTMLElement | undefined;
+    expect(topLevelCmd).toBeDefined();
+    act(() => {
+      topLevelCmd?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const usageItems = [...document.querySelectorAll('.cross-slice-usage-item')];
+    expect(usageItems).toHaveLength(1);
+    expect(usageItems[0]?.textContent ?? '').toContain('Register Book');
+    expect(usageItems[0]?.textContent ?? '').not.toContain('Scenario Register');
+  });
+
   it('highlights trace-hop node when hovering over Data Trace list entry', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,

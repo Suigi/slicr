@@ -77,6 +77,29 @@ cmd:buy@2 "Buy V2"
       ]
     });
   });
+
+  it('excludes scenario-only nodes from the usage index', () => {
+    const slices = [
+      {
+        id: 'slice-a',
+        dsl: `slice "A"
+
+cmd:buy "Buy"
+
+scenario "Scenario Buy"
+when:
+  cmd:buy "Scenario Buy"
+`
+      }
+    ];
+
+    const index = buildCrossSliceUsageIndex(slices);
+    expect(index['cmd:buy']).toEqual({
+      nodeRef: 'cmd:buy',
+      nodeType: 'cmd',
+      sliceRefs: [{ sliceId: 'slice-a', nodeKey: 'buy' }]
+    });
+  });
 });
 
 describe('createCrossSliceUsageQuery', () => {

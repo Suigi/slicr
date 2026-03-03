@@ -13,6 +13,7 @@ import type { ParsedSliceProjection } from '../domain/parsedSliceProjection';
 import type { FormattedNodeField } from '../domain/formatNodeData';
 import type { DataIssue } from '../domain/dataIssues';
 import type { CrossSliceUsageRef } from '../domain/crossSliceUsage';
+import type { CompactionPlan } from '../eventCompaction';
 
 export type ThemeMode = 'dark' | 'light';
 export type NodePanelTab = 'usage' | 'crossSliceData' | 'trace';
@@ -119,6 +120,8 @@ export type AuxPanelsSection = {
   hasOpenedDocs: boolean;
   commandPaletteOpen: boolean;
   createProjectDialogOpen: boolean;
+  compactEventsDialogOpen: boolean;
+  compactEventsSummary: string | null;
   addNodeDialogOpen: boolean;
   importNodeDialogOpen: boolean;
 };
@@ -162,6 +165,9 @@ export type ActionsSection = {
   onCloseCommandPalette: () => void;
   onOpenCreateProjectDialog: () => void;
   onCloseCreateProjectDialog: () => void;
+  onOpenCompactEventsDialog: () => void;
+  onCloseCompactEventsDialog: () => void;
+  onRunEventCompaction: (plan: CompactionPlan) => void;
   onOpenAddNodeDialog: () => void;
   onCloseAddNodeDialog: () => void;
   onCreateNodeFromDialog: (args: { dslBlock: string; insertionHint?: { preferCursor: boolean } }) => void;

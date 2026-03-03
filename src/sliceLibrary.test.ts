@@ -3,6 +3,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as parseDslModule from './domain/parseDsl';
 import { DEFAULT_DSL } from './defaultDsl';
+import { analyzeEventCompaction, executeEventCompaction } from './eventCompaction';
 import {
   addNewSlice,
   appendAppSelectedEvent,
@@ -25,6 +26,192 @@ afterEach(() => {
 });
 
 describe('sliceLibrary', () => {
+  it('builds canonical minimal streams from noisy app and slice events', () => {
+    localStorage.setItem(
+      'slicr.es.v1.stream.app',
+      JSON.stringify([
+        {
+          id: 'p-1',
+          version: 1,
+          at: '2026-01-01T00:00:01.000Z',
+          type: 'project-created',
+          payload: { projectId: 'default', name: 'Default' }
+        },
+        {
+          id: 'p-2',
+          version: 2,
+          at: '2026-01-01T00:00:02.000Z',
+          type: 'project-selected',
+          payload: { projectId: 'default' }
+        },
+        {
+          id: 'p-3',
+          version: 3,
+          at: '2026-01-01T00:00:03.000Z',
+          type: 'slice-added-to-project',
+          payload: { projectId: 'default', sliceId: 'slice-a' }
+        },
+        {
+          id: 'p-4',
+          version: 4,
+          at: '2026-01-01T00:00:04.000Z',
+          type: 'slice-selected',
+          payload: { projectId: 'default', selectedSliceId: 'slice-a' }
+        },
+        {
+          id: 'p-5',
+          version: 5,
+          at: '2026-01-01T00:00:05.000Z',
+          type: 'slice-selected',
+          payload: { projectId: 'default', selectedSliceId: 'slice-a' }
+        }
+      ])
+    );
+    localStorage.setItem(
+      'slicr.es.v1.stream.slice-a',
+      JSON.stringify([
+        {
+          id: 's-1',
+          sliceId: 'slice-a',
+          version: 1,
+          at: '2026-01-01T00:00:01.000Z',
+          type: 'slice-created',
+          payload: { initialDsl: 'slice "A"\n\nevt:a0' }
+        },
+        {
+          id: 's-2',
+          sliceId: 'slice-a',
+          version: 2,
+          at: '2026-01-01T00:00:02.000Z',
+          type: 'text-edited',
+          payload: { dsl: 'slice "A"\n\nevt:a1' }
+        },
+        {
+          id: 's-3',
+          sliceId: 'slice-a',
+          version: 3,
+          at: '2026-01-01T00:00:03.000Z',
+          type: 'node-moved',
+          payload: { nodeKey: 'a1', x: 10, y: 20 }
+        },
+        {
+          id: 's-4',
+          sliceId: 'slice-a',
+          version: 4,
+          at: '2026-01-01T00:00:04.000Z',
+          type: 'layout-reset',
+          payload: {}
+        },
+        {
+          id: 's-5',
+          sliceId: 'slice-a',
+          version: 5,
+          at: '2026-01-01T00:00:05.000Z',
+          type: 'node-moved',
+          payload: { nodeKey: 'a1', x: 30, y: 40 }
+        }
+      ])
+    );
+    localStorage.setItem('slicr.es.v1.snapshot.slice-a', JSON.stringify({ version: 5, projection: {} }));
+    localStorage.setItem('slicr.es.v1.index', JSON.stringify({ sliceIds: ['slice-a'] }));
+
+    const preview = analyzeEventCompaction(localStorage);
+
+    expect(preview.plan.write).toHaveLength(2);
+    const nextApp = preview.plan.write.find((entry) => entry.key === 'slicr.es.v1.stream.app');
+    const nextSlice = preview.plan.write.find((entry) => entry.key === 'slicr.es.v1.stream.slice-a');
+    expect(nextApp).toBeDefined();
+    expect(nextSlice).toBeDefined();
+    expect(nextApp?.events.map((event) => event.type)).toEqual([
+      'project-created',
+      'project-selected',
+      'slice-added-to-project',
+      'slice-selected'
+    ]);
+    expect(nextSlice?.events.map((event) => event.type)).toEqual(['slice-created', 'node-moved']);
+    expect(preview.plan.remove.sort()).toEqual(['slicr.es.v1.index', 'slicr.es.v1.snapshot.slice-a']);
+  });
+
+  it('executes compaction by rewriting streams, removing obsolete keys, and returning deltas', () => {
+    localStorage.setItem(
+      'slicr.es.v1.stream.app',
+      JSON.stringify([
+        {
+          id: 'p-1',
+          version: 1,
+          at: '2026-01-01T00:00:01.000Z',
+          type: 'project-created',
+          payload: { projectId: 'default', name: 'Default' }
+        },
+        {
+          id: 'p-2',
+          version: 2,
+          at: '2026-01-01T00:00:02.000Z',
+          type: 'project-selected',
+          payload: { projectId: 'default' }
+        },
+        {
+          id: 'p-3',
+          version: 3,
+          at: '2026-01-01T00:00:03.000Z',
+          type: 'slice-added-to-project',
+          payload: { projectId: 'default', sliceId: 'slice-a' }
+        },
+        {
+          id: 'p-4',
+          version: 4,
+          at: '2026-01-01T00:00:04.000Z',
+          type: 'slice-selected',
+          payload: { projectId: 'default', selectedSliceId: 'slice-a' }
+        }
+      ])
+    );
+    localStorage.setItem(
+      'slicr.es.v1.stream.slice-a',
+      JSON.stringify([
+        {
+          id: 's-1',
+          sliceId: 'slice-a',
+          version: 1,
+          at: '2026-01-01T00:00:01.000Z',
+          type: 'slice-created',
+          payload: { initialDsl: 'slice "A"\n\nevt:a0' }
+        },
+        {
+          id: 's-2',
+          sliceId: 'slice-a',
+          version: 2,
+          at: '2026-01-01T00:00:02.000Z',
+          type: 'text-edited',
+          payload: { dsl: 'slice "A"\n\nevt:a1' }
+        }
+      ])
+    );
+    localStorage.setItem(
+      'slicr.es.v1.stream.slice-z',
+      JSON.stringify([
+        {
+          id: 'z-1',
+          sliceId: 'slice-z',
+          version: 1,
+          at: '2026-01-01T00:00:01.000Z',
+          type: 'slice-created',
+          payload: { initialDsl: 'slice "Z"\n\nevt:z' }
+        }
+      ])
+    );
+    localStorage.setItem('slicr.es.v1.snapshot.slice-a', JSON.stringify({ version: 2, projection: {} }));
+
+    const preview = analyzeEventCompaction(localStorage);
+    const result = executeEventCompaction(localStorage, preview.plan);
+
+    expect(localStorage.getItem('slicr.es.v1.snapshot.slice-a')).toBeNull();
+    expect(localStorage.getItem('slicr.es.v1.stream.slice-z')).toBeNull();
+    expect(result.removedKeys).toEqual(expect.arrayContaining(['slicr.es.v1.snapshot.slice-a', 'slicr.es.v1.stream.slice-z']));
+    expect(result.reclaimedBytes).toBeGreaterThan(0);
+    expect(result.keyDeltas.some((delta) => delta.key === 'slicr.es.v1.stream.slice-z' && delta.afterBytes === 0)).toBe(true);
+  });
+
   it('bootstraps from default DSL when storage is empty', () => {
     const library = loadSliceLibrary();
 

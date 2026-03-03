@@ -34,6 +34,12 @@ export function CommandPalette({ auxPanels, actions, header }: CommandPalettePro
         context: 'Window | Projects',
         run: actions.onOpenCreateProjectDialog
       },
+      {
+        id: 'compact-event-streams',
+        label: 'Compact Event Streams...',
+        context: 'Storage | Maintenance',
+        run: actions.onOpenCompactEventsDialog
+      },
       ...header.projectIndex.projects
         .filter((project) => project.id !== header.selectedProjectId)
         .map((project) => ({

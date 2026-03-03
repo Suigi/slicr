@@ -38,7 +38,11 @@ export function ImportNodeDialog({ parsedSliceProjectionList, targetSliceId, onC
     const options: Array<NodeSearchOption<ImportNodeOptionValue>> = [];
 
     for (const sliceProjection of parsedSliceProjectionList) {
+      if (sliceProjection.id === targetSliceId) {
+        continue;
+      }
       const scenarioOnlyKeys = new Set(sliceProjection.parsed.scenarioOnlyNodeKeys);
+      const sliceName = sliceProjection.parsed.sliceName;
       for (const node of sliceProjection.parsed.nodes.values()) {
         if (scenarioOnlyKeys.has(node.key)) continue;
         const dataRows = flattenDataKeysWithValue(node.data).map((entry) => ({
@@ -50,7 +54,7 @@ export function ImportNodeDialog({ parsedSliceProjectionList, targetSliceId, onC
         options.push({
           id: `${sliceProjection.id}:${node.key}`,
           primary: aliasForNode(node),
-          secondary: `${nodeRef(node)} · ${sliceProjection.id}`,
+          secondary: `${nodeRef(node)} · ${sliceName}`,
           colorClassName: colorClassForNodeType(node.type),
           value: {
             ref: nodeRef(node),
@@ -62,7 +66,7 @@ export function ImportNodeDialog({ parsedSliceProjectionList, targetSliceId, onC
     }
 
     return options;
-  }, [parsedSliceProjectionList]);
+  }, [parsedSliceProjectionList, targetSliceId]);
 
   const filteredOptions = useMemo(() => {
     const needle = query.trim().toLowerCase();

@@ -6,6 +6,7 @@ import type { Parsed, Position } from '../../domain/types';
 import type { DiagramPoint } from '../../domain/diagramRouting';
 import type { ActionsSection, NodePanelTab } from '../appViewModel';
 import type { Range } from '../../useDslEditor';
+import { executeEventCompaction, type CompactionPlan } from '../../eventCompaction';
 
 type RenderedEdge = { edgeKey: string; edge: { from: string; to: string }; geometry: { d: string; points?: DiagramPoint[] } };
 
@@ -37,6 +38,8 @@ type UseAppActionsArgs = {
   setProjectRailOpen: Dispatch<SetStateAction<boolean>>;
   setMobileMenuOpen: Dispatch<SetStateAction<boolean>>;
   setCreateProjectDialogOpen: Dispatch<SetStateAction<boolean>>;
+  setCompactEventsDialogOpen: Dispatch<SetStateAction<boolean>>;
+  setCompactEventsSummary: Dispatch<SetStateAction<string | null>>;
   setAddNodeDialogOpen: Dispatch<SetStateAction<boolean>>;
   setImportNodeDialogOpen: Dispatch<SetStateAction<boolean>>;
   hasFocusedCursor: () => boolean;
@@ -80,6 +83,8 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
     setProjectRailOpen,
     setMobileMenuOpen,
     setCreateProjectDialogOpen,
+    setCompactEventsDialogOpen,
+    setCompactEventsSummary,
     setAddNodeDialogOpen,
     setImportNodeDialogOpen,
     hasFocusedCursor,
@@ -282,6 +287,28 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
       setCreateProjectDialogOpen(true);
     },
     onCloseCreateProjectDialog: () => setCreateProjectDialogOpen(false),
+    onOpenCompactEventsDialog: () => {
+      setCommandPaletteOpen(false);
+      setCompactEventsSummary(null);
+      setCompactEventsDialogOpen(true);
+    },
+    onCloseCompactEventsDialog: () => setCompactEventsDialogOpen(false),
+    onRunEventCompaction: (plan: CompactionPlan) => {
+      const result = executeEventCompaction(localStorage, plan);
+      const projectedIndex = loadProjectIndex();
+      const nextProjectId = projectedIndex.selectedProjectId;
+      const nextLibrary = loadSliceLibrary(DEFAULT_DSL, nextProjectId);
+
+      setProjectIndex(projectedIndex);
+      setLibrary(nextLibrary);
+      setSelectedNodeKey(null);
+      setHighlightRange(null);
+      setHoveredEdgeKey(null);
+      setHoveredTraceNodeKey(null);
+      applySelectedSliceOverrides(nextLibrary.selectedSliceId, nextProjectId);
+      setCompactEventsDialogOpen(false);
+      setCompactEventsSummary(`Reclaimed ${result.reclaimedBytes} bytes.`);
+    },
     onOpenAddNodeDialog: () => {
       setCommandPaletteOpen(false);
       setAddNodeDialogOpen(true);

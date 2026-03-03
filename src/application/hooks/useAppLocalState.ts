@@ -67,6 +67,8 @@ export function useAppLocalState() {
   const [projectRailOpen, setProjectRailOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [createProjectDialogOpen, setCreateProjectDialogOpen] = useState(false);
+  const [compactEventsDialogOpen, setCompactEventsDialogOpen] = useState(false);
+  const [compactEventsSummary, setCompactEventsSummary] = useState<string | null>(null);
   const [addNodeDialogOpen, setAddNodeDialogOpen] = useState(false);
   const [importNodeDialogOpen, setImportNodeDialogOpen] = useState(false);
   const [manualNodePositions, setManualNodePositions] = useState<Record<string, { x: number; y: number }>>(
@@ -136,6 +138,10 @@ export function useAppLocalState() {
     setCommandPaletteOpen,
     createProjectDialogOpen,
     setCreateProjectDialogOpen,
+    compactEventsDialogOpen,
+    setCompactEventsDialogOpen,
+    compactEventsSummary,
+    setCompactEventsSummary,
     addNodeDialogOpen,
     setAddNodeDialogOpen,
     importNodeDialogOpen,
