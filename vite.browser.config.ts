@@ -1,19 +1,17 @@
 /// <reference types="vitest" />
-import { configDefaults } from 'vitest/config';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
   test: {
+    name: 'interaction-browser',
     setupFiles: ['./src/testing/setupReactAct.ts'],
-    environment: 'jsdom',
-    exclude: [...configDefaults.exclude, 'src/**/*.interaction.browser.test.tsx'],
-  },
-  server: {
-    port: 5173,
-    hmr: {
-      port: 5173,
-    }
+    include: ['src/**/*.interaction.browser.test.tsx'],
+    browser: {
+      enabled: true,
+      provider: 'playwright',
+      instances: [{ browser: 'chromium' }],
+    },
   },
 });
