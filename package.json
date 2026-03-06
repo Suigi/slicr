@@ -11,7 +11,9 @@
     "test:watch": "vitest",
     "grammar:build": "lezer-generator src/slicr.grammar -o src/slicr.parser.ts --typeScript",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "test:browser": "vitest run --config vite.browser.config.ts",
+    "test:browser:headed": "vitest --config vite.browser.config.ts --browser.headless=false"
   },
   "dependencies": {
     "elkjs": "^0.11.0",
