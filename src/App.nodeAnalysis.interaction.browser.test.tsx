@@ -1,5 +1,3 @@
-// @vitest-environment jsdom
-
 import { StrictMode, act } from 'react';
 import ReactDOM from 'react-dom/client';
 import { afterEach, describe, expect, it } from 'vitest';
