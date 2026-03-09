@@ -22,8 +22,29 @@ type PreviewData =
       initialCamera: { x: number; y: number; zoom: number };
     };
 
+type PreviewState = {
+  featureDsl: string;
+  preview: PreviewData;
+  ready: boolean;
+};
+
 function initialPreview(): PreviewData {
   return { error: 'Preview not yet computed.' };
+}
+
+function computeInitialCamera(viewport: { width: number; height: number }) {
+  const fitZoom = Math.min(
+    1,
+    DOC_PREVIEW_VIEWPORT_WIDTH / viewport.width,
+    DOC_PREVIEW_VIEWPORT_HEIGHT / viewport.height
+  );
+  const boostedZoom = Math.min(1.2, fitZoom * DOC_PREVIEW_ZOOM_BOOST);
+
+  return {
+    x: (DOC_PREVIEW_VIEWPORT_WIDTH - viewport.width * boostedZoom) / 2,
+    y: (DOC_PREVIEW_VIEWPORT_HEIGHT - viewport.height * boostedZoom) / 2,
+    zoom: boostedZoom
+  };
 }
 
 function buildPreviewData(feature: DocumentationFeature, preferAsync = false): PreviewData {
@@ -50,22 +71,11 @@ function buildPreviewData(feature: DocumentationFeature, preferAsync = false): P
     if (!sceneModel?.viewport) {
       return { error: 'Unable to compute preview viewport.' };
     }
-    const sourceViewport = sceneModel.viewport;
-    const fitZoom = Math.min(
-      1,
-      DOC_PREVIEW_VIEWPORT_WIDTH / sourceViewport.width,
-      DOC_PREVIEW_VIEWPORT_HEIGHT / sourceViewport.height
-    );
-    const boostedZoom = Math.min(1.2, fitZoom * DOC_PREVIEW_ZOOM_BOOST);
 
     return {
       error: '',
       sceneModel,
-      initialCamera: {
-        x: (DOC_PREVIEW_VIEWPORT_WIDTH - sourceViewport.width * boostedZoom) / 2,
-        y: (DOC_PREVIEW_VIEWPORT_HEIGHT - sourceViewport.height * boostedZoom) / 2,
-        zoom: boostedZoom
-      }
+      initialCamera: computeInitialCamera(sceneModel.viewport)
     };
   } catch (error) {
     return { error: (error as Error).message || 'Unable to render example.' };
@@ -73,12 +83,18 @@ function buildPreviewData(feature: DocumentationFeature, preferAsync = false): P
 }
 
 function FeatureCard({ feature, diagramRendererId }: { feature: DocumentationFeature; diagramRendererId: DiagramRendererId }) {
-  const [preview, setPreview] = useState<PreviewData>(() => buildPreviewData(feature));
+  const [previewState, setPreviewState] = useState<PreviewState>(() => ({
+    featureDsl: feature.dsl,
+    preview: buildPreviewData(feature),
+    ready: false
+  }));
   const canvasPanelRef = useRef<HTMLDivElement>(null);
   const DiagramRenderer = diagramRendererId === 'dom-svg-camera'
     ? DomSvgCameraDiagramRenderer
     : DomSvgDiagramRenderer;
   const noopEdgeHover: Dispatch<SetStateAction<string | null>> = () => {};
+  const preview = previewState.featureDsl === feature.dsl ? previewState.preview : buildPreviewData(feature);
+  const previewReady = previewState.featureDsl === feature.dsl ? previewState.ready : false;
 
   useEffect(() => {
     let active = true;
@@ -106,22 +122,32 @@ function FeatureCard({ feature, diagramRendererId }: { feature: DocumentationFea
           canvasMargin: DOC_PREVIEW_MARGIN
         });
         if (!sceneModel?.viewport) {
-          setPreview({ error: 'Unable to compute preview viewport.' });
+          setPreviewState({
+            featureDsl: feature.dsl,
+            preview: { error: 'Unable to compute preview viewport.' },
+            ready: true
+          });
           return;
         }
 
-        setPreview({
-          error: '',
-          sceneModel,
-          initialCamera: buildPreviewData(feature).error === ''
-            ? (buildPreviewData(feature) as Extract<PreviewData, { error: '' }>).initialCamera
-            : { x: 0, y: 0, zoom: 1 }
+        setPreviewState({
+          featureDsl: feature.dsl,
+          preview: {
+            error: '',
+            sceneModel,
+            initialCamera: computeInitialCamera(sceneModel.viewport)
+          },
+          ready: true
         });
       } catch (error) {
         if (!active) {
           return;
         }
-        setPreview({ error: (error as Error).message || 'Unable to render example.' });
+        setPreviewState({
+          featureDsl: feature.dsl,
+          preview: { error: (error as Error).message || 'Unable to render example.' },
+          ready: true
+        });
       }
     };
 
@@ -133,7 +159,7 @@ function FeatureCard({ feature, diagramRendererId }: { feature: DocumentationFea
   }, [feature]);
 
   return (
-    <article className="doc-feature-card">
+    <article className="doc-feature-card" data-doc-preview-ready={previewReady ? 'true' : 'false'}>
       <div className="doc-feature-header">
         <div>
           <h4>{feature.title}</h4>

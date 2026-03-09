@@ -34,6 +34,22 @@ function renderApp() {
   act(() => {
     root?.render(<App />);
   });
+  return flushAppState();
+}
+
+async function flushAppState() {
+  await act(async () => {
+    await Promise.resolve();
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+  });
+}
+
+async function dispatchAndFlush(interaction: () => void) {
+  await act(async () => {
+    interaction();
+    await Promise.resolve();
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+  });
 }
 
 async function waitForElement(selector: string, attempts = 20) {
@@ -68,14 +84,14 @@ async function waitForElementWithoutAnimationFrame(selector: string, attempts = 
 }
 
 describe('App interactions', () => {
-  it('toggles the documentation panel from the header', () => {
-    renderApp();
+  it('toggles the documentation panel from the header', async () => {
+    await renderApp();
 
     const docsToggle = document.querySelector('button[aria-label="Toggle documentation panel"]');
     expect(docsToggle).not.toBeNull();
     expect(document.querySelector('.docs-panel-shell')).toBeNull();
 
-    act(() => {
+    await dispatchAndFlush(() => {
       docsToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
@@ -120,7 +136,7 @@ describe('App interactions', () => {
     }) as typeof window.cancelAnimationFrame;
 
     try {
-      renderApp();
+      await renderApp();
       expect(await waitForElementWithoutAnimationFrame('.main .canvas-camera-world')).not.toBeNull();
     } finally {
       window.requestAnimationFrame = originalRequestAnimationFrame;
@@ -137,7 +153,7 @@ describe('App interactions', () => {
       })
     );
 
-    renderApp();
+    await renderApp();
     await waitForElement('.main .canvas-camera-world');
 
     const editorToggle = document.querySelector('button[aria-label="Toggle DSL editor"]');
@@ -150,7 +166,7 @@ describe('App interactions', () => {
     expect(editorPanel?.classList.contains('hidden')).toBe(false);
     expect(document.querySelector('.cross-slice-usage-panel')).toBeNull();
 
-    act(() => {
+    await dispatchAndFlush(() => {
       editorToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       node?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
@@ -159,7 +175,7 @@ describe('App interactions', () => {
     expect(document.querySelector('.cross-slice-usage-panel')).not.toBeNull();
     expect(document.querySelector('.main .canvas-panel')).not.toBeNull();
 
-    act(() => {
+    await dispatchAndFlush(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
     });
 
@@ -169,7 +185,7 @@ describe('App interactions', () => {
     ) as HTMLButtonElement | undefined;
     expect(showOverviewItem).toBeDefined();
 
-    act(() => {
+    await dispatchAndFlush(() => {
       showOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
@@ -190,14 +206,14 @@ describe('App interactions', () => {
       })
     );
 
-    renderApp();
+    await renderApp();
     await waitForElement('.main .canvas-camera-world');
 
     const editorToggle = document.querySelector('button[aria-label="Toggle DSL editor"]');
     const node = document.querySelector('.node.evt');
     const editorPanel = document.querySelector('.editor-panel');
 
-    act(() => {
+    await dispatchAndFlush(() => {
       editorToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       node?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
@@ -206,7 +222,7 @@ describe('App interactions', () => {
     expect(editorPanel?.classList.contains('hidden')).toBe(false);
     expect(document.querySelector('.cross-slice-usage-panel')).not.toBeNull();
 
-    act(() => {
+    await dispatchAndFlush(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
     });
 
@@ -216,7 +232,7 @@ describe('App interactions', () => {
     ) as HTMLButtonElement | undefined;
     expect(showOverviewItem).toBeDefined();
 
-    act(() => {
+    await dispatchAndFlush(() => {
       showOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
@@ -226,7 +242,7 @@ describe('App interactions', () => {
     expect(editorPanel?.classList.contains('hidden')).toBe(true);
     expect(document.querySelector('.cross-slice-usage-panel')).toBeNull();
 
-    act(() => {
+    await dispatchAndFlush(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
     });
 
@@ -236,7 +252,7 @@ describe('App interactions', () => {
     ) as HTMLButtonElement | undefined;
     expect(hideOverviewItem).toBeDefined();
 
-    act(() => {
+    await dispatchAndFlush(() => {
       hideOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
@@ -260,9 +276,9 @@ describe('App interactions', () => {
       })
     );
 
-    renderApp();
+    await renderApp();
 
-    act(() => {
+    await dispatchAndFlush(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
     });
 
@@ -272,7 +288,7 @@ describe('App interactions', () => {
     ) as HTMLButtonElement | undefined;
     expect(showOverviewItem).toBeDefined();
 
-    act(() => {
+    await dispatchAndFlush(() => {
       showOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
@@ -285,7 +301,7 @@ describe('App interactions', () => {
     expect(editorPanel?.classList.contains('open')).toBe(false);
     expect(document.querySelector('.cross-slice-usage-panel')).toBeNull();
 
-    act(() => {
+    await dispatchAndFlush(() => {
       overviewNode?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
@@ -293,7 +309,7 @@ describe('App interactions', () => {
     expect(editorPanel?.classList.contains('open')).toBe(false);
     expect(document.querySelector('.cross-slice-usage-panel')).toBeNull();
 
-    act(() => {
+    await dispatchAndFlush(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
     });
 
@@ -315,9 +331,9 @@ describe('App interactions', () => {
       })
     );
 
-    renderApp();
+    await renderApp();
 
-    act(() => {
+    await dispatchAndFlush(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
     });
 
@@ -327,7 +343,7 @@ describe('App interactions', () => {
     ) as HTMLButtonElement | undefined;
     expect(showOverviewItem).toBeDefined();
 
-    act(() => {
+    await dispatchAndFlush(() => {
       showOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
@@ -406,9 +422,9 @@ describe('App interactions', () => {
     }) as typeof window.cancelAnimationFrame;
 
     try {
-      renderApp();
+      await renderApp();
 
-      act(() => {
+      await dispatchAndFlush(() => {
         window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
       });
 
@@ -418,12 +434,8 @@ describe('App interactions', () => {
       ) as HTMLButtonElement | undefined;
       expect(showOverviewItem).toBeDefined();
 
-      act(() => {
+      await dispatchAndFlush(() => {
         showOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      });
-      await act(async () => {
-        await Promise.resolve();
-        await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
       });
 
       expect(document.querySelector('.overview-slice-frame')).not.toBeNull();
@@ -445,9 +457,9 @@ describe('App interactions', () => {
       })
     );
 
-    renderApp();
+    await renderApp();
 
-    act(() => {
+    await dispatchAndFlush(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
     });
 
@@ -457,7 +469,7 @@ describe('App interactions', () => {
     ) as HTMLButtonElement | undefined;
     expect(showOverviewItem).toBeDefined();
 
-    act(() => {
+    await dispatchAndFlush(() => {
       showOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
@@ -478,9 +490,9 @@ describe('App interactions', () => {
       })
     );
 
-    renderApp();
+    await renderApp();
 
-    act(() => {
+    await dispatchAndFlush(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
     });
 
@@ -490,7 +502,7 @@ describe('App interactions', () => {
     ) as HTMLButtonElement | undefined;
     expect(showOverviewItem).toBeDefined();
 
-    act(() => {
+    await dispatchAndFlush(() => {
       showOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
@@ -505,7 +517,7 @@ describe('App interactions', () => {
     expect(frameLabels).toEqual(['Solo']);
   });
 
-  it('renders node aliases as display names in the canvas', () => {
+  it('renders node aliases as display names in the canvas', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -514,7 +526,7 @@ describe('App interactions', () => {
       })
     );
 
-    renderApp();
+    await renderApp();
 
     const labels = [...document.querySelectorAll('.node .node-header span:last-child')]
       .map((node) => node.textContent?.trim())
@@ -523,7 +535,7 @@ describe('App interactions', () => {
     expect(labels).toContain('My UI');
   });
 
-  it('renders generic nodes without a type prefix and with generic styling class', () => {
+  it('renders generic nodes without a type prefix and with generic styling class', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -532,7 +544,7 @@ describe('App interactions', () => {
       })
     );
 
-    renderApp();
+    await renderApp();
 
     const genericNode = document.querySelector('.node.generic');
     expect(genericNode).not.toBeNull();
@@ -549,7 +561,7 @@ describe('App interactions', () => {
       })
     );
 
-    renderApp();
+    await renderApp();
     await waitForElement('.main .canvas-camera-world');
 
     const fromNode = document.querySelector('.node.cmd');
@@ -561,14 +573,14 @@ describe('App interactions', () => {
     expect(fromNode?.classList.contains('related')).toBe(false);
     expect(toNode?.classList.contains('related')).toBe(false);
 
-    act(() => {
+    await dispatchAndFlush(() => {
       edgePath?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
     });
 
     expect(fromNode?.classList.contains('related')).toBe(true);
     expect(toNode?.classList.contains('related')).toBe(true);
 
-    act(() => {
+    await dispatchAndFlush(() => {
       edgePath?.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
     });
 
@@ -585,7 +597,7 @@ describe('App interactions', () => {
       })
     );
 
-    renderApp();
+    await renderApp();
     await waitForElement('.main .canvas-camera-world');
 
     const divider = document.querySelector('.slice-divider');
@@ -604,7 +616,7 @@ describe('App interactions', () => {
       })
     );
 
-    renderApp();
+    await renderApp();
     await waitForElement('.main .canvas-camera-world');
 
     const laneLabels = [...document.querySelectorAll('.lane-stream-label')]
@@ -626,7 +638,7 @@ describe('App interactions', () => {
       })
     );
 
-    renderApp();
+    await renderApp();
     await waitForElement('.main .canvas-camera-world');
 
     const laneLabels = [...document.querySelectorAll('.lane-stream-label')]
@@ -636,14 +648,14 @@ describe('App interactions', () => {
     expect(laneLabels).not.toContain('default');
   });
 
-  it('toggles and persists light/dark theme from header button', () => {
-    renderApp();
+  it('toggles and persists light/dark theme from header button', async () => {
+    await renderApp();
 
     const toggle = document.querySelector('button[aria-label="Switch to light theme"]');
     expect(document.documentElement.dataset.theme).toBe('dark');
     expect(toggle).not.toBeNull();
 
-    act(() => {
+    await dispatchAndFlush(() => {
       toggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
@@ -652,42 +664,42 @@ describe('App interactions', () => {
     expect(document.querySelector('button[aria-label="Switch to dark theme"]')).not.toBeNull();
   });
 
-  it('shows an Expand all action in the DSL toolbar', () => {
-    renderApp();
+  it('shows an Expand all action in the DSL toolbar', async () => {
+    await renderApp();
 
     const expandAll = document.querySelector('button[aria-label="Expand all regions"]');
     expect(expandAll).not.toBeNull();
   });
 
-  it('defaults diagram dev controls on and persists the flag on localhost', () => {
-    renderApp();
+  it('defaults diagram dev controls on and persists the flag on localhost', async () => {
+    await renderApp();
 
     const resetButton = document.querySelector('button[aria-label="Reset diagram positions"]');
     expect(resetButton).not.toBeNull();
     expect(localStorage.getItem(RENDER_ENGINE_DROPDOWN_FLAG_STORAGE_KEY)).toBe('true');
   });
 
-  it('hides diagram dev controls when the persisted flag is disabled', () => {
+  it('hides diagram dev controls when the persisted flag is disabled', async () => {
     localStorage.setItem(RENDER_ENGINE_DROPDOWN_FLAG_STORAGE_KEY, 'false');
 
-    renderApp();
+    await renderApp();
 
     const resetButton = document.querySelector('button[aria-label="Reset diagram positions"]');
     expect(resetButton).toBeNull();
   });
 
-  it('uses dom-svg-camera renderer by default and persists renderer id', () => {
-    renderApp();
+  it('uses dom-svg-camera renderer by default and persists renderer id', async () => {
+    await renderApp();
 
     const canvasPanel = document.querySelector('.canvas-panel');
     expect(canvasPanel?.getAttribute('data-diagram-renderer')).toBe('dom-svg-camera');
     expect(localStorage.getItem(DIAGRAM_RENDERER_FLAG_STORAGE_KEY)).toBe('dom-svg-camera');
   });
 
-  it('uses dom-svg-camera renderer when persisted renderer flag is enabled', () => {
+  it('uses dom-svg-camera renderer when persisted renderer flag is enabled', async () => {
     localStorage.setItem(DIAGRAM_RENDERER_FLAG_STORAGE_KEY, 'dom-svg-camera');
 
-    renderApp();
+    await renderApp();
 
     const canvasPanel = document.querySelector('.canvas-panel');
     expect(canvasPanel?.getAttribute('data-diagram-renderer')).toBe('dom-svg-camera');
@@ -703,14 +715,14 @@ describe('App interactions', () => {
     );
     localStorage.setItem(DRAG_AND_DROP_FLAG_STORAGE_KEY, 'false');
 
-    renderApp();
+    await renderApp();
     await waitForElement('.main .canvas-camera-world');
 
     const node = document.querySelector('.node.evt') as HTMLElement | null;
     expect(node).not.toBeNull();
     expect(document.querySelector('.cm-node-highlight')).toBeNull();
 
-    act(() => {
+    await dispatchAndFlush(() => {
       node?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
     });
 

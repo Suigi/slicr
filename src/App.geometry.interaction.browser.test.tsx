@@ -1,6 +1,7 @@
 import { StrictMode, act } from 'react';
-import ReactDOM from 'react-dom/client';
+import { page, userEvent } from 'vitest/browser';
 import { afterEach, describe, expect, it } from 'vitest';
+import { render } from 'vitest-browser-react';
 import App from './App';
 import {
   DIAGRAM_RENDERER_FLAG_STORAGE_KEY,
@@ -8,30 +9,20 @@ import {
 } from './domain/runtimeFlags';
 import { SLICES_LAYOUT_STORAGE_KEY, SLICES_STORAGE_KEY } from './sliceLibrary';
 
-let root: ReactDOM.Root | null = null;
-let host: HTMLDivElement | null = null;
-
 afterEach(() => {
-  if (root && host) {
-    act(() => {
-      root?.unmount();
-    });
-  }
-  root = null;
-  host = null;
-  document.body.innerHTML = '';
   delete document.documentElement.dataset.theme;
   localStorage.clear();
 });
 
 function renderApp() {
-  host = document.createElement('div');
-  host.id = 'root';
-  document.body.appendChild(host);
-  root = ReactDOM.createRoot(host);
-  act(() => {
-    root?.render(<App />);
-  });
+  return render(<App />);
+}
+
+async function dispatchAndFlush(interaction: () => void) {
+  interaction();
+  await Promise.resolve();
+  await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+  await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
 }
 
 async function waitFor(condition: () => boolean, attempts = 40) {
@@ -39,11 +30,9 @@ async function waitFor(condition: () => boolean, attempts = 40) {
     if (condition()) {
       return;
     }
-    await act(async () => {
-      await Promise.resolve();
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
-      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
-    });
+    await Promise.resolve();
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
   }
 }
 
@@ -51,18 +40,22 @@ async function waitForSelector(selector: string) {
   await waitFor(() => document.querySelector(selector) !== null);
 }
 
+async function waitForMainLayoutReady() {
+  await waitFor(() => document.querySelector('.main')?.getAttribute('data-layout-ready') === 'true');
+  expect(document.querySelector('.main')?.getAttribute('data-layout-ready')).toBe('true');
+}
+
+async function waitForDocsPreviewReady() {
+  await waitForSelector('.docs-panel .doc-feature-card[data-doc-preview-ready="true"] .canvas-camera-world');
+  expect(document.querySelector('.docs-panel .doc-feature-card[data-doc-preview-ready="true"] .canvas-camera-world')).not.toBeNull();
+}
+
 function renderAppStrict() {
-  host = document.createElement('div');
-  host.id = 'root';
-  document.body.appendChild(host);
-  root = ReactDOM.createRoot(host);
-  act(() => {
-    root?.render(
-      <StrictMode>
-        <App />
-      </StrictMode>
-    );
-  });
+  return render(
+    <StrictMode>
+      <App />
+    </StrictMode>
+  );
 }
 
 function setSingleEventSlice(dsl = 'slice "A"\n\nevt:simple-event') {
@@ -75,32 +68,36 @@ function setSingleEventSlice(dsl = 'slice "A"\n\nevt:simple-event') {
   );
 }
 
-function openSliceMenu() {
+async function openSliceMenu() {
   if (document.querySelector('.slice-menu-panel')) {
     return;
   }
-  const menuToggle = document.querySelector('button[aria-label="Select slice"]') as HTMLButtonElement | null;
-  expect(menuToggle).not.toBeNull();
-  act(() => {
-    menuToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-  });
+  await page.getByRole('button', { name: 'Select slice' }).click();
+  await expect.element(page.getByRole('menu', { name: 'Slice list' })).toBeVisible();
 }
 
-function clickSliceMenuItem(label: string) {
-  const item = [...document.querySelectorAll('.slice-menu-item')]
-    .find((button) => button.textContent?.includes(label)) as HTMLButtonElement | undefined;
+async function clickSliceMenuItem(label: string) {
+  await page.getByRole('menuitemradio', { name: label }).click();
+}
+
+async function clickResetPositionsButton() {
+  await page.getByRole('button', { name: 'Reset diagram positions' }).click();
+}
+
+async function toggleDocsPanel() {
+  await page.getByRole('button', { name: 'Toggle documentation panel' }).click();
+}
+
+async function openCommandPalette() {
+  await userEvent.keyboard('{Control>}k{/Control}');
+  await expect.element(page.getByRole('dialog', { name: 'Command palette' })).toBeVisible();
+}
+
+async function clickCommandPaletteItem(label: string) {
+  const item = [...document.querySelectorAll('.command-palette-item')]
+    .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === label) as HTMLButtonElement | undefined;
   expect(item).toBeDefined();
-  act(() => {
-    item?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-  });
-}
-
-function clickResetPositionsButton() {
-  const resetButton = document.querySelector('button[aria-label="Reset diagram positions"]') as HTMLButtonElement | null;
-  expect(resetButton).not.toBeNull();
-  act(() => {
-    resetButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-  });
+  await item!.click();
 }
 
 function supportsVerticalScroll(element: HTMLElement, target = 120) {
@@ -115,6 +112,7 @@ describe('App geometry interactions', () => {
   it('uses selected renderer engine for documentation previews', async () => {
     localStorage.setItem(DIAGRAM_RENDERER_FLAG_STORAGE_KEY, 'dom-svg-camera');
     renderApp();
+    await waitForMainLayoutReady();
     await waitForSelector('.main .canvas-panel .canvas-camera-world');
 
     const mainCameraWorld = document.querySelector('.main .canvas-panel .canvas-camera-world') as HTMLElement | null;
@@ -122,14 +120,9 @@ describe('App geometry interactions', () => {
     expect(mainCameraWorld?.dataset.cameraX).toBeDefined();
     expect(mainCameraWorld?.dataset.cameraY).toBeDefined();
 
-    const docsToggle = document.querySelector('button[aria-label="Toggle documentation panel"]');
-    expect(docsToggle).not.toBeNull();
+    await toggleDocsPanel();
 
-    act(() => {
-      docsToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
-    await waitForSelector('.docs-panel .canvas-camera-world');
+    await waitForDocsPreviewReady();
     const docsWorld = document.querySelector('.docs-panel .canvas-camera-world') as HTMLElement | null;
     const firstDocDiagram = document.querySelector('.docs-panel .doc-diagram') as HTMLElement | null;
     expect(docsWorld).not.toBeNull();
@@ -140,17 +133,14 @@ describe('App geometry interactions', () => {
     expect(Number(docsWorld?.dataset.cameraZoom ?? 0)).toBeLessThanOrEqual(1.2);
   });
 
-  it('disables camera pan and zoom interactions for documentation previews', () => {
+  it('disables camera pan and zoom interactions for documentation previews', async () => {
     localStorage.setItem(DIAGRAM_RENDERER_FLAG_STORAGE_KEY, 'dom-svg-camera');
     renderApp();
+    await waitForMainLayoutReady();
 
-    const docsToggle = document.querySelector('button[aria-label="Toggle documentation panel"]');
-    expect(docsToggle).not.toBeNull();
+    await toggleDocsPanel();
 
-    act(() => {
-      docsToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
+    await waitForDocsPreviewReady();
     const docsWorld = document.querySelector('.docs-panel .canvas-camera-world') as HTMLElement | null;
     const docsPanel = document.querySelector('.docs-panel .canvas-panel') as HTMLElement | null;
     expect(docsWorld).not.toBeNull();
@@ -160,7 +150,7 @@ describe('App geometry interactions', () => {
     const initialY = docsWorld?.dataset.cameraY;
     const initialZoom = docsWorld?.dataset.cameraZoom;
 
-    act(() => {
+    await dispatchAndFlush(() => {
       docsPanel?.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaX: 40, deltaY: 80, clientX: 200, clientY: 180 }));
       docsPanel?.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: -120, ctrlKey: true, clientX: 200, clientY: 180 }));
     });
@@ -171,12 +161,11 @@ describe('App geometry interactions', () => {
     expect(afterWorld?.dataset.cameraZoom).toBe(initialZoom);
   });
 
-  it('preserves canvas scroll position when opening and closing documentation panel', () => {
+  it('preserves canvas scroll position when opening and closing documentation panel', async () => {
     renderApp();
+    await waitForMainLayoutReady();
 
-    const docsToggle = document.querySelector('button[aria-label="Toggle documentation panel"]');
     const canvasPanel = document.querySelector('.canvas-panel') as HTMLDivElement | null;
-    expect(docsToggle).not.toBeNull();
     expect(canvasPanel).not.toBeNull();
 
     const canvasScrollSpacer = document.createElement('div');
@@ -198,30 +187,23 @@ describe('App geometry interactions', () => {
     expect(canvasPanel?.scrollLeft).toBe(expectedLeft);
     expect(canvasPanel?.scrollTop).toBe(supportsVertical ? expectedTop : 0);
 
-    act(() => {
-      docsToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await toggleDocsPanel();
     expect(canvasPanel?.classList.contains('hidden')).toBe(true);
 
-    act(() => {
-      docsToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await toggleDocsPanel();
 
     expect(canvasPanel?.classList.contains('hidden')).toBe(false);
     expect(canvasPanel?.scrollLeft).toBe(expectedLeft);
     expect(canvasPanel?.scrollTop).toBe(supportsVertical ? expectedTop : 0);
   });
 
-  it('preserves documentation scroll position when closing and reopening documentation panel', () => {
+  it('preserves documentation scroll position when closing and reopening documentation panel', async () => {
     renderApp();
+    await waitForMainLayoutReady();
 
-    const docsToggle = document.querySelector('button[aria-label="Toggle documentation panel"]');
-    expect(docsToggle).not.toBeNull();
     expect(document.querySelector('.docs-panel')).toBeNull();
 
-    act(() => {
-      docsToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await toggleDocsPanel();
 
     const docsPanel = document.querySelector('.docs-panel') as HTMLDivElement | null;
     const docsShell = document.querySelector('.docs-panel-shell');
@@ -242,14 +224,10 @@ describe('App geometry interactions', () => {
     });
     expect(docsPanel?.scrollTop).toBe(supportsVertical ? expectedTop : 0);
 
-    act(() => {
-      docsToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await toggleDocsPanel();
     expect(docsShell?.classList.contains('hidden')).toBe(true);
 
-    act(() => {
-      docsToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await toggleDocsPanel();
 
     expect(docsShell?.classList.contains('hidden')).toBe(false);
     expect(docsPanel?.scrollTop).toBe(supportsVertical ? expectedTop : 0);
@@ -274,6 +252,7 @@ describe('App geometry interactions', () => {
     );
 
     renderApp();
+    await waitForMainLayoutReady();
     await waitForSelector('.main .node.evt');
 
     const eventNode = document.querySelector('.main .node.evt') as HTMLElement | null;
@@ -308,14 +287,15 @@ describe('App geometry interactions', () => {
     );
 
     renderApp();
+    await waitForMainLayoutReady();
     await waitForSelector('.main .node.evt');
 
     const eventNodeBefore = document.querySelector('.main .node.evt') as HTMLElement | null;
     expect(eventNodeBefore?.style.left).toBe('115px');
     expect(eventNodeBefore?.style.top).toBe('95px');
 
-    openSliceMenu();
-    clickSliceMenuItem('B');
+    await openSliceMenu();
+    await clickSliceMenuItem('B');
     await waitFor(() => (document.querySelector('.main .node.evt') as HTMLElement | null)?.style.left === '445px');
 
     const eventNodeAfter = document.querySelector('.main .node.evt') as HTMLElement | null;
@@ -342,6 +322,7 @@ describe('App geometry interactions', () => {
     );
 
     renderAppStrict();
+    await waitForMainLayoutReady();
     await waitForSelector('.main .node.evt');
 
     const eventNode = document.querySelector('.main .node.evt') as HTMLElement | null;
@@ -360,6 +341,7 @@ describe('App geometry interactions', () => {
     );
 
     renderApp();
+    await waitForMainLayoutReady();
     await waitForSelector('.main .node.evt');
 
     const node = document.querySelector('.main .node.evt') as HTMLElement | null;
@@ -370,7 +352,7 @@ describe('App geometry interactions', () => {
     const beforeNodeMoveCount = beforeEvents.filter((event) => event.type === 'node-moved').length;
 
     const PointerCtor = window.PointerEvent ?? window.MouseEvent;
-    act(() => {
+    await dispatchAndFlush(() => {
       node?.dispatchEvent(new PointerCtor('pointerdown', { bubbles: true, button: 0, clientX: 100, clientY: 100, pointerId: 1 }));
       window.dispatchEvent(new PointerCtor('pointermove', { bubbles: true, buttons: 1, clientX: 180, clientY: 180, pointerId: 1 }));
     });
@@ -380,7 +362,7 @@ describe('App geometry interactions', () => {
     const midNodeMoveCount = midEvents.filter((event) => event.type === 'node-moved').length;
     expect(midNodeMoveCount).toBe(beforeNodeMoveCount);
 
-    act(() => {
+    await dispatchAndFlush(() => {
       window.dispatchEvent(new PointerCtor('pointerup', { bubbles: true, button: 0, clientX: 180, clientY: 180, pointerId: 1 }));
     });
 
@@ -400,6 +382,7 @@ describe('App geometry interactions', () => {
     );
 
     renderApp();
+    await waitForMainLayoutReady();
     await waitForSelector('.main .node.evt');
 
     const node = document.querySelector('.main .node.evt') as HTMLElement | null;
@@ -407,13 +390,11 @@ describe('App geometry interactions', () => {
     expect(node).not.toBeNull();
     expect(canvas).not.toBeNull();
 
-    act(() => {
-      node?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await userEvent.click(node!);
     expect(node?.classList.contains('selected')).toBe(true);
 
     const PointerCtor = window.PointerEvent ?? window.MouseEvent;
-    act(() => {
+    await dispatchAndFlush(() => {
       canvas?.dispatchEvent(new PointerCtor('pointerdown', { bubbles: true, button: 0, clientX: 120, clientY: 120, pointerId: 7 }));
       window.dispatchEvent(new PointerCtor('pointermove', { bubbles: true, buttons: 1, clientX: 170, clientY: 170, pointerId: 7 }));
       window.dispatchEvent(new PointerCtor('pointerup', { bubbles: true, button: 0, clientX: 170, clientY: 170, pointerId: 7 }));
@@ -426,30 +407,31 @@ describe('App geometry interactions', () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
-        selectedSliceId: 'a',
-        slices: [{ id: 'a', dsl: 'slice "A"\n\nevt:simple-event' }]
+        selectedSliceId: 'drag-disabled',
+        slices: [{ id: 'drag-disabled', dsl: 'slice "A"\n\nevt:simple-event' }]
       })
     );
     localStorage.setItem(DRAG_AND_DROP_FLAG_STORAGE_KEY, 'false');
 
     renderApp();
+    await waitForMainLayoutReady();
     await waitForSelector('.main .node.evt');
 
     const node = document.querySelector('.main .node.evt') as HTMLElement | null;
     expect(node).not.toBeNull();
 
-    const beforeRaw = localStorage.getItem('slicr.es.v1.stream.a');
+    const beforeRaw = localStorage.getItem('slicr.es.v1.stream.drag-disabled');
     const beforeEvents = beforeRaw ? (JSON.parse(beforeRaw) as Array<{ type: string }>) : [];
     const beforeNodeMoveCount = beforeEvents.filter((event) => event.type === 'node-moved').length;
 
     const PointerCtor = window.PointerEvent ?? window.MouseEvent;
-    act(() => {
+    await dispatchAndFlush(() => {
       node?.dispatchEvent(new PointerCtor('pointerdown', { bubbles: true, button: 0, clientX: 100, clientY: 100, pointerId: 1 }));
       window.dispatchEvent(new PointerCtor('pointermove', { bubbles: true, buttons: 1, clientX: 180, clientY: 180, pointerId: 1 }));
       window.dispatchEvent(new PointerCtor('pointerup', { bubbles: true, button: 0, clientX: 180, clientY: 180, pointerId: 1 }));
     });
 
-    const afterRaw = localStorage.getItem('slicr.es.v1.stream.a');
+    const afterRaw = localStorage.getItem('slicr.es.v1.stream.drag-disabled');
     const afterEvents = afterRaw ? (JSON.parse(afterRaw) as Array<{ type: string }>) : [];
     const afterNodeMoveCount = afterEvents.filter((event) => event.type === 'node-moved').length;
     expect(afterNodeMoveCount).toBe(beforeNodeMoveCount);
@@ -465,20 +447,10 @@ describe('App geometry interactions', () => {
     );
 
     renderApp();
+    await waitForMainLayoutReady();
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
-    });
-
-    const showOverviewItem = (
-      [...document.querySelectorAll('.command-palette-item')]
-        .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Show Project Overview')
-    ) as HTMLButtonElement | undefined;
-    expect(showOverviewItem).toBeDefined();
-
-    act(() => {
-      showOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await openCommandPalette();
+    await clickCommandPaletteItem('Show Project Overview');
 
     await waitForSelector('.main .node.cmd');
     const node = document.querySelector('.main .node.cmd') as HTMLElement | null;
@@ -490,7 +462,7 @@ describe('App geometry interactions', () => {
     const beforeNodeMoveCount = beforeEvents.filter((event) => event.type === 'node-moved').length;
 
     const PointerCtor = window.PointerEvent ?? window.MouseEvent;
-    act(() => {
+    await dispatchAndFlush(() => {
       node?.dispatchEvent(new PointerCtor('pointerdown', { bubbles: true, button: 0, clientX: 100, clientY: 100, pointerId: 11 }));
       window.dispatchEvent(new PointerCtor('pointermove', { bubbles: true, buttons: 1, clientX: 180, clientY: 180, pointerId: 11 }));
       window.dispatchEvent(new PointerCtor('pointerup', { bubbles: true, button: 0, clientX: 180, clientY: 180, pointerId: 11 }));
@@ -515,12 +487,13 @@ describe('App geometry interactions', () => {
     );
 
     renderApp();
+    await waitForMainLayoutReady();
     await waitForSelector('.main .canvas-camera-world');
 
     const panel = document.querySelector('.main .canvas-panel') as HTMLElement | null;
     expect(panel).not.toBeNull();
 
-    act(() => {
+    await dispatchAndFlush(() => {
       panel?.dispatchEvent(new WheelEvent('wheel', {
         bubbles: true,
         deltaX: 24,
@@ -538,19 +511,8 @@ describe('App geometry interactions', () => {
     expect(cameraY).not.toBeUndefined();
     expect(cameraZoom).not.toBeUndefined();
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
-    });
-
-    const showOverviewItem = (
-      [...document.querySelectorAll('.command-palette-item')]
-        .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Show Project Overview')
-    ) as HTMLButtonElement | undefined;
-    expect(showOverviewItem).toBeDefined();
-
-    act(() => {
-      showOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await openCommandPalette();
+    await clickCommandPaletteItem('Show Project Overview');
     await waitForSelector('.overview-slice-frame');
 
     const inOverview = document.querySelector('.main .canvas-camera-world') as HTMLElement | null;
@@ -558,19 +520,8 @@ describe('App geometry interactions', () => {
     expect(inOverview?.dataset.cameraY).toBe(cameraY);
     expect(inOverview?.dataset.cameraZoom).toBe(cameraZoom);
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
-    });
-
-    const hideOverviewItem = (
-      [...document.querySelectorAll('.command-palette-item')]
-        .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Hide Project Overview')
-    ) as HTMLButtonElement | undefined;
-    expect(hideOverviewItem).toBeDefined();
-
-    act(() => {
-      hideOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await openCommandPalette();
+    await clickCommandPaletteItem('Hide Project Overview');
     await waitFor(() => document.querySelector('.overview-slice-frame') === null);
 
     const afterOverview = document.querySelector('.main .canvas-camera-world') as HTMLElement | null;
@@ -579,16 +530,17 @@ describe('App geometry interactions', () => {
     expect(afterOverview?.dataset.cameraZoom).toBe(cameraZoom);
   });
 
-  it('appends layout-reset events when resetting positions from dev controls', () => {
+  it('appends layout-reset events when resetting positions from dev controls', async () => {
     setSingleEventSlice();
 
     renderApp();
+    await waitForMainLayoutReady();
 
     const beforeRaw = localStorage.getItem('slicr.es.v1.stream.a');
     const beforeEvents = beforeRaw ? (JSON.parse(beforeRaw) as Array<{ type: string }>) : [];
     const beforeResetCount = beforeEvents.filter((event) => event.type === 'layout-reset').length;
 
-    clickResetPositionsButton();
+    await clickResetPositionsButton();
 
     const afterRaw = localStorage.getItem('slicr.es.v1.stream.a');
     const afterEvents = afterRaw ? (JSON.parse(afterRaw) as Array<{ type: string }>) : [];
@@ -600,6 +552,7 @@ describe('App geometry interactions', () => {
     setSingleEventSlice();
 
     renderApp();
+    await waitForMainLayoutReady();
     await waitForSelector('.main .node.evt');
 
     const resetButton = document.querySelector('button[aria-label="Reset diagram positions"]') as HTMLButtonElement | null;
@@ -609,7 +562,7 @@ describe('App geometry interactions', () => {
     const node = document.querySelector('.main .node.evt') as HTMLElement | null;
     expect(node).not.toBeNull();
     const PointerCtor = window.PointerEvent ?? window.MouseEvent;
-    act(() => {
+    await dispatchAndFlush(() => {
       node?.dispatchEvent(new PointerCtor('pointerdown', { bubbles: true, button: 0, clientX: 100, clientY: 100, pointerId: 1 }));
       window.dispatchEvent(new PointerCtor('pointermove', { bubbles: true, buttons: 1, clientX: 180, clientY: 180, pointerId: 1 }));
       window.dispatchEvent(new PointerCtor('pointerup', { bubbles: true, button: 0, clientX: 180, clientY: 180, pointerId: 1 }));
@@ -617,7 +570,7 @@ describe('App geometry interactions', () => {
 
     expect(resetButton?.classList.contains('has-manual-layout-overrides')).toBe(true);
 
-    clickResetPositionsButton();
+    await clickResetPositionsButton();
 
     expect(resetButton?.classList.contains('has-manual-layout-overrides')).toBe(false);
   });

@@ -34,7 +34,11 @@ export function AppShell(props: AppShellProps) {
         <AppHeader />
       </HeaderUiProvider>
 
-      <div className="main">
+      <div
+        className="main"
+        data-layout-ready={diagram.layoutReady ? 'true' : 'false'}
+        data-diagram-mode={diagram.diagramMode}
+      >
         <ProjectRail header={header} actions={actions} auxPanels={auxPanels} visible={header.projectRailOpen} />
 
         <div ref={editorRef} className={`editor-panel ${editorOpen ? 'open' : ''} ${overviewActive ? 'hidden' : ''}`.trim()}>

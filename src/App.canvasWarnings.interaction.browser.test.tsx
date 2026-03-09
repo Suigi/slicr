@@ -27,6 +27,15 @@ function renderApp() {
   act(() => {
     root?.render(<App />);
   });
+  return flushAppState();
+}
+
+async function flushAppState() {
+  await act(async () => {
+    await Promise.resolve();
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+  });
 }
 
 async function waitFor(condition: () => boolean, attempts = 40) {
@@ -51,7 +60,7 @@ async function waitForSliceTitle(text: string) {
 }
 
 describe('App canvas warning interactions', () => {
-  it('does not show unresolved dependency warnings in the bottom error bar', () => {
+  it('does not show unresolved dependency warnings in the bottom error bar', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -60,13 +69,13 @@ describe('App canvas warning interactions', () => {
       })
     );
 
-    renderApp();
+    await renderApp();
 
     const errorBar = document.querySelector('.error-bar');
     expect(errorBar).toBeNull();
   });
 
-  it('shows a red gutter cell for unresolved dependencies', () => {
+  it('shows a red gutter cell for unresolved dependencies', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -75,13 +84,13 @@ describe('App canvas warning interactions', () => {
       })
     );
 
-    renderApp();
+    await renderApp();
 
     const warningCell = document.querySelector('.cm-foldGutter .cm-gutterElement.cm-warning-line-error');
     expect(warningCell).not.toBeNull();
   });
 
-  it('shows an orange gutter cell for data integrity warnings', () => {
+  it('shows an orange gutter cell for data integrity warnings', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -103,13 +112,13 @@ data:
       })
     );
 
-    renderApp();
+    await renderApp();
 
     const warningCell = document.querySelector('.cm-foldGutter .cm-gutterElement.cm-warning-line-warning');
     expect(warningCell).not.toBeNull();
   });
 
-  it('renders missing mapped data values in red with <missing> marker', () => {
+  it('renders missing mapped data values in red with <missing> marker', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -131,7 +140,7 @@ uses:
       })
     );
 
-    renderApp();
+    await renderApp();
 
     const missingLine = document.querySelector('.node-field-line.missing');
     expect(missingLine).not.toBeNull();
@@ -165,7 +174,7 @@ uses:
       })
     );
 
-    renderApp();
+    await renderApp();
     await waitForSelector('.canvas-panel .node-field');
 
     const allFields = [...document.querySelectorAll('.canvas-panel .node-field')];
@@ -175,7 +184,7 @@ uses:
     expect(mapped[0]?.textContent).not.toContain('local:');
   });
 
-  it('tints ui data keys by mapping direction across predecessor and successor uses', () => {
+  it('tints ui data keys by mapping direction across predecessor and successor uses', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -205,7 +214,7 @@ uses:
       })
     );
 
-    renderApp();
+    await renderApp();
 
     const uiNode = [...document.querySelectorAll('.node.ui')]
       .find((node) => node.querySelector('.node-title')?.textContent?.includes('Rename Todo Form'));
@@ -219,7 +228,7 @@ uses:
     expect(newNameField?.classList.contains('ui-mapped-outbound')).toBe(true);
   });
 
-  it('marks ui keys as both when they are mapped in and mapped out', () => {
+  it('marks ui keys as both when they are mapped in and mapped out', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -250,7 +259,7 @@ uses:
       })
     );
 
-    renderApp();
+    await renderApp();
 
     const uiNode = [...document.querySelectorAll('.node.ui')]
       .find((node) => node.querySelector('.node-title')?.textContent?.includes('Rename Todo Form'));
@@ -262,7 +271,7 @@ uses:
     expect(idField?.classList.contains('ui-mapped-both')).toBe(true);
   });
 
-  it('renders node field values without a leading space after the colon', () => {
+  it('renders node field values without a leading space after the colon', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -278,13 +287,13 @@ data:
       })
     );
 
-    renderApp();
+    await renderApp();
 
     const value = document.querySelector('.node.ui .node-field-val');
     expect(value?.textContent).toBe('ALPHA');
   });
 
-  it('renders node measure field values without a leading space after the colon', () => {
+  it('renders node measure field values without a leading space after the colon', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -300,13 +309,13 @@ data:
       })
     );
 
-    renderApp();
+    await renderApp();
 
     const value = document.querySelector('.node-measure-layer .node-field-val');
     expect(value?.textContent).toBe('ALPHA');
   });
 
-  it('does not render a node-field-val span for container header lines', () => {
+  it('does not render a node-field-val span for container header lines', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -325,7 +334,7 @@ data:
       })
     );
 
-    renderApp();
+    await renderApp();
 
     const uiNode = document.querySelector('.node.ui');
     expect(uiNode).not.toBeNull();
@@ -369,7 +378,7 @@ uses:
       })
     );
 
-    renderApp();
+    await renderApp();
     await waitForSliceTitle('Read Model from Two Events');
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Read Model from Two Events');

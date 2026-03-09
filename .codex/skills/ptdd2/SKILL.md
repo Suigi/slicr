@@ -16,7 +16,7 @@ The skill operates in two modes:
 
 **In both modes, the skill must begin with a discussion with the human about the overall behavior to be added before any task begins.** The LLM should not start writing tests or code until it can articulate back to the human what the feature is and receive confirmation.
 
-**ALWAYS** run tests through the Vitest MCP server.
+**ALWAYS** run test through the ./scripts/test.sh script (which is a vitest wrapper).
 
 ---
 

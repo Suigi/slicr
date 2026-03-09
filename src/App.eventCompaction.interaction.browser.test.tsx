@@ -27,10 +27,28 @@ function renderApp() {
   act(() => {
     root?.render(<App />);
   });
+  return flushAppState();
+}
+
+async function flushAppState() {
+  await act(async () => {
+    await Promise.resolve();
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+  });
+}
+
+async function dispatchAndFlush(interaction: () => void) {
+  await act(async () => {
+    interaction();
+    await Promise.resolve();
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+  });
 }
 
 describe('App event compaction interactions', () => {
-  it('previews and executes event compaction from the compact dialog', () => {
+  it('previews and executes event compaction from the compact dialog', async () => {
     localStorage.setItem(
       'slicr.es.v1.stream.app',
       JSON.stringify([
@@ -87,9 +105,9 @@ describe('App event compaction interactions', () => {
     );
     localStorage.setItem('slicr.es.v1.snapshot.slice-a', JSON.stringify({ version: 2, projection: {} }));
 
-    renderApp();
+    await renderApp();
 
-    act(() => {
+    await dispatchAndFlush(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
     });
 
@@ -99,7 +117,7 @@ describe('App event compaction interactions', () => {
     ) as HTMLButtonElement | undefined;
     expect(compactItem).toBeDefined();
 
-    act(() => {
+    await dispatchAndFlush(() => {
       compactItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
@@ -112,7 +130,7 @@ describe('App event compaction interactions', () => {
       .find((button) => button.textContent?.trim() === 'Compact') as HTMLButtonElement | undefined;
     expect(compactButton).toBeDefined();
 
-    act(() => {
+    await dispatchAndFlush(() => {
       compactButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
@@ -122,7 +140,7 @@ describe('App event compaction interactions', () => {
     expect(summary?.textContent).toContain('Reclaimed');
   });
 
-  it('preserves projected app state while reducing event history during compaction', () => {
+  it('preserves projected app state while reducing event history during compaction', async () => {
     localStorage.setItem(
       'slicr.es.v1.stream.app',
       JSON.stringify([
@@ -243,9 +261,9 @@ describe('App event compaction interactions', () => {
     const beforeAppEvents = JSON.parse(localStorage.getItem('slicr.es.v1.stream.app') ?? '[]') as Array<unknown>;
     const beforeSliceBEvents = JSON.parse(localStorage.getItem('slicr.es.v1.stream.slice-b') ?? '[]') as Array<unknown>;
 
-    renderApp();
+    await renderApp();
 
-    act(() => {
+    await dispatchAndFlush(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
     });
 
@@ -255,7 +273,7 @@ describe('App event compaction interactions', () => {
     ) as HTMLButtonElement | undefined;
     expect(compactItem).toBeDefined();
 
-    act(() => {
+    await dispatchAndFlush(() => {
       compactItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
@@ -263,7 +281,7 @@ describe('App event compaction interactions', () => {
       .find((button) => button.textContent?.trim() === 'Compact') as HTMLButtonElement | undefined;
     expect(compactButton).toBeDefined();
 
-    act(() => {
+    await dispatchAndFlush(() => {
       compactButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 

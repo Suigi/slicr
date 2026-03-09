@@ -1,54 +1,31 @@
-import { act } from 'react';
-import ReactDOM from 'react-dom/client';
+import { page, userEvent } from 'vitest/browser';
 import { afterEach, describe, expect, it } from 'vitest';
+import { render } from 'vitest-browser-react';
 import App from './App';
 import { DEFAULT_DSL } from './defaultDsl';
 import { SLICES_STORAGE_KEY } from './sliceLibrary';
 import { hydrateSliceProjection } from './sliceEventStore';
 
-let root: ReactDOM.Root | null = null;
-let host: HTMLDivElement | null = null;
-
 afterEach(() => {
-  if (root && host) {
-    act(() => {
-      root?.unmount();
-    });
-  }
-  root = null;
-  host = null;
-  document.body.innerHTML = '';
   delete document.documentElement.dataset.theme;
   localStorage.clear();
 });
 
 function renderApp() {
-  host = document.createElement('div');
-  document.body.appendChild(host);
-  root = ReactDOM.createRoot(host);
-  act(() => {
-    root?.render(<App />);
-  });
+  return render(<App />);
 }
 
-async function waitFor(condition: () => boolean, attempts = 40) {
-  for (let index = 0; index < attempts; index += 1) {
-    if (condition()) {
-      return;
-    }
-    await act(async () => {
-      await Promise.resolve();
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
-      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
-    });
-  }
+async function flushUi() {
+  await Promise.resolve();
+  await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+  await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
 }
 
 async function waitForSliceTitle(text?: string) {
-  await waitFor(() => {
+  await expect.poll(() => {
     const title = document.querySelector('.slice-title')?.textContent?.trim();
     return text ? title === text : Boolean(title);
-  });
+  }).toBe(true);
 }
 
 function readStoredLibrary() {
@@ -79,24 +56,16 @@ function readStoredLibrary() {
   };
 }
 
-function openSliceMenu() {
+async function openSliceMenu() {
   if (document.querySelector('.slice-menu-panel')) {
     return;
   }
-  const menuToggle = document.querySelector('button[aria-label="Select slice"]') as HTMLButtonElement | null;
-  expect(menuToggle).not.toBeNull();
-  act(() => {
-    menuToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-  });
+  await page.getByRole('button', { name: 'Select slice' }).click();
+  await expect.element(page.getByRole('menu', { name: 'Slice list' })).toBeVisible();
 }
 
-function clickSliceMenuItem(label: string) {
-  const item = [...document.querySelectorAll('.slice-menu-item')]
-    .find((button) => button.textContent?.includes(label)) as HTMLButtonElement | undefined;
-  expect(item).toBeDefined();
-  act(() => {
-    item?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-  });
+async function clickSliceMenuItem(label: string) {
+  await page.getByRole('menuitemradio', { name: label }).click();
 }
 
 describe('App bootstrap and slice navigation interactions', () => {
@@ -144,11 +113,11 @@ rm:persisted-view`;
     renderApp();
     await waitForSliceTitle('Alpha');
 
-    openSliceMenu();
+    await openSliceMenu();
     expect(document.querySelectorAll('.slice-menu-item').length).toBe(2);
     expect(document.querySelector('.slice-title')?.textContent).toBe('Alpha');
 
-    clickSliceMenuItem('Beta');
+    await clickSliceMenuItem('Beta');
     await waitForSliceTitle('Beta');
     const localPrefix = window.location.hostname === 'localhost' ? '[local] ' : '';
 
@@ -177,9 +146,7 @@ rm:persisted-view`;
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Alpha');
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'j', metaKey: true, shiftKey: true, bubbles: true }));
-    });
+    await userEvent.keyboard('{Control>}{Shift>}j{/Shift}{/Control}');
     await waitForSliceTitle('Beta');
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Beta');
@@ -207,9 +174,7 @@ rm:persisted-view`;
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Beta');
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, shiftKey: true, bubbles: true }));
-    });
+    await userEvent.keyboard('{Control>}{Shift>}k{/Shift}{/Control}');
     await waitForSliceTitle('Alpha');
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Alpha');
@@ -240,9 +205,7 @@ rm:persisted-view`;
     const beforeEvents = JSON.parse(beforeRaw ?? '[]') as Array<{ type: string }>;
     const beforeSelectedCount = beforeEvents.filter((event) => event.type === 'slice-selected').length;
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'j', ctrlKey: true, shiftKey: true, bubbles: true }));
-    });
+    await userEvent.keyboard('{Control>}{Shift>}j{/Shift}{/Control}');
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Beta');
     const afterRaw = localStorage.getItem('slicr.es.v1.stream.app');
@@ -271,9 +234,7 @@ rm:persisted-view`;
     const beforeEvents = JSON.parse(beforeRaw ?? '[]') as Array<{ type: string }>;
     const beforeSelectedCount = beforeEvents.filter((event) => event.type === 'slice-selected').length;
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, shiftKey: true, bubbles: true }));
-    });
+    await userEvent.keyboard('{Control>}{Shift>}k{/Shift}{/Control}');
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Alpha');
     const afterRaw = localStorage.getItem('slicr.es.v1.stream.app');
@@ -282,7 +243,7 @@ rm:persisted-view`;
     expect(afterSelectedCount).toBe(beforeSelectedCount);
   });
 
-  it('derives dropdown labels from DSL, ignoring stale stored names', () => {
+  it('derives dropdown labels from DSL, ignoring stale stored names', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -292,26 +253,27 @@ rm:persisted-view`;
     );
 
     renderApp();
-
-    const menuToggle = document.querySelector('button[aria-label="Select slice"]') as HTMLButtonElement | null;
-    expect(menuToggle?.textContent).toContain('Fresh Name');
+    await expect.poll(() => document.querySelector('button[aria-label="Select slice"]')?.textContent?.includes('Fresh Name') ?? false).toBe(true);
   });
 
-  it('creates and selects a new slice from header button', () => {
+  it('creates and selects a new slice from header button', async () => {
     renderApp();
+
+    await openSliceMenu();
+    expect(document.querySelectorAll('.slice-menu-item').length).toBe(1);
 
     const newButton = document.querySelector('button[aria-label="Create new slice"]') as HTMLButtonElement | null;
     expect(newButton).not.toBeNull();
-    openSliceMenu();
-    expect(document.querySelectorAll('.slice-menu-item').length).toBe(1);
+    newButton?.click();
+    await flushUi();
+    await expect.poll(() => {
+      const stored = readStoredLibrary();
+      const selected = stored?.slices.find((slice) => slice.id === stored.selectedSliceId);
+      return selected?.dsl.includes('slice "Untitled"') ?? false;
+    }).toBe(true);
+    await expect.poll(() => document.querySelector('button[aria-label="Select slice"]')?.textContent?.includes('Untitled') ?? false).toBe(true);
 
-    act(() => {
-      newButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
-    const menuToggle = document.querySelector('button[aria-label="Select slice"]') as HTMLButtonElement | null;
-    expect(menuToggle?.textContent).toContain('Untitled');
-    openSliceMenu();
+    await openSliceMenu();
     expect(document.querySelectorAll('.slice-menu-item').length).toBe(2);
     const stored = readStoredLibrary();
     expect(stored).not.toBeNull();

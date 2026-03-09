@@ -27,6 +27,24 @@ function renderApp() {
   act(() => {
     root?.render(<App />);
   });
+  return flushAppState();
+}
+
+async function flushAppState() {
+  await act(async () => {
+    await Promise.resolve();
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+  });
+}
+
+async function dispatchAndFlush(interaction: () => void) {
+  await act(async () => {
+    interaction();
+    await Promise.resolve();
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+  });
 }
 
 function readStoredLibrary() {
@@ -58,10 +76,10 @@ function readStoredLibrary() {
 }
 
 describe('App slice template interactions', () => {
-  it('applies template in create-new mode by creating and selecting a new slice', () => {
-    renderApp();
+  it('applies template in create-new mode by creating and selecting a new slice', async () => {
+    await renderApp();
 
-    act(() => {
+    await dispatchAndFlush(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
     });
 
@@ -70,14 +88,14 @@ describe('App slice template interactions', () => {
         .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Apply Slice Template...')
     ) as HTMLButtonElement | undefined;
     expect(applyTemplateItem).toBeDefined();
-    act(() => {
+    await dispatchAndFlush(() => {
       applyTemplateItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
     const apply = [...document.querySelectorAll('.project-modal-button.primary')]
       .find((button) => button.textContent?.trim() === 'Apply Template') as HTMLButtonElement | undefined;
     expect(apply).toBeDefined();
-    act(() => {
+    await dispatchAndFlush(() => {
       apply?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
@@ -89,10 +107,10 @@ describe('App slice template interactions', () => {
     expect(selected?.dsl.includes('ui:checkout-form')).toBe(true);
   });
 
-  it('applies template in add-current mode by inserting text into current slice', () => {
-    renderApp();
+  it('applies template in add-current mode by inserting text into current slice', async () => {
+    await renderApp();
 
-    act(() => {
+    await dispatchAndFlush(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
     });
 
@@ -101,20 +119,20 @@ describe('App slice template interactions', () => {
         .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Apply Slice Template...')
     ) as HTMLButtonElement | undefined;
     expect(applyTemplateItem).toBeDefined();
-    act(() => {
+    await dispatchAndFlush(() => {
       applyTemplateItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
     const addCurrent = document.querySelector('#slice-template-target-add-current') as HTMLInputElement | null;
     expect(addCurrent).not.toBeNull();
-    act(() => {
+    await dispatchAndFlush(() => {
       addCurrent?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
     const apply = [...document.querySelectorAll('.project-modal-button.primary')]
       .find((button) => button.textContent?.trim() === 'Apply Template') as HTMLButtonElement | undefined;
     expect(apply).toBeDefined();
-    act(() => {
+    await dispatchAndFlush(() => {
       apply?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 

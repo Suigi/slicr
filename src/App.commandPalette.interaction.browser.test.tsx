@@ -1,137 +1,88 @@
-import { act } from 'react';
-import ReactDOM from 'react-dom/client';
+import { page, userEvent } from 'vitest/browser';
 import { afterEach, describe, expect, it } from 'vitest';
+import { render } from 'vitest-browser-react';
 import App from './App';
 import { SLICES_STORAGE_KEY } from './sliceLibrary';
 
-let root: ReactDOM.Root | null = null;
-let host: HTMLDivElement | null = null;
-
 afterEach(() => {
-  if (root && host) {
-    act(() => {
-      root?.unmount();
-    });
-  }
-  root = null;
-  host = null;
-  document.body.innerHTML = '';
   delete document.documentElement.dataset.theme;
   localStorage.clear();
 });
 
-function renderApp() {
-  host = document.createElement('div');
-  document.body.appendChild(host);
-  root = ReactDOM.createRoot(host);
-  act(() => {
-    root?.render(<App />);
-  });
+async function renderApp() {
+  return render(<App />);
 }
 
-async function waitForElement(selector: string, attempts = 20) {
+async function openCommandPalette() {
+  await userEvent.keyboard('{Control>}k{/Control}');
+  await expect.element(page.getByRole('dialog', { name: 'Command palette' })).toBeVisible();
+}
+
+function palette() {
+  return page.getByRole('dialog', { name: 'Command palette' });
+}
+
+async function waitForScenarioNode(attempts = 20) {
   for (let index = 0; index < attempts; index += 1) {
-    const match = document.querySelector(selector);
+    const match = document.querySelector('.scenario-group .scenario-node-card.node');
     if (match) {
-      return match;
+      return match as HTMLElement;
     }
-    await act(async () => {
-      await Promise.resolve();
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
-      await new Promise<void>((resolve) => {
-        window.requestAnimationFrame(() => resolve());
-      });
-    });
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
   }
-  return document.querySelector(selector);
+  return document.querySelector('.scenario-group .scenario-node-card.node') as HTMLElement | null;
 }
 
 describe('App command palette interactions', () => {
-  it('shows Show Project Overview in slice mode and enters overview from the command palette', () => {
-    renderApp();
+  it('shows Show Project Overview in slice mode and enters overview from the command palette', async () => {
+    await renderApp();
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
-    });
+    await openCommandPalette();
 
-    const showOverviewItem = (
-      [...document.querySelectorAll('.command-palette-item')]
-        .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Show Project Overview')
-    ) as HTMLButtonElement | undefined;
-    expect(showOverviewItem).toBeDefined();
+    await expect.element(palette().getByText('Show Project Overview')).toBeVisible();
     expect(
-      [...document.querySelectorAll('.command-palette-item')]
-        .some((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Hide Project Overview')
+      [...document.querySelectorAll('.command-palette-item-title')]
+        .some((element) => element.textContent?.trim() === 'Hide Project Overview')
     ).toBe(false);
 
-    act(() => {
-      showOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await palette().getByText('Show Project Overview').click();
 
-    expect(document.querySelector('.command-palette')).toBeNull();
+    await expect.element(page.getByRole('dialog', { name: 'Command palette' })).not.toBeInTheDocument();
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
-    });
+    await openCommandPalette();
 
     expect(
-      [...document.querySelectorAll('.command-palette-item')]
-        .some((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Show Project Overview')
+      [...document.querySelectorAll('.command-palette-item-title')]
+        .some((element) => element.textContent?.trim() === 'Show Project Overview')
     ).toBe(false);
-    expect(
-      [...document.querySelectorAll('.command-palette-item')]
-        .some((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Hide Project Overview')
-    ).toBe(true);
+    await expect.element(palette().getByText('Hide Project Overview')).toBeVisible();
   });
 
-  it('shows Hide Project Overview in overview mode and exits overview from the command palette', () => {
-    renderApp();
+  it('shows Hide Project Overview in overview mode and exits overview from the command palette', async () => {
+    await renderApp();
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
-    });
+    await openCommandPalette();
+    await palette().getByText('Show Project Overview').click();
 
-    const showOverviewItem = (
-      [...document.querySelectorAll('.command-palette-item')]
-        .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Show Project Overview')
-    ) as HTMLButtonElement | undefined;
-    expect(showOverviewItem).toBeDefined();
+    await openCommandPalette();
 
-    act(() => {
-      showOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await expect.element(palette().getByText('Hide Project Overview')).toBeVisible();
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
-    });
+    await palette().getByText('Hide Project Overview').click();
 
-    const hideOverviewItem = (
-      [...document.querySelectorAll('.command-palette-item')]
-        .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Hide Project Overview')
-    ) as HTMLButtonElement | undefined;
-    expect(hideOverviewItem).toBeDefined();
+    await expect.element(page.getByRole('dialog', { name: 'Command palette' })).not.toBeInTheDocument();
 
-    act(() => {
-      hideOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await openCommandPalette();
 
-    expect(document.querySelector('.command-palette')).toBeNull();
-
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
-    });
-
+    await expect.element(palette().getByText('Show Project Overview')).toBeVisible();
     expect(
-      [...document.querySelectorAll('.command-palette-item')]
-        .some((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Show Project Overview')
-    ).toBe(true);
-    expect(
-      [...document.querySelectorAll('.command-palette-item')]
-        .some((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Hide Project Overview')
+      [...document.querySelectorAll('.command-palette-item-title')]
+        .some((element) => element.textContent?.trim() === 'Hide Project Overview')
     ).toBe(false);
   });
 
-  it('keeps dot-prefixed slice filtering focused on slices instead of overview commands', () => {
+  it('keeps dot-prefixed slice filtering focused on slices instead of overview commands', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -143,49 +94,28 @@ describe('App command palette interactions', () => {
       })
     );
 
-    renderApp();
+    await renderApp();
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
-    });
+    await openCommandPalette();
 
-    const search = document.querySelector('.command-palette-search') as HTMLInputElement | null;
-    expect(search).not.toBeNull();
+    const search = page.getByRole('textbox', { name: 'Filter commands' });
+    await search.fill('.be');
 
-    act(() => {
-      if (search) {
-        const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-        setValue?.call(search, '.be');
-        search.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-    });
-
-    const items = [...document.querySelectorAll('.command-palette-item-title')]
-      .map((node) => node.textContent?.trim())
-      .filter(Boolean);
-    expect(items).toEqual(['Beta']);
-    expect(items).not.toContain('Show Project Overview');
-    expect(items).not.toContain('Hide Project Overview');
+    await expect.element(palette().getByText('Beta')).toBeVisible();
+    expect(
+      [...document.querySelectorAll('.command-palette-item-title')]
+        .map((element) => element.textContent?.trim())
+        .filter(Boolean)
+    ).toEqual(['Beta']);
   });
 
-  it('opens create project dialog from command palette', () => {
-    renderApp();
+  it('opens create project dialog from command palette', async () => {
+    await renderApp();
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
-    });
+    await openCommandPalette();
+    await palette().getByText('Create Project...').click();
 
-    const createProjectItem = (
-      [...document.querySelectorAll('.command-palette-item')]
-        .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Create Project...')
-    ) as HTMLButtonElement | undefined;
-    expect(createProjectItem).toBeDefined();
-
-    act(() => {
-      createProjectItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
-    expect(document.querySelector('.project-modal')).not.toBeNull();
+    await expect.element(page.getByRole('heading', { name: 'Create Project' })).toBeVisible();
   });
 
   it('does not crash when hovering a scenario node in overview mode', async () => {
@@ -216,110 +146,52 @@ describe('App command palette interactions', () => {
       })
     );
 
-    renderApp();
+    await renderApp();
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
-    });
+    await openCommandPalette();
+    await palette().getByText('Show Project Overview').click();
 
-    const showOverviewItem = (
-      [...document.querySelectorAll('.command-palette-item')]
-        .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Show Project Overview')
-    ) as HTMLButtonElement | undefined;
-    expect(showOverviewItem).toBeDefined();
-
-    act(() => {
-      showOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
-    const scenarioNode = await waitForElement('.scenario-group .scenario-node-card.node') as HTMLElement | null;
+    const scenarioNode = await waitForScenarioNode();
     expect(scenarioNode).not.toBeNull();
 
-    expect(() => {
-      act(() => {
-        scenarioNode?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-      });
-    }).not.toThrow();
+    scenarioNode?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+
     expect(document.querySelector('.main .canvas-panel')).not.toBeNull();
   });
 
-  it('opens add node dialog from command palette', () => {
-    renderApp();
+  it('opens add node dialog from command palette', async () => {
+    await renderApp();
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
-    });
+    await openCommandPalette();
+    await palette().getByText('Add Node...').click();
 
-    const addNodeItem = (
-      [...document.querySelectorAll('.command-palette-item')]
-        .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Add Node...')
-    ) as HTMLButtonElement | undefined;
-    expect(addNodeItem).toBeDefined();
-
-    act(() => {
-      addNodeItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
-    expect(document.querySelector('.add-node-dialog')).not.toBeNull();
+    await expect.element(page.getByRole('heading', { name: 'Add Node' })).toBeVisible();
   });
 
-  it('opens import node dialog from command palette', () => {
-    renderApp();
+  it('opens import node dialog from command palette', async () => {
+    await renderApp();
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
-    });
+    await openCommandPalette();
+    await palette().getByText('Import Node...').click();
 
-    const importNodeItem = (
-      [...document.querySelectorAll('.command-palette-item')]
-        .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Import Node...')
-    ) as HTMLButtonElement | undefined;
-    expect(importNodeItem).toBeDefined();
-
-    act(() => {
-      importNodeItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
-    expect(document.querySelector('.import-node-dialog')).not.toBeNull();
+    await expect.element(page.getByRole('heading', { name: 'Import Node' })).toBeVisible();
   });
 
-  it('opens apply slice template dialog from command palette', () => {
-    renderApp();
+  it('opens apply slice template dialog from command palette', async () => {
+    await renderApp();
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
-    });
+    await openCommandPalette();
+    await palette().getByText('Apply Slice Template...').click();
 
-    const applyTemplateItem = (
-      [...document.querySelectorAll('.command-palette-item')]
-        .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Apply Slice Template...')
-    ) as HTMLButtonElement | undefined;
-    expect(applyTemplateItem).toBeDefined();
-
-    act(() => {
-      applyTemplateItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
-    expect(document.querySelector('.create-slice-template-dialog')).not.toBeNull();
+    await expect.element(page.getByRole('heading', { name: 'Apply Slice Template' })).toBeVisible();
   });
 
-  it('opens compact event streams dialog from command palette', () => {
-    renderApp();
+  it('opens compact event streams dialog from command palette', async () => {
+    await renderApp();
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
-    });
+    await openCommandPalette();
+    await palette().getByText('Compact Event Streams...').click();
 
-    const compactItem = (
-      [...document.querySelectorAll('.command-palette-item')]
-        .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Compact Event Streams...')
-    ) as HTMLButtonElement | undefined;
-    expect(compactItem).toBeDefined();
-
-    act(() => {
-      compactItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
-    expect(document.querySelector('.compact-events-dialog')).not.toBeNull();
+    await expect.element(page.getByRole('heading', { name: 'Compact Event Streams' })).toBeVisible();
   });
 });

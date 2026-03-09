@@ -1,34 +1,19 @@
-import { StrictMode, act } from 'react';
-import ReactDOM from 'react-dom/client';
+import { StrictMode } from 'react';
+import { page, userEvent } from 'vitest/browser';
 import { afterEach, describe, expect, it } from 'vitest';
+import { render } from 'vitest-browser-react';
 import App from './App';
 import { CROSS_SLICE_DATA_FLAG_STORAGE_KEY } from './domain/runtimeFlags';
 import { SLICES_STORAGE_KEY } from './sliceLibrary';
 import { hydrateSliceProjection } from './sliceEventStore';
 
-let root: ReactDOM.Root | null = null;
-let host: HTMLDivElement | null = null;
-
 afterEach(() => {
-  if (root && host) {
-    act(() => {
-      root?.unmount();
-    });
-  }
-  root = null;
-  host = null;
-  document.body.innerHTML = '';
   delete document.documentElement.dataset.theme;
   localStorage.clear();
 });
 
 function renderApp() {
-  host = document.createElement('div');
-  document.body.appendChild(host);
-  root = ReactDOM.createRoot(host);
-  act(() => {
-    root?.render(<App />);
-  });
+  return render(<App />);
 }
 
 async function waitFor(condition: () => boolean, attempts = 40) {
@@ -36,26 +21,26 @@ async function waitFor(condition: () => boolean, attempts = 40) {
     if (condition()) {
       return;
     }
-    await act(async () => {
-      await Promise.resolve();
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
-      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
-    });
+    await Promise.resolve();
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
   }
 }
 
 async function renderAppAndWaitForNodes() {
-  renderApp();
+  await renderApp();
   await waitFor(() => document.querySelector('.main .node') !== null);
 }
 
 async function clickAndFlush(element: Element | null | undefined) {
-  act(() => {
-    element?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-  });
-  await act(async () => {
-    await Promise.resolve();
-  });
+  if (element instanceof HTMLElement || element instanceof SVGElement) {
+    await userEvent.click(element);
+    return;
+  }
+  element?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  await Promise.resolve();
+  await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+  await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
 }
 
 function queryPanelTab(label: string) {
@@ -111,16 +96,24 @@ function queryMainNodes(selector: string) {
 }
 
 function renderAppStrict() {
-  host = document.createElement('div');
-  document.body.appendChild(host);
-  root = ReactDOM.createRoot(host);
-  act(() => {
-    root?.render(
-      <StrictMode>
-        <App />
-      </StrictMode>
-    );
-  });
+  return render(
+    <StrictMode>
+      <App />
+    </StrictMode>
+  );
+}
+
+async function openCommandPalette(modifier: 'control' | 'meta' = 'control') {
+  if (modifier === 'meta') {
+    await userEvent.keyboard('{Meta>}k{/Meta}');
+  } else {
+    await userEvent.keyboard('{Control>}k{/Control}');
+  }
+  await expect.element(page.getByRole('dialog', { name: 'Command palette' })).toBeVisible();
+}
+
+async function typeCommandPaletteQuery(query: string) {
+  await page.getByRole('textbox', { name: 'Filter commands' }).fill(query);
 }
 
 function readStoredLibrary() {
@@ -395,9 +388,7 @@ describe('App node analysis interactions', () => {
     const dataTab = [...document.querySelectorAll('.cross-slice-panel-tab')]
       .find((el) => el.textContent?.trim() === 'Cross-Slice Data') as HTMLButtonElement | undefined;
     expect(dataTab).toBeDefined();
-    act(() => {
-      dataTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await clickAndFlush(dataTab);
 
     const keyButtons = [...document.querySelectorAll('.cross-slice-data-key-toggle')];
     expect(keyButtons.map((el) => el.textContent?.trim())).toEqual(['alpha', 'beta', 'gamma']);
@@ -424,16 +415,12 @@ describe('App node analysis interactions', () => {
     const dataTab = [...document.querySelectorAll('.cross-slice-panel-tab')]
       .find((el) => el.textContent?.trim() === 'Cross-Slice Data') as HTMLButtonElement | undefined;
     expect(dataTab).toBeDefined();
-    act(() => {
-      dataTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await clickAndFlush(dataTab);
 
     const alphaKey = [...document.querySelectorAll('.cross-slice-data-key-toggle')]
       .find((el) => el.textContent?.trim() === 'alpha') as HTMLButtonElement | undefined;
     expect(alphaKey).toBeDefined();
-    act(() => {
-      alphaKey?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await clickAndFlush(alphaKey);
 
     const values = [...document.querySelectorAll('.cross-slice-data-value-item')]
       .map((el) => el.textContent?.trim());
@@ -467,16 +454,12 @@ describe('App node analysis interactions', () => {
     const dataTab = [...document.querySelectorAll('.cross-slice-panel-tab')]
       .find((el) => el.textContent?.trim() === 'Cross-Slice Data') as HTMLButtonElement | undefined;
     expect(dataTab).toBeDefined();
-    act(() => {
-      dataTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await clickAndFlush(dataTab);
 
     const alphaKey = [...document.querySelectorAll('.cross-slice-data-key-toggle')]
       .find((el) => el.textContent?.trim() === 'alpha') as HTMLButtonElement | undefined;
     expect(alphaKey).toBeDefined();
-    act(() => {
-      alphaKey?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await clickAndFlush(alphaKey);
 
     const values = [...document.querySelectorAll('.cross-slice-data-value-item')]
       .map((el) => el.textContent?.trim());
@@ -696,19 +679,17 @@ describe('App node analysis interactions', () => {
     expect(document.querySelector('.cross-slice-trace-issue-code')).toBeNull();
   });
 
-  it('does not list Trace Data or cross-slice usage commands in the palette', () => {
+  it('does not list Trace Data or cross-slice usage commands in the palette', async () => {
     renderApp();
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
-    });
+    await openCommandPalette();
 
     const items = [...document.querySelectorAll('.command-palette-item')].map((button) => button.textContent?.trim() ?? '');
     expect(items.some((text) => text.toLowerCase().includes('trace data'))).toBe(false);
     expect(items.some((text) => text.toLowerCase().includes('cross-slice usage'))).toBe(false);
   });
 
-  it('renders command palette rows with title and secondary context', () => {
+  it('renders command palette rows with title and secondary context', async () => {
     localStorage.setItem(
       'slicr.es.v1.stream.app',
       JSON.stringify([
@@ -738,9 +719,7 @@ describe('App node analysis interactions', () => {
 
     renderApp();
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
-    });
+    await openCommandPalette();
 
     const firstTitle = document.querySelector('.command-palette-item-title');
     const firstMeta = document.querySelector('.command-palette-item-meta');
@@ -749,12 +728,10 @@ describe('App node analysis interactions', () => {
     expect(firstMeta?.textContent?.trim().length ?? 0).toBeGreaterThan(0);
   });
 
-  it('opens Create Project dialog from command palette command', () => {
+  it('opens Create Project dialog from command palette command', async () => {
     renderApp();
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
-    });
+    await openCommandPalette();
 
     const createProjectItem = (
       [...document.querySelectorAll('.command-palette-item')]
@@ -762,19 +739,15 @@ describe('App node analysis interactions', () => {
     ) as HTMLButtonElement | undefined;
     expect(createProjectItem).toBeDefined();
 
-    act(() => {
-      createProjectItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await clickAndFlush(createProjectItem);
 
     expect(document.querySelector('.project-modal')).not.toBeNull();
   });
 
-  it('opens Add Node dialog from command palette command', () => {
+  it('opens Add Node dialog from command palette command', async () => {
     renderApp();
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
-    });
+    await openCommandPalette();
 
     const addNodeItem = (
       [...document.querySelectorAll('.command-palette-item')]
@@ -782,51 +755,42 @@ describe('App node analysis interactions', () => {
     ) as HTMLButtonElement | undefined;
     expect(addNodeItem).toBeDefined();
 
-    act(() => {
-      addNodeItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await clickAndFlush(addNodeItem);
 
     expect(document.querySelector('.add-node-dialog')).not.toBeNull();
   });
 
-  it('closes command palette on Escape', () => {
+  it('closes command palette on Escape', async () => {
     renderApp();
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
-    });
+    await openCommandPalette();
     expect(document.querySelector('.command-palette')).not.toBeNull();
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    });
+    await userEvent.keyboard('{Escape}');
 
     expect(document.querySelector('.command-palette')).toBeNull();
   });
 
-  it('closes palette immediately when Escape is pressed right after Ctrl+K', () => {
+  it('closes palette immediately when Escape is pressed right after Ctrl+K', async () => {
     renderApp();
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    });
+    await openCommandPalette();
+    await userEvent.keyboard('{Escape}');
 
     expect(document.querySelector('.command-palette')).toBeNull();
   });
 
-  it('closes palette immediately when Escape keyup is pressed right after Cmd+K', () => {
+  it('closes palette immediately when Escape keyup is pressed right after Cmd+K', async () => {
     renderApp();
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }));
-    });
+    await openCommandPalette('meta');
     const search = document.querySelector('.command-palette-search') as HTMLInputElement | null;
     expect(search).not.toBeNull();
 
-    act(() => {
-      search?.dispatchEvent(new KeyboardEvent('keyup', { key: 'Escape', bubbles: true }));
-    });
+    search?.focus();
+    search?.dispatchEvent(new KeyboardEvent('keyup', { key: 'Escape', bubbles: true }));
+    await Promise.resolve();
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
 
     expect(document.querySelector('.command-palette')).toBeNull();
   });
@@ -834,23 +798,14 @@ describe('App node analysis interactions', () => {
   it('closes command palette when the search input blurs', async () => {
     renderApp();
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
-    });
-    const search = document.querySelector('.command-palette-search') as HTMLInputElement | null;
-    expect(search).not.toBeNull();
-
-    act(() => {
-      search?.blur();
-    });
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
+    await openCommandPalette();
+    await page.getByRole('textbox', { name: 'Filter commands' }).click();
+    await page.getByRole('button', { name: 'Toggle project rail' }).click();
 
     expect(document.querySelector('.command-palette')).toBeNull();
   });
 
-  it('switches project from command palette and scopes active slice', () => {
+  it('switches project from command palette and scopes active slice', async () => {
     localStorage.setItem(
       'slicr.es.v1.stream.app',
       JSON.stringify([
@@ -927,21 +882,17 @@ describe('App node analysis interactions', () => {
 
     renderApp();
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
-    });
+    await openCommandPalette();
 
     const switchProject = [...document.querySelectorAll('.command-palette-item')]
       .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Switch Project: Project B') as HTMLButtonElement | undefined;
     expect(switchProject).toBeDefined();
-    act(() => {
-      switchProject?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
+    await clickAndFlush(switchProject);
 
     expect(document.querySelector('.slice-select-label')?.textContent).toContain('Beta B');
   });
 
-  it('filters command palette actions by search text', () => {
+  it('filters command palette actions by search text', async () => {
     localStorage.setItem(
       'slicr.es.v1.stream.app',
       JSON.stringify([
@@ -1051,25 +1002,14 @@ describe('App node analysis interactions', () => {
 
     renderApp();
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
-    });
-
-    const search = document.querySelector('.command-palette-search') as HTMLInputElement | null;
-    expect(search).not.toBeNull();
-    act(() => {
-      if (search) {
-        const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
-        valueSetter?.call(search, 'project c');
-        search.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-    });
+    await openCommandPalette();
+    await typeCommandPaletteQuery('project c');
 
     const filteredItems = [...document.querySelectorAll('.command-palette-item-title')].map((item) => item.textContent?.trim());
     expect(filteredItems).toEqual(['Switch Project: Project C']);
   });
 
-  it('shows slices on dot-prefix search and switches to fuzzy-matched slice on Enter', () => {
+  it('shows slices on dot-prefix search and switches to fuzzy-matched slice on Enter', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -1084,64 +1024,30 @@ describe('App node analysis interactions', () => {
 
     renderApp();
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
-    });
-    const search = document.querySelector('.command-palette-search') as HTMLInputElement | null;
-    expect(search).not.toBeNull();
-    act(() => {
-      if (search) {
-        const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
-        valueSetter?.call(search, '.');
-        search.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-    });
+    await openCommandPalette();
+    await typeCommandPaletteQuery('.');
 
     const dotItems = [...document.querySelectorAll('.command-palette-item-title')].map((item) => item.textContent?.trim());
     expect(dotItems).toEqual(['Alpha A', 'Gamma Billing', 'Beta C']);
     expect(dotItems.some((text) => text?.includes('Create Project'))).toBe(false);
     expect(dotItems.some((text) => text?.includes('Switch Project:'))).toBe(false);
 
-    act(() => {
-      if (search) {
-        const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
-        valueSetter?.call(search, '.gbl');
-        search.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-    });
+    await typeCommandPaletteQuery('.gbl');
     const fuzzyItems = [...document.querySelectorAll('.command-palette-item-title')].map((item) => item.textContent?.trim());
     expect(fuzzyItems).toEqual(['Gamma Billing']);
 
-    act(() => {
-      search?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-    });
+    await userEvent.keyboard('{Enter}');
     expect(document.querySelector('.command-palette')).toBeNull();
     expect(document.querySelector('.slice-select-label')?.textContent).toContain('Gamma Billing');
   });
 
-  it('selects all command palette input text when reopened', () => {
+  it('selects all command palette input text when reopened', async () => {
     renderApp();
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
-    });
-
-    const search = document.querySelector('.command-palette-search') as HTMLInputElement | null;
-    expect(search).not.toBeNull();
-    act(() => {
-      if (search) {
-        const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
-        valueSetter?.call(search, 'switch project');
-        search.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-    });
-
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
-    });
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
-    });
+    await openCommandPalette();
+    await typeCommandPaletteQuery('switch project');
+    await userEvent.keyboard('{Control>}k{/Control}');
+    await openCommandPalette();
 
     const reopened = document.querySelector('.command-palette-search') as HTMLInputElement | null;
     expect(reopened).not.toBeNull();
@@ -1150,7 +1056,7 @@ describe('App node analysis interactions', () => {
     expect(reopened?.selectionEnd).toBe('switch project'.length);
   });
 
-  it('runs the default create project command on Enter and closes', () => {
+  it('runs the default create project command on Enter and closes', async () => {
     localStorage.setItem(
       'slicr.es.v1.stream.app',
       JSON.stringify([
@@ -1254,23 +1160,9 @@ describe('App node analysis interactions', () => {
 
     renderApp();
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
-    });
-    const search = document.querySelector('.command-palette-search') as HTMLInputElement | null;
-    expect(search).not.toBeNull();
-
-    act(() => {
-      if (search) {
-        const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
-        valueSetter?.call(search, 'create project');
-        search.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-    });
-
-    act(() => {
-      search?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-    });
+    await openCommandPalette();
+    await typeCommandPaletteQuery('create project');
+    await userEvent.keyboard('{Enter}');
 
     expect(document.querySelector('.command-palette')).toBeNull();
     expect(document.querySelector('.project-modal')).not.toBeNull();
@@ -1290,9 +1182,7 @@ describe('App node analysis interactions', () => {
     expect(cmdNode).not.toBeNull();
     await clickAndFlush(cmdNode);
 
-    act(() => {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'T', ctrlKey: true, shiftKey: true, bubbles: true }));
-    });
+    await userEvent.keyboard('{Control>}{Shift>}T{/Shift}{/Control}');
 
     await waitFor(() => document.querySelector('.cross-slice-panel-tab.active')?.textContent?.trim() === 'Data Trace');
     expect(document.querySelector('.cross-slice-panel-tab.active')?.textContent?.trim()).toBe('Data Trace');
@@ -1501,9 +1391,9 @@ describe('App node analysis interactions', () => {
       .find((el) => el.querySelector('.node-title')?.textContent?.trim() === 'View') as HTMLElement | undefined;
     expect(viewNode).toBeDefined();
 
-    act(() => {
-      viewHop?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-    });
+    if (viewHop) {
+      await userEvent.hover(viewHop);
+    }
 
     await waitFor(() => Boolean(viewNode?.classList.contains('trace-hovered')));
     expect(viewNode?.classList.contains('trace-hovered')).toBe(true);
@@ -1530,8 +1420,10 @@ describe('App node analysis interactions', () => {
     expect(evtNode?.classList.contains('related')).toBe(false);
   });
 
-  it('keeps React StrictMode rendering stable for node analysis panel toggles', () => {
+  it('keeps React StrictMode rendering stable for node analysis panel toggles', async () => {
     renderAppStrict();
+
+    await waitFor(() => readStoredLibrary() !== null);
     const stored = readStoredLibrary();
     expect(stored).not.toBeNull();
   });

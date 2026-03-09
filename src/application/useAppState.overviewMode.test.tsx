@@ -28,15 +28,31 @@ function Harness({ onState }: { onState: (state: UseAppStateResult) => void }) {
   );
 }
 
-function renderHarness() {
+async function renderHarness() {
   host = document.createElement('div');
   document.body.appendChild(host);
   root = ReactDOM.createRoot(host);
 
-  act(() => {
+  await act(async () => {
     root?.render(<Harness onState={(state) => {
       latestState = state;
     }} />);
+    await flushState();
+  });
+}
+
+async function flushState() {
+  await Promise.resolve();
+  await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+  await new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => resolve());
+  });
+}
+
+async function runAction(action: () => void) {
+  await act(async () => {
+    action();
+    await flushState();
   });
 }
 
@@ -46,11 +62,7 @@ async function waitForOverviewMode(attempts = 20) {
       return latestState.diagram;
     }
     await act(async () => {
-      await Promise.resolve();
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
-      await new Promise<void>((resolve) => {
-        window.requestAnimationFrame(() => resolve());
-      });
+      await flushState();
     });
   }
   return latestState?.diagram.diagramMode === 'overview' ? latestState.diagram : null;
@@ -68,11 +80,7 @@ async function waitForOverviewScene(attempts = 20) {
       return sceneModel;
     }
     await act(async () => {
-      await Promise.resolve();
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
-      await new Promise<void>((resolve) => {
-        window.requestAnimationFrame(() => resolve());
-      });
+      await flushState();
     });
   }
   if (latestState?.diagram.diagramMode !== 'overview') {
@@ -96,11 +104,7 @@ async function waitForSliceScene(attempts = 20) {
       return sceneModel;
     }
     await act(async () => {
-      await Promise.resolve();
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
-      await new Promise<void>((resolve) => {
-        window.requestAnimationFrame(() => resolve());
-      });
+      await flushState();
     });
   }
   return latestState?.diagram.diagramMode === 'slice'
@@ -125,8 +129,8 @@ afterEach(() => {
 });
 
 describe('useAppState overview mode', () => {
-  it('defaults to slice mode and exposes overview enter and exit actions', () => {
-    renderHarness();
+  it('defaults to slice mode and exposes overview enter and exit actions', async () => {
+    await renderHarness();
 
     expect(latestState?.diagram.diagramMode).toBe('slice');
     expect(latestState?.actions.onShowProjectOverview).toBeTypeOf('function');
@@ -142,10 +146,10 @@ describe('useAppState overview mode', () => {
       })
     );
 
-    renderHarness();
+    await renderHarness();
     await waitForSliceScene();
 
-    act(() => {
+    await runAction(() => {
       latestState?.actions.onNodeSelect('selected-node');
       latestState?.actions.onToggleEditor();
     });
@@ -153,7 +157,7 @@ describe('useAppState overview mode', () => {
     expect(latestState?.analysisPanel.selectedNode?.key).toBe('selected-node');
     expect(latestState?.editor.editorOpen).toBe(true);
 
-    act(() => {
+    await runAction(() => {
       latestState?.actions.onShowProjectOverview();
     });
 
@@ -171,10 +175,10 @@ describe('useAppState overview mode', () => {
       })
     );
 
-    renderHarness();
+    await renderHarness();
     await waitForSliceScene();
 
-    act(() => {
+    await runAction(() => {
       latestState?.actions.onNodeSelect('selected-node');
       latestState?.actions.onToggleEditor();
       latestState?.actions.onShowProjectOverview();
@@ -184,7 +188,7 @@ describe('useAppState overview mode', () => {
     expect(latestState?.analysisPanel.selectedNode).toBeNull();
     expect(latestState?.editor.editorOpen).toBe(false);
 
-    act(() => {
+    await runAction(() => {
       latestState?.actions.onHideProjectOverview();
     });
 
@@ -205,31 +209,31 @@ describe('useAppState overview mode', () => {
       })
     );
 
-    renderHarness();
+    await renderHarness();
     await waitForSliceScene();
 
-    act(() => {
+    await runAction(() => {
       latestState?.actions.onNodeSelect('slice-node');
       latestState?.actions.onShowProjectOverview();
     });
 
     await waitForOverviewScene();
 
-    act(() => {
+    await runAction(() => {
       latestState?.actions.onNodeSelect('slice-a::overview-node');
     });
 
     expect(latestState?.analysisPanel.selectedNode).toBeNull();
     expect(latestState?.diagram.sceneModel?.nodes.find((node) => node.key === 'slice-a::overview-node')?.selected).toBe(true);
 
-    act(() => {
+    await runAction(() => {
       latestState?.actions.onHideProjectOverview();
     });
 
     expect(latestState?.analysisPanel.selectedNode?.key).toBe('slice-node');
     expect(latestState?.diagram.sceneModel?.nodes.find((node) => node.key === 'slice-a::overview-node')).toBeUndefined();
 
-    act(() => {
+    await runAction(() => {
       latestState?.actions.onShowProjectOverview();
     });
 
@@ -251,9 +255,9 @@ describe('useAppState overview mode', () => {
       })
     );
 
-    renderHarness();
+    await renderHarness();
 
-    act(() => {
+    await runAction(() => {
       latestState?.actions.onShowProjectOverview();
     });
 
@@ -290,9 +294,9 @@ describe('useAppState overview mode', () => {
       })
     );
 
-    renderHarness();
+    await renderHarness();
 
-    act(() => {
+    await runAction(() => {
       latestState?.actions.onShowProjectOverview();
     });
 
@@ -302,7 +306,7 @@ describe('useAppState overview mode', () => {
     expect(scenario?.then[0]?.key.startsWith('slice-a::scn:')).toBe(true);
   });
 
-  it('ignores overview hover ranges that are outside the current slice editor document', () => {
+  it('ignores overview hover ranges that are outside the current slice editor document', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -330,17 +334,17 @@ describe('useAppState overview mode', () => {
       })
     );
 
-    renderHarness();
+    await renderHarness();
 
-    act(() => {
+    await runAction(() => {
       latestState?.actions.onShowProjectOverview();
     });
 
-    expect(() => {
-      act(() => {
+    await expect((async () => {
+      await runAction(() => {
         latestState?.actions.onNodeHoverRange({ from: 640, to: 640 });
       });
-    }).not.toThrow();
+    })()).resolves.toBeUndefined();
     expect(latestState?.diagram.diagramMode).toBe('overview');
   });
 
@@ -356,9 +360,9 @@ describe('useAppState overview mode', () => {
       })
     );
 
-    renderHarness();
+    await renderHarness();
 
-    act(() => {
+    await runAction(() => {
       latestState?.actions.onShowProjectOverview();
     });
 
@@ -376,9 +380,9 @@ describe('useAppState overview mode', () => {
       })
     );
 
-    renderHarness();
+    await renderHarness();
 
-    act(() => {
+    await runAction(() => {
       latestState?.actions.onShowProjectOverview();
     });
 
@@ -404,13 +408,13 @@ describe('useAppState overview mode', () => {
       })
     );
 
-    renderHarness();
+    await renderHarness();
 
     const sliceNode = (await waitForSliceScene())?.nodes.find((node) => node.key === 'solo-node');
     expect(sliceNode?.x).toBe(315);
     expect(sliceNode?.y).toBe(265);
 
-    act(() => {
+    await runAction(() => {
       latestState?.actions.onShowProjectOverview();
     });
 
