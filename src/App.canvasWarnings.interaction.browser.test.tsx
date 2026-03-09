@@ -29,6 +29,27 @@ function renderApp() {
   });
 }
 
+async function waitFor(condition: () => boolean, attempts = 40) {
+  for (let index = 0; index < attempts; index += 1) {
+    if (condition()) {
+      return;
+    }
+    await act(async () => {
+      await Promise.resolve();
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    });
+  }
+}
+
+async function waitForSelector(selector: string) {
+  await waitFor(() => document.querySelector(selector) !== null);
+}
+
+async function waitForSliceTitle(text: string) {
+  await waitFor(() => document.querySelector('.slice-title')?.textContent?.trim() === text);
+}
+
 describe('App canvas warning interactions', () => {
   it('does not show unresolved dependency warnings in the bottom error bar', () => {
     localStorage.setItem(
@@ -121,7 +142,7 @@ uses:
     expect(mappedField?.classList.contains('mapped')).toBe(true);
   });
 
-  it('applies mapped styling only to fields coming from uses', () => {
+  it('applies mapped styling only to fields coming from uses', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -145,6 +166,7 @@ uses:
     );
 
     renderApp();
+    await waitForSelector('.canvas-panel .node-field');
 
     const allFields = [...document.querySelectorAll('.canvas-panel .node-field')];
     const mapped = allFields.filter((field) => field.classList.contains('mapped'));
@@ -318,7 +340,7 @@ data:
     expect(alphaLine?.querySelector('.node-field-val')?.textContent).toBe('bravo');
   });
 
-  it('does not crash when warnings arrive out of order while typing malformed uses/data blocks', () => {
+  it('does not crash when warnings arrive out of order while typing malformed uses/data blocks', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -348,6 +370,7 @@ uses:
     );
 
     renderApp();
+    await waitForSliceTitle('Read Model from Two Events');
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Read Model from Two Events');
     expect(document.querySelector('#canvas')).not.toBeNull();

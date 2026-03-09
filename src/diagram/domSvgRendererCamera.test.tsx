@@ -159,6 +159,50 @@ describe('DomSvgDiagramRendererCamera', () => {
     expect(readZoom()).toBeCloseTo(1, 5);
   });
 
+  it('adopts a late-arriving initial camera after mount', () => {
+    const canvasPanelRef = { current: null };
+    const lateInitialCamera = { x: -820, y: -820, zoom: 1 };
+    const props: DiagramRendererAdapterProps = {
+      sceneModel: null,
+      canvasPanelRef,
+      isPanning: false,
+      docsOpen: false,
+      dragTooltip: null,
+      dragAndDropEnabled: true,
+      beginCanvasPan: vi.fn(),
+      beginNodeDrag: vi.fn(),
+      beginEdgeSegmentDrag: vi.fn(),
+      onNodeHoverRange: vi.fn(),
+      onNodeSelect: vi.fn(),
+      onNodeOpenInEditor: vi.fn(),
+      onEdgeHover: vi.fn()
+    };
+
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = ReactDOM.createRoot(host);
+
+    act(() => {
+      root?.render(<DomSvgDiagramRendererCamera {...props} />);
+    });
+
+    act(() => {
+      root?.render(
+        <DomSvgDiagramRendererCamera
+          {...props}
+          sceneModel={baseScene()}
+          initialCamera={lateInitialCamera}
+        />
+      );
+    });
+
+    const world = document.querySelector('.canvas-camera-world') as HTMLElement | null;
+    expect(world).not.toBeNull();
+    expect(world?.dataset.cameraX).toBe(String(lateInitialCamera.x));
+    expect(world?.dataset.cameraY).toBe(String(lateInitialCamera.y));
+    expect(world?.dataset.cameraZoom).toBe(String(lateInitialCamera.zoom));
+  });
+
   it('does not render toolbar when camera controls are disabled', () => {
     renderRenderer({ cameraControlsEnabled: false });
     expect(document.querySelector('.camera-zoom-toolbar')).toBeNull();

@@ -28,6 +28,23 @@ function renderApp() {
   });
 }
 
+async function waitFor(condition: () => boolean, attempts = 40) {
+  for (let index = 0; index < attempts; index += 1) {
+    if (condition()) {
+      return;
+    }
+    await act(async () => {
+      await Promise.resolve();
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    });
+  }
+}
+
+async function waitForNodeText(text: string) {
+  await waitFor(() => [...document.querySelectorAll('.main .node')].some((element) => element.textContent?.includes(text)));
+}
+
 describe('App editor panel interactions', () => {
   it('opens and closes the editor panel via toggle and outside click', () => {
     renderApp();
@@ -68,13 +85,14 @@ describe('App editor panel interactions', () => {
     expect(panel?.classList.contains('open')).toBe(true);
   });
 
-  it('opens the editor and moves cursor to declaration line when double-clicking a node', () => {
+  it('opens the editor and moves cursor to declaration line when double-clicking a node', async () => {
     renderApp();
+    await waitForNodeText('room-opened');
 
     const panel = document.querySelector('.editor-panel');
     expect(panel?.classList.contains('open')).toBe(false);
 
-    const node = [...document.querySelectorAll('.node')]
+    const node = [...document.querySelectorAll('.main .node')]
       .find((element) => element.textContent?.includes('room-opened')) as HTMLElement | undefined;
     expect(node).toBeDefined();
 

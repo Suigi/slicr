@@ -133,7 +133,7 @@ describe('useAppState overview mode', () => {
     expect(latestState?.actions.onHideProjectOverview).toBeTypeOf('function');
   });
 
-  it('enters overview mode by clearing the visible slice selection and closing the editor', () => {
+  it('enters overview mode by clearing the visible slice selection and closing the editor', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -143,6 +143,7 @@ describe('useAppState overview mode', () => {
     );
 
     renderHarness();
+    await waitForSliceScene();
 
     act(() => {
       latestState?.actions.onNodeSelect('selected-node');
@@ -161,7 +162,7 @@ describe('useAppState overview mode', () => {
     expect(latestState?.editor.editorOpen).toBe(false);
   });
 
-  it('exits overview mode by restoring the previous editor state and selected slice node', () => {
+  it('exits overview mode by restoring the previous editor state and selected slice node', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -171,6 +172,7 @@ describe('useAppState overview mode', () => {
     );
 
     renderHarness();
+    await waitForSliceScene();
 
     act(() => {
       latestState?.actions.onNodeSelect('selected-node');
@@ -204,6 +206,7 @@ describe('useAppState overview mode', () => {
     );
 
     renderHarness();
+    await waitForSliceScene();
 
     act(() => {
       latestState?.actions.onNodeSelect('slice-node');

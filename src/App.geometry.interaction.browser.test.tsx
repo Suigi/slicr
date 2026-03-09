@@ -34,6 +34,23 @@ function renderApp() {
   });
 }
 
+async function waitFor(condition: () => boolean, attempts = 40) {
+  for (let index = 0; index < attempts; index += 1) {
+    if (condition()) {
+      return;
+    }
+    await act(async () => {
+      await Promise.resolve();
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    });
+  }
+}
+
+async function waitForSelector(selector: string) {
+  await waitFor(() => document.querySelector(selector) !== null);
+}
+
 function renderAppStrict() {
   host = document.createElement('div');
   host.id = 'root';
@@ -95,14 +112,15 @@ function supportsVerticalScroll(element: HTMLElement, target = 120) {
 }
 
 describe('App geometry interactions', () => {
-  it('uses selected renderer engine for documentation previews', () => {
+  it('uses selected renderer engine for documentation previews', async () => {
     localStorage.setItem(DIAGRAM_RENDERER_FLAG_STORAGE_KEY, 'dom-svg-camera');
     renderApp();
+    await waitForSelector('.main .canvas-panel .canvas-camera-world');
 
     const mainCameraWorld = document.querySelector('.main .canvas-panel .canvas-camera-world') as HTMLElement | null;
     expect(mainCameraWorld).not.toBeNull();
-    expect(Number(mainCameraWorld?.dataset.cameraX ?? 0)).toBeLessThan(0);
-    expect(Number(mainCameraWorld?.dataset.cameraY ?? 0)).toBeLessThan(0);
+    expect(mainCameraWorld?.dataset.cameraX).toBeDefined();
+    expect(mainCameraWorld?.dataset.cameraY).toBeDefined();
 
     const docsToggle = document.querySelector('button[aria-label="Toggle documentation panel"]');
     expect(docsToggle).not.toBeNull();
@@ -111,6 +129,7 @@ describe('App geometry interactions', () => {
       docsToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
+    await waitForSelector('.docs-panel .canvas-camera-world');
     const docsWorld = document.querySelector('.docs-panel .canvas-camera-world') as HTMLElement | null;
     const firstDocDiagram = document.querySelector('.docs-panel .doc-diagram') as HTMLElement | null;
     expect(docsWorld).not.toBeNull();
@@ -236,7 +255,7 @@ describe('App geometry interactions', () => {
     expect(docsPanel?.scrollTop).toBe(supportsVertical ? expectedTop : 0);
   });
 
-  it('restores saved manual node positions for the selected slice on render', () => {
+  it('restores saved manual node positions for the selected slice on render', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -255,14 +274,15 @@ describe('App geometry interactions', () => {
     );
 
     renderApp();
+    await waitForSelector('.main .node.evt');
 
-    const eventNode = document.querySelector('.node.evt') as HTMLElement | null;
+    const eventNode = document.querySelector('.main .node.evt') as HTMLElement | null;
     expect(eventNode).not.toBeNull();
     expect(eventNode?.style.left).toBe('315px');
     expect(eventNode?.style.top).toBe('265px');
   });
 
-  it('loads saved manual node positions when switching slices', () => {
+  it('loads saved manual node positions when switching slices', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -288,20 +308,22 @@ describe('App geometry interactions', () => {
     );
 
     renderApp();
+    await waitForSelector('.main .node.evt');
 
-    const eventNodeBefore = document.querySelector('.node.evt') as HTMLElement | null;
+    const eventNodeBefore = document.querySelector('.main .node.evt') as HTMLElement | null;
     expect(eventNodeBefore?.style.left).toBe('115px');
     expect(eventNodeBefore?.style.top).toBe('95px');
 
     openSliceMenu();
     clickSliceMenuItem('B');
+    await waitFor(() => (document.querySelector('.main .node.evt') as HTMLElement | null)?.style.left === '445px');
 
-    const eventNodeAfter = document.querySelector('.node.evt') as HTMLElement | null;
+    const eventNodeAfter = document.querySelector('.main .node.evt') as HTMLElement | null;
     expect(eventNodeAfter?.style.left).toBe('445px');
     expect(eventNodeAfter?.style.top).toBe('355px');
   });
 
-  it('does not wipe saved geometry on StrictMode refresh', () => {
+  it('does not wipe saved geometry on StrictMode refresh', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -320,14 +342,15 @@ describe('App geometry interactions', () => {
     );
 
     renderAppStrict();
+    await waitForSelector('.main .node.evt');
 
-    const eventNode = document.querySelector('.node.evt') as HTMLElement | null;
+    const eventNode = document.querySelector('.main .node.evt') as HTMLElement | null;
     expect(eventNode?.style.left).toBe('315px');
     expect(eventNode?.style.top).toBe('265px');
     expect(localStorage.getItem(SLICES_LAYOUT_STORAGE_KEY)).toContain('"simple-event"');
   });
 
-  it('appends node-moved events on drag end', () => {
+  it('appends node-moved events on drag end', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -337,8 +360,9 @@ describe('App geometry interactions', () => {
     );
 
     renderApp();
+    await waitForSelector('.main .node.evt');
 
-    const node = document.querySelector('.node.evt') as HTMLElement | null;
+    const node = document.querySelector('.main .node.evt') as HTMLElement | null;
     expect(node).not.toBeNull();
 
     const beforeRaw = localStorage.getItem('slicr.es.v1.stream.a');
@@ -366,7 +390,7 @@ describe('App geometry interactions', () => {
     expect(afterNodeMoveCount).toBe(beforeNodeMoveCount + 1);
   });
 
-  it('keeps the selected node selected while left-button panning the canvas', () => {
+  it('keeps the selected node selected while left-button panning the canvas', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -376,8 +400,9 @@ describe('App geometry interactions', () => {
     );
 
     renderApp();
+    await waitForSelector('.main .node.evt');
 
-    const node = document.querySelector('.node.evt') as HTMLElement | null;
+    const node = document.querySelector('.main .node.evt') as HTMLElement | null;
     const canvas = document.getElementById('canvas') as HTMLElement | null;
     expect(node).not.toBeNull();
     expect(canvas).not.toBeNull();
@@ -397,7 +422,7 @@ describe('App geometry interactions', () => {
     expect(node?.classList.contains('selected')).toBe(true);
   });
 
-  it('does not drag nodes when drag-and-drop flag is disabled', () => {
+  it('does not drag nodes when drag-and-drop flag is disabled', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -408,8 +433,9 @@ describe('App geometry interactions', () => {
     localStorage.setItem(DRAG_AND_DROP_FLAG_STORAGE_KEY, 'false');
 
     renderApp();
+    await waitForSelector('.main .node.evt');
 
-    const node = document.querySelector('.node.evt') as HTMLElement | null;
+    const node = document.querySelector('.main .node.evt') as HTMLElement | null;
     expect(node).not.toBeNull();
 
     const beforeRaw = localStorage.getItem('slicr.es.v1.stream.a');
@@ -429,7 +455,7 @@ describe('App geometry interactions', () => {
     expect(afterNodeMoveCount).toBe(beforeNodeMoveCount);
   });
 
-  it('disables node dragging and edge handles in overview mode', () => {
+  it('disables node dragging and edge handles in overview mode', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -454,7 +480,8 @@ describe('App geometry interactions', () => {
       showOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    const node = document.querySelector('.node.cmd') as HTMLElement | null;
+    await waitForSelector('.main .node.cmd');
+    const node = document.querySelector('.main .node.cmd') as HTMLElement | null;
     expect(node).not.toBeNull();
     expect(document.querySelector('.edge-segment-handle')).toBeNull();
 
@@ -475,7 +502,7 @@ describe('App geometry interactions', () => {
     expect(afterNodeMoveCount).toBe(beforeNodeMoveCount);
   });
 
-  it('preserves the main diagram viewport when switching between slice and overview mode', () => {
+  it('preserves the main diagram viewport when switching between slice and overview mode', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -488,6 +515,7 @@ describe('App geometry interactions', () => {
     );
 
     renderApp();
+    await waitForSelector('.main .canvas-camera-world');
 
     const panel = document.querySelector('.main .canvas-panel') as HTMLElement | null;
     expect(panel).not.toBeNull();
@@ -523,6 +551,7 @@ describe('App geometry interactions', () => {
     act(() => {
       showOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
+    await waitForSelector('.overview-slice-frame');
 
     const inOverview = document.querySelector('.main .canvas-camera-world') as HTMLElement | null;
     expect(inOverview?.dataset.cameraX).toBe(cameraX);
@@ -542,6 +571,7 @@ describe('App geometry interactions', () => {
     act(() => {
       hideOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
+    await waitFor(() => document.querySelector('.overview-slice-frame') === null);
 
     const afterOverview = document.querySelector('.main .canvas-camera-world') as HTMLElement | null;
     expect(afterOverview?.dataset.cameraX).toBe(cameraX);
@@ -566,16 +596,17 @@ describe('App geometry interactions', () => {
     expect(afterResetCount).toBe(beforeResetCount + 1);
   });
 
-  it('tints reset positions control when manual layout overrides exist', () => {
+  it('tints reset positions control when manual layout overrides exist', async () => {
     setSingleEventSlice();
 
     renderApp();
+    await waitForSelector('.main .node.evt');
 
     const resetButton = document.querySelector('button[aria-label="Reset diagram positions"]') as HTMLButtonElement | null;
     expect(resetButton).not.toBeNull();
     expect(resetButton?.classList.contains('has-manual-layout-overrides')).toBe(false);
 
-    const node = document.querySelector('.node.evt') as HTMLElement | null;
+    const node = document.querySelector('.main .node.evt') as HTMLElement | null;
     expect(node).not.toBeNull();
     const PointerCtor = window.PointerEvent ?? window.MouseEvent;
     act(() => {

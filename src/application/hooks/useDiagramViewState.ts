@@ -17,6 +17,11 @@ import { buildSceneModel } from '../../diagram/sceneModel';
 import { appendSliceEdgeMovedEvent, appendSliceNodeMovedEvent } from '../../sliceLibrary';
 import type { DiagramMode } from '../appViewModel';
 
+type DiagramEngineResult = Awaited<ReturnType<typeof computeDiagramLayout>>;
+type OverviewDiagramEngineResult = Awaited<ReturnType<typeof computeOverviewDiagramLayout>>;
+type ActiveLayout = DiagramEngineResult['layout'] | OverviewDiagramEngineResult['layout'];
+type RenderedEdge = ReturnType<typeof buildRenderedEdges>[number];
+
 export type UseDiagramViewStateArgs = {
   diagramMode: DiagramMode;
   parsed: Parsed | null;
@@ -95,6 +100,14 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
     key: string;
     widths: Record<string, number>;
     settled: boolean;
+  } | null>(null);
+  const [visibleSliceSnapshotState, setVisibleSliceSnapshotState] = useState<{
+    key: string;
+    sliceId: string;
+    sceneModel: ReturnType<typeof buildSceneModel>;
+    activeLayout: ActiveLayout;
+    displayedPos: Record<string, Position>;
+    renderedEdges: RenderedEdge[];
   } | null>(null);
   const measuredScenarioGroupWidths = useMemo(
     () => (scenarioGroupMeasurementState?.key === layoutStateKey
@@ -206,29 +219,6 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
     }
     return buildRenderedEdges(diagramParsed, displayedPos, manualEdgePoints);
   }, [diagramParsed, displayedPos, manualEdgePoints]);
-
-  const {
-    canvasPanelRef,
-    dragTooltip,
-    isPanning,
-    beginNodeDrag,
-    beginEdgeSegmentDrag,
-    beginCanvasPan
-  } = useDiagramInteractions({
-    dragAndDropEnabled,
-    displayedPos,
-    renderedEdges,
-    manualEdgePoints,
-    setManualNodePositions,
-    setManualEdgePoints,
-    onNodeDragCommit: (nodeKey, point) => {
-      appendSliceNodeMovedEvent(selectedSliceId, nodeKey, point);
-    },
-    onEdgeDragCommit: (edgeKey, points) => {
-      appendSliceEdgeMovedEvent(selectedSliceId, edgeKey, points);
-    }
-  });
-
   const activeNodeKeyFromEditor = useMemo(() => {
     if (!hoveredEditorRange || !diagramParsed) {
       return null;
@@ -293,9 +283,85 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
   const scenarioGroupMeasurementsReady = !overviewNeedsScenarioMeasurement
     || overviewScenarioGroupKeys.every((key) => measuredScenarioGroupWidths[key] !== undefined)
     || scenarioMeasurementSettledWithoutGeometry;
+  const currentAsyncLayoutReady = diagramEngineLayoutState?.key === layoutStateKey;
+  const layoutReady = diagramMode === 'overview'
+    ? currentAsyncLayoutReady && nodeMeasurementsReady && scenarioGroupMeasurementsReady
+    : currentAsyncLayoutReady && nodeMeasurementsReady;
+
+  useEffect(() => {
+    if (
+      diagramMode !== 'slice'
+      || !layoutReady
+      || !rawSceneModel
+      || !activeLayout
+    ) {
+      return;
+    }
+
+    queueMicrotask(() => {
+      setVisibleSliceSnapshotState((previous) => {
+        if (
+          previous?.key === layoutStateKey
+          && previous.sceneModel === rawSceneModel
+        ) {
+          return previous;
+        }
+        return {
+          key: layoutStateKey,
+          sliceId: selectedSliceId,
+          sceneModel: rawSceneModel,
+          activeLayout,
+          displayedPos,
+          renderedEdges
+        };
+      });
+    });
+  }, [
+    activeLayout,
+    diagramMode,
+    displayedPos,
+    layoutReady,
+    layoutStateKey,
+    rawSceneModel,
+    renderedEdges,
+    selectedSliceId
+  ]);
+
+  const visibleSliceSnapshot = diagramMode === 'slice'
+    && !layoutReady
+    && visibleSliceSnapshotState?.sliceId === selectedSliceId
+    ? visibleSliceSnapshotState
+    : null;
   const sceneModel = diagramMode === 'overview'
     ? (scenarioGroupMeasurementsReady && nodeMeasurementsReady ? rawSceneModel : fallbackOverviewSceneModel)
-    : rawSceneModel;
+    : (layoutReady ? rawSceneModel : (visibleSliceSnapshot?.sceneModel ?? null));
+  const visibleActiveLayout = visibleSliceSnapshot?.activeLayout ?? activeLayout;
+  const visibleDisplayedPos = visibleSliceSnapshot?.displayedPos ?? displayedPos;
+  const visibleRenderedEdges = visibleSliceSnapshot?.renderedEdges ?? renderedEdges;
+  const interactionDragAndDropEnabled = dragAndDropEnabled && layoutReady;
+
+  const {
+    canvasPanelRef,
+    dragTooltip,
+    isPanning,
+    beginNodeDrag,
+    beginEdgeSegmentDrag,
+    beginCanvasPan
+  } = useDiagramInteractions({
+    interactionsEnabled: layoutReady,
+    dragAndDropEnabled: interactionDragAndDropEnabled,
+    displayedPos: visibleDisplayedPos,
+    renderedEdges: visibleRenderedEdges,
+    manualEdgePoints,
+    setManualNodePositions,
+    setManualEdgePoints,
+    onNodeDragCommit: (nodeKey, point) => {
+      appendSliceNodeMovedEvent(selectedSliceId, nodeKey, point);
+    },
+    onEdgeDragCommit: (edgeKey, points) => {
+      appendSliceEdgeMovedEvent(selectedSliceId, edgeKey, points);
+    }
+  });
 
   useLayoutEffect(() => {
     if (diagramMode !== 'overview' || !rawSceneModel?.scenarioGroups || rawSceneModel.scenarioGroups.length === 0) {
@@ -368,7 +434,11 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
 
   useEffect(() => {
     const pendingFocusNodeKey = pendingFocusNodeKeyRef.current;
-    if (!pendingFocusNodeKey || !sceneModel?.viewport) {
+    if (
+      !pendingFocusNodeKey
+      || !sceneModel?.viewport
+      || (diagramMode === 'slice' && !layoutReady)
+    ) {
       return;
     }
     if (diagramRendererId !== 'dom-svg') {
@@ -376,7 +446,7 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
       return;
     }
     const panel = canvasPanelRef.current;
-    const position = displayedPos[pendingFocusNodeKey];
+    const position = visibleDisplayedPos[pendingFocusNodeKey];
     if (!panel || !position) {
       return;
     }
@@ -386,11 +456,13 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
     panel.scrollLeft = Math.max(0, targetX);
     panel.scrollTop = Math.max(0, targetY);
     pendingFocusNodeKeyRef.current = null;
-  }, [focusRequestVersion, sceneModel, displayedPos, canvasPanelRef, diagramRendererId, pendingFocusNodeKeyRef]);
+  }, [canvasPanelRef, diagramMode, diagramRendererId, focusRequestVersion, layoutReady, pendingFocusNodeKeyRef, sceneModel, visibleDisplayedPos]);
 
   return {
     parsed: diagramParsed,
     sceneModel,
+    layoutReady,
+    dragAndDropEnabled: interactionDragAndDropEnabled,
     measurementScenarioGroups: diagramMode === 'overview'
       ? (rawSceneModel?.scenarioGroups ?? [])
       : [],
@@ -402,8 +474,8 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
     beginEdgeSegmentDrag,
     beginCanvasPan,
     canvasPanelRef,
-    displayedPos,
-    renderedEdges,
-    activeLayout
+    displayedPos: visibleDisplayedPos,
+    renderedEdges: visibleRenderedEdges,
+    activeLayout: visibleActiveLayout
   };
 }

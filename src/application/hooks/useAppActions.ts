@@ -13,6 +13,7 @@ type RenderedEdge = { edgeKey: string; edge: { from: string; to: string }; geome
 
 type UseAppActionsArgs = {
   diagramMode: DiagramMode;
+  layoutReady: boolean;
   parsed: Parsed | null;
   currentDsl: string;
   activeLayout: { pos: Record<string, Position> } | null;
@@ -67,6 +68,7 @@ type UseAppActionsArgs = {
 export function useAppActions(args: UseAppActionsArgs): ActionsSection {
   const {
     diagramMode,
+    layoutReady,
     parsed,
     currentDsl,
     activeLayout,
@@ -283,8 +285,22 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
       setEditorOpen(true);
       focusRange(range);
     },
-    onNodeSelect: (nodeKeyOrUpdater) => setSelectedNodeKey(nodeKeyOrUpdater),
-    onNodeHoverRange: (range) => setHighlightRange(diagramMode === 'overview' ? null : range),
+    onNodeSelect: (nodeKeyOrUpdater) => {
+      if (diagramMode === 'slice' && !layoutReady) {
+        return;
+      }
+      setSelectedNodeKey(nodeKeyOrUpdater);
+    },
+    onNodeHoverRange: (range) => {
+      if (diagramMode === 'overview') {
+        setHighlightRange(null);
+        return;
+      }
+      if (!layoutReady) {
+        return;
+      }
+      setHighlightRange(range);
+    },
     onEdgeHover: (edgeKeyOrUpdater) => setHoveredEdgeKey(edgeKeyOrUpdater),
     onSelectedNodePanelTabChange: (tab) => setSelectedNodePanelTab(tab),
     onToggleCrossSliceDataExpanded: (key) =>

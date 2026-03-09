@@ -17,6 +17,7 @@ type RenderedEdgeRef = {
 };
 
 type UseDiagramInteractionsArgs = {
+  interactionsEnabled: boolean;
   dragAndDropEnabled: boolean;
   displayedPos: Record<string, Position>;
   renderedEdges: RenderedEdgeRef[];
@@ -32,6 +33,7 @@ function snapToGrid(value: number): number {
 }
 
 export function useDiagramInteractions({
+  interactionsEnabled,
   dragAndDropEnabled,
   displayedPos,
   renderedEdges,
@@ -222,6 +224,9 @@ export function useDiagramInteractions({
   };
 
   const beginCanvasPan = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!interactionsEnabled) {
+      return;
+    }
     if (event.button !== 0) {
       return;
     }

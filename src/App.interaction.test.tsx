@@ -53,6 +53,20 @@ async function waitForElement(selector: string, attempts = 20) {
   return document.querySelector(selector);
 }
 
+async function waitForElementWithoutAnimationFrame(selector: string, attempts = 20) {
+  for (let index = 0; index < attempts; index += 1) {
+    const match = document.querySelector(selector);
+    if (match) {
+      return match;
+    }
+    await act(async () => {
+      await Promise.resolve();
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+  }
+  return document.querySelector(selector);
+}
+
 describe('App interactions', () => {
   it('toggles the documentation panel from the header', () => {
     renderApp();
@@ -74,7 +88,7 @@ describe('App interactions', () => {
     expect(document.querySelector('.canvas-panel')?.classList.contains('hidden')).toBe(true);
   });
 
-  it('presents slice layout without waiting for a requestAnimationFrame measurement pass', async () => {
+  it('presents settled slice layout without waiting for a requestAnimationFrame measurement pass', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -107,12 +121,7 @@ describe('App interactions', () => {
 
     try {
       renderApp();
-      await act(async () => {
-        await Promise.resolve();
-        await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
-      });
-
-      expect(document.querySelector('.main .canvas-camera-world')).not.toBeNull();
+      expect(await waitForElementWithoutAnimationFrame('.main .canvas-camera-world')).not.toBeNull();
     } finally {
       window.requestAnimationFrame = originalRequestAnimationFrame;
       window.cancelAnimationFrame = originalCancelAnimationFrame;

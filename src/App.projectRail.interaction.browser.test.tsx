@@ -28,6 +28,26 @@ function renderApp() {
   });
 }
 
+async function waitFor(condition: () => boolean, attempts = 40) {
+  for (let index = 0; index < attempts; index += 1) {
+    if (condition()) {
+      return;
+    }
+    await act(async () => {
+      await Promise.resolve();
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    });
+  }
+}
+
+async function waitForSliceTitle(text?: string) {
+  await waitFor(() => {
+    const title = document.querySelector('.slice-title')?.textContent?.trim();
+    return text ? title === text : Boolean(title);
+  });
+}
+
 function ensureProjectRailOpen() {
   const existingRail = document.querySelector('.project-rail') as HTMLElement | null;
   if (existingRail && !existingRail.classList.contains('hidden')) {
@@ -145,7 +165,7 @@ describe('App project rail interactions', () => {
     expect(document.querySelector('.project-rail')?.classList.contains('hidden')).toBe(true);
   });
 
-  it('switches project from a dropdown at the top of the project rail', () => {
+  it('switches project from a dropdown at the top of the project rail', async () => {
     localStorage.setItem(
       'slicr.es.v1.stream.app',
       JSON.stringify([
@@ -221,6 +241,7 @@ describe('App project rail interactions', () => {
     );
 
     renderApp();
+    await waitForSliceTitle('Alpha One');
 
     const rail = ensureProjectRailOpen();
 
@@ -236,6 +257,7 @@ describe('App project rail interactions', () => {
     act(() => {
       projectBItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
+    await waitForSliceTitle('Beta One');
 
     const items = [...document.querySelectorAll('.project-rail-slice-item')].map((el) => el.textContent?.trim());
     expect(items).toEqual(['Beta One']);

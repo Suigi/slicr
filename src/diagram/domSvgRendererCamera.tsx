@@ -103,6 +103,8 @@ function renderScenarioBoxes(
   ));
 }
 
+const DEFAULT_CAMERA = { x: 0, y: 0, zoom: 1 } as const;
+
 export function DomSvgDiagramRendererCamera({
   sceneModel,
   canvasPanelRef,
@@ -122,8 +124,12 @@ export function DomSvgDiagramRendererCamera({
   initialCamera
 }: DiagramRendererAdapterProps) {
   const [camera, setCamera] = useState<{ x: number; y: number; zoom: number }>(
-    () => initialCamera ?? { x: 0, y: 0, zoom: 1 }
+    () => initialCamera ?? DEFAULT_CAMERA
   );
+  const [cameraControlled, setCameraControlled] = useState(Boolean(initialCamera));
+  const effectiveCamera = !cameraControlled && initialCamera
+    ? initialCamera
+    : camera;
   void beginCanvasPan;
 
   const beginCameraPan = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -145,8 +151,8 @@ export function DomSvgDiagramRendererCamera({
     const pointerId = event.pointerId;
     const startX = event.clientX;
     const startY = event.clientY;
-    const startCameraX = camera.x;
-    const startCameraY = camera.y;
+    const startCameraX = effectiveCamera.x;
+    const startCameraY = effectiveCamera.y;
 
     const onMove = (moveEvent: PointerEvent) => {
       if ((moveEvent.buttons & 1) === 0) {
@@ -154,6 +160,7 @@ export function DomSvgDiagramRendererCamera({
       }
       const dx = moveEvent.clientX - startX;
       const dy = moveEvent.clientY - startY;
+      setCameraControlled(true);
       setCamera((current) => ({ ...current, x: startCameraX + dx, y: startCameraY + dy }));
     };
 
@@ -194,10 +201,14 @@ export function DomSvgDiagramRendererCamera({
         if (event.deltaX === 0 && event.deltaY === 0) {
           return;
         }
+        const baseCamera = cameraControlled || !initialCamera
+          ? null
+          : initialCamera;
+        setCameraControlled(true);
         setCamera((current) => ({
-          ...current,
-          x: current.x - event.deltaX,
-          y: current.y - event.deltaY
+          ...(baseCamera ?? current),
+          x: (baseCamera?.x ?? current.x) - event.deltaX,
+          y: (baseCamera?.y ?? current.y) - event.deltaY
         }));
         return;
       }
@@ -215,9 +226,13 @@ export function DomSvgDiagramRendererCamera({
       const localY = rect ? event.clientY - rect.top + scrollTop : event.clientY;
 
       setCamera((current) => {
+        const baseCamera = cameraControlled || !initialCamera
+          ? current
+          : initialCamera;
+        setCameraControlled(true);
         return zoomCameraAroundClientPoint(
           sceneModel,
-          current,
+          baseCamera,
           localX,
           localY,
           zoomFactor
@@ -238,7 +253,7 @@ export function DomSvgDiagramRendererCamera({
     return () => {
       el.removeEventListener('wheel', onWheel);
     };
-  }, [canvasPanelRef, cameraControlsEnabled, sceneModel]);
+  }, [canvasPanelRef, cameraControlled, cameraControlsEnabled, initialCamera, sceneModel]);
 
   const toWorldPointerEvent = (event: ReactPointerEvent): ReactPointerEvent => {
     const rect = canvasPanelRef.current?.getBoundingClientRect();
@@ -247,7 +262,7 @@ export function DomSvgDiagramRendererCamera({
     const localX = rect ? event.clientX - rect.left + scrollLeft : event.clientX;
     const localY = rect ? event.clientY - rect.top + scrollTop : event.clientY;
 
-    const world = toWorldClientPoint(sceneModel, camera, localX, localY);
+    const world = toWorldClientPoint(sceneModel, effectiveCamera, localX, localY);
     const proxy = Object.create(event) as ReactPointerEvent;
     Object.defineProperty(proxy, 'clientX', { configurable: true, value: world.x });
     Object.defineProperty(proxy, 'clientY', { configurable: true, value: world.y });
@@ -267,13 +282,15 @@ export function DomSvgDiagramRendererCamera({
       ? ((panel.clientHeight || rect?.height || 0) / 2) + (panel.scrollTop ?? 0)
       : ((sceneModel.viewport.height || 0) / 2);
 
+    setCameraControlled(true);
     setCamera((current) => (
       zoomCameraAroundClientPoint(sceneModel, current, anchorX, anchorY, zoomFactor)
     ));
   };
 
   const resetCamera = () => {
-    setCamera(initialCamera ?? { x: 0, y: 0, zoom: 1 });
+    setCameraControlled(true);
+    setCamera(initialCamera ?? DEFAULT_CAMERA);
   };
 
   return (
@@ -306,11 +323,11 @@ export function DomSvgDiagramRendererCamera({
         {sceneModel?.viewport && (
           <div
             className="canvas-camera-world"
-            data-camera-x={String(camera.x)}
-            data-camera-y={String(camera.y)}
-            data-camera-zoom={String(camera.zoom)}
+            data-camera-x={String(effectiveCamera.x)}
+            data-camera-y={String(effectiveCamera.y)}
+            data-camera-zoom={String(effectiveCamera.zoom)}
             style={{
-              transform: `translate(${sceneModel.viewport.offsetX + camera.x}px, ${sceneModel.viewport.offsetY + camera.y}px) scale(${camera.zoom})`,
+              transform: `translate(${sceneModel.viewport.offsetX + effectiveCamera.x}px, ${sceneModel.viewport.offsetY + effectiveCamera.y}px) scale(${effectiveCamera.zoom})`,
               transformOrigin: '0 0'
             }}
           >

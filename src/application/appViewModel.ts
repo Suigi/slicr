@@ -81,6 +81,7 @@ export type DiagramSection = {
   parsedSliceProjectionList: ParsedSliceProjection<Parsed>[];
   currentDsl: string;
   sceneModel: DiagramSceneModel | null;
+  layoutReady: boolean;
   measurementScenarioGroups: DiagramScenarioGroup[];
   DiagramRenderer: DiagramRendererComponent;
   diagramRendererId: DiagramRendererId;

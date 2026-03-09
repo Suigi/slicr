@@ -102,6 +102,7 @@ export function useAppState(): UseAppStateResult {
   const editorOpenRef = useRef(editorOpen);
   const sliceSelectedNodeKeyRef = useRef(sliceSelectedNodeKey);
   const [overviewPlaceholderSceneModel, setOverviewPlaceholderSceneModel] = useState<DiagramSceneModel | null>(null);
+  const [hoveredTraceNodeKey, setHoveredTraceNodeKey] = useState<string | null>(null);
 
   useEffect(() => {
     editorOpenRef.current = editorOpen;
@@ -189,16 +190,6 @@ export function useAppState(): UseAppStateResult {
     }))
   });
 
-  const analysis = useNodeAnalysisState({
-    parsed,
-    currentDsl,
-    selectedSliceId: library.selectedSliceId,
-    selectedNodeKey: analysisSelectedNodeKey,
-    parsedSliceProjectionList,
-    parsedSliceProjections,
-    crossSliceDataEnabled
-  });
-
   const diagramDragAndDropEnabled = diagramMode === 'slice' ? dragAndDropEnabled : false;
 
   const diagramView = useDiagramViewState({
@@ -217,10 +208,21 @@ export function useAppState(): UseAppStateResult {
     hoveredEditorRange,
     selectedNodeKey: diagramSelectedNodeKey,
     hoveredEdgeKey,
-    hoveredTraceNodeKey: analysis.hoveredTraceNodeKey,
+    hoveredTraceNodeKey,
     focusRequestVersion,
     pendingFocusNodeKeyRef,
     fallbackOverviewSceneModel: overviewPlaceholderSceneModel
+  });
+
+  const analysis = useNodeAnalysisState({
+    parsed,
+    currentDsl,
+    selectedSliceId: library.selectedSliceId,
+    selectedNodeKey: analysisSelectedNodeKey,
+    layoutReady: diagramMode === 'slice' ? diagramView.layoutReady : true,
+    parsedSliceProjectionList,
+    parsedSliceProjections,
+    crossSliceDataEnabled
   });
 
   const DiagramRenderer = useMemo(() => getDiagramRenderer(diagramRendererId), [diagramRendererId]);
@@ -292,6 +294,7 @@ export function useAppState(): UseAppStateResult {
 
   const actions = useAppActions({
     diagramMode,
+    layoutReady: diagramView.layoutReady,
     parsed,
     currentDsl,
     activeLayout: diagramView.activeLayout,
@@ -334,7 +337,7 @@ export function useAppState(): UseAppStateResult {
     hasFocusedCursor,
     insertAtCursorOrEnd,
     setHoveredEdgeKey,
-    setHoveredTraceNodeKey: analysis.setHoveredTraceNodeKey,
+    setHoveredTraceNodeKey,
     setSourceOverrides: analysis.setSourceOverrides,
     setCrossSliceDataExpandedKeys: analysis.setCrossSliceDataExpandedKeys,
     resetManualLayout,
@@ -378,13 +381,14 @@ export function useAppState(): UseAppStateResult {
       parsedSliceProjectionList,
       currentDsl,
       sceneModel: diagramView.sceneModel,
+      layoutReady: diagramView.layoutReady,
       measurementScenarioGroups: diagramView.measurementScenarioGroups,
       DiagramRenderer,
       diagramRendererId,
       rendererViewportKey: diagramView.rendererViewportKey,
       initialCamera: diagramView.initialCamera,
       dragTooltip: diagramView.dragTooltip,
-      dragAndDropEnabled: diagramDragAndDropEnabled,
+      dragAndDropEnabled: diagramView.dragAndDropEnabled,
       isPanning: diagramView.isPanning,
       canvasPanelRef: diagramView.canvasPanelRef,
       beginCanvasPan: diagramView.beginCanvasPan,

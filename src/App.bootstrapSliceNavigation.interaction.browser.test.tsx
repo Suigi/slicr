@@ -31,6 +31,26 @@ function renderApp() {
   });
 }
 
+async function waitFor(condition: () => boolean, attempts = 40) {
+  for (let index = 0; index < attempts; index += 1) {
+    if (condition()) {
+      return;
+    }
+    await act(async () => {
+      await Promise.resolve();
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    });
+  }
+}
+
+async function waitForSliceTitle(text?: string) {
+  await waitFor(() => {
+    const title = document.querySelector('.slice-title')?.textContent?.trim();
+    return text ? title === text : Boolean(title);
+  });
+}
+
 function readStoredLibrary() {
   const appStreamRaw = localStorage.getItem('slicr.es.v1.stream.app');
   const appEvents = appStreamRaw
@@ -80,8 +100,9 @@ function clickSliceMenuItem(label: string) {
 }
 
 describe('App bootstrap and slice navigation interactions', () => {
-  it('loads default DSL when storage is empty and persists it', () => {
+  it('loads default DSL when storage is empty and persists it', async () => {
     renderApp();
+    await waitForSliceTitle();
 
     const sliceTitle = document.querySelector('.slice-title');
     const defaultName = DEFAULT_DSL.match(/^\s*slice\s+"([^"]+)"/m)?.[1];
@@ -95,19 +116,20 @@ describe('App bootstrap and slice navigation interactions', () => {
     expect(stored?.slices[0]?.dsl).toBe(DEFAULT_DSL);
   });
 
-  it('loads legacy DSL from localStorage on first render', () => {
+  it('loads legacy DSL from localStorage on first render', async () => {
     const persistedDsl = `slice "Persisted Slice"
 
 rm:persisted-view`;
     localStorage.setItem('slicr.dsl', persistedDsl);
 
     renderApp();
+    await waitForSliceTitle('Persisted Slice');
 
     const sliceTitle = document.querySelector('.slice-title');
     expect(sliceTitle?.textContent).toBe('Persisted Slice');
   });
 
-  it('switches between saved slices via header dropdown', () => {
+  it('switches between saved slices via header dropdown', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -120,12 +142,14 @@ rm:persisted-view`;
     );
 
     renderApp();
+    await waitForSliceTitle('Alpha');
 
     openSliceMenu();
     expect(document.querySelectorAll('.slice-menu-item').length).toBe(2);
     expect(document.querySelector('.slice-title')?.textContent).toBe('Alpha');
 
     clickSliceMenuItem('Beta');
+    await waitForSliceTitle('Beta');
     const localPrefix = window.location.hostname === 'localhost' ? '[local] ' : '';
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Beta');
@@ -136,7 +160,7 @@ rm:persisted-view`;
     expect(events.some((event) => event.type === 'slice-selected' && event.payload?.projectId === 'default' && event.payload?.selectedSliceId === 'b')).toBe(true);
   });
 
-  it('switches to the next slice on Cmd/Ctrl+Shift+J', () => {
+  it('switches to the next slice on Cmd/Ctrl+Shift+J', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -149,12 +173,14 @@ rm:persisted-view`;
     );
 
     renderApp();
+    await waitForSliceTitle('Alpha');
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Alpha');
 
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'j', metaKey: true, shiftKey: true, bubbles: true }));
     });
+    await waitForSliceTitle('Beta');
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Beta');
 
@@ -164,7 +190,7 @@ rm:persisted-view`;
     expect(events.some((event) => event.type === 'slice-selected' && event.payload?.projectId === 'default' && event.payload?.selectedSliceId === 'b')).toBe(true);
   });
 
-  it('switches to the previous slice on Cmd/Ctrl+Shift+K', () => {
+  it('switches to the previous slice on Cmd/Ctrl+Shift+K', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -177,12 +203,14 @@ rm:persisted-view`;
     );
 
     renderApp();
+    await waitForSliceTitle('Beta');
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Beta');
 
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, shiftKey: true, bubbles: true }));
     });
+    await waitForSliceTitle('Alpha');
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Alpha');
 
@@ -192,7 +220,7 @@ rm:persisted-view`;
     expect(events.some((event) => event.type === 'slice-selected' && event.payload?.projectId === 'default' && event.payload?.selectedSliceId === 'a')).toBe(true);
   });
 
-  it('does not change slice on Cmd/Ctrl+Shift+J when already on the last slice', () => {
+  it('does not change slice on Cmd/Ctrl+Shift+J when already on the last slice', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -205,6 +233,7 @@ rm:persisted-view`;
     );
 
     renderApp();
+    await waitForSliceTitle('Beta');
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Beta');
     const beforeRaw = localStorage.getItem('slicr.es.v1.stream.app');
@@ -222,7 +251,7 @@ rm:persisted-view`;
     expect(afterSelectedCount).toBe(beforeSelectedCount);
   });
 
-  it('does not change slice on Cmd/Ctrl+Shift+K when already on the first slice', () => {
+  it('does not change slice on Cmd/Ctrl+Shift+K when already on the first slice', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -235,6 +264,7 @@ rm:persisted-view`;
     );
 
     renderApp();
+    await waitForSliceTitle('Alpha');
 
     expect(document.querySelector('.slice-title')?.textContent).toBe('Alpha');
     const beforeRaw = localStorage.getItem('slicr.es.v1.stream.app');

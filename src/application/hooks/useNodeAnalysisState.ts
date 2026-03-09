@@ -16,6 +16,7 @@ type UseNodeAnalysisStateArgs = {
   currentDsl: string;
   selectedSliceId: string;
   selectedNodeKey: string | null;
+  layoutReady: boolean;
   parsedSliceProjectionList: ParsedProjection[];
   parsedSliceProjections: Map<string, ParsedProjection>;
   crossSliceDataEnabled: boolean;
@@ -45,6 +46,7 @@ export function useNodeAnalysisState(args: UseNodeAnalysisStateArgs) {
     currentDsl,
     selectedSliceId,
     selectedNodeKey,
+    layoutReady,
     parsedSliceProjectionList,
     parsedSliceProjections,
     crossSliceDataEnabled
@@ -52,16 +54,26 @@ export function useNodeAnalysisState(args: UseNodeAnalysisStateArgs) {
 
   const [selectedNodePanelTab, setSelectedNodePanelTab] = useState<'usage' | 'crossSliceData' | 'trace'>('usage');
   const [sourceOverrides, setSourceOverrides] = useState<Record<string, string>>({});
-  const [hoveredTraceNodeKey, setHoveredTraceNodeKey] = useState<string | null>(null);
   const [crossSliceDataExpandedKeys, setCrossSliceDataExpandedKeys] = useState<Record<string, boolean>>({});
   const [crossSliceTraceExpandedKeys, setCrossSliceTraceExpandedKeys] = useState<Record<string, boolean>>({});
 
-  const selectedNode = useMemo(() => {
+  const selectedNodeCandidate = useMemo(() => {
     if (!parsed || !selectedNodeKey) {
       return null;
     }
     return parsed.nodes.get(selectedNodeKey) ?? null;
   }, [parsed, selectedNodeKey]);
+  const [visibleSelectedNode, setVisibleSelectedNode] = useState(selectedNodeCandidate);
+
+  useEffect(() => {
+    if (layoutReady) {
+      setVisibleSelectedNode(selectedNodeCandidate);
+    }
+  }, [layoutReady, selectedNodeCandidate]);
+
+  const selectedNode = layoutReady
+    ? selectedNodeCandidate
+    : (visibleSelectedNode ?? selectedNodeCandidate);
 
   const showDataTraceTab = selectedNode ? !isScenarioNodeKey(selectedNode.key) : false;
 
@@ -233,8 +245,6 @@ export function useNodeAnalysisState(args: UseNodeAnalysisStateArgs) {
     setSelectedNodePanelTab,
     sourceOverrides,
     setSourceOverrides,
-    hoveredTraceNodeKey,
-    setHoveredTraceNodeKey,
     crossSliceDataExpandedKeys,
     setCrossSliceDataExpandedKeys,
     crossSliceTraceExpandedKeys,
