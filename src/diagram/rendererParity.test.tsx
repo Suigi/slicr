@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act } from 'react';
+import React, { act } from 'react';
 import ReactDOM from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DomSvgDiagramRenderer, type DiagramRendererAdapterProps } from './domSvgRenderer';
@@ -19,7 +19,7 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
-type RendererComponent = (props: DiagramRendererAdapterProps) => JSX.Element | null;
+type RendererComponent = (props: DiagramRendererAdapterProps) => React.JSX.Element | null;
 
 function createScene(): DiagramSceneModel {
   return {

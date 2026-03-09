@@ -58,16 +58,16 @@ export type HeaderSection = {
   sliceMenuOpen: boolean;
   mobileMenuOpen: boolean;
   projectRailOpen: boolean;
-  sliceMenuRef: RefObject<HTMLDivElement>;
-  mobileMenuRef: RefObject<HTMLDivElement>;
-  toggleRef: RefObject<HTMLButtonElement>;
+  sliceMenuRef: RefObject<HTMLDivElement | null>;
+  mobileMenuRef: RefObject<HTMLDivElement | null>;
+  toggleRef: RefObject<HTMLButtonElement | null>;
 };
 
 export type EditorSection = {
   editorOpen: boolean;
   errorText: string;
-  editorRef: RefObject<HTMLDivElement>;
-  editorMountRef: RefObject<HTMLDivElement>;
+  editorRef: RefObject<HTMLDivElement | null>;
+  editorMountRef: RefObject<HTMLDivElement | null>;
   collapseAllDataRegions: () => void;
   collapseAllRegions: () => void;
   expandAllRegions: () => void;
@@ -85,7 +85,7 @@ export type DiagramSection = {
   dragTooltip: DragTooltipState | null;
   dragAndDropEnabled: boolean;
   isPanning: boolean;
-  canvasPanelRef: RefObject<HTMLDivElement>;
+  canvasPanelRef: RefObject<HTMLDivElement | null>;
   beginCanvasPan: (event: ReactPointerEvent<HTMLDivElement>) => void;
   beginNodeDrag: (event: ReactPointerEvent, nodeKey: string) => void;
   beginEdgeSegmentDrag: (event: ReactPointerEvent, edgeKey: string, segmentIndex: number, points: DiagramPoint[]) => void;

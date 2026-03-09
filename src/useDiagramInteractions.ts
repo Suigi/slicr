@@ -41,14 +41,14 @@ export function useDiagramInteractions({
   onNodeDragCommit,
   onEdgeDragCommit
 }: UseDiagramInteractionsArgs): {
-  canvasPanelRef: RefObject<HTMLDivElement>;
+  canvasPanelRef: RefObject<HTMLDivElement | null>;
   dragTooltip: DragTooltipState | null;
   isPanning: boolean;
   beginNodeDrag: (event: ReactPointerEvent, nodeKey: string) => void;
   beginEdgeSegmentDrag: (event: ReactPointerEvent, edgeKey: string, segmentIndex: number, points: DiagramPoint[]) => void;
   beginCanvasPan: (event: ReactPointerEvent<HTMLDivElement>) => void;
 } {
-  const canvasPanelRef = useRef<HTMLDivElement>(null);
+  const canvasPanelRef = useRef<HTMLDivElement | null>(null);
   const [dragTooltip, setDragTooltip] = useState<DragTooltipState | null>(null);
   const [isPanning, setIsPanning] = useState(false);
 

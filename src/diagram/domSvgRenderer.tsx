@@ -32,7 +32,7 @@ function scenarioAreaLeft(sceneModel: DiagramSceneModel): number {
 
 export type DiagramRendererAdapterProps = {
   sceneModel: DiagramSceneModel | null;
-  canvasPanelRef: RefObject<HTMLDivElement>;
+  canvasPanelRef: RefObject<HTMLDivElement | null>;
   isPanning: boolean;
   docsOpen: boolean;
   dragTooltip: DragTooltipState | null;

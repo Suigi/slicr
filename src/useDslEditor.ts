@@ -757,7 +757,7 @@ export function useDslEditor({
   dsl: string;
   onDslChange: Dispatch<SetStateAction<string>>;
   onRangeHover?: (range: Range | null) => void;
-  editorMountRef: RefObject<HTMLDivElement>;
+  editorMountRef: RefObject<HTMLDivElement | null>;
   highlightRange?: Range | null;
   warnings?: EditorWarning[];
   createEditorView?: CreateEditorView;

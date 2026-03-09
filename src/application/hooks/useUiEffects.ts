@@ -12,8 +12,8 @@ export type UseUiEffectsArgs = {
   manualEdgePoints: Record<string, Array<{ x: number; y: number }>>;
   skipNextLayoutSaveRef: MutableRefObject<boolean>;
   editorOpen: boolean;
-  editorRef: RefObject<HTMLDivElement>;
-  toggleRef: RefObject<HTMLButtonElement>;
+  editorRef: RefObject<HTMLDivElement | null>;
+  toggleRef: RefObject<HTMLButtonElement | null>;
   sliceMenuOpen: boolean;
   mobileMenuOpen: boolean;
   createProjectDialogOpen: boolean;
@@ -21,8 +21,8 @@ export type UseUiEffectsArgs = {
   addNodeDialogOpen: boolean;
   importNodeDialogOpen: boolean;
   createSliceTemplateDialogOpen: boolean;
-  sliceMenuRef: RefObject<HTMLDivElement>;
-  mobileMenuRef: RefObject<HTMLDivElement>;
+  sliceMenuRef: RefObject<HTMLDivElement | null>;
+  mobileMenuRef: RefObject<HTMLDivElement | null>;
   currentSliceName: string;
   theme: string;
   themeStorageKey: string;
