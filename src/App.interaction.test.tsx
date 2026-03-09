@@ -36,6 +36,23 @@ function renderApp() {
   });
 }
 
+async function waitForElement(selector: string, attempts = 20) {
+  for (let index = 0; index < attempts; index += 1) {
+    const match = document.querySelector(selector);
+    if (match) {
+      return match;
+    }
+    await act(async () => {
+      await Promise.resolve();
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+      await new Promise<void>((resolve) => {
+        window.requestAnimationFrame(() => resolve());
+      });
+    });
+  }
+  return document.querySelector(selector);
+}
+
 describe('App interactions', () => {
   it('toggles the documentation panel from the header', () => {
     renderApp();
@@ -57,7 +74,52 @@ describe('App interactions', () => {
     expect(document.querySelector('.canvas-panel')?.classList.contains('hidden')).toBe(true);
   });
 
-  it('hides the editor and analysis panels in overview mode while keeping the main canvas mounted', () => {
+  it('presents slice layout without waiting for a requestAnimationFrame measurement pass', async () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'slice-a',
+        slices: [
+          {
+            id: 'slice-a',
+            dsl: [
+              'slice "Measured Slice"',
+              '',
+              'cmd:create-list "Create List"',
+              'data:',
+              '  name: "Jake\'s Birthday"'
+            ].join('\n')
+          }
+        ]
+      })
+    );
+
+    const requestAnimationFrameQueue: FrameRequestCallback[] = [];
+    const originalRequestAnimationFrame = window.requestAnimationFrame;
+    const originalCancelAnimationFrame = window.cancelAnimationFrame;
+    window.requestAnimationFrame = ((callback: FrameRequestCallback) => {
+      requestAnimationFrameQueue.push(callback);
+      return requestAnimationFrameQueue.length;
+    }) as typeof window.requestAnimationFrame;
+    window.cancelAnimationFrame = ((handle: number) => {
+      requestAnimationFrameQueue[handle - 1] = () => undefined;
+    }) as typeof window.cancelAnimationFrame;
+
+    try {
+      renderApp();
+      await act(async () => {
+        await Promise.resolve();
+        await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+      });
+
+      expect(document.querySelector('.main .canvas-camera-world')).not.toBeNull();
+    } finally {
+      window.requestAnimationFrame = originalRequestAnimationFrame;
+      window.cancelAnimationFrame = originalCancelAnimationFrame;
+    }
+  });
+
+  it('hides the editor and analysis panels in overview mode while keeping the main canvas mounted', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -67,6 +129,7 @@ describe('App interactions', () => {
     );
 
     renderApp();
+    await waitForElement('.main .canvas-camera-world');
 
     const editorToggle = document.querySelector('button[aria-label="Toggle DSL editor"]');
     const node = document.querySelector('.node.evt');
@@ -101,13 +164,15 @@ describe('App interactions', () => {
       showOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
+    await waitForElement('.overview-slice-frame');
+
     expect(editorPanel?.classList.contains('open')).toBe(false);
     expect(editorPanel?.classList.contains('hidden')).toBe(true);
     expect(document.querySelector('.cross-slice-usage-panel')).toBeNull();
     expect(document.querySelector('.main .canvas-panel')).not.toBeNull();
   });
 
-  it('restores the editor and analysis panels after exiting overview mode', () => {
+  it('restores the editor and analysis panels after exiting overview mode', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -117,6 +182,7 @@ describe('App interactions', () => {
     );
 
     renderApp();
+    await waitForElement('.main .canvas-camera-world');
 
     const editorToggle = document.querySelector('button[aria-label="Toggle DSL editor"]');
     const node = document.querySelector('.node.evt');
@@ -145,6 +211,8 @@ describe('App interactions', () => {
       showOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
+    await waitForElement('.overview-slice-frame');
+
     expect(editorPanel?.classList.contains('open')).toBe(false);
     expect(editorPanel?.classList.contains('hidden')).toBe(true);
     expect(document.querySelector('.cross-slice-usage-panel')).toBeNull();
@@ -163,13 +231,15 @@ describe('App interactions', () => {
       hideOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
+    await waitForElement('.main .canvas-camera-world');
+
     expect(editorPanel?.classList.contains('open')).toBe(true);
     expect(editorPanel?.classList.contains('hidden')).toBe(false);
     expect(document.querySelector('.cross-slice-usage-panel')).not.toBeNull();
     expect(document.querySelector('.main .canvas-panel')).not.toBeNull();
   });
 
-  it('keeps overview node clicks in-canvas without reopening hidden panels', () => {
+  it('keeps overview node clicks in-canvas without reopening hidden panels', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -197,6 +267,8 @@ describe('App interactions', () => {
       showOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
+    await waitForElement('.overview-slice-frame');
+
     const overviewNode = [...document.querySelectorAll('.node')]
       .find((element) => element.textContent?.includes('second-node')) as HTMLElement | undefined;
     const editorPanel = document.querySelector('.editor-panel');
@@ -222,7 +294,7 @@ describe('App interactions', () => {
     ).toBe(true);
   });
 
-  it('renders one slice frame per visible slice in overview mode instead of a single global title', () => {
+  it('renders one slice frame per visible slice in overview mode instead of a single global title', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -249,6 +321,8 @@ describe('App interactions', () => {
     act(() => {
       showOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
+
+    await waitForElement('.overview-slice-frame');
 
     const frameLabels = [...document.querySelectorAll('.overview-slice-frame-label')]
       .map((element) => element.textContent?.trim())
@@ -259,7 +333,98 @@ describe('App interactions', () => {
     expect(frameLabels).toEqual(['Alpha', 'Beta']);
   });
 
-  it('renders overview slice labels with the same shared title styling class', () => {
+  it('presents overview layout without waiting for a requestAnimationFrame measurement pass', async () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'slice-a',
+        slices: [
+          {
+            id: 'slice-a',
+            dsl: [
+              'slice "Add List"',
+              '',
+              'ui:create-list "Create List"',
+              'data:',
+              '  name: "Jake\'s Birthday"',
+              '',
+              'cmd:create-list "Create List"',
+              '<- ui:create-list',
+              '',
+              'evt:list-created "List Created"',
+              '<- cmd:create-list',
+              '',
+              'scenario "Add List"',
+              'when:',
+              '  cmd:create-list "Create List"',
+              'then:',
+              '  evt:list-created "List Created"'
+            ].join('\n')
+          },
+          {
+            id: 'slice-b',
+            dsl: [
+              'slice "Add Wish"',
+              '',
+              'rm:open-lists "Open Lists"',
+              '',
+              'cmd:add-wish "Add Wish"',
+              '<- rm:open-lists',
+              '',
+              'evt:wish-added "Wish Added"',
+              '<- cmd:add-wish',
+              '',
+              'scenario "Add Wish"',
+              'when:',
+              '  cmd:add-wish "Add Wish"',
+              'then:',
+              '  evt:wish-added "Wish Added"'
+            ].join('\n')
+          }
+        ]
+      })
+    );
+
+    const requestAnimationFrameQueue: FrameRequestCallback[] = [];
+    const originalRequestAnimationFrame = window.requestAnimationFrame;
+    const originalCancelAnimationFrame = window.cancelAnimationFrame;
+    window.requestAnimationFrame = ((callback: FrameRequestCallback) => {
+      requestAnimationFrameQueue.push(callback);
+      return requestAnimationFrameQueue.length;
+    }) as typeof window.requestAnimationFrame;
+    window.cancelAnimationFrame = ((handle: number) => {
+      requestAnimationFrameQueue[handle - 1] = () => undefined;
+    }) as typeof window.cancelAnimationFrame;
+
+    try {
+      renderApp();
+
+      act(() => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+      });
+
+      const showOverviewItem = (
+        [...document.querySelectorAll('.command-palette-item')]
+          .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Show Project Overview')
+      ) as HTMLButtonElement | undefined;
+      expect(showOverviewItem).toBeDefined();
+
+      act(() => {
+        showOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+      await act(async () => {
+        await Promise.resolve();
+        await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+      });
+
+      expect(document.querySelector('.overview-slice-frame')).not.toBeNull();
+    } finally {
+      window.requestAnimationFrame = originalRequestAnimationFrame;
+      window.cancelAnimationFrame = originalCancelAnimationFrame;
+    }
+  });
+
+  it('renders overview slice labels with the same shared title styling class', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -287,13 +452,15 @@ describe('App interactions', () => {
       showOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
+    await waitForElement('.overview-slice-frame-label');
+
     const firstLabel = document.querySelector('.overview-slice-frame-label');
 
     expect(firstLabel).not.toBeNull();
     expect(firstLabel?.classList.contains('slice-title')).toBe(true);
   });
 
-  it('renders a one-slice overview with a single slice frame and without the global overview title', () => {
+  it('renders a one-slice overview with a single slice frame and without the global overview title', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -317,6 +484,8 @@ describe('App interactions', () => {
     act(() => {
       showOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
+
+    await waitForElement('.overview-slice-frame');
 
     const frameLabels = [...document.querySelectorAll('.overview-slice-frame-label')]
       .map((element) => element.textContent?.trim())
@@ -362,7 +531,7 @@ describe('App interactions', () => {
     expect(genericNode?.querySelector('.node-header span:last-child')?.textContent?.trim()).toBe('checkout-screen');
   });
 
-  it('highlights both connected nodes when hovering an edge', () => {
+  it('highlights both connected nodes when hovering an edge', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -372,6 +541,7 @@ describe('App interactions', () => {
     );
 
     renderApp();
+    await waitForElement('.main .canvas-camera-world');
 
     const fromNode = document.querySelector('.node.cmd');
     const toNode = document.querySelector('.node.evt');
@@ -397,7 +567,7 @@ describe('App interactions', () => {
     expect(toNode?.classList.contains('related')).toBe(false);
   });
 
-  it('renders a slice divider for --- boundaries in the DSL', () => {
+  it('renders a slice divider for --- boundaries in the DSL', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -407,12 +577,13 @@ describe('App interactions', () => {
     );
 
     renderApp();
+    await waitForElement('.main .canvas-camera-world');
 
     const divider = document.querySelector('.slice-divider');
     expect(divider).not.toBeNull();
   });
 
-  it('renders stream lane headers for event streams', () => {
+  it('renders stream lane headers for event streams', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -425,6 +596,7 @@ describe('App interactions', () => {
     );
 
     renderApp();
+    await waitForElement('.main .canvas-camera-world');
 
     const laneLabels = [...document.querySelectorAll('.lane-stream-label')]
       .map((node) => node.textContent?.trim())
@@ -433,7 +605,7 @@ describe('App interactions', () => {
     expect(laneLabels).toContain('second');
   });
 
-  it('does not render a header for the default event stream', () => {
+  it('does not render a header for the default event stream', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -446,6 +618,7 @@ describe('App interactions', () => {
     );
 
     renderApp();
+    await waitForElement('.main .canvas-camera-world');
 
     const laneLabels = [...document.querySelectorAll('.lane-stream-label')]
       .map((node) => node.textContent?.trim())
@@ -511,7 +684,7 @@ describe('App interactions', () => {
     expect(canvasPanel?.getAttribute('data-diagram-renderer')).toBe('dom-svg-camera');
   });
 
-  it('still highlights editor lines when hovering nodes with drag-and-drop disabled', () => {
+  it('still highlights editor lines when hovering nodes with drag-and-drop disabled', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
       JSON.stringify({
@@ -522,6 +695,7 @@ describe('App interactions', () => {
     localStorage.setItem(DRAG_AND_DROP_FLAG_STORAGE_KEY, 'false');
 
     renderApp();
+    await waitForElement('.main .canvas-camera-world');
 
     const node = document.querySelector('.node.evt') as HTMLElement | null;
     expect(node).not.toBeNull();

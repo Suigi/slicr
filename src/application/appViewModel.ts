@@ -1,7 +1,7 @@
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react';
 import type { DiagramPoint } from '../domain/diagramRouting';
 import type { DiagramRendererComponent } from '../diagram/rendererRegistry';
-import type { DiagramSceneModel } from '../diagram/rendererContract';
+import type { DiagramSceneModel, DiagramScenarioGroup } from '../diagram/rendererContract';
 import type { DiagramRendererId } from '../domain/runtimeFlags';
 import type { DragTooltipState } from '../useDiagramInteractions';
 import type { Range } from '../useDslEditor';
@@ -81,6 +81,7 @@ export type DiagramSection = {
   parsedSliceProjectionList: ParsedSliceProjection<Parsed>[];
   currentDsl: string;
   sceneModel: DiagramSceneModel | null;
+  measurementScenarioGroups: DiagramScenarioGroup[];
   DiagramRenderer: DiagramRendererComponent;
   diagramRendererId: DiagramRendererId;
   rendererViewportKey: string;

@@ -5,7 +5,7 @@ import { layoutGraph, PAD_X } from './layoutGraph';
 import { projectNodeHeights } from './nodeSizing';
 import type { NodeDimensions } from './nodeSizing';
 import type { ParsedSliceProjection } from './parsedSliceProjection';
-import type { LayoutResult, Parsed, Position, VisualNode } from './types';
+import type { LayoutResult, Parsed, ParsedScenario, Position, VisualNode } from './types';
 
 export type DiagramEngineId = 'elk';
 
@@ -23,9 +23,16 @@ export type OverviewNodeMetadata = {
   sliceDslOrder: number;
 };
 
+export type OverviewScenarioMetadata = {
+  sourceSliceId: string;
+  sourceSliceName: string;
+  sourceScenarioIndex: number;
+};
+
 export type OverviewDiagramGraph = {
   parsed: Parsed;
   nodeMetadataByKey: Map<string, OverviewNodeMetadata>;
+  scenarioMetadataByScenario: Map<ParsedScenario, OverviewScenarioMetadata>;
 };
 
 const MIN_INTER_SLICE_GAP = 40 + PAD_X;
@@ -41,6 +48,7 @@ export type RenderedDiagramEdge = {
 
 type DiagramLayoutOptions = {
   nodeDimensions?: Record<string, NodeDimensions>;
+  scenarioGroupWidths?: Record<string, number>;
 };
 
 function toDiagramParsed(parsed: Parsed): Parsed {
@@ -72,6 +80,7 @@ export function buildOverviewDiagramGraph(parsedSlices: ParsedSliceProjection<Pa
   const scenarios: Parsed['scenarios'] = [];
   const scenarioOnlyNodeKeys: string[] = [];
   const nodeMetadataByKey = new Map<string, OverviewNodeMetadata>();
+  const scenarioMetadataByScenario = new Map<ParsedScenario, OverviewScenarioMetadata>();
 
   const namespaceNodeKey = (sliceId: string, nodeKey: string) => `${sliceId}::${nodeKey}`;
   const namespaceScenarioEntry = (
@@ -111,14 +120,20 @@ export function buildOverviewDiagramGraph(parsedSlices: ParsedSliceProjection<Pa
       }))
     );
     warnings.push(...diagramParsed.warnings);
-    scenarios.push(
-      ...diagramParsed.scenarios.map((scenario) => ({
+    for (const [sourceScenarioIndex, scenario] of diagramParsed.scenarios.entries()) {
+      const overviewScenario: ParsedScenario = {
         ...scenario,
         given: scenario.given.map((entry) => namespaceScenarioEntry(slice.id, entry)),
         when: scenario.when ? namespaceScenarioEntry(slice.id, scenario.when) : null,
         then: scenario.then.map((entry) => namespaceScenarioEntry(slice.id, entry))
-      }))
-    );
+      };
+      scenarios.push(overviewScenario);
+      scenarioMetadataByScenario.set(overviewScenario, {
+        sourceSliceId: slice.id,
+        sourceSliceName: slice.parsed.sliceName,
+        sourceScenarioIndex
+      });
+    }
     scenarioOnlyNodeKeys.push(
       ...diagramParsed.scenarioOnlyNodeKeys.map((nodeKey) => namespaceNodeKey(slice.id, nodeKey))
     );
@@ -134,20 +149,25 @@ export function buildOverviewDiagramGraph(parsedSlices: ParsedSliceProjection<Pa
       scenarios,
       scenarioOnlyNodeKeys
     },
-    nodeMetadataByKey
+    nodeMetadataByKey,
+    scenarioMetadataByScenario
   };
 }
 
 function buildOverviewSliceOrderSpecs(
   parsedSlices: ParsedSliceProjection<Parsed>[],
-  nodeMetadataByKey: Map<string, OverviewNodeMetadata>
+  nodeMetadataByKey: Map<string, OverviewNodeMetadata>,
+  scenarioGroupWidths: Record<string, number> = {}
 ) {
   return parsedSlices.map((slice) => ({
     sliceId: slice.id,
     nodeKeys: [...nodeMetadataByKey.entries()]
       .filter(([, metadata]) => metadata.sourceSliceId === slice.id)
       .sort((left, right) => left[1].sliceDslOrder - right[1].sliceDslOrder)
-      .map(([key]) => key)
+      .map(([key]) => key),
+    scenarioGroupWidth: slice.parsed.scenarios.length > 0
+      ? scenarioGroupWidths[`overview-scenario-group-${slice.id}`]
+      : undefined
   }));
 }
 
@@ -233,7 +253,11 @@ export async function computeOverviewDiagramLayout(
   }
 
   const elk = await computeElkLayout(mergedParsed, options.nodeDimensions);
-  const sliceOrderSpecs = buildOverviewSliceOrderSpecs(parsedSlices, overviewGraph.nodeMetadataByKey);
+  const sliceOrderSpecs = buildOverviewSliceOrderSpecs(
+    parsedSlices,
+    overviewGraph.nodeMetadataByKey,
+    options.scenarioGroupWidths
+  );
   const laneKeys = buildLaneKeys(mergedParsed, elk.laneByKey);
   applyOverviewPostLayoutPasses({
     sliceSpecs: sliceOrderSpecs,

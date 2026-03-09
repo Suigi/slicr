@@ -7,6 +7,7 @@ import type { DiagramPoint } from '../../domain/diagramRouting';
 import type { ActionsSection, DiagramMode, NodePanelTab } from '../appViewModel';
 import type { Range } from '../../useDslEditor';
 import { executeEventCompaction, type CompactionPlan } from '../../eventCompaction';
+import type { DiagramSceneModel } from '../../diagram/rendererContract';
 
 type RenderedEdge = { edgeKey: string; edge: { from: string; to: string }; geometry: { d: string; points?: DiagramPoint[] } };
 
@@ -59,6 +60,8 @@ type UseAppActionsArgs = {
   setCrossSliceDataExpandedKeys: Dispatch<SetStateAction<Record<string, boolean>>>;
   resetManualLayout: () => void;
   toggleDocumentationPanel: () => void;
+  currentDiagramSceneModel: DiagramSceneModel | null;
+  setOverviewPlaceholderSceneModel: Dispatch<SetStateAction<DiagramSceneModel | null>>;
 };
 
 export function useAppActions(args: UseAppActionsArgs): ActionsSection {
@@ -110,7 +113,9 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
     setSourceOverrides,
     setCrossSliceDataExpandedKeys,
     resetManualLayout,
-    toggleDocumentationPanel
+    toggleDocumentationPanel,
+    currentDiagramSceneModel,
+    setOverviewPlaceholderSceneModel
   } = args;
 
   const switchSliceWithOverrides = (
@@ -279,7 +284,7 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
       focusRange(range);
     },
     onNodeSelect: (nodeKeyOrUpdater) => setSelectedNodeKey(nodeKeyOrUpdater),
-    onNodeHoverRange: (range) => setHighlightRange(range),
+    onNodeHoverRange: (range) => setHighlightRange(diagramMode === 'overview' ? null : range),
     onEdgeHover: (edgeKeyOrUpdater) => setHoveredEdgeKey(edgeKeyOrUpdater),
     onSelectedNodePanelTabChange: (tab) => setSelectedNodePanelTab(tab),
     onToggleCrossSliceDataExpanded: (key) =>
@@ -402,6 +407,7 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
       setHoveredEdgeKey(null);
       setHoveredTraceNodeKey(null);
       setEditorOpen(false);
+      setOverviewPlaceholderSceneModel(currentDiagramSceneModel);
       setDiagramMode('overview');
       setCommandPaletteOpen(false);
     },
@@ -409,6 +415,7 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
       setOverviewSelectedNodeKey(null);
       setEditorOpen(overviewReturnState.editorOpen);
       setSliceSelectedNodeKey(overviewReturnState.selectedNodeKey);
+      setOverviewPlaceholderSceneModel(null);
       setDiagramMode('slice');
       setCommandPaletteOpen(false);
     }

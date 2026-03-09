@@ -224,6 +224,165 @@ describe('buildSceneModel', () => {
     expect(scene?.viewport?.height).toBeGreaterThan(700);
   });
 
+  it('keeps slice mode on the flat scenario list without creating scenario groups', () => {
+    const parsed = baseParsed();
+    parsed.scenarios = [
+      {
+        name: 'Complete TODO',
+        srcRange: { from: 10, to: 30 },
+        given: [{ key: 'b', type: 'evt', name: 'b', alias: null, srcRange: { from: 11, to: 12 } }],
+        when: { key: 'a', type: 'cmd', name: 'a', alias: null, srcRange: { from: 13, to: 14 } },
+        then: [{ key: 'b', type: 'evt', name: 'b', alias: null, srcRange: { from: 15, to: 16 } }]
+      }
+    ];
+
+    const scene = buildSceneModel({
+      parsed,
+      activeLayout: baseLayout(),
+      displayedPos: baseLayout().pos,
+      renderedEdges: baseRenderedEdges(),
+      engineLayout: null,
+      activeNodeKeyFromEditor: null,
+      selectedNodeKey: null,
+      hoveredEdgeKey: null,
+      hoveredTraceNodeKey: null
+    });
+
+    expect(scene?.scenarios).toHaveLength(1);
+    expect(scene?.scenarioGroups).toEqual([]);
+  });
+
+  it('groups overview scenarios by source slice and aligns them to the slice frame', () => {
+    const parsed: Parsed = {
+      sliceName: 'Overview',
+      nodes: new Map<string, VisualNode>([
+        ['slice-1::a', node('slice-1::a', 'cmd', 1, 2)],
+        ['slice-2::b', node('slice-2::b', 'cmd', 3, 4)]
+      ]),
+      edges: [],
+      warnings: [],
+      boundaries: [],
+      scenarios: [
+        {
+          name: 'Scenario A',
+          srcRange: { from: 10, to: 20 },
+          given: [],
+          when: { key: 'slice-1::a', type: 'cmd', name: 'a', alias: null, srcRange: { from: 11, to: 12 } },
+          then: []
+        }
+      ],
+      scenarioOnlyNodeKeys: []
+    };
+    const activeLayout: LayoutResult = {
+      pos: {
+        'slice-1::a': { x: 100, y: 120, w: 180, h: 90 },
+        'slice-2::b': { x: 500, y: 120, w: 180, h: 90 }
+      },
+      rowY: { 1: 120 },
+      usedRows: [1],
+      rowStreamLabels: {},
+      w: 900,
+      h: 500
+    };
+
+    const scene = buildSceneModel({
+      parsed,
+      activeLayout,
+      displayedPos: activeLayout.pos,
+      renderedEdges: [],
+      engineLayout: null,
+      activeNodeKeyFromEditor: null,
+      selectedNodeKey: null,
+      hoveredEdgeKey: null,
+      hoveredTraceNodeKey: null,
+      overviewNodeMetadataByKey: new Map([
+        ['slice-1::a', { sourceSliceId: 'slice-1', sourceSliceName: 'Slice 1', sourceNodeKey: 'a', sliceDslOrder: 0 }],
+        ['slice-2::b', { sourceSliceId: 'slice-2', sourceSliceName: 'Slice 2', sourceNodeKey: 'b', sliceDslOrder: 0 }]
+      ]),
+      overviewScenarioMetadataByScenario: new Map([
+        [parsed.scenarios[0]!, { sourceSliceId: 'slice-1', sourceSliceName: 'Slice 1', sourceScenarioIndex: 0 }]
+      ])
+    });
+
+    expect(scene?.scenarioGroups).toEqual([
+      {
+        key: 'overview-scenario-group-slice-1',
+        sliceId: 'slice-1',
+        sliceName: 'Slice 1',
+        left: 72,
+        top: 258,
+        width: 236,
+        height: 200,
+        scenarios: [
+          {
+            name: 'Scenario A',
+            srcRange: { from: 10, to: 20 },
+            given: [],
+            when: expect.objectContaining({ key: 'slice-1::a' }),
+            then: []
+          }
+        ]
+      }
+    ]);
+  });
+
+  it('expands overview viewport bounds to include measured scenario-group width', () => {
+    const parsed: Parsed = {
+      sliceName: 'Overview',
+      nodes: new Map<string, VisualNode>([
+        ['slice-1::a', node('slice-1::a', 'cmd', 1, 2)]
+      ]),
+      edges: [],
+      warnings: [],
+      boundaries: [],
+      scenarios: [
+        {
+          name: 'Scenario A',
+          srcRange: { from: 10, to: 20 },
+          given: [],
+          when: { key: 'slice-1::a', type: 'cmd', name: 'a', alias: null, srcRange: { from: 11, to: 12 } },
+          then: []
+        }
+      ],
+      scenarioOnlyNodeKeys: []
+    };
+    const activeLayout: LayoutResult = {
+      pos: {
+        'slice-1::a': { x: 100, y: 120, w: 180, h: 90 }
+      },
+      rowY: { 1: 120 },
+      usedRows: [1],
+      rowStreamLabels: {},
+      w: 300,
+      h: 240
+    };
+
+    const scene = buildSceneModel({
+      parsed,
+      activeLayout,
+      displayedPos: activeLayout.pos,
+      renderedEdges: [],
+      engineLayout: null,
+      activeNodeKeyFromEditor: null,
+      selectedNodeKey: null,
+      hoveredEdgeKey: null,
+      hoveredTraceNodeKey: null,
+      overviewNodeMetadataByKey: new Map([
+        ['slice-1::a', { sourceSliceId: 'slice-1', sourceSliceName: 'Slice 1', sourceNodeKey: 'a', sliceDslOrder: 0 }]
+      ]),
+      overviewScenarioMetadataByScenario: new Map([
+        [parsed.scenarios[0]!, { sourceSliceId: 'slice-1', sourceSliceName: 'Slice 1', sourceScenarioIndex: 0 }]
+      ]),
+      measuredScenarioGroupWidths: {
+        'overview-scenario-group-slice-1': 420
+      },
+      canvasMargin: 100
+    });
+
+    expect(scene?.scenarioGroups?.[0]?.width).toBe(420);
+    expect(scene?.viewport?.width).toBe(692);
+  });
+
   it('hides scenario-only nodes from main diagram nodes while keeping scenario content', () => {
     const parsed = baseParsed();
     parsed.nodes.set('scenario-node', node('scenario-node', 'evt', 40, 50));

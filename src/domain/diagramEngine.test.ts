@@ -285,6 +285,59 @@ describe('diagramEngine dimensions plumbing', () => {
     ]);
   });
 
+  it('records source slice metadata for each merged overview scenario', () => {
+    const firstParsed: Parsed = {
+      sliceName: 'first',
+      nodes: new Map([['cmd:first', makeNode('cmd:first', 'First')]]),
+      edges: [],
+      warnings: [],
+      boundaries: [],
+      scenarios: [
+        {
+          name: 'First scenario',
+          srcRange: { from: 0, to: 10 },
+          given: [],
+          when: { key: 'cmd:first', type: 'cmd', name: 'first', alias: null, srcRange: { from: 1, to: 2 } },
+          then: []
+        }
+      ],
+      scenarioOnlyNodeKeys: []
+    };
+    const secondParsed: Parsed = {
+      sliceName: 'second',
+      nodes: new Map([['cmd:second', makeNode('cmd:second', 'Second')]]),
+      edges: [],
+      warnings: [],
+      boundaries: [],
+      scenarios: [
+        {
+          name: 'Second scenario',
+          srcRange: { from: 20, to: 30 },
+          given: [],
+          when: { key: 'cmd:second', type: 'cmd', name: 'second', alias: null, srcRange: { from: 21, to: 22 } },
+          then: []
+        }
+      ],
+      scenarioOnlyNodeKeys: []
+    };
+
+    const overview = buildOverviewDiagramGraph([
+      makeProjection('slice-1', firstParsed),
+      makeProjection('slice-2', secondParsed)
+    ]);
+
+    expect(overview.scenarioMetadataByScenario.get(overview.parsed.scenarios[0]!)).toEqual({
+      sourceSliceId: 'slice-1',
+      sourceSliceName: 'first',
+      sourceScenarioIndex: 0
+    });
+    expect(overview.scenarioMetadataByScenario.get(overview.parsed.scenarios[1]!)).toEqual({
+      sourceSliceId: 'slice-2',
+      sourceSliceName: 'second',
+      sourceScenarioIndex: 0
+    });
+  });
+
   it('assigns event nodes with the same stream name to the same overview lane across slices', async () => {
     const firstEvent: VisualNode = {
       ...makeNode('evt:order-created', 'order-created'),
@@ -360,6 +413,96 @@ describe('diagramEngine dimensions plumbing', () => {
     ]);
 
     expect(layout.laneByKey.get('slice-1::evt:order-created')).not.toBe(layout.laneByKey.get('slice-2::evt:payment-captured'));
+  });
+
+  it('pushes later overview slices right when a measured scenario group is wider than the slice nodes', async () => {
+    const firstParsed: Parsed = {
+      sliceName: 'first',
+      nodes: new Map([['cmd:first', makeNode('cmd:first', 'First')]]),
+      edges: [],
+      warnings: [],
+      boundaries: [],
+      scenarios: [
+        {
+          name: 'Wide scenario',
+          srcRange: { from: 0, to: 10 },
+          given: [],
+          when: { key: 'cmd:first', type: 'cmd', name: 'first', alias: null, srcRange: { from: 1, to: 2 } },
+          then: []
+        }
+      ],
+      scenarioOnlyNodeKeys: []
+    };
+    const secondParsed: Parsed = {
+      sliceName: 'second',
+      nodes: new Map([['cmd:second', makeNode('cmd:second', 'Second')]]),
+      edges: [],
+      warnings: [],
+      boundaries: [],
+      scenarios: [],
+      scenarioOnlyNodeKeys: []
+    };
+
+    const withoutMeasuredWidth = await computeOverviewDiagramLayout([
+      makeProjection('slice-1', firstParsed),
+      makeProjection('slice-2', secondParsed)
+    ]);
+    const withMeasuredWidth = await computeOverviewDiagramLayout(
+      [
+        makeProjection('slice-1', firstParsed),
+        makeProjection('slice-2', secondParsed)
+      ],
+      {
+        scenarioGroupWidths: {
+          'overview-scenario-group-slice-1': 420
+        }
+      }
+    );
+
+    expect(withMeasuredWidth.layout.pos['slice-2::cmd:second'].x).toBeGreaterThan(
+      withoutMeasuredWidth.layout.pos['slice-2::cmd:second'].x
+    );
+  });
+
+  it('ignores measured scenario-group width for slices that have no scenarios', async () => {
+    const firstParsed: Parsed = {
+      sliceName: 'first',
+      nodes: new Map([['cmd:first', makeNode('cmd:first', 'First')]]),
+      edges: [],
+      warnings: [],
+      boundaries: [],
+      scenarios: [],
+      scenarioOnlyNodeKeys: []
+    };
+    const secondParsed: Parsed = {
+      sliceName: 'second',
+      nodes: new Map([['cmd:second', makeNode('cmd:second', 'Second')]]),
+      edges: [],
+      warnings: [],
+      boundaries: [],
+      scenarios: [],
+      scenarioOnlyNodeKeys: []
+    };
+
+    const baseline = await computeOverviewDiagramLayout([
+      makeProjection('slice-1', firstParsed),
+      makeProjection('slice-2', secondParsed)
+    ]);
+    const withIgnoredWidth = await computeOverviewDiagramLayout(
+      [
+        makeProjection('slice-1', firstParsed),
+        makeProjection('slice-2', secondParsed)
+      ],
+      {
+        scenarioGroupWidths: {
+          'overview-scenario-group-slice-1': 420
+        }
+      }
+    );
+
+    expect(withIgnoredWidth.layout.pos['slice-2::cmd:second'].x).toBe(
+      baseline.layout.pos['slice-2::cmd:second'].x
+    );
   });
 
   it('keeps non-event overview nodes in their existing semantic lanes after namespacing', async () => {

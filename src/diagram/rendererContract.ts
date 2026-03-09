@@ -111,12 +111,24 @@ export type DiagramScenario = {
   then: DiagramScenarioNode[];
 };
 
+export type DiagramScenarioGroup = {
+  key: string;
+  sliceId: string;
+  sliceName: string;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  scenarios: DiagramScenario[];
+};
+
 export type DiagramSceneModel = {
   nodes: DiagramNode[];
   edges: DiagramEdge[];
   lanes: DiagramLane[];
   boundaries: DiagramBoundary[];
   scenarios: DiagramScenario[];
+  scenarioGroups?: DiagramScenarioGroup[];
   worldWidth: number;
   worldHeight: number;
   title: DiagramTitle | null;

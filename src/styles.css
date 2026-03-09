@@ -2926,6 +2926,23 @@ header h1 {
   z-index: -1;
 }
 
+.scenario-group-measure-layer {
+  position: fixed;
+  left: -10000px;
+  top: -10000px;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.scenario-group-measure {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: nowrap;
+  padding-bottom: 24px;
+}
+
 .node-measure-cell {
   display: inline-block;
 }

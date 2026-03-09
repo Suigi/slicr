@@ -29,6 +29,23 @@ function renderApp() {
   });
 }
 
+async function waitForElement(selector: string, attempts = 20) {
+  for (let index = 0; index < attempts; index += 1) {
+    const match = document.querySelector(selector);
+    if (match) {
+      return match;
+    }
+    await act(async () => {
+      await Promise.resolve();
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+      await new Promise<void>((resolve) => {
+        window.requestAnimationFrame(() => resolve());
+      });
+    });
+  }
+  return document.querySelector(selector);
+}
+
 describe('App command palette interactions', () => {
   it('shows Show Project Overview in slice mode and enters overview from the command palette', () => {
     renderApp();
@@ -169,6 +186,61 @@ describe('App command palette interactions', () => {
     });
 
     expect(document.querySelector('.project-modal')).not.toBeNull();
+  });
+
+  it('does not crash when hovering a scenario node in overview mode', async () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'slice-a',
+        slices: [
+          {
+            id: 'slice-a',
+            dsl: [
+              'slice "Alpha"',
+              '',
+              'cmd:rename',
+              '',
+              'scenario "Rename"',
+              'given:',
+              '  evt:item-created',
+              '',
+              'when:',
+              '  cmd:rename',
+              '',
+              'then:',
+              '  evt:item-renamed'
+            ].join('\n')
+          }
+        ]
+      })
+    );
+
+    renderApp();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+    });
+
+    const showOverviewItem = (
+      [...document.querySelectorAll('.command-palette-item')]
+        .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Show Project Overview')
+    ) as HTMLButtonElement | undefined;
+    expect(showOverviewItem).toBeDefined();
+
+    act(() => {
+      showOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const scenarioNode = await waitForElement('.scenario-group .scenario-node-card.node') as HTMLElement | null;
+    expect(scenarioNode).not.toBeNull();
+
+    expect(() => {
+      act(() => {
+        scenarioNode?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+      });
+    }).not.toThrow();
+    expect(document.querySelector('.main .canvas-panel')).not.toBeNull();
   });
 
   it('opens add node dialog from command palette', () => {

@@ -1,4 +1,4 @@
-import { Dispatch, SetStateAction, useEffect, useMemo, useRef } from 'react';
+import { Dispatch, SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
 import { MISSING_DATA_VALUE } from '../domain/dataMapping';
 import { formatNodeData } from '../domain/formatNodeData';
 import { parseDsl } from '../domain/parseDsl';
@@ -12,6 +12,7 @@ import {
 } from '../sliceLibrary';
 import { EditorWarning, useDslEditor } from '../useDslEditor';
 import { getDiagramRenderer } from '../diagram/rendererRegistry';
+import type { DiagramSceneModel } from '../diagram/rendererContract';
 import type { UseAppStateResult } from './appViewModel';
 import { useAppLocalState } from './hooks/useAppLocalState';
 import { useAppActions } from './hooks/useAppActions';
@@ -100,6 +101,7 @@ export function useAppState(): UseAppStateResult {
   const analysisSelectedNodeKey = diagramMode === 'overview' ? null : sliceSelectedNodeKey;
   const editorOpenRef = useRef(editorOpen);
   const sliceSelectedNodeKeyRef = useRef(sliceSelectedNodeKey);
+  const [overviewPlaceholderSceneModel, setOverviewPlaceholderSceneModel] = useState<DiagramSceneModel | null>(null);
 
   useEffect(() => {
     editorOpenRef.current = editorOpen;
@@ -217,7 +219,8 @@ export function useAppState(): UseAppStateResult {
     hoveredEdgeKey,
     hoveredTraceNodeKey: analysis.hoveredTraceNodeKey,
     focusRequestVersion,
-    pendingFocusNodeKeyRef
+    pendingFocusNodeKeyRef,
+    fallbackOverviewSceneModel: overviewPlaceholderSceneModel
   });
 
   const DiagramRenderer = useMemo(() => getDiagramRenderer(diagramRendererId), [diagramRendererId]);
@@ -335,7 +338,9 @@ export function useAppState(): UseAppStateResult {
     setSourceOverrides: analysis.setSourceOverrides,
     setCrossSliceDataExpandedKeys: analysis.setCrossSliceDataExpandedKeys,
     resetManualLayout,
-    toggleDocumentationPanel
+    toggleDocumentationPanel,
+    currentDiagramSceneModel: diagramView.sceneModel,
+    setOverviewPlaceholderSceneModel
   });
 
   return {
@@ -373,6 +378,7 @@ export function useAppState(): UseAppStateResult {
       parsedSliceProjectionList,
       currentDsl,
       sceneModel: diagramView.sceneModel,
+      measurementScenarioGroups: diagramView.measurementScenarioGroups,
       DiagramRenderer,
       diagramRendererId,
       rendererViewportKey: diagramView.rendererViewportKey,

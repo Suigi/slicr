@@ -1,4 +1,10 @@
-import { DiagramEngineLayout, OverviewNodeMetadata, RenderedDiagramEdge } from '../domain/diagramEngine';
+import {
+  DiagramEngineLayout,
+  OverviewNodeMetadata,
+  OverviewScenarioMetadata,
+  RenderedDiagramEdge
+} from '../domain/diagramEngine';
+import type { ParsedScenario } from '../domain/types';
 import { routeRoundedPolyline } from '../domain/diagramRouting';
 import { PAD_X, rowFor } from '../domain/layoutGraph';
 import type { LayoutResult, Parsed, Position, VisualNode } from '../domain/types';
@@ -8,6 +14,7 @@ import type {
   DiagramLane,
   DiagramNode,
   DiagramScenario,
+  DiagramScenarioGroup,
   DiagramScenarioNode,
   DiagramSceneModel,
   DiagramSliceFrame,
@@ -49,6 +56,8 @@ export type BuildSceneModelInput = {
   hoveredEdgeKey: string | null;
   hoveredTraceNodeKey: string | null;
   overviewNodeMetadataByKey?: Map<string, OverviewNodeMetadata>;
+  overviewScenarioMetadataByScenario?: Map<ParsedScenario, OverviewScenarioMetadata>;
+  measuredScenarioGroupWidths?: Record<string, number>;
   canvasMargin?: number;
   laneLabelLeft?: number;
 };
@@ -60,7 +69,8 @@ function computeCanvasViewport(
   title: DiagramTitle | null,
   sliceFrames: DiagramSliceFrame[],
   canvasMargin: number,
-  scenarioCount: number
+  scenarioCount: number,
+  scenarioGroups: DiagramScenarioGroup[]
 ): DiagramViewport {
   let minX = 0;
   let minY = 0;
@@ -99,7 +109,14 @@ function computeCanvasViewport(
     maxY = Math.max(maxY, frame.top + frame.height);
   }
 
-  if (scenarioCount > 0) {
+  if (scenarioGroups.length > 0) {
+    for (const group of scenarioGroups) {
+      minX = Math.min(minX, group.left);
+      minY = Math.min(minY, group.top);
+      maxX = Math.max(maxX, group.left + group.width);
+      maxY = Math.max(maxY, group.top + group.height);
+    }
+  } else if (scenarioCount > 0) {
     const scenariosHeight = (scenarioCount * SCENARIO_BOX_HEIGHT)
       + (Math.max(0, scenarioCount - 1) * SCENARIO_BOX_GAP)
       + SCENARIO_AREA_BOTTOM_PADDING;
@@ -317,6 +334,68 @@ function buildScenarios(parsed: Parsed, activeNodeKeyFromEditor: string | null, 
   }));
 }
 
+function buildScenarioGroups(
+  parsed: Parsed,
+  scenarios: DiagramScenario[],
+  sliceFrames: DiagramSliceFrame[],
+  overviewScenarioMetadataByScenario?: Map<ParsedScenario, OverviewScenarioMetadata>,
+  measuredScenarioGroupWidths: Record<string, number> = {}
+): DiagramScenarioGroup[] {
+  if (!overviewScenarioMetadataByScenario || overviewScenarioMetadataByScenario.size === 0) {
+    return [];
+  }
+
+  const sliceFrameById = new Map(
+    sliceFrames.map((frame) => [
+      frame.key.replace('overview-slice-frame-', ''),
+      frame
+    ])
+  );
+  const grouped = new Map<string, {
+    sliceName: string;
+    frame: DiagramSliceFrame;
+    scenarios: DiagramScenario[];
+  }>();
+
+  for (const [index, parsedScenario] of parsed.scenarios.entries()) {
+    const metadata = overviewScenarioMetadataByScenario.get(parsedScenario);
+    const scenario = scenarios[index];
+    if (!metadata || !scenario) {
+      continue;
+    }
+    const frame = sliceFrameById.get(metadata.sourceSliceId);
+    if (!frame) {
+      continue;
+    }
+    const existing = grouped.get(metadata.sourceSliceId);
+    if (existing) {
+      existing.scenarios.push(scenario);
+      continue;
+    }
+    grouped.set(metadata.sourceSliceId, {
+      sliceName: metadata.sourceSliceName,
+      frame,
+      scenarios: [scenario]
+    });
+  }
+
+  return [...grouped.entries()].map(([sliceId, group]) => {
+    const key = `overview-scenario-group-${sliceId}`;
+    return {
+      key,
+    sliceId,
+    sliceName: group.sliceName,
+    left: group.frame.left,
+    top: group.frame.top + group.frame.height + SCENARIO_AREA_TOP_GAP,
+    width: Math.max(group.frame.width, measuredScenarioGroupWidths[key] ?? 0),
+    height: (group.scenarios.length * SCENARIO_BOX_HEIGHT)
+      + (Math.max(0, group.scenarios.length - 1) * SCENARIO_BOX_GAP)
+      + SCENARIO_AREA_BOTTOM_PADDING,
+    scenarios: group.scenarios
+    };
+  });
+}
+
 export function buildSceneModel(input: BuildSceneModelInput): DiagramSceneModel | null {
   const {
     parsed,
@@ -329,6 +408,8 @@ export function buildSceneModel(input: BuildSceneModelInput): DiagramSceneModel 
     hoveredEdgeKey,
     hoveredTraceNodeKey,
     overviewNodeMetadataByKey,
+    overviewScenarioMetadataByScenario,
+    measuredScenarioGroupWidths = {},
     canvasMargin = DEFAULT_CANVAS_MARGIN,
     laneLabelLeft = Math.max(8, PAD_X - 48)
   } = input;
@@ -348,10 +429,27 @@ export function buildSceneModel(input: BuildSceneModelInput): DiagramSceneModel 
   }
   const boundaries = buildBoundaries(parsed, visibleDisplayedPos, lanes, activeLayout.h);
   const sliceFrames = buildOverviewSliceFrames(visibleDisplayedPos, visibleNodeKeys, overviewNodeMetadataByKey);
+  const scenarios = buildScenarios(parsed, activeNodeKeyFromEditor, selectedNodeKey);
+  const scenarioGroups = buildScenarioGroups(
+    parsed,
+    scenarios,
+    sliceFrames,
+    overviewScenarioMetadataByScenario,
+    measuredScenarioGroupWidths
+  );
   const title: DiagramTitle | null = sliceFrames.length === 0 && parsed.sliceName
     ? { text: parsed.sliceName, top: 6, left: PAD_X }
     : null;
-  const viewport = computeCanvasViewport(activeLayout, displayedPos, renderedEdges, title, sliceFrames, canvasMargin, parsed.scenarios.length);
+  const viewport = computeCanvasViewport(
+    activeLayout,
+    displayedPos,
+    renderedEdges,
+    title,
+    sliceFrames,
+    canvasMargin,
+    parsed.scenarios.length,
+    scenarioGroups
+  );
 
   const hoveredEdge = hoveredEdgeKey
     ? renderedEdges.find(({ edgeKey }) => edgeKey === hoveredEdgeKey)
@@ -425,7 +523,8 @@ export function buildSceneModel(input: BuildSceneModelInput): DiagramSceneModel 
     edges,
     lanes,
     boundaries,
-    scenarios: buildScenarios(parsed, activeNodeKeyFromEditor, selectedNodeKey),
+    scenarios,
+    scenarioGroups,
     worldWidth: activeLayout.w,
     worldHeight: activeLayout.h,
     title,

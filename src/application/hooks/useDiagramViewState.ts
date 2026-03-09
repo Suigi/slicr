@@ -1,5 +1,5 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   buildOverviewDiagramGraph,
   buildRenderedEdges,
@@ -11,7 +11,7 @@ import type { DiagramPoint } from '../../domain/diagramRouting';
 import type { NodeDimensions } from '../../domain/nodeSizing';
 import type { ParsedSliceProjection } from '../../domain/parsedSliceProjection';
 import type { Parsed, Position } from '../../domain/types';
-import { measureNodeDimensions } from '../../nodeMeasurement';
+import { measureNodeDimensions, measureScenarioGroupWidths } from '../../nodeMeasurement';
 import { useDiagramInteractions } from '../../useDiagramInteractions';
 import { buildSceneModel } from '../../diagram/sceneModel';
 import { appendSliceEdgeMovedEvent, appendSliceNodeMovedEvent } from '../../sliceLibrary';
@@ -36,6 +36,7 @@ export type UseDiagramViewStateArgs = {
   hoveredTraceNodeKey: string | null;
   focusRequestVersion: number;
   pendingFocusNodeKeyRef: MutableRefObject<string | null>;
+  fallbackOverviewSceneModel: ReturnType<typeof buildSceneModel> | null;
 };
 
 export function useDiagramViewState(args: UseDiagramViewStateArgs) {
@@ -57,7 +58,8 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
     hoveredEdgeKey,
     hoveredTraceNodeKey,
     focusRequestVersion,
-    pendingFocusNodeKeyRef
+    pendingFocusNodeKeyRef,
+    fallbackOverviewSceneModel
   } = args;
 
   const initializedViewportKeyRef = useRef<string | null>(null);
@@ -66,6 +68,7 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
     [diagramMode, parsedSliceProjectionList]
   );
   const overviewNodeMetadataByKey = overviewGraph?.nodeMetadataByKey;
+  const overviewScenarioMetadataByScenario = overviewGraph?.scenarioMetadataByScenario;
   const diagramParsed = diagramMode === 'overview' ? overviewGraph?.parsed ?? null : parsed;
   const layoutStateKey = useMemo(() => {
     if (diagramMode === 'overview') {
@@ -77,7 +80,28 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
     key: string;
     layout: Awaited<ReturnType<typeof computeDiagramLayout>> | Awaited<ReturnType<typeof computeOverviewDiagramLayout>>;
   } | null>(null);
-  const [measuredNodeDimensions, setMeasuredNodeDimensions] = useState<Record<string, NodeDimensions>>({});
+  const [nodeMeasurementState, setNodeMeasurementState] = useState<{
+    key: string;
+    dimensions: Record<string, NodeDimensions>;
+    settled: boolean;
+  } | null>(null);
+  const measuredNodeDimensions = useMemo(
+    () => (nodeMeasurementState?.key === layoutStateKey
+      ? nodeMeasurementState.dimensions
+      : {}),
+    [layoutStateKey, nodeMeasurementState]
+  );
+  const [scenarioGroupMeasurementState, setScenarioGroupMeasurementState] = useState<{
+    key: string;
+    widths: Record<string, number>;
+    settled: boolean;
+  } | null>(null);
+  const measuredScenarioGroupWidths = useMemo(
+    () => (scenarioGroupMeasurementState?.key === layoutStateKey
+      ? scenarioGroupMeasurementState.widths
+      : {}),
+    [layoutStateKey, scenarioGroupMeasurementState]
+  );
   const provisionalEngineLayout = useMemo(() => {
     if (!diagramParsed || diagramParsed.nodes.size === 0) {
       return null;
@@ -91,7 +115,10 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
     }
     let active = true;
     const computeLayout = diagramMode === 'overview'
-      ? computeOverviewDiagramLayout(parsedSliceProjectionList, { nodeDimensions: measuredNodeDimensions })
+      ? computeOverviewDiagramLayout(parsedSliceProjectionList, {
+        nodeDimensions: measuredNodeDimensions,
+        scenarioGroupWidths: measuredScenarioGroupWidths
+      })
       : computeDiagramLayout(diagramParsed, { nodeDimensions: measuredNodeDimensions });
     computeLayout
       .then((result) => {
@@ -107,49 +134,54 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
     return () => {
       active = false;
     };
-  }, [currentDsl, diagramMode, diagramParsed, layoutStateKey, measuredNodeDimensions, parsedSliceProjectionList]);
+  }, [
+    currentDsl,
+    diagramMode,
+    diagramParsed,
+    layoutStateKey,
+    measuredNodeDimensions,
+    measuredScenarioGroupWidths,
+    parsedSliceProjectionList
+  ]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!diagramParsed || diagramParsed.nodes.size === 0) {
       return;
     }
 
-    let cancelled = false;
-    const frame = window.requestAnimationFrame(() => {
-      if (cancelled) {
-        return;
+    const measured = measureNodeDimensions(document);
+    const parsedKeys = [...diagramParsed.nodes.keys()];
+    const next: Record<string, NodeDimensions> = {};
+    for (const key of parsedKeys) {
+      if (measured[key] !== undefined) {
+        next[key] = measured[key];
       }
+    }
 
-      const measured = measureNodeDimensions(document);
-      const parsedKeys = [...diagramParsed.nodes.keys()];
-      const next: Record<string, NodeDimensions> = {};
-      for (const key of parsedKeys) {
-        if (measured[key] !== undefined) {
-          next[key] = measured[key];
+    queueMicrotask(() => {
+      setNodeMeasurementState((previous) => {
+        if (previous?.key === layoutStateKey) {
+          const nextKeys = Object.keys(next);
+          const previousKeys = Object.keys(previous.dimensions);
+          if (
+            nextKeys.length === previousKeys.length &&
+            nextKeys.every(
+              (key) =>
+                previous.dimensions[key]?.width === next[key]?.width &&
+                previous.dimensions[key]?.height === next[key]?.height
+            )
+          ) {
+            return previous;
+          }
         }
-      }
-
-      setMeasuredNodeDimensions((previous) => {
-        const nextKeys = Object.keys(next);
-        const previousKeys = Object.keys(previous);
-        if (
-          nextKeys.length === previousKeys.length &&
-          nextKeys.every(
-            (key) =>
-              previous[key]?.width === next[key]?.width &&
-              previous[key]?.height === next[key]?.height
-          )
-        ) {
-          return previous;
-        }
-        return next;
+        return {
+          key: layoutStateKey,
+          dimensions: next,
+          settled: true
+        };
       });
     });
-    return () => {
-      cancelled = true;
-      window.cancelAnimationFrame(frame);
-    };
-  }, [currentDsl, diagramParsed, theme]);
+  }, [currentDsl, diagramParsed, layoutStateKey, theme]);
 
   const engineLayout = diagramEngineLayoutState?.key === layoutStateKey
     ? diagramEngineLayoutState.layout
@@ -210,7 +242,7 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
     return null;
   }, [hoveredEditorRange, diagramParsed]);
 
-  const sceneModel = useMemo(
+  const rawSceneModel = useMemo(
     () =>
       buildSceneModel({
         parsed: diagramParsed,
@@ -222,7 +254,9 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
         selectedNodeKey,
         hoveredEdgeKey,
         hoveredTraceNodeKey,
-        overviewNodeMetadataByKey
+        overviewNodeMetadataByKey,
+        overviewScenarioMetadataByScenario,
+        measuredScenarioGroupWidths
       }),
     [
       diagramParsed,
@@ -234,9 +268,69 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
       selectedNodeKey,
       hoveredEdgeKey,
       hoveredTraceNodeKey,
-      overviewNodeMetadataByKey
-    ]
+      overviewNodeMetadataByKey,
+      overviewScenarioMetadataByScenario,
+        measuredScenarioGroupWidths
+      ]
   );
+
+  const overviewScenarioGroupKeys = diagramMode === 'overview'
+    ? (rawSceneModel?.scenarioGroups ?? []).map((group) => group.key)
+    : [];
+  const nodeMeasurementKeys = diagramParsed
+    ? [...diagramParsed.nodes.keys()].filter((key) => !diagramParsed.scenarioOnlyNodeKeys.includes(key))
+    : [];
+  const nodeMeasurementSettledWithoutGeometry = nodeMeasurementState?.key === layoutStateKey
+    && nodeMeasurementState.settled
+    && Object.keys(measuredNodeDimensions).length === 0;
+  const nodeMeasurementsReady = nodeMeasurementKeys.length === 0
+    || nodeMeasurementKeys.every((key) => measuredNodeDimensions[key] !== undefined)
+    || nodeMeasurementSettledWithoutGeometry;
+  const overviewNeedsScenarioMeasurement = overviewScenarioGroupKeys.length > 0;
+  const scenarioMeasurementSettledWithoutGeometry = scenarioGroupMeasurementState?.key === layoutStateKey
+    && scenarioGroupMeasurementState.settled
+    && Object.keys(measuredScenarioGroupWidths).length === 0;
+  const scenarioGroupMeasurementsReady = !overviewNeedsScenarioMeasurement
+    || overviewScenarioGroupKeys.every((key) => measuredScenarioGroupWidths[key] !== undefined)
+    || scenarioMeasurementSettledWithoutGeometry;
+  const sceneModel = diagramMode === 'overview'
+    ? (scenarioGroupMeasurementsReady && nodeMeasurementsReady ? rawSceneModel : fallbackOverviewSceneModel)
+    : rawSceneModel;
+
+  useLayoutEffect(() => {
+    if (diagramMode !== 'overview' || !rawSceneModel?.scenarioGroups || rawSceneModel.scenarioGroups.length === 0) {
+      queueMicrotask(() => {
+        setScenarioGroupMeasurementState((previous) => {
+          if (previous?.key === layoutStateKey && Object.keys(previous.widths).length === 0) {
+            return previous;
+          }
+          return { key: layoutStateKey, widths: {}, settled: true };
+        });
+      });
+      return;
+    }
+
+    const measured = measureScenarioGroupWidths(document);
+    queueMicrotask(() => {
+      setScenarioGroupMeasurementState((previous) => {
+        if (previous?.key === layoutStateKey) {
+          const nextKeys = Object.keys(measured);
+          const previousKeys = Object.keys(previous.widths);
+          if (
+            nextKeys.length === previousKeys.length &&
+            nextKeys.every((key) => previous.widths[key] === measured[key])
+          ) {
+            return previous;
+          }
+        }
+        return {
+          key: layoutStateKey,
+          widths: measured,
+          settled: true
+        };
+      });
+    });
+  }, [diagramMode, rawSceneModel, theme, layoutStateKey]);
 
   const initialCamera = useMemo(() => {
     if (diagramRendererId !== 'dom-svg-camera' || !sceneModel?.viewport) {
@@ -297,6 +391,9 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
   return {
     parsed: diagramParsed,
     sceneModel,
+    measurementScenarioGroups: diagramMode === 'overview'
+      ? (rawSceneModel?.scenarioGroups ?? [])
+      : [],
     initialCamera,
     rendererViewportKey,
     dragTooltip,

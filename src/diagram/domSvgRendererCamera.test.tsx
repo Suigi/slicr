@@ -311,6 +311,40 @@ describe('DomSvgDiagramRendererCamera', () => {
     expect((scenarioNodeCards[0] as HTMLElement | undefined)?.style.maxWidth ?? '').toBe('');
   });
 
+  it('renders overview scenario groups at their slice-specific positions', () => {
+    const scene = baseScene();
+    scene.scenarioGroups = [
+      {
+        key: 'overview-scenario-group-slice-1',
+        sliceId: 'slice-1',
+        sliceName: 'Slice 1',
+        left: 72,
+        top: 258,
+        width: 236,
+        height: 200,
+        scenarios: [
+          {
+            name: 'Grouped Scenario',
+            srcRange: { from: 20, to: 40 },
+            given: [{ key: 'node-1', type: 'evt', title: 'todo-added', prefix: 'evt', srcRange: { from: 21, to: 22 } }],
+            when: { key: 'node-1', type: 'cmd', title: 'complete-todo', prefix: 'cmd', srcRange: { from: 23, to: 24 } },
+            then: [{ key: 'node-1', type: 'evt', title: 'todo-completed', prefix: 'evt', srcRange: { from: 25, to: 26 } }]
+          }
+        ]
+      }
+    ];
+
+    renderRenderer({ sceneModel: scene });
+
+    const groups = [...document.querySelectorAll('.scenario-area.scenario-group')] as HTMLElement[];
+    const box = document.querySelector('.scenario-group .scenario-box') as HTMLElement | null;
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.style.left).toBe('72px');
+    expect(groups[0]?.style.top).toBe('258px');
+    expect(groups[0]?.style.width).toBe('236px');
+    expect(box?.textContent).toContain('Grouped Scenario');
+  });
+
   it('lays out multiple scenario boxes horizontally in source order', () => {
     const scene = baseScene();
     scene.scenarios = [

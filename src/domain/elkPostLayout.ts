@@ -2,7 +2,11 @@ import { PAD_X } from './layoutGraph';
 import type { Edge, Position } from './types';
 
 export type BoundarySpec = { afterKey: string; afterIndex: number };
-export type SliceOrderFloorSpec = { sliceId: string; nodeKeys: string[] };
+export type SliceOrderFloorSpec = {
+  sliceId: string;
+  nodeKeys: string[];
+  scenarioGroupWidth?: number;
+};
 export type OverviewPostLayoutArgs = {
   sliceSpecs: SliceOrderFloorSpec[];
   laneKeys: Map<number, string[]>;
@@ -124,12 +128,16 @@ export function applySliceOrderFloorPass(
       changed = true;
     }
 
+    const scenarioGroupRightEdge = typeof slice.scenarioGroupWidth === 'number'
+      ? (sliceMinX - 28) + slice.scenarioGroupWidth
+      : Number.NEGATIVE_INFINITY;
     previousSliceRightEdge = Math.max(
       previousSliceRightEdge,
       ...slice.nodeKeys
         .map((key) => nodesById[key])
         .filter((node): node is Position => Boolean(node))
-        .map((node) => node.x + node.w)
+        .map((node) => node.x + node.w),
+      scenarioGroupRightEdge
     );
   }
 

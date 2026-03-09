@@ -100,6 +100,7 @@ function createScene(overrides: Partial<DiagramSceneModel> = {}): DiagramSceneMo
     ],
     boundaries: [],
     scenarios: [],
+    scenarioGroups: [],
     worldWidth: 600,
     worldHeight: 400,
     title: { text: 'Slice', top: 6, left: 8 },
@@ -141,6 +142,56 @@ describe('rendererContract', () => {
     const result = validateDiagramSceneModel(createScene());
     expect(result.ok).toBe(true);
     expect(result.errors).toHaveLength(0);
+  });
+
+  it('accepts overview scenario groups in the scene contract', () => {
+    const scene = createScene({
+      scenarioGroups: [
+        {
+          key: 'slice-1-scenarios',
+          sliceId: 'slice-1',
+          sliceName: 'Slice 1',
+          left: 120,
+          top: 480,
+          width: 260,
+          height: 176,
+          scenarios: [
+            {
+              name: 'Rename item',
+              srcRange: { from: 10, to: 20 },
+              given: [],
+              when: null,
+              then: []
+            }
+          ]
+        }
+      ]
+    });
+
+    const result = validateDiagramSceneModel(scene);
+
+    expect(result.ok).toBe(true);
+    expect(createScene().scenarioGroups).toEqual([]);
+    expect(scene.scenarioGroups).toEqual([
+      {
+        key: 'slice-1-scenarios',
+        sliceId: 'slice-1',
+        sliceName: 'Slice 1',
+        left: 120,
+        top: 480,
+        width: 260,
+        height: 176,
+        scenarios: [
+          {
+            name: 'Rename item',
+            srcRange: { from: 10, to: 20 },
+            given: [],
+            when: null,
+            then: []
+          }
+        ]
+      }
+    ]);
   });
 
   it('reports duplicate node and edge keys', () => {

@@ -6,7 +6,7 @@ import type { DiagramRendererId } from '../domain/runtimeFlags';
 import { NodeCard } from '../NodeCard';
 import type { Range } from '../useDslEditor';
 import type { DragTooltipState } from '../useDiagramInteractions';
-import type { DiagramScenarioNode } from './rendererContract';
+import type { DiagramScenario, DiagramScenarioNode } from './rendererContract';
 
 function toScenarioNodeCardProps(entry: DiagramScenarioNode) {
   return {
@@ -28,6 +28,81 @@ function scenarioAreaLeft(sceneModel: DiagramSceneModel): number {
     return 0;
   }
   return Math.min(...sceneModel.nodes.map((node) => node.x));
+}
+
+function renderScenarioBoxes(
+  scenarios: DiagramScenario[],
+  onNodeHoverRange: (range: Range | null) => void,
+  onNodeSelect: (nodeKey: string) => void,
+  onNodeOpenInEditor: (nodeKey: string, range: Range) => void
+) {
+  return scenarios.map((scenario) => (
+    <section
+      key={`${scenario.name}-${scenario.srcRange.from}`}
+      className="scenario-box"
+    >
+      <h3 className="scenario-title">{scenario.name}</h3>
+      <div className="scenario-section">
+        <div className="scenario-section-label">Given</div>
+        {scenario.given.map((entry, index) => (
+          <NodeCard
+            key={`${scenario.name}-given-${entry.key}-${index}`}
+            {...toScenarioNodeCardProps(entry)}
+            className={`scenario-node-card ${entry.className ?? ''}`.trim()}
+            onMouseEnter={() => onNodeHoverRange(entry.srcRange)}
+            onMouseLeave={() => onNodeHoverRange(null)}
+            onClick={(event) => {
+              event.stopPropagation();
+              onNodeSelect(entry.key);
+            }}
+            onDoubleClick={(event) => {
+              event.stopPropagation();
+              onNodeOpenInEditor(entry.key, entry.srcRange);
+            }}
+          />
+        ))}
+      </div>
+      <div className="scenario-section">
+        <div className="scenario-section-label">When</div>
+        {scenario.when && (
+          <NodeCard
+            {...toScenarioNodeCardProps(scenario.when)}
+            className={`scenario-node-card ${scenario.when.className ?? ''}`.trim()}
+            onMouseEnter={() => onNodeHoverRange(scenario.when!.srcRange)}
+            onMouseLeave={() => onNodeHoverRange(null)}
+            onClick={(event) => {
+              event.stopPropagation();
+              onNodeSelect(scenario.when!.key);
+            }}
+            onDoubleClick={(event) => {
+              event.stopPropagation();
+              onNodeOpenInEditor(scenario.when!.key, scenario.when!.srcRange);
+            }}
+          />
+        )}
+      </div>
+      <div className="scenario-section">
+        <div className="scenario-section-label">Then</div>
+        {scenario.then.map((entry, index) => (
+          <NodeCard
+            key={`${scenario.name}-then-${entry.key}-${index}`}
+            {...toScenarioNodeCardProps(entry)}
+            className={`scenario-node-card ${entry.className ?? ''}`.trim()}
+            onMouseEnter={() => onNodeHoverRange(entry.srcRange)}
+            onMouseLeave={() => onNodeHoverRange(null)}
+            onClick={(event) => {
+              event.stopPropagation();
+              onNodeSelect(entry.key);
+            }}
+            onDoubleClick={(event) => {
+              event.stopPropagation();
+              onNodeOpenInEditor(entry.key, entry.srcRange);
+            }}
+          />
+        ))}
+      </div>
+    </section>
+  ));
 }
 
 export type DiagramRendererAdapterProps = {
@@ -251,7 +326,24 @@ export function DomSvgDiagramRenderer({
               })}
             </svg>
 
-            {sceneModel.scenarios.length > 0 && (
+            {sceneModel.scenarioGroups && sceneModel.scenarioGroups.length > 0 ? (
+              <>
+                {sceneModel.scenarioGroups.map((group) => (
+                  <div
+                    key={group.key}
+                    className="scenario-area scenario-group"
+                    data-scenario-group-key={group.key}
+                    style={{
+                      top: `${group.top}px`,
+                      left: `${group.left}px`,
+                      width: `${group.width}px`
+                    }}
+                  >
+                    {renderScenarioBoxes(group.scenarios, onNodeHoverRange, onNodeSelect, onNodeOpenInEditor)}
+                  </div>
+                ))}
+              </>
+            ) : sceneModel.scenarios.length > 0 && (
               <div
                 className="scenario-area"
                 style={{
@@ -259,73 +351,7 @@ export function DomSvgDiagramRenderer({
                   left: `${scenarioAreaLeft(sceneModel)}px`
                 }}
               >
-                {sceneModel.scenarios.map((scenario) => (
-                  <section
-                    key={`${scenario.name}-${scenario.srcRange.from}`}
-                    className="scenario-box"
-                  >
-                    <h3 className="scenario-title">{scenario.name}</h3>
-                    <div className="scenario-section">
-                      <div className="scenario-section-label">Given</div>
-                      {scenario.given.map((entry, index) => (
-                        <NodeCard
-                          key={`${scenario.name}-given-${entry.key}-${index}`}
-                          {...toScenarioNodeCardProps(entry)}
-                          className={`scenario-node-card ${entry.className ?? ''}`.trim()}
-                          onMouseEnter={() => onNodeHoverRange(entry.srcRange)}
-                          onMouseLeave={() => onNodeHoverRange(null)}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onNodeSelect(entry.key);
-                          }}
-                          onDoubleClick={(event) => {
-                            event.stopPropagation();
-                            onNodeOpenInEditor(entry.key, entry.srcRange);
-                          }}
-                        />
-                      ))}
-                    </div>
-                    <div className="scenario-section">
-                      <div className="scenario-section-label">When</div>
-                      {scenario.when && (
-                        <NodeCard
-                          {...toScenarioNodeCardProps(scenario.when)}
-                          className={`scenario-node-card ${scenario.when.className ?? ''}`.trim()}
-                          onMouseEnter={() => onNodeHoverRange(scenario.when!.srcRange)}
-                          onMouseLeave={() => onNodeHoverRange(null)}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onNodeSelect(scenario.when!.key);
-                          }}
-                          onDoubleClick={(event) => {
-                            event.stopPropagation();
-                            onNodeOpenInEditor(scenario.when!.key, scenario.when!.srcRange);
-                          }}
-                        />
-                      )}
-                    </div>
-                    <div className="scenario-section">
-                      <div className="scenario-section-label">Then</div>
-                      {scenario.then.map((entry, index) => (
-                        <NodeCard
-                          key={`${scenario.name}-then-${entry.key}-${index}`}
-                          {...toScenarioNodeCardProps(entry)}
-                          className={`scenario-node-card ${entry.className ?? ''}`.trim()}
-                          onMouseEnter={() => onNodeHoverRange(entry.srcRange)}
-                          onMouseLeave={() => onNodeHoverRange(null)}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onNodeSelect(entry.key);
-                          }}
-                          onDoubleClick={(event) => {
-                            event.stopPropagation();
-                            onNodeOpenInEditor(entry.key, entry.srcRange);
-                          }}
-                        />
-                      ))}
-                    </div>
-                  </section>
-                ))}
+                {renderScenarioBoxes(sceneModel.scenarios, onNodeHoverRange, onNodeSelect, onNodeOpenInEditor)}
               </div>
             )}
           </div>

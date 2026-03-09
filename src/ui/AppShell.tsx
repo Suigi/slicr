@@ -6,6 +6,7 @@ import { DiagramCanvas } from './app-shell/DiagramCanvas';
 import { NodeAnalysisPanel } from './app-shell/NodeAnalysisPanel';
 import { NodeMeasureLayer } from './app-shell/NodeMeasureLayer';
 import { ProjectRail } from './app-shell/ProjectRail';
+import { ScenarioGroupMeasureLayer } from './app-shell/ScenarioGroupMeasureLayer';
 import { AddNodeDialog } from './app-shell/AddNodeDialog';
 import { ImportNodeDialog } from './app-shell/ImportNodeDialog';
 import { CompactEventsDialog } from './app-shell/CompactEventsDialog';
@@ -153,6 +154,7 @@ export function AppShell(props: AppShellProps) {
       </div>
 
       <NodeMeasureLayer diagram={diagram} constants={constants} />
+      <ScenarioGroupMeasureLayer scenarioGroups={diagram.measurementScenarioGroups} />
     </>
   );
 }
