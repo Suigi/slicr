@@ -2,6 +2,16 @@ import { PAD_X } from './layoutGraph';
 import type { Edge, Position } from './types';
 
 export type BoundarySpec = { afterKey: string; afterIndex: number };
+export type SliceOrderFloorSpec = { sliceId: string; nodeKeys: string[] };
+export type OverviewPostLayoutArgs = {
+  sliceSpecs: SliceOrderFloorSpec[];
+  laneKeys: Map<number, string[]>;
+  nodesById: Record<string, Position>;
+  minInterSliceGap: number;
+  minLaneGap: number;
+  leftLayoutPadding: number;
+  maxPasses?: number;
+};
 
 export function applySuccessorGapPass(
   edges: Edge[],
@@ -82,6 +92,68 @@ export function applyBoundaryFloorPass(
     }
   }
   return changed;
+}
+
+export function applySliceOrderFloorPass(
+  sliceSpecs: SliceOrderFloorSpec[],
+  nodesById: Record<string, Position>,
+  minInterSliceGap: number
+): boolean {
+  let changed = false;
+  let previousSliceRightEdge = Number.NEGATIVE_INFINITY;
+
+  for (const slice of sliceSpecs) {
+    const sliceNodes = slice.nodeKeys
+      .map((key) => nodesById[key])
+      .filter((node): node is Position => Boolean(node));
+    if (sliceNodes.length === 0) {
+      continue;
+    }
+
+    const sliceMinX = Math.min(...sliceNodes.map((node) => node.x));
+    const requiredMinX = previousSliceRightEdge + minInterSliceGap;
+    if (Number.isFinite(requiredMinX) && sliceMinX < requiredMinX) {
+      const delta = requiredMinX - sliceMinX;
+      for (const key of slice.nodeKeys) {
+        const node = nodesById[key];
+        if (!node) {
+          continue;
+        }
+        node.x += delta;
+      }
+      changed = true;
+    }
+
+    previousSliceRightEdge = Math.max(
+      previousSliceRightEdge,
+      ...slice.nodeKeys
+        .map((key) => nodesById[key])
+        .filter((node): node is Position => Boolean(node))
+        .map((node) => node.x + node.w)
+    );
+  }
+
+  return changed;
+}
+
+export function applyOverviewPostLayoutPasses({
+  sliceSpecs,
+  laneKeys,
+  nodesById,
+  minInterSliceGap,
+  minLaneGap,
+  leftLayoutPadding,
+  maxPasses = 6
+}: OverviewPostLayoutArgs): void {
+  for (let pass = 0; pass < maxPasses; pass += 1) {
+    const movedBySliceFloors = applySliceOrderFloorPass(sliceSpecs, nodesById, minInterSliceGap);
+    const movedByLaneGap = applyLaneGapPass(laneKeys, nodesById, minLaneGap);
+    if (!movedBySliceFloors && !movedByLaneGap) {
+      break;
+    }
+  }
+
+  normalizeLeftPadding(nodesById, leftLayoutPadding);
 }
 
 export function normalizeLeftPadding(nodesById: Record<string, Position>, leftLayoutPadding: number): void {
