@@ -1,4 +1,4 @@
-import { Dispatch, SetStateAction, useMemo } from 'react';
+import { Dispatch, SetStateAction, useEffect, useMemo, useRef } from 'react';
 import { MISSING_DATA_VALUE } from '../domain/dataMapping';
 import { formatNodeData } from '../domain/formatNodeData';
 import { parseDsl } from '../domain/parseDsl';
@@ -34,6 +34,14 @@ export function useAppState(): UseAppStateResult {
     setTheme,
     editorOpen,
     setEditorOpen,
+    diagramMode,
+    setDiagramMode,
+    sliceSelectedNodeKey,
+    setSliceSelectedNodeKey,
+    overviewSelectedNodeKey,
+    setOverviewSelectedNodeKey,
+    overviewReturnState,
+    setOverviewReturnState,
     toggleRef,
     sliceMenuRef,
     mobileMenuRef,
@@ -44,8 +52,6 @@ export function useAppState(): UseAppStateResult {
     setHighlightRange,
     hoveredEditorRange,
     setHoveredEditorRange,
-    selectedNodeKey,
-    setSelectedNodeKey,
     hoveredEdgeKey,
     setHoveredEdgeKey,
     diagramRendererId,
@@ -89,6 +95,43 @@ export function useAppState(): UseAppStateResult {
     currentSliceName,
     THEME_STORAGE_KEY
   } = local;
+
+  const diagramSelectedNodeKey = diagramMode === 'overview' ? overviewSelectedNodeKey : sliceSelectedNodeKey;
+  const analysisSelectedNodeKey = diagramMode === 'overview' ? null : sliceSelectedNodeKey;
+  const editorOpenRef = useRef(editorOpen);
+  const sliceSelectedNodeKeyRef = useRef(sliceSelectedNodeKey);
+
+  useEffect(() => {
+    editorOpenRef.current = editorOpen;
+  }, [editorOpen]);
+
+  useEffect(() => {
+    sliceSelectedNodeKeyRef.current = sliceSelectedNodeKey;
+  }, [sliceSelectedNodeKey]);
+
+  const setTrackedEditorOpen: Dispatch<SetStateAction<boolean>> = (updater) => {
+    const nextValue = typeof updater === 'function'
+      ? (updater as (current: boolean) => boolean)(editorOpenRef.current)
+      : updater;
+    editorOpenRef.current = nextValue;
+    setEditorOpen(nextValue);
+  };
+
+  const setTrackedSliceSelectedNodeKey: Dispatch<SetStateAction<string | null>> = (updater) => {
+    const nextValue = typeof updater === 'function'
+      ? (updater as (current: string | null) => string | null)(sliceSelectedNodeKeyRef.current)
+      : updater;
+    sliceSelectedNodeKeyRef.current = nextValue;
+    setSliceSelectedNodeKey(nextValue);
+  };
+
+  const setSelectedNodeKey: Dispatch<SetStateAction<string | null>> = (updater) => {
+    if (diagramMode === 'overview') {
+      setOverviewSelectedNodeKey(updater);
+      return;
+    }
+    setTrackedSliceSelectedNodeKey(updater);
+  };
 
   const sliceDocuments = useMemo(
     () => library.slices.map((slice) => ({ id: slice.id, dsl: slice.dsl })),
@@ -148,25 +191,29 @@ export function useAppState(): UseAppStateResult {
     parsed,
     currentDsl,
     selectedSliceId: library.selectedSliceId,
-    selectedNodeKey,
+    selectedNodeKey: analysisSelectedNodeKey,
     parsedSliceProjectionList,
     parsedSliceProjections,
     crossSliceDataEnabled
   });
 
+  const diagramDragAndDropEnabled = diagramMode === 'slice' ? dragAndDropEnabled : false;
+
   const diagramView = useDiagramViewState({
+    diagramMode,
     parsed,
+    parsedSliceProjectionList,
     currentDsl,
     theme,
     diagramRendererId,
     selectedSliceId: library.selectedSliceId,
-    dragAndDropEnabled,
+    dragAndDropEnabled: diagramDragAndDropEnabled,
     manualNodePositions,
     manualEdgePoints,
     setManualNodePositions,
     setManualEdgePoints,
     hoveredEditorRange,
-    selectedNodeKey,
+    selectedNodeKey: diagramSelectedNodeKey,
     hoveredEdgeKey,
     hoveredTraceNodeKey: analysis.hoveredTraceNodeKey,
     focusRequestVersion,
@@ -226,7 +273,7 @@ export function useAppState(): UseAppStateResult {
     setSelectedNodeKey,
     setHighlightRange,
     setLibrary,
-    setEditorOpen,
+    setEditorOpen: setTrackedEditorOpen,
     setSliceMenuOpen,
     setMobileMenuOpen,
     setCommandPaletteOpen,
@@ -241,6 +288,7 @@ export function useAppState(): UseAppStateResult {
   });
 
   const actions = useAppActions({
+    diagramMode,
     parsed,
     currentDsl,
     activeLayout: diagramView.activeLayout,
@@ -253,6 +301,9 @@ export function useAppState(): UseAppStateResult {
     setSelectedNodePanelTab: analysis.setSelectedNodePanelTab,
     setCommandPaletteOpen,
     setSelectedNodeKey,
+    setSliceSelectedNodeKey: setTrackedSliceSelectedNodeKey,
+    setOverviewSelectedNodeKey,
+    setOverviewReturnState,
     setHighlightRange,
     setLibrary,
     projectIndex,
@@ -261,7 +312,11 @@ export function useAppState(): UseAppStateResult {
     applySelectedSliceOverrides,
     pendingFocusNodeKeyRef,
     setFocusRequestVersion,
-    setEditorOpen,
+    editorOpenRef,
+    sliceSelectedNodeKeyRef,
+    overviewReturnState,
+    setEditorOpen: setTrackedEditorOpen,
+    setDiagramMode,
     focusRange,
     setSliceMenuOpen,
     setProjectRailOpen,
@@ -285,6 +340,7 @@ export function useAppState(): UseAppStateResult {
 
   return {
     header: {
+      diagramMode,
       projectIndex,
       selectedProjectId,
       currentProjectName,
@@ -312,7 +368,8 @@ export function useAppState(): UseAppStateResult {
       expandAllRegions
     },
     diagram: {
-      parsed,
+      diagramMode,
+      parsed: diagramView.parsed,
       parsedSliceProjectionList,
       currentDsl,
       sceneModel: diagramView.sceneModel,
@@ -321,7 +378,7 @@ export function useAppState(): UseAppStateResult {
       rendererViewportKey: diagramView.rendererViewportKey,
       initialCamera: diagramView.initialCamera,
       dragTooltip: diagramView.dragTooltip,
-      dragAndDropEnabled,
+      dragAndDropEnabled: diagramDragAndDropEnabled,
       isPanning: diagramView.isPanning,
       canvasPanelRef: diagramView.canvasPanelRef,
       beginCanvasPan: diagramView.beginCanvasPan,

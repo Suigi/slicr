@@ -1,4 +1,4 @@
-import { DiagramEngineLayout, RenderedDiagramEdge } from '../domain/diagramEngine';
+import { DiagramEngineLayout, OverviewNodeMetadata, RenderedDiagramEdge } from '../domain/diagramEngine';
 import { routeRoundedPolyline } from '../domain/diagramRouting';
 import { PAD_X, rowFor } from '../domain/layoutGraph';
 import type { LayoutResult, Parsed, Position, VisualNode } from '../domain/types';
@@ -10,6 +10,7 @@ import type {
   DiagramScenario,
   DiagramScenarioNode,
   DiagramSceneModel,
+  DiagramSliceFrame,
   DiagramTitle,
   DiagramViewport
 } from './rendererContract';
@@ -31,6 +32,11 @@ const SCENARIO_AREA_TOP_GAP = 24;
 const SCENARIO_BOX_HEIGHT = 176;
 const SCENARIO_BOX_GAP = 16;
 const SCENARIO_AREA_BOTTOM_PADDING = 24;
+const OVERVIEW_SLICE_FRAME_PADDING_X = 28;
+const OVERVIEW_SLICE_FRAME_PADDING_TOP = 22;
+const OVERVIEW_SLICE_FRAME_PADDING_BOTTOM = 24;
+const OVERVIEW_SLICE_FRAME_LABEL_GAP = 14;
+const OVERVIEW_SLICE_FRAME_LABEL_HEIGHT = 14;
 
 export type BuildSceneModelInput = {
   parsed: Parsed | null;
@@ -42,6 +48,7 @@ export type BuildSceneModelInput = {
   selectedNodeKey: string | null;
   hoveredEdgeKey: string | null;
   hoveredTraceNodeKey: string | null;
+  overviewNodeMetadataByKey?: Map<string, OverviewNodeMetadata>;
   canvasMargin?: number;
   laneLabelLeft?: number;
 };
@@ -50,6 +57,8 @@ function computeCanvasViewport(
   activeLayout: LayoutResult,
   displayedPos: Record<string, Position>,
   renderedEdges: RenderedDiagramEdge[],
+  title: DiagramTitle | null,
+  sliceFrames: DiagramSliceFrame[],
   canvasMargin: number,
   scenarioCount: number
 ): DiagramViewport {
@@ -78,6 +87,18 @@ function computeCanvasViewport(
     }
   }
 
+  if (title) {
+    minX = Math.min(minX, title.left);
+    minY = Math.min(minY, title.top);
+  }
+
+  for (const frame of sliceFrames) {
+    minX = Math.min(minX, frame.left, frame.labelLeft);
+    minY = Math.min(minY, frame.top, frame.labelTop);
+    maxX = Math.max(maxX, frame.left + frame.width);
+    maxY = Math.max(maxY, frame.top + frame.height);
+  }
+
   if (scenarioCount > 0) {
     const scenariosHeight = (scenarioCount * SCENARIO_BOX_HEIGHT)
       + (Math.max(0, scenarioCount - 1) * SCENARIO_BOX_GAP)
@@ -93,6 +114,56 @@ function computeCanvasViewport(
     offsetX: canvasMargin - minX,
     offsetY: canvasMargin - minY
   };
+}
+
+function buildOverviewSliceFrames(
+  displayedPos: Record<string, Position>,
+  visibleNodeKeys: Set<string>,
+  overviewNodeMetadataByKey?: Map<string, OverviewNodeMetadata>
+): DiagramSliceFrame[] {
+  if (!overviewNodeMetadataByKey || overviewNodeMetadataByKey.size === 0) {
+    return [];
+  }
+
+  const sliceBounds = new Map<string, {
+    label: string;
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+  }>();
+
+  for (const key of visibleNodeKeys) {
+    const position = displayedPos[key];
+    const metadata = overviewNodeMetadataByKey.get(key);
+    if (!position || !metadata) {
+      continue;
+    }
+
+    const existing = sliceBounds.get(metadata.sourceSliceId);
+    sliceBounds.set(metadata.sourceSliceId, {
+      label: metadata.sourceSliceName,
+      minX: existing ? Math.min(existing.minX, position.x) : position.x,
+      minY: existing ? Math.min(existing.minY, position.y) : position.y,
+      maxX: existing ? Math.max(existing.maxX, position.x + position.w) : position.x + position.w,
+      maxY: existing ? Math.max(existing.maxY, position.y + position.h) : position.y + position.h
+    });
+  }
+
+  return [...sliceBounds.entries()].map(([sliceId, bounds]) => {
+    const left = bounds.minX - OVERVIEW_SLICE_FRAME_PADDING_X;
+    const top = bounds.minY - OVERVIEW_SLICE_FRAME_PADDING_TOP;
+    return {
+      key: `overview-slice-frame-${sliceId}`,
+      label: bounds.label,
+      left,
+      top,
+      width: (bounds.maxX - bounds.minX) + OVERVIEW_SLICE_FRAME_PADDING_X * 2,
+      height: (bounds.maxY - bounds.minY) + OVERVIEW_SLICE_FRAME_PADDING_TOP + OVERVIEW_SLICE_FRAME_PADDING_BOTTOM,
+      labelLeft: left,
+      labelTop: top - OVERVIEW_SLICE_FRAME_LABEL_GAP - OVERVIEW_SLICE_FRAME_LABEL_HEIGHT
+    };
+  });
 }
 
 function buildLanes(
@@ -257,6 +328,7 @@ export function buildSceneModel(input: BuildSceneModelInput): DiagramSceneModel 
     selectedNodeKey,
     hoveredEdgeKey,
     hoveredTraceNodeKey,
+    overviewNodeMetadataByKey,
     canvasMargin = DEFAULT_CANVAS_MARGIN,
     laneLabelLeft = Math.max(8, PAD_X - 48)
   } = input;
@@ -265,7 +337,6 @@ export function buildSceneModel(input: BuildSceneModelInput): DiagramSceneModel 
     return null;
   }
 
-  const viewport = computeCanvasViewport(activeLayout, displayedPos, renderedEdges, canvasMargin, parsed.scenarios.length);
   const scenarioOnlyNodeKeys = new Set(parsed.scenarioOnlyNodeKeys);
   const visibleNodeKeys = new Set([...parsed.nodes.keys()].filter((key) => !scenarioOnlyNodeKeys.has(key)));
   const lanes = buildLanes(parsed, activeLayout, engineLayout, displayedPos, visibleNodeKeys, laneLabelLeft);
@@ -276,9 +347,11 @@ export function buildSceneModel(input: BuildSceneModelInput): DiagramSceneModel 
     }
   }
   const boundaries = buildBoundaries(parsed, visibleDisplayedPos, lanes, activeLayout.h);
-  const title: DiagramTitle | null = parsed.sliceName
+  const sliceFrames = buildOverviewSliceFrames(visibleDisplayedPos, visibleNodeKeys, overviewNodeMetadataByKey);
+  const title: DiagramTitle | null = sliceFrames.length === 0 && parsed.sliceName
     ? { text: parsed.sliceName, top: 6, left: PAD_X }
     : null;
+  const viewport = computeCanvasViewport(activeLayout, displayedPos, renderedEdges, title, sliceFrames, canvasMargin, parsed.scenarios.length);
 
   const hoveredEdge = hoveredEdgeKey
     ? renderedEdges.find(({ edgeKey }) => edgeKey === hoveredEdgeKey)
@@ -356,6 +429,7 @@ export function buildSceneModel(input: BuildSceneModelInput): DiagramSceneModel 
     worldWidth: activeLayout.w,
     worldHeight: activeLayout.h,
     title,
+    sliceFrames,
     viewport
   };
 }

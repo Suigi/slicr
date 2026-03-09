@@ -2,6 +2,7 @@ import { act } from 'react';
 import ReactDOM from 'react-dom/client';
 import { afterEach, describe, expect, it } from 'vitest';
 import App from './App';
+import { SLICES_STORAGE_KEY } from './sliceLibrary';
 
 let root: ReactDOM.Root | null = null;
 let host: HTMLDivElement | null = null;
@@ -29,6 +30,127 @@ function renderApp() {
 }
 
 describe('App command palette interactions', () => {
+  it('shows Show Project Overview in slice mode and enters overview from the command palette', () => {
+    renderApp();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+    });
+
+    const showOverviewItem = (
+      [...document.querySelectorAll('.command-palette-item')]
+        .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Show Project Overview')
+    ) as HTMLButtonElement | undefined;
+    expect(showOverviewItem).toBeDefined();
+    expect(
+      [...document.querySelectorAll('.command-palette-item')]
+        .some((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Hide Project Overview')
+    ).toBe(false);
+
+    act(() => {
+      showOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(document.querySelector('.command-palette')).toBeNull();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+    });
+
+    expect(
+      [...document.querySelectorAll('.command-palette-item')]
+        .some((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Show Project Overview')
+    ).toBe(false);
+    expect(
+      [...document.querySelectorAll('.command-palette-item')]
+        .some((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Hide Project Overview')
+    ).toBe(true);
+  });
+
+  it('shows Hide Project Overview in overview mode and exits overview from the command palette', () => {
+    renderApp();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+    });
+
+    const showOverviewItem = (
+      [...document.querySelectorAll('.command-palette-item')]
+        .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Show Project Overview')
+    ) as HTMLButtonElement | undefined;
+    expect(showOverviewItem).toBeDefined();
+
+    act(() => {
+      showOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+    });
+
+    const hideOverviewItem = (
+      [...document.querySelectorAll('.command-palette-item')]
+        .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Hide Project Overview')
+    ) as HTMLButtonElement | undefined;
+    expect(hideOverviewItem).toBeDefined();
+
+    act(() => {
+      hideOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(document.querySelector('.command-palette')).toBeNull();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+    });
+
+    expect(
+      [...document.querySelectorAll('.command-palette-item')]
+        .some((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Show Project Overview')
+    ).toBe(true);
+    expect(
+      [...document.querySelectorAll('.command-palette-item')]
+        .some((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Hide Project Overview')
+    ).toBe(false);
+  });
+
+  it('keeps dot-prefixed slice filtering focused on slices instead of overview commands', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'slice-a',
+        slices: [
+          { id: 'slice-a', dsl: 'slice "Alpha"\n\nevt:first' },
+          { id: 'slice-b', dsl: 'slice "Beta"\n\nevt:second' }
+        ]
+      })
+    );
+
+    renderApp();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+    });
+
+    const search = document.querySelector('.command-palette-search') as HTMLInputElement | null;
+    expect(search).not.toBeNull();
+
+    act(() => {
+      if (search) {
+        const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+        setValue?.call(search, '.be');
+        search.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+
+    const items = [...document.querySelectorAll('.command-palette-item-title')]
+      .map((node) => node.textContent?.trim())
+      .filter(Boolean);
+    expect(items).toEqual(['Beta']);
+    expect(items).not.toContain('Show Project Overview');
+    expect(items).not.toContain('Hide Project Overview');
+  });
+
   it('opens create project dialog from command palette', () => {
     renderApp();
 

@@ -16,6 +16,19 @@ export function CommandPalette({ auxPanels, actions, header }: CommandPalettePro
 
   const commands = useMemo(
     () => [
+      header.diagramMode === 'slice'
+        ? {
+            id: 'show-project-overview',
+            label: 'Show Project Overview',
+            context: 'View | Project',
+            run: actions.onShowProjectOverview
+          }
+        : {
+            id: 'hide-project-overview',
+            label: 'Hide Project Overview',
+            context: 'View | Project',
+            run: actions.onHideProjectOverview
+          },
       {
         id: 'add-node',
         label: 'Add Node...',
@@ -55,7 +68,7 @@ export function CommandPalette({ auxPanels, actions, header }: CommandPalettePro
           run: () => actions.onSwitchProject(project.id)
         }))
     ],
-    [actions, header.projectIndex.projects, header.selectedProjectId]
+    [actions, header.diagramMode, header.projectIndex.projects, header.selectedProjectId]
   );
 
   const isFuzzyMatch = (queryText: string, targetText: string) => {

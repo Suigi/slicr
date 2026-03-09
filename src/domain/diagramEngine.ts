@@ -18,6 +18,7 @@ export type DiagramEngineLayout = {
 
 export type OverviewNodeMetadata = {
   sourceSliceId: string;
+  sourceSliceName: string;
   sourceNodeKey: string;
   sliceDslOrder: number;
 };
@@ -91,6 +92,7 @@ export function buildOverviewDiagramGraph(parsedSlices: ParsedSliceProjection<Pa
       });
       nodeMetadataByKey.set(namespacedKey, {
         sourceSliceId: slice.id,
+        sourceSliceName: slice.parsed.sliceName,
         sourceNodeKey: key,
         sliceDslOrder: dslOrder
       });

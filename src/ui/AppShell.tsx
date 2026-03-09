@@ -25,6 +25,7 @@ export function AppShell(props: AppShellProps) {
     collapseAllRegions,
     expandAllRegions
   } = editor;
+  const overviewActive = header.diagramMode === 'overview';
 
   return (
     <>
@@ -35,7 +36,7 @@ export function AppShell(props: AppShellProps) {
       <div className="main">
         <ProjectRail header={header} actions={actions} auxPanels={auxPanels} visible={header.projectRailOpen} />
 
-        <div ref={editorRef} className={`editor-panel ${editorOpen ? 'open' : ''}`}>
+        <div ref={editorRef} className={`editor-panel ${editorOpen ? 'open' : ''} ${overviewActive ? 'hidden' : ''}`.trim()}>
           <div className="panel-label">
             <div className="panel-handle" />
             <button type="button" className="panel-action" onClick={collapseAllDataRegions} aria-label="Collapse all data regions" title="Collapse data regions">

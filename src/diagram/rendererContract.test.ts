@@ -103,6 +103,7 @@ function createScene(overrides: Partial<DiagramSceneModel> = {}): DiagramSceneMo
     worldWidth: 600,
     worldHeight: 400,
     title: { text: 'Slice', top: 6, left: 8 },
+    sliceFrames: [],
     viewport: {
       width: 600,
       height: 400,

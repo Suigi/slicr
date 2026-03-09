@@ -36,6 +36,7 @@ function renderWithRegistryRenderer(rendererId: 'dom-svg' | 'dom-svg-camera') {
     worldWidth: 100,
     worldHeight: 100,
     title: null,
+    sliceFrames: [],
     viewport: { width: 100, height: 100, offsetX: 0, offsetY: 0 }
   };
 

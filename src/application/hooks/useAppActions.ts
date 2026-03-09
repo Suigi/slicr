@@ -1,16 +1,17 @@
-import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
+import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
 import { addNewSlice, loadSliceLibrary, selectSlice, updateSelectedSliceDsl, type SliceLibrary } from '../../sliceLibrary';
 import { appendProjectCreatedEvent, appendProjectSelectedEvent, loadProjectIndex, selectProject, type ProjectIndex } from '../../projectLibrary';
 import { DEFAULT_DSL } from '../../defaultDsl';
 import type { Parsed, Position } from '../../domain/types';
 import type { DiagramPoint } from '../../domain/diagramRouting';
-import type { ActionsSection, NodePanelTab } from '../appViewModel';
+import type { ActionsSection, DiagramMode, NodePanelTab } from '../appViewModel';
 import type { Range } from '../../useDslEditor';
 import { executeEventCompaction, type CompactionPlan } from '../../eventCompaction';
 
 type RenderedEdge = { edgeKey: string; edge: { from: string; to: string }; geometry: { d: string; points?: DiagramPoint[] } };
 
 type UseAppActionsArgs = {
+  diagramMode: DiagramMode;
   parsed: Parsed | null;
   currentDsl: string;
   activeLayout: { pos: Record<string, Position> } | null;
@@ -23,6 +24,9 @@ type UseAppActionsArgs = {
   setSelectedNodePanelTab: Dispatch<SetStateAction<NodePanelTab>>;
   setCommandPaletteOpen: Dispatch<SetStateAction<boolean>>;
   setSelectedNodeKey: Dispatch<SetStateAction<string | null>>;
+  setSliceSelectedNodeKey: Dispatch<SetStateAction<string | null>>;
+  setOverviewSelectedNodeKey: Dispatch<SetStateAction<string | null>>;
+  setOverviewReturnState: Dispatch<SetStateAction<{ editorOpen: boolean; selectedNodeKey: string | null }>>;
   setHighlightRange: Dispatch<SetStateAction<Range | null>>;
   setLibrary: Dispatch<SetStateAction<SliceLibrary>>;
   projectIndex: ProjectIndex;
@@ -31,7 +35,11 @@ type UseAppActionsArgs = {
   applySelectedSliceOverrides: (sliceId: string, projectId?: string) => void;
   pendingFocusNodeKeyRef: MutableRefObject<string | null>;
   setFocusRequestVersion: Dispatch<SetStateAction<number>>;
+  editorOpenRef: RefObject<boolean>;
+  sliceSelectedNodeKeyRef: RefObject<string | null>;
+  overviewReturnState: { editorOpen: boolean; selectedNodeKey: string | null };
   setEditorOpen: Dispatch<SetStateAction<boolean>>;
+  setDiagramMode: Dispatch<SetStateAction<DiagramMode>>;
   focusRange: (range: Range) => void;
   setSliceMenuOpen: Dispatch<SetStateAction<boolean>>;
   setProjectRailOpen: Dispatch<SetStateAction<boolean>>;
@@ -55,6 +63,7 @@ type UseAppActionsArgs = {
 
 export function useAppActions(args: UseAppActionsArgs): ActionsSection {
   const {
+    diagramMode,
     parsed,
     currentDsl,
     activeLayout,
@@ -67,6 +76,9 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
     setSelectedNodePanelTab,
     setCommandPaletteOpen,
     setSelectedNodeKey,
+    setSliceSelectedNodeKey,
+    setOverviewSelectedNodeKey,
+    setOverviewReturnState,
     setHighlightRange,
     setLibrary,
     projectIndex,
@@ -75,7 +87,11 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
     applySelectedSliceOverrides,
     pendingFocusNodeKeyRef,
     setFocusRequestVersion,
+    editorOpenRef,
+    sliceSelectedNodeKeyRef,
+    overviewReturnState,
     setEditorOpen,
+    setDiagramMode,
     focusRange,
     setSliceMenuOpen,
     setProjectRailOpen,
@@ -370,6 +386,31 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
       setCommandPaletteOpen(false);
     },
     onRunTraceCommand,
-    onShowUsageCommand
+    onShowUsageCommand,
+    onShowProjectOverview: () => {
+      if (diagramMode === 'overview') {
+        setCommandPaletteOpen(false);
+        return;
+      }
+      setOverviewReturnState({
+        editorOpen: editorOpenRef.current ?? false,
+        selectedNodeKey: sliceSelectedNodeKeyRef.current ?? null
+      });
+      setSliceSelectedNodeKey(null);
+      setOverviewSelectedNodeKey(null);
+      setHighlightRange(null);
+      setHoveredEdgeKey(null);
+      setHoveredTraceNodeKey(null);
+      setEditorOpen(false);
+      setDiagramMode('overview');
+      setCommandPaletteOpen(false);
+    },
+    onHideProjectOverview: () => {
+      setOverviewSelectedNodeKey(null);
+      setEditorOpen(overviewReturnState.editorOpen);
+      setSliceSelectedNodeKey(overviewReturnState.selectedNodeKey);
+      setDiagramMode('slice');
+      setCommandPaletteOpen(false);
+    }
   };
 }

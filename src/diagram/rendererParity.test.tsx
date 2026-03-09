@@ -104,6 +104,7 @@ function createScene(): DiagramSceneModel {
     worldWidth: 900,
     worldHeight: 700,
     title: null,
+    sliceFrames: [],
     viewport: {
       width: 1000,
       height: 800,

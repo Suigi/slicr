@@ -5,6 +5,7 @@ import { getDiagramRendererId, isCrossSliceDataEnabled, isDragAndDropEnabled, sh
 import { getSliceNameFromDsl, loadSliceLayoutOverrides, loadSliceLibrary, type SliceLibrary } from '../../sliceLibrary';
 import { loadProjectIndex } from '../../projectLibrary';
 import type { Range } from '../../useDslEditor';
+import type { DiagramMode } from '../appViewModel';
 
 const THEME_STORAGE_KEY = 'slicr.theme';
 
@@ -36,6 +37,13 @@ export function useAppLocalState() {
     }
   });
   const [editorOpen, setEditorOpen] = useState(false);
+  const [diagramMode, setDiagramMode] = useState<DiagramMode>('slice');
+  const [sliceSelectedNodeKey, setSliceSelectedNodeKey] = useState<string | null>(null);
+  const [overviewSelectedNodeKey, setOverviewSelectedNodeKey] = useState<string | null>(null);
+  const [overviewReturnState, setOverviewReturnState] = useState<{ editorOpen: boolean; selectedNodeKey: string | null }>({
+    editorOpen: false,
+    selectedNodeKey: null
+  });
   const toggleRef = useRef<HTMLButtonElement>(null);
   const sliceMenuRef = useRef<HTMLDivElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
@@ -44,7 +52,6 @@ export function useAppLocalState() {
   const editorMountRef = useRef<HTMLDivElement>(null);
   const [highlightRange, setHighlightRange] = useState<Range | null>(null);
   const [hoveredEditorRange, setHoveredEditorRange] = useState<Range | null>(null);
-  const [selectedNodeKey, setSelectedNodeKey] = useState<string | null>(null);
   const [hoveredEdgeKey, setHoveredEdgeKey] = useState<string | null>(null);
   const [diagramRendererId] = useState(() => getDiagramRendererId(window.location.hostname));
   const [docsOpen, setDocsOpen] = useState(false);
@@ -92,6 +99,14 @@ export function useAppLocalState() {
     setTheme,
     editorOpen,
     setEditorOpen,
+    diagramMode,
+    setDiagramMode,
+    sliceSelectedNodeKey,
+    setSliceSelectedNodeKey,
+    overviewSelectedNodeKey,
+    setOverviewSelectedNodeKey,
+    overviewReturnState,
+    setOverviewReturnState,
     toggleRef,
     sliceMenuRef,
     mobileMenuRef,
@@ -102,8 +117,6 @@ export function useAppLocalState() {
     setHighlightRange,
     hoveredEditorRange,
     setHoveredEditorRange,
-    selectedNodeKey,
-    setSelectedNodeKey,
     hoveredEdgeKey,
     setHoveredEdgeKey,
     diagramRendererId,

@@ -16,6 +16,7 @@ import type { CompactionPlan } from '../eventCompaction';
 
 export type ThemeMode = 'dark' | 'light';
 export type NodePanelTab = 'usage' | 'crossSliceData' | 'trace';
+export type DiagramMode = 'slice' | 'overview';
 
 export type CrossSliceUsageEntry = {
   usage: CrossSliceUsageRef;
@@ -45,6 +46,7 @@ export type RangeHoverHandler = (range: Range | null) => void;
 export type TraceNodeHoverHandler = ValueChangeHandler<string | null>;
 
 export type HeaderSection = {
+  diagramMode: DiagramMode;
   projectIndex: ProjectIndex;
   selectedProjectId: string;
   currentProjectName: string;
@@ -74,6 +76,7 @@ export type EditorSection = {
 };
 
 export type DiagramSection = {
+  diagramMode: DiagramMode;
   parsed: Parsed | null;
   parsedSliceProjectionList: ParsedSliceProjection<Parsed>[];
   currentDsl: string;
@@ -174,6 +177,8 @@ export type ActionsSection = {
   onApplySliceTemplateFromDialog: (args: { targetMode: 'create-new' | 'add-current'; text: string }) => void;
   onRunTraceCommand: () => void;
   onShowUsageCommand: () => void;
+  onShowProjectOverview: () => void;
+  onHideProjectOverview: () => void;
 };
 
 export type AppShellProps = {

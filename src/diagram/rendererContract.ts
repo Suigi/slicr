@@ -72,6 +72,17 @@ export type DiagramTitle = {
   left: number;
 };
 
+export type DiagramSliceFrame = {
+  key: string;
+  label: string;
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  labelLeft: number;
+  labelTop: number;
+};
+
 export type DiagramViewport = {
   width: number;
   height: number;
@@ -109,6 +120,7 @@ export type DiagramSceneModel = {
   worldWidth: number;
   worldHeight: number;
   title: DiagramTitle | null;
+  sliceFrames: DiagramSliceFrame[];
   viewport: DiagramViewport | null;
 };
 

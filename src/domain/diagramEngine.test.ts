@@ -25,6 +25,15 @@ function makeProjection(id: string, parsed: Parsed): ParsedSliceProjection<Parse
 }
 
 describe('diagramEngine dimensions plumbing', () => {
+  it('returns an empty overview layout for zero slices', async () => {
+    const layout = await computeOverviewDiagramLayout([]);
+
+    expect(layout.layout.pos).toEqual({});
+    expect(layout.layout.w).toBe(0);
+    expect(layout.layout.h).toBe(0);
+    expect(layout.rowStreamLabels).toEqual({});
+  });
+
   it('computes an overview layout from the ordered parsed slice projection list', async () => {
     const firstNode = makeNode('first-command', 'First command');
     const secondNode = makeNode('second-command', 'Second command');
@@ -232,11 +241,13 @@ describe('diagramEngine dimensions plumbing', () => {
 
     expect(overview.nodeMetadataByKey.get('slice-1::first')).toEqual({
       sourceSliceId: 'slice-1',
+      sourceSliceName: 'slice',
       sourceNodeKey: 'first',
       sliceDslOrder: 0
     });
     expect(overview.nodeMetadataByKey.get('slice-1::second')).toEqual({
       sourceSliceId: 'slice-1',
+      sourceSliceName: 'slice',
       sourceNodeKey: 'second',
       sliceDslOrder: 1
     });

@@ -267,6 +267,26 @@ export function DomSvgDiagramRendererCamera({
               </div>
             )}
 
+            {sceneModel.sliceFrames.map((frame) => (
+              <div key={frame.key}>
+                <div
+                  className="overview-slice-frame"
+                  style={{
+                    left: `${frame.left}px`,
+                    top: `${frame.top}px`,
+                    width: `${frame.width}px`,
+                    height: `${frame.height}px`
+                  }}
+                />
+                <div
+                  className="slice-title overview-slice-frame-label"
+                  style={{ top: `${frame.labelTop}px`, left: `${frame.labelLeft}px` }}
+                >
+                  {frame.label}
+                </div>
+              </div>
+            ))}
+
             {sceneModel.nodes.map((entry) => (
               <NodeCard
                 key={entry.renderKey}

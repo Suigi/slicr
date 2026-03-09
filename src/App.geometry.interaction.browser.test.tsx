@@ -429,6 +429,126 @@ describe('App geometry interactions', () => {
     expect(afterNodeMoveCount).toBe(beforeNodeMoveCount);
   });
 
+  it('disables node dragging and edge handles in overview mode', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [{ id: 'a', dsl: 'slice "A"\n\ncmd:start\n\nevt:finish <- cmd:start' }]
+      })
+    );
+
+    renderApp();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+    });
+
+    const showOverviewItem = (
+      [...document.querySelectorAll('.command-palette-item')]
+        .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Show Project Overview')
+    ) as HTMLButtonElement | undefined;
+    expect(showOverviewItem).toBeDefined();
+
+    act(() => {
+      showOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const node = document.querySelector('.node.cmd') as HTMLElement | null;
+    expect(node).not.toBeNull();
+    expect(document.querySelector('.edge-segment-handle')).toBeNull();
+
+    const beforeRaw = localStorage.getItem('slicr.es.v1.stream.a');
+    const beforeEvents = beforeRaw ? (JSON.parse(beforeRaw) as Array<{ type: string }>) : [];
+    const beforeNodeMoveCount = beforeEvents.filter((event) => event.type === 'node-moved').length;
+
+    const PointerCtor = window.PointerEvent ?? window.MouseEvent;
+    act(() => {
+      node?.dispatchEvent(new PointerCtor('pointerdown', { bubbles: true, button: 0, clientX: 100, clientY: 100, pointerId: 11 }));
+      window.dispatchEvent(new PointerCtor('pointermove', { bubbles: true, buttons: 1, clientX: 180, clientY: 180, pointerId: 11 }));
+      window.dispatchEvent(new PointerCtor('pointerup', { bubbles: true, button: 0, clientX: 180, clientY: 180, pointerId: 11 }));
+    });
+
+    const afterRaw = localStorage.getItem('slicr.es.v1.stream.a');
+    const afterEvents = afterRaw ? (JSON.parse(afterRaw) as Array<{ type: string }>) : [];
+    const afterNodeMoveCount = afterEvents.filter((event) => event.type === 'node-moved').length;
+    expect(afterNodeMoveCount).toBe(beforeNodeMoveCount);
+  });
+
+  it('preserves the main diagram viewport when switching between slice and overview mode', () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'a',
+        slices: [
+          { id: 'a', dsl: 'slice "A"\n\nevt:first-node' },
+          { id: 'b', dsl: 'slice "B"\n\nevt:second-node' }
+        ]
+      })
+    );
+
+    renderApp();
+
+    const panel = document.querySelector('.main .canvas-panel') as HTMLElement | null;
+    expect(panel).not.toBeNull();
+
+    act(() => {
+      panel?.dispatchEvent(new WheelEvent('wheel', {
+        bubbles: true,
+        deltaX: 24,
+        deltaY: 60,
+        clientX: 240,
+        clientY: 260
+      }));
+    });
+
+    const beforeOverview = document.querySelector('.main .canvas-camera-world') as HTMLElement | null;
+    const cameraX = beforeOverview?.dataset.cameraX;
+    const cameraY = beforeOverview?.dataset.cameraY;
+    const cameraZoom = beforeOverview?.dataset.cameraZoom;
+    expect(cameraX).not.toBeUndefined();
+    expect(cameraY).not.toBeUndefined();
+    expect(cameraZoom).not.toBeUndefined();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+    });
+
+    const showOverviewItem = (
+      [...document.querySelectorAll('.command-palette-item')]
+        .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Show Project Overview')
+    ) as HTMLButtonElement | undefined;
+    expect(showOverviewItem).toBeDefined();
+
+    act(() => {
+      showOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const inOverview = document.querySelector('.main .canvas-camera-world') as HTMLElement | null;
+    expect(inOverview?.dataset.cameraX).toBe(cameraX);
+    expect(inOverview?.dataset.cameraY).toBe(cameraY);
+    expect(inOverview?.dataset.cameraZoom).toBe(cameraZoom);
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+    });
+
+    const hideOverviewItem = (
+      [...document.querySelectorAll('.command-palette-item')]
+        .find((button) => button.querySelector('.command-palette-item-title')?.textContent?.trim() === 'Hide Project Overview')
+    ) as HTMLButtonElement | undefined;
+    expect(hideOverviewItem).toBeDefined();
+
+    act(() => {
+      hideOverviewItem?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    const afterOverview = document.querySelector('.main .canvas-camera-world') as HTMLElement | null;
+    expect(afterOverview?.dataset.cameraX).toBe(cameraX);
+    expect(afterOverview?.dataset.cameraY).toBe(cameraY);
+    expect(afterOverview?.dataset.cameraZoom).toBe(cameraZoom);
+  });
+
   it('appends layout-reset events when resetting positions from dev controls', () => {
     setSingleEventSlice();
 
