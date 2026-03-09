@@ -1,4 +1,4 @@
-import { computeDiagramLayout, DiagramEngineId, routeDiagramEdge } from '../domain/diagramEngine';
+import { computeDiagramLayout, routeDiagramEdge } from '../domain/diagramEngine';
 import type { NodeDimensions } from '../domain/nodeSizing';
 import { parseDsl } from '../domain/parseDsl';
 import type { Edge, LayoutResult, Parsed, Position } from '../domain/types';
@@ -53,7 +53,6 @@ export type DiagramMatchOptions = {
 };
 
 export type GeometryHarnessOptions = {
-  engine?: DiagramEngineId;
   nodeDimensions?: Record<string, NodeDimensions>;
   layoutFn?: (parsed: Parsed) => LayoutResult;
   edgeRouteFn?: (from: Position, to: Position, edge: Edge, index: number) => { d: string };
@@ -61,13 +60,12 @@ export type GeometryHarnessOptions = {
 
 export async function computeDiagramGeometry(dsl: string, options: GeometryHarnessOptions = {}): Promise<DiagramGeometry> {
   const parsed = parseDsl(dsl);
-  const engine = options.engine ?? 'elk';
   const computed = options.layoutFn
     ? { layout: options.layoutFn(parsed), laneByKey: new Map<string, number>(), rowStreamLabels: {} as Record<number, string> }
-    : await computeDiagramLayout(parsed, engine, { nodeDimensions: options.nodeDimensions });
+    : await computeDiagramLayout(parsed, { nodeDimensions: options.nodeDimensions });
   const layout = computed.layout;
   const edgeRouteFn = options.edgeRouteFn ?? ((from: Position, to: Position, _edge: Edge, index: number) =>
-    routeDiagramEdge(engine, from, to, { routeIndex: index })
+    routeDiagramEdge(from, to, { routeIndex: index })
   );
 
   const nodes: DiagramNodeRect[] = [...parsed.nodes.values()]

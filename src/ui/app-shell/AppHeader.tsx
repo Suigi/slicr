@@ -13,15 +13,12 @@ export function AppHeader() {
     getSliceNameFromDsl,
     theme,
     docsOpen,
-    routeMode,
     showDevDiagramControls,
     hasManualLayoutOverrides,
     sliceMenuOpen,
-    routeMenuOpen,
     mobileMenuOpen,
     projectRailOpen,
     sliceMenuRef,
-    routeMenuRef,
     mobileMenuRef,
     toggleRef
   } = header;
@@ -202,12 +199,6 @@ export function AppHeader() {
             </button>
             {showDevDiagramControls && (
               <>
-                <button type="button" role="menuitemradio" aria-checked={routeMode === 'elk'} className="mobile-menu-item" onClick={() => { actions.onRouteModeChange('elk'); actions.onCloseMobileMenu(); }}>
-                  Render: ELK {routeMode === 'elk' ? '✓' : ''}
-                </button>
-                <button type="button" role="menuitemradio" aria-checked={routeMode === 'classic'} className="mobile-menu-item" onClick={() => { actions.onRouteModeChange('classic'); actions.onCloseMobileMenu(); }}>
-                  Render: Classic {routeMode === 'classic' ? '✓' : ''}
-                </button>
                 <button type="button" role="menuitem" className="mobile-menu-item" onClick={() => { actions.onResetManualLayout(); actions.onCloseMobileMenu(); }}>
                   Reset positions
                 </button>
@@ -221,42 +212,15 @@ export function AppHeader() {
       </div>
       {showDevDiagramControls && (
         <>
-          <div className="route-menu desktop-only" ref={routeMenuRef}>
-            <button
-              type="button"
-              className={`route-toggle ${hasManualLayoutOverrides ? 'has-manual-layout-overrides' : ''}`}
-              aria-label="Select render mode"
-              title="Select render mode"
-              onClick={actions.onToggleRouteMenu}
-            >
-              {routeMode === 'elk' ? 'ELK' : 'Classic'} ▾
-            </button>
-            {routeMenuOpen && (
-              <div className="route-menu-panel" role="menu" aria-label="Render mode">
-                {(['classic', 'elk'] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={routeMode === mode}
-                    className="route-menu-item"
-                    onClick={() => {
-                      actions.onRouteModeChange(mode);
-                      actions.onToggleRouteMenu();
-                    }}
-                  >
-                    <span className="route-menu-check" aria-hidden="true">{routeMode === mode ? '✓' : ''}</span>
-                    <span>{mode === 'elk' ? 'ELK' : 'Classic'}</span>
-                  </button>
-                ))}
-                <div className="route-menu-separator" />
-                <button type="button" role="menuitem" className="route-menu-item" onClick={() => { actions.onResetManualLayout(); actions.onToggleRouteMenu(); }}>
-                  <span className="route-menu-check" aria-hidden="true">↺</span>
-                  <span>Reset positions</span>
-                </button>
-              </div>
-            )}
-          </div>
+          <button
+            type="button"
+            className={`route-toggle desktop-only ${hasManualLayoutOverrides ? 'has-manual-layout-overrides' : ''}`}
+            aria-label="Reset diagram positions"
+            title="Reset diagram positions"
+            onClick={actions.onResetManualLayout}
+          >
+            Reset positions
+          </button>
           <button
             type="button"
             className="route-toggle desktop-only"

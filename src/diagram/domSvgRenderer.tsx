@@ -1,5 +1,5 @@
 import type { Dispatch, PointerEvent as ReactPointerEvent, RefObject, SetStateAction } from 'react';
-import { supportsEditableEdgePoints, type DiagramEngineId } from '../domain/diagramEngine';
+import { supportsEditableEdgePoints } from '../domain/diagramEngine';
 import type { DiagramPoint } from '../domain/diagramRouting';
 import type { DiagramSceneModel } from './rendererContract';
 import type { DiagramRendererId } from '../domain/runtimeFlags';
@@ -37,7 +37,6 @@ export type DiagramRendererAdapterProps = {
   docsOpen: boolean;
   dragTooltip: DragTooltipState | null;
   dragAndDropEnabled: boolean;
-  routeMode: DiagramEngineId;
   beginCanvasPan: (event: ReactPointerEvent<HTMLDivElement>) => void;
   beginNodeDrag: (event: ReactPointerEvent, nodeKey: string) => void;
   beginEdgeSegmentDrag: (
@@ -62,7 +61,6 @@ export function DomSvgDiagramRenderer({
   docsOpen,
   dragTooltip,
   dragAndDropEnabled,
-  routeMode,
   beginCanvasPan,
   beginNodeDrag,
   beginEdgeSegmentDrag,
@@ -203,7 +201,7 @@ export function DomSvgDiagramRenderer({
                       </text>
                     )}
                     {dragAndDropEnabled &&
-                      supportsEditableEdgePoints(routeMode) &&
+                      supportsEditableEdgePoints() &&
                       edge.points?.map((point, pointIndex) => {
                         const nextPoint = edge.points?.[pointIndex + 1];
                         if (!nextPoint) {

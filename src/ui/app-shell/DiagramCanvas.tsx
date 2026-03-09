@@ -1,7 +1,7 @@
 import { useDiagramInteractionContext } from './contexts/DiagramInteractionContext';
 
 export function DiagramCanvas() {
-  const { diagram, docsOpen, routeMode, actions } = useDiagramInteractionContext();
+  const { diagram, docsOpen, actions } = useDiagramInteractionContext();
   const {
     DiagramRenderer,
     rendererViewportKey,
@@ -25,7 +25,6 @@ export function DiagramCanvas() {
       docsOpen={docsOpen}
       dragTooltip={dragTooltip}
       dragAndDropEnabled={dragAndDropEnabled}
-      routeMode={routeMode}
       beginCanvasPan={beginCanvasPan}
       beginNodeDrag={beginNodeDrag}
       beginEdgeSegmentDrag={beginEdgeSegmentDrag}

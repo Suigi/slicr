@@ -77,7 +77,6 @@ export function AppShell(props: AppShellProps) {
               beginEdgeSegmentDrag: diagram.beginEdgeSegmentDrag
             },
             docsOpen: auxPanels.docsOpen,
-            routeMode: header.routeMode,
             actions: {
               onNodeHoverRange: actions.onNodeHoverRange,
               onNodeSelect: actions.onNodeSelect,

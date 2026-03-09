@@ -1,17 +1,14 @@
 import { useRef, useState } from 'react';
 import { DEFAULT_DSL } from '../../defaultDsl';
 import type { DiagramPoint } from '../../domain/diagramRouting';
-import type { DiagramEngineId } from '../../domain/diagramEngine';
 import { getDiagramRendererId, isCrossSliceDataEnabled, isDragAndDropEnabled, shouldShowDevDiagramControls } from '../../domain/runtimeFlags';
 import { getSliceNameFromDsl, loadSliceLayoutOverrides, loadSliceLibrary, type SliceLibrary } from '../../sliceLibrary';
 import { loadProjectIndex } from '../../projectLibrary';
 import type { Range } from '../../useDslEditor';
 
 const THEME_STORAGE_KEY = 'slicr.theme';
-const ROUTE_MODE_STORAGE_KEY = 'slicr.routeMode';
 
 export type ThemeMode = 'dark' | 'light';
-export type RouteMode = DiagramEngineId;
 
 export function useAppLocalState() {
   const [initialSnapshot] = useState<{
@@ -41,7 +38,6 @@ export function useAppLocalState() {
   const [editorOpen, setEditorOpen] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const sliceMenuRef = useRef<HTMLDivElement>(null);
-  const routeMenuRef = useRef<HTMLDivElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const skipNextLayoutSaveRef = useRef(false);
   const editorRef = useRef<HTMLDivElement>(null);
@@ -51,18 +47,9 @@ export function useAppLocalState() {
   const [selectedNodeKey, setSelectedNodeKey] = useState<string | null>(null);
   const [hoveredEdgeKey, setHoveredEdgeKey] = useState<string | null>(null);
   const [diagramRendererId] = useState(() => getDiagramRendererId(window.location.hostname));
-  const [routeMode, setRouteMode] = useState<RouteMode>(() => {
-    try {
-      const saved = localStorage.getItem(ROUTE_MODE_STORAGE_KEY);
-      return saved === 'classic' ? 'classic' : 'elk';
-    } catch {
-      return 'elk';
-    }
-  });
   const [docsOpen, setDocsOpen] = useState(false);
   const [hasOpenedDocs, setHasOpenedDocs] = useState(false);
   const [sliceMenuOpen, setSliceMenuOpen] = useState(false);
-  const [routeMenuOpen, setRouteMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [projectRailOpen, setProjectRailOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -107,7 +94,6 @@ export function useAppLocalState() {
     setEditorOpen,
     toggleRef,
     sliceMenuRef,
-    routeMenuRef,
     mobileMenuRef,
     skipNextLayoutSaveRef,
     editorRef,
@@ -121,16 +107,12 @@ export function useAppLocalState() {
     hoveredEdgeKey,
     setHoveredEdgeKey,
     diagramRendererId,
-    routeMode,
-    setRouteMode,
     docsOpen,
     setDocsOpen,
     hasOpenedDocs,
     setHasOpenedDocs,
     sliceMenuOpen,
     setSliceMenuOpen,
-    routeMenuOpen,
-    setRouteMenuOpen,
     mobileMenuOpen,
     setMobileMenuOpen,
     projectRailOpen,
@@ -163,7 +145,6 @@ export function useAppLocalState() {
     currentSlice,
     currentDsl,
     currentSliceName,
-    ROUTE_MODE_STORAGE_KEY,
     THEME_STORAGE_KEY
   };
 }

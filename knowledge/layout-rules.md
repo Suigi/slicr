@@ -6,9 +6,8 @@ It is intended as context for future LLM conversations and code changes.
 ## Scope
 
 - Covers node placement and edge routing used by the diagram canvas.
-- Covers both layout engines:
-- `classic` (`src/domain/layoutGraph.ts`)
-- `elk` (`src/domain/elkLayout.ts` + `src/domain/diagramRouting.ts`)
+- Covers the shipped ELK layout pipeline (`src/domain/elkLayout.ts` + `src/domain/diagramRouting.ts`).
+- Notes the provisional bootstrap placement used only to avoid an empty canvas before ELK resolves.
 - Describes constraints, pass order, tie-breakers, and known tradeoffs.
 
 ## Terminology
@@ -23,7 +22,7 @@ It is intended as context for future LLM conversations and code changes.
 ## File Map
 
 - Parser and graph construction: `src/domain/parseDsl.ts`
-- Classic layout: `src/domain/layoutGraph.ts`
+- Provisional bootstrap placement: `src/domain/layoutGraph.ts`
 - ELK layout and post-passes: `src/domain/elkLayout.ts`, `src/domain/elkPostLayout.ts`
 - ELK edge routing rules: `src/domain/diagramRouting.ts`
 - Engine integration and rendered edge selection: `src/domain/diagramEngine.ts`
@@ -38,7 +37,7 @@ It is intended as context for future LLM conversations and code changes.
 
 ## Row/Lane Assignment
 
-### Classic (`rowFor` in `layoutGraph.ts`)
+### Shared lane fallback (`rowFor` in `layoutGraph.ts`)
 
 - Lane 0: `ui`, `aut`, `ext`, `generic`
 - Lane 1: all other non-event domain nodes (e.g. `rm`, `cmd`)
@@ -53,13 +52,6 @@ It is intended as context for future LLM conversations and code changes.
 - `rowStreamLabels` records named stream labels for lane overlays
 
 ## Engine Overview
-
-### Classic engine
-
-- Uses deterministic column assignment and row placement.
-- Enforces same-row occupancy and predecessor-rightward constraints.
-- Applies boundary floors in column and x-space.
-- Routes edges with legacy `edgePath` (curved/cubic style for classic engine only).
 
 ### ELK engine
 
@@ -212,7 +204,7 @@ After group-based placement:
 
 ## Manual Overrides
 
-- ELK mode supports manual edge point overrides and node drag overrides.
+- The ELK-rendered diagram supports manual edge point overrides and node drag overrides.
 - If an override exists and point count matches, overridden points are rendered instead of computed route.
 - Manual overrides are not re-legalized by routing passes.
 
@@ -256,7 +248,7 @@ Given same DSL and runtime:
 
 ## Quick Debug Checklist
 
-- Is the unexpected behavior in `classic` or `elk` mode?
+- Is the unexpected behavior happening in provisional bootstrap placement, or after ELK resolves?
 - Are all expected edge endpoints resolved into `parsed.edges`?
 - Is ordering caused by topo tie-breakers or lane grouping?
 - Did fan-in/fan-out grouping choose the expected corridor key?

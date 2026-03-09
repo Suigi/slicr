@@ -125,7 +125,6 @@ function renderRenderer(Renderer: RendererComponent, overrides: Partial<DiagramR
     docsOpen: false,
     dragTooltip: null,
     dragAndDropEnabled: true,
-    routeMode: 'elk',
     beginCanvasPan: vi.fn(),
     beginNodeDrag: vi.fn(),
     beginEdgeSegmentDrag: vi.fn(),

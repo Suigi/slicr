@@ -1,5 +1,4 @@
 import type { PointerEvent as ReactPointerEvent, RefObject } from 'react';
-import type { DiagramEngineId } from '../domain/diagramEngine';
 import type { DiagramPoint } from '../domain/diagramRouting';
 import type { DiagramRendererComponent } from '../diagram/rendererRegistry';
 import type { DiagramSceneModel } from '../diagram/rendererContract';
@@ -54,15 +53,12 @@ export type HeaderSection = {
   getSliceNameFromDsl: (dsl: string) => string;
   theme: ThemeMode;
   docsOpen: boolean;
-  routeMode: DiagramEngineId;
   showDevDiagramControls: boolean;
   hasManualLayoutOverrides: boolean;
   sliceMenuOpen: boolean;
-  routeMenuOpen: boolean;
   mobileMenuOpen: boolean;
   projectRailOpen: boolean;
   sliceMenuRef: RefObject<HTMLDivElement>;
-  routeMenuRef: RefObject<HTMLDivElement>;
   mobileMenuRef: RefObject<HTMLDivElement>;
   toggleRef: RefObject<HTMLButtonElement>;
 };
@@ -139,14 +135,12 @@ export type ConstantsSection = {
 
 export type ActionsSection = {
   onToggleSliceMenu: () => void;
-  onToggleRouteMenu: () => void;
   onToggleProjectRail: () => void;
   onToggleMobileMenu: () => void;
   onCloseMobileMenu: () => void;
   onToggleTheme: () => void;
   onToggleEditor: () => void;
   onToggleDocs: () => void;
-  onRouteModeChange: (mode: DiagramEngineId) => void;
   onSelectSlice: (sliceId: string) => void;
   onCreateSlice: () => void;
   onSwitchProject: (projectId: string) => void;

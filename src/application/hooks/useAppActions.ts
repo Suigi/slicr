@@ -34,7 +34,6 @@ type UseAppActionsArgs = {
   setEditorOpen: Dispatch<SetStateAction<boolean>>;
   focusRange: (range: Range) => void;
   setSliceMenuOpen: Dispatch<SetStateAction<boolean>>;
-  setRouteMenuOpen: Dispatch<SetStateAction<boolean>>;
   setProjectRailOpen: Dispatch<SetStateAction<boolean>>;
   setMobileMenuOpen: Dispatch<SetStateAction<boolean>>;
   setCreateProjectDialogOpen: Dispatch<SetStateAction<boolean>>;
@@ -46,7 +45,6 @@ type UseAppActionsArgs = {
   hasFocusedCursor: () => boolean;
   insertAtCursorOrEnd: (block: string) => { from: number; to: number };
   setTheme: Dispatch<SetStateAction<'dark' | 'light'>>;
-  setRouteMode: Dispatch<SetStateAction<'classic' | 'elk'>>;
   setHoveredEdgeKey: Dispatch<SetStateAction<string | null>>;
   setHoveredTraceNodeKey: Dispatch<SetStateAction<string | null>>;
   setSourceOverrides: Dispatch<SetStateAction<Record<string, string>>>;
@@ -80,7 +78,6 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
     setEditorOpen,
     focusRange,
     setSliceMenuOpen,
-    setRouteMenuOpen,
     setProjectRailOpen,
     setMobileMenuOpen,
     setCreateProjectDialogOpen,
@@ -92,7 +89,6 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
     hasFocusedCursor,
     insertAtCursorOrEnd,
     setTheme,
-    setRouteMode,
     setHoveredEdgeKey,
     setHoveredTraceNodeKey,
     setSourceOverrides,
@@ -249,14 +245,12 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
 
   return {
     onToggleSliceMenu: () => setSliceMenuOpen((current) => !current),
-    onToggleRouteMenu: () => setRouteMenuOpen((current) => !current),
     onToggleProjectRail: () => setProjectRailOpen((current) => !current),
     onToggleMobileMenu: () => setMobileMenuOpen((current) => !current),
     onCloseMobileMenu: () => setMobileMenuOpen(false),
     onToggleTheme: () => setTheme((current) => (current === 'dark' ? 'light' : 'dark')),
     onToggleEditor: () => setEditorOpen((value) => !value),
     onToggleDocs: toggleDocumentationPanel,
-    onRouteModeChange: (mode) => setRouteMode(mode),
     onSelectSlice,
     onCreateSlice,
     onSwitchProject,

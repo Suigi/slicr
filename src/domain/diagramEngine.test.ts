@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { computeClassicDiagramLayout, computeDiagramLayout } from './diagramEngine';
-import { PAD_X } from './layoutGraph';
+import { computeDiagramLayout } from './diagramEngine';
 import { parseDsl } from './parseDsl';
-import type { Parsed, VisualNode } from './types';
+import type { Parsed, Position, VisualNode } from './types';
 
 function makeNode(key: string, name: string): VisualNode {
   return {
@@ -16,38 +15,8 @@ function makeNode(key: string, name: string): VisualNode {
   };
 }
 
-function makeParsed(): Parsed {
-  const first = makeNode('first', 'First node');
-  const second = makeNode('second', 'Second node');
-  return {
-    sliceName: 'slice',
-    nodes: new Map([
-      [first.key, first],
-      [second.key, second]
-    ]),
-    edges: [{ from: first.key, to: second.key, label: null }],
-    warnings: [],
-    boundaries: [],
-    scenarios: [],
-    scenarioOnlyNodeKeys: []
-  };
-}
-
 describe('diagramEngine dimensions plumbing', () => {
-  it('uses nodeDimensions height for classic layout entry points', async () => {
-    const parsed = makeParsed();
-    const nodeDimensions = {
-      second: { width: 320, height: 111 }
-    };
-
-    const classic = computeClassicDiagramLayout(parsed, { nodeDimensions });
-    expect(classic.layout.pos.second?.h).toBe(111);
-
-    const viaEngine = await computeDiagramLayout(parsed, 'classic', { nodeDimensions });
-    expect(viaEngine.layout.pos.second?.h).toBe(111);
-  });
-
-  it('uses measured node width in ELK and keeps boundary floor behavior', async () => {
+  it('computes ELK layout without requiring an engine parameter', async () => {
     const before = makeNode('before', 'Before node');
     const anchor = makeNode('anchor', 'Anchor node');
     const after = makeNode('after', 'After node');
@@ -65,7 +34,7 @@ describe('diagramEngine dimensions plumbing', () => {
       scenarioOnlyNodeKeys: []
     };
     const measuredAnchorWidth = 320;
-    const layout = await computeDiagramLayout(parsed, 'elk', {
+    const layout = await computeDiagramLayout(parsed, {
       nodeDimensions: {
         [anchor.key]: { width: measuredAnchorWidth, height: 42 }
       }
@@ -73,11 +42,11 @@ describe('diagramEngine dimensions plumbing', () => {
 
     expect(layout.layout.pos.anchor?.w).toBe(measuredAnchorWidth);
     expect(layout.layout.pos.after?.x).toBeGreaterThanOrEqual(
-      (layout.layout.pos.anchor?.x ?? 0) + measuredAnchorWidth + 40 + PAD_X
+      (layout.layout.pos.anchor?.x ?? 0) + measuredAnchorWidth + 40 + 40
     );
   });
 
-  it('does not let scenario-only nodes shift main diagram node columns', () => {
+  it('does not let scenario-only nodes shift main diagram node columns', async () => {
     const scenarioOnly = makeNode('scenario-only', 'Scenario only');
     const main = makeNode('main', 'Main node');
     const parsed: Parsed = {
@@ -93,13 +62,15 @@ describe('diagramEngine dimensions plumbing', () => {
       scenarioOnlyNodeKeys: [scenarioOnly.key]
     };
 
-    const classic = computeClassicDiagramLayout(parsed);
+    const layout = await computeDiagramLayout(parsed);
+    const xValues = Object.values(layout.layout.pos).map((position: Position) => position.x);
 
-    expect(classic.layout.pos.main?.x).toBe(PAD_X);
-    expect(classic.layout.pos['scenario-only']).toBeUndefined();
+    expect(layout.layout.pos.main).toBeDefined();
+    expect(layout.layout.pos['scenario-only']).toBeUndefined();
+    expect(Math.min(...xValues)).toBe(50);
   });
 
-  it('keeps main diagram left-aligned when scenarios are present in parsed DSL', () => {
+  it('keeps main diagram left-aligned when scenarios are present in parsed DSL', async () => {
     const parsed = parseDsl(`slice "Untitled"
 
 ui:rename-todo-form
@@ -126,10 +97,10 @@ when:
 then:
   evt:todo-completed`);
 
-    const classic = computeClassicDiagramLayout(parsed);
-    const xValues = Object.values(classic.layout.pos).map((position) => position.x);
+    const layout = await computeDiagramLayout(parsed);
+    const xValues = Object.values(layout.layout.pos).map((position) => position.x);
 
     expect(parsed.scenarioOnlyNodeKeys.length).toBeGreaterThan(0);
-    expect(Math.min(...xValues)).toBe(PAD_X);
+    expect(Math.min(...xValues)).toBe(50);
   });
 });

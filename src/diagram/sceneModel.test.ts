@@ -66,7 +66,7 @@ function baseRenderedEdges(): RenderedDiagramEdge[] {
 }
 
 describe('buildSceneModel', () => {
-  it('builds a classic scene model with viewport, lanes, boundaries, and node states', () => {
+  it('builds a scene model with viewport, lanes, boundaries, and node states', () => {
     const parsed = baseParsed();
     const activeLayout = baseLayout();
     const displayedPos: Record<string, Position> = activeLayout.pos;
@@ -77,8 +77,11 @@ describe('buildSceneModel', () => {
       activeLayout,
       displayedPos,
       renderedEdges,
-      routeMode: 'classic',
-      engineLayout: null,
+      engineLayout: {
+        layout: activeLayout,
+        laneByKey: new Map<string, number>([['a', 2], ['b', 2]]),
+        rowStreamLabels: {}
+      },
       activeNodeKeyFromEditor: 'a',
       selectedNodeKey: 'b',
       hoveredEdgeKey: 'a->b#0',
@@ -128,7 +131,6 @@ describe('buildSceneModel', () => {
       activeLayout,
       displayedPos,
       renderedEdges: baseRenderedEdges(),
-      routeMode: 'elk',
       engineLayout: {
         layout: activeLayout,
         laneByKey: new Map<string, number>([['a', 2], ['b', 4]]),
@@ -172,7 +174,6 @@ describe('buildSceneModel', () => {
       activeLayout,
       displayedPos: activeLayout.pos,
       renderedEdges: baseRenderedEdges(),
-      routeMode: 'classic',
       engineLayout: null,
       activeNodeKeyFromEditor: 'b',
       selectedNodeKey: 'a',
@@ -212,7 +213,6 @@ describe('buildSceneModel', () => {
       activeLayout,
       displayedPos: activeLayout.pos,
       renderedEdges: baseRenderedEdges(),
-      routeMode: 'classic',
       engineLayout: null,
       activeNodeKeyFromEditor: null,
       selectedNodeKey: null,
@@ -251,7 +251,6 @@ describe('buildSceneModel', () => {
       activeLayout,
       displayedPos: activeLayout.pos,
       renderedEdges: baseRenderedEdges(),
-      routeMode: 'classic',
       engineLayout: null,
       activeNodeKeyFromEditor: null,
       selectedNodeKey: null,
@@ -302,7 +301,6 @@ describe('buildSceneModel', () => {
       activeLayout,
       displayedPos: activeLayout.pos,
       renderedEdges: [],
-      routeMode: 'classic',
       engineLayout: null,
       activeNodeKeyFromEditor: null,
       selectedNodeKey: null,

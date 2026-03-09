@@ -1,4 +1,4 @@
-import { DiagramEngineId, DiagramEngineLayout, RenderedDiagramEdge } from '../domain/diagramEngine';
+import { DiagramEngineLayout, RenderedDiagramEdge } from '../domain/diagramEngine';
 import { routeRoundedPolyline } from '../domain/diagramRouting';
 import { PAD_X, rowFor } from '../domain/layoutGraph';
 import type { LayoutResult, Parsed, Position, VisualNode } from '../domain/types';
@@ -37,7 +37,6 @@ export type BuildSceneModelInput = {
   activeLayout: LayoutResult | null;
   displayedPos: Record<string, Position>;
   renderedEdges: RenderedDiagramEdge[];
-  routeMode: DiagramEngineId;
   engineLayout: DiagramEngineLayout | null;
   activeNodeKeyFromEditor: string | null;
   selectedNodeKey: string | null;
@@ -99,50 +98,17 @@ function computeCanvasViewport(
 function buildLanes(
   parsed: Parsed,
   activeLayout: LayoutResult,
-  routeMode: DiagramEngineId,
   engineLayout: DiagramEngineLayout | null,
   displayedPos: Record<string, Position>,
   visibleNodeKeys: Set<string>,
   labelLeft: number
 ): DiagramLane[] {
-  if (routeMode === 'classic') {
-    const rowsWithVisibleNodes = new Set<number>();
-    for (const key of visibleNodeKeys) {
-      const position = displayedPos[key];
-      if (!position) {
-        continue;
-      }
-      const row = activeLayout.usedRows.find((candidate) => activeLayout.rowY[candidate] === position.y);
-      if (row !== undefined) {
-        rowsWithVisibleNodes.add(row);
-      }
-    }
-    const usedRows = activeLayout.usedRows.filter((row) => rowsWithVisibleNodes.has(row));
-
-    return usedRows.map((row, index) => {
-      const bandTop = activeLayout.rowY[row] - 28;
-      const bandHeight =
-        index < usedRows.length - 1
-          ? activeLayout.rowY[usedRows[index + 1]] - activeLayout.rowY[row]
-          : activeLayout.h - bandTop;
-      const streamLabel = activeLayout.rowStreamLabels[row] ?? '';
-      return {
-        key: `lane-${row}`,
-        row,
-        bandTop,
-        bandHeight,
-        y: activeLayout.rowY[row],
-        height: bandHeight,
-        streamLabel,
-        labelTop: bandTop + 8,
-        labelLeft
-      };
-    });
-  }
-
   const rowBuckets = new Map<number, { minY: number; streamLabel: string }>();
   const laneByKey = engineLayout?.laneByKey ?? new Map<string, number>();
   for (const node of parsed.nodes.values()) {
+    if (!visibleNodeKeys.has(node.key)) {
+      continue;
+    }
     const position = displayedPos[node.key];
     if (!position) {
       continue;
@@ -286,7 +252,6 @@ export function buildSceneModel(input: BuildSceneModelInput): DiagramSceneModel 
     activeLayout,
     displayedPos,
     renderedEdges,
-    routeMode,
     engineLayout,
     activeNodeKeyFromEditor,
     selectedNodeKey,
@@ -303,7 +268,7 @@ export function buildSceneModel(input: BuildSceneModelInput): DiagramSceneModel 
   const viewport = computeCanvasViewport(activeLayout, displayedPos, renderedEdges, canvasMargin, parsed.scenarios.length);
   const scenarioOnlyNodeKeys = new Set(parsed.scenarioOnlyNodeKeys);
   const visibleNodeKeys = new Set([...parsed.nodes.keys()].filter((key) => !scenarioOnlyNodeKeys.has(key)));
-  const lanes = buildLanes(parsed, activeLayout, routeMode, engineLayout, displayedPos, visibleNodeKeys, laneLabelLeft);
+  const lanes = buildLanes(parsed, activeLayout, engineLayout, displayedPos, visibleNodeKeys, laneLabelLeft);
   const visibleDisplayedPos: Record<string, Position> = {};
   for (const [key, position] of Object.entries(displayedPos)) {
     if (visibleNodeKeys.has(key)) {

@@ -1,6 +1,6 @@
-import { Dispatch, SetStateAction, useMemo, useRef } from 'react';
+import { Dispatch, SetStateAction, useEffect, useRef, useState } from 'react';
 import { DOCUMENTATION_GROUPS, DocumentationFeature } from './documentationCatalog';
-import { buildRenderedEdges, computeClassicDiagramLayout } from './domain/diagramEngine';
+import { buildRenderedEdges, computeDiagramLayout, computeProvisionalDiagramLayout } from './domain/diagramEngine';
 import { parseDsl } from './domain/parseDsl';
 import { DiagramRendererId } from './domain/runtimeFlags';
 import { ReadOnlyDslEditor } from './ReadOnlyDslEditor';
@@ -22,22 +22,24 @@ type PreviewData =
       initialCamera: { x: number; y: number; zoom: number };
     };
 
-function computePreview(feature: DocumentationFeature): PreviewData {
+function initialPreview(): PreviewData {
+  return { error: 'Preview not yet computed.' };
+}
+
+function buildPreviewData(feature: DocumentationFeature, preferAsync = false): PreviewData {
   try {
     const parsed = parseDsl(feature.dsl);
-    const layout = computeClassicDiagramLayout(parsed);
+    const layout = preferAsync ? null : computeProvisionalDiagramLayout(parsed);
     if (!layout) {
-      return { error: 'No nodes to render in this example.' };
+      return initialPreview();
     }
-
     const displayedPos = layout.layout.pos;
-    const renderedEdges = buildRenderedEdges(parsed, displayedPos, 'elk', {});
+    const renderedEdges = buildRenderedEdges(parsed, displayedPos, {});
     const sceneModel = buildSceneModel({
       parsed,
       activeLayout: layout.layout,
       displayedPos,
       renderedEdges,
-      routeMode: 'classic',
       engineLayout: layout,
       activeNodeKeyFromEditor: null,
       selectedNodeKey: null,
@@ -45,29 +47,25 @@ function computePreview(feature: DocumentationFeature): PreviewData {
       hoveredTraceNodeKey: null,
       canvasMargin: DOC_PREVIEW_MARGIN
     });
-    if (!sceneModel) {
-      return { error: 'Unable to build preview scene.' };
-    }
-    const sourceViewport = sceneModel.viewport;
-    if (!sourceViewport) {
+    if (!sceneModel?.viewport) {
       return { error: 'Unable to compute preview viewport.' };
     }
+    const sourceViewport = sceneModel.viewport;
     const fitZoom = Math.min(
       1,
       DOC_PREVIEW_VIEWPORT_WIDTH / sourceViewport.width,
       DOC_PREVIEW_VIEWPORT_HEIGHT / sourceViewport.height
     );
     const boostedZoom = Math.min(1.2, fitZoom * DOC_PREVIEW_ZOOM_BOOST);
-    const initialCamera = {
-      x: (DOC_PREVIEW_VIEWPORT_WIDTH - sourceViewport.width * boostedZoom) / 2,
-      y: (DOC_PREVIEW_VIEWPORT_HEIGHT - sourceViewport.height * boostedZoom) / 2,
-      zoom: boostedZoom
-    };
 
     return {
       error: '',
       sceneModel,
-      initialCamera
+      initialCamera: {
+        x: (DOC_PREVIEW_VIEWPORT_WIDTH - sourceViewport.width * boostedZoom) / 2,
+        y: (DOC_PREVIEW_VIEWPORT_HEIGHT - sourceViewport.height * boostedZoom) / 2,
+        zoom: boostedZoom
+      }
     };
   } catch (error) {
     return { error: (error as Error).message || 'Unable to render example.' };
@@ -75,12 +73,64 @@ function computePreview(feature: DocumentationFeature): PreviewData {
 }
 
 function FeatureCard({ feature, diagramRendererId }: { feature: DocumentationFeature; diagramRendererId: DiagramRendererId }) {
-  const preview = useMemo(() => computePreview(feature), [feature]);
+  const [preview, setPreview] = useState<PreviewData>(() => buildPreviewData(feature));
   const canvasPanelRef = useRef<HTMLDivElement>(null);
   const DiagramRenderer = diagramRendererId === 'dom-svg-camera'
     ? DomSvgCameraDiagramRenderer
     : DomSvgDiagramRenderer;
   const noopEdgeHover: Dispatch<SetStateAction<string | null>> = () => {};
+
+  useEffect(() => {
+    let active = true;
+
+    const run = async () => {
+      try {
+        const parsed = parseDsl(feature.dsl);
+        const layout = await computeDiagramLayout(parsed);
+        if (!active) {
+          return;
+        }
+
+        const displayedPos = layout.layout.pos;
+        const renderedEdges = buildRenderedEdges(parsed, displayedPos, {});
+        const sceneModel = buildSceneModel({
+          parsed,
+          activeLayout: layout.layout,
+          displayedPos,
+          renderedEdges,
+          engineLayout: layout,
+          activeNodeKeyFromEditor: null,
+          selectedNodeKey: null,
+          hoveredEdgeKey: null,
+          hoveredTraceNodeKey: null,
+          canvasMargin: DOC_PREVIEW_MARGIN
+        });
+        if (!sceneModel?.viewport) {
+          setPreview({ error: 'Unable to compute preview viewport.' });
+          return;
+        }
+
+        setPreview({
+          error: '',
+          sceneModel,
+          initialCamera: buildPreviewData(feature).error === ''
+            ? (buildPreviewData(feature) as Extract<PreviewData, { error: '' }>).initialCamera
+            : { x: 0, y: 0, zoom: 1 }
+        });
+      } catch (error) {
+        if (!active) {
+          return;
+        }
+        setPreview({ error: (error as Error).message || 'Unable to render example.' });
+      }
+    };
+
+    void run();
+
+    return () => {
+      active = false;
+    };
+  }, [feature]);
 
   return (
     <article className="doc-feature-card">
@@ -110,7 +160,6 @@ function FeatureCard({ feature, diagramRendererId }: { feature: DocumentationFea
                 docsOpen={false}
                 dragTooltip={null}
                 dragAndDropEnabled={false}
-                routeMode="classic"
                 beginCanvasPan={() => {}}
                 beginNodeDrag={() => {}}
                 beginEdgeSegmentDrag={() => {}}

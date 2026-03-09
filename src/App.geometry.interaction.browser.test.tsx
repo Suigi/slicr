@@ -78,18 +78,9 @@ function clickSliceMenuItem(label: string) {
   });
 }
 
-function openRenderModeMenu() {
-  const menuToggle = document.querySelector('button[aria-label="Select render mode"]') as HTMLButtonElement | null;
-  expect(menuToggle).not.toBeNull();
-  act(() => {
-    menuToggle?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-  });
-  return menuToggle;
-}
-
 function clickResetPositionsButton() {
-  const resetButton = [...document.querySelectorAll('button')].find((button) => button.textContent?.includes('Reset positions'));
-  expect(resetButton).toBeDefined();
+  const resetButton = document.querySelector('button[aria-label="Reset diagram positions"]') as HTMLButtonElement | null;
+  expect(resetButton).not.toBeNull();
   act(() => {
     resetButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
   });
@@ -438,7 +429,7 @@ describe('App geometry interactions', () => {
     expect(afterNodeMoveCount).toBe(beforeNodeMoveCount);
   });
 
-  it('appends layout-reset events when resetting positions from route menu', () => {
+  it('appends layout-reset events when resetting positions from dev controls', () => {
     setSingleEventSlice();
 
     renderApp();
@@ -447,7 +438,6 @@ describe('App geometry interactions', () => {
     const beforeEvents = beforeRaw ? (JSON.parse(beforeRaw) as Array<{ type: string }>) : [];
     const beforeResetCount = beforeEvents.filter((event) => event.type === 'layout-reset').length;
 
-    openRenderModeMenu();
     clickResetPositionsButton();
 
     const afterRaw = localStorage.getItem('slicr.es.v1.stream.a');
@@ -456,14 +446,14 @@ describe('App geometry interactions', () => {
     expect(afterResetCount).toBe(beforeResetCount + 1);
   });
 
-  it('tints render mode dropdown when manual layout overrides exist', () => {
+  it('tints reset positions control when manual layout overrides exist', () => {
     setSingleEventSlice();
 
     renderApp();
 
-    const menuToggle = document.querySelector('button[aria-label="Select render mode"]') as HTMLButtonElement | null;
-    expect(menuToggle).not.toBeNull();
-    expect(menuToggle?.classList.contains('has-manual-layout-overrides')).toBe(false);
+    const resetButton = document.querySelector('button[aria-label="Reset diagram positions"]') as HTMLButtonElement | null;
+    expect(resetButton).not.toBeNull();
+    expect(resetButton?.classList.contains('has-manual-layout-overrides')).toBe(false);
 
     const node = document.querySelector('.node.evt') as HTMLElement | null;
     expect(node).not.toBeNull();
@@ -474,11 +464,10 @@ describe('App geometry interactions', () => {
       window.dispatchEvent(new PointerCtor('pointerup', { bubbles: true, button: 0, clientX: 180, clientY: 180, pointerId: 1 }));
     });
 
-    expect(menuToggle?.classList.contains('has-manual-layout-overrides')).toBe(true);
+    expect(resetButton?.classList.contains('has-manual-layout-overrides')).toBe(true);
 
-    openRenderModeMenu();
     clickResetPositionsButton();
 
-    expect(menuToggle?.classList.contains('has-manual-layout-overrides')).toBe(false);
+    expect(resetButton?.classList.contains('has-manual-layout-overrides')).toBe(false);
   });
 });

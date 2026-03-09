@@ -77,7 +77,7 @@ From `/Users/daniel/src/private/slicr/src/diagram/sceneModel.ts`:
 
 - Captures currently-shipped rendering behavior in one place:
   - viewport bounds + margins
-  - lane derivation for classic and elk modes
+  - lane derivation from engine layout metadata or shared fallback lane rules
   - boundary placement
   - node visual state classes (highlight/selected/related/trace-hovered)
   - edge paths and draggable segment indices

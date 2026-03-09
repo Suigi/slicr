@@ -15,7 +15,6 @@ export type UseUiEffectsArgs = {
   editorRef: RefObject<HTMLDivElement>;
   toggleRef: RefObject<HTMLButtonElement>;
   sliceMenuOpen: boolean;
-  routeMenuOpen: boolean;
   mobileMenuOpen: boolean;
   createProjectDialogOpen: boolean;
   compactEventsDialogOpen: boolean;
@@ -23,13 +22,10 @@ export type UseUiEffectsArgs = {
   importNodeDialogOpen: boolean;
   createSliceTemplateDialogOpen: boolean;
   sliceMenuRef: RefObject<HTMLDivElement>;
-  routeMenuRef: RefObject<HTMLDivElement>;
   mobileMenuRef: RefObject<HTMLDivElement>;
   currentSliceName: string;
   theme: string;
   themeStorageKey: string;
-  routeMode: string;
-  routeStorageKey: string;
   selectedNode: { key: string } | null;
   showDataTraceTab: boolean;
   selectedNodeUsesKeys: string[];
@@ -38,7 +34,6 @@ export type UseUiEffectsArgs = {
   setLibrary: Dispatch<SetStateAction<SliceLibrary>>;
   setEditorOpen: Dispatch<SetStateAction<boolean>>;
   setSliceMenuOpen: Dispatch<SetStateAction<boolean>>;
-  setRouteMenuOpen: Dispatch<SetStateAction<boolean>>;
   setMobileMenuOpen: Dispatch<SetStateAction<boolean>>;
   setCommandPaletteOpen: Dispatch<SetStateAction<boolean>>;
   setCreateProjectDialogOpen: Dispatch<SetStateAction<boolean>>;
@@ -63,7 +58,6 @@ export function useUiEffects(args: UseUiEffectsArgs) {
     editorRef,
     toggleRef,
     sliceMenuOpen,
-    routeMenuOpen,
     mobileMenuOpen,
     createProjectDialogOpen,
     compactEventsDialogOpen,
@@ -71,13 +65,10 @@ export function useUiEffects(args: UseUiEffectsArgs) {
     importNodeDialogOpen,
     createSliceTemplateDialogOpen,
     sliceMenuRef,
-    routeMenuRef,
     mobileMenuRef,
     currentSliceName,
     theme,
     themeStorageKey,
-    routeMode,
-    routeStorageKey,
     selectedNode,
     showDataTraceTab,
     selectedNodeUsesKeys,
@@ -86,7 +77,6 @@ export function useUiEffects(args: UseUiEffectsArgs) {
     setLibrary,
     setEditorOpen,
     setSliceMenuOpen,
-    setRouteMenuOpen,
     setMobileMenuOpen,
     setCommandPaletteOpen,
     setCreateProjectDialogOpen,
@@ -234,14 +224,6 @@ export function useUiEffects(args: UseUiEffectsArgs) {
   }, [theme, themeStorageKey]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(routeStorageKey, routeMode);
-    } catch {
-      // Ignore storage failures.
-    }
-  }, [routeMode, routeStorageKey]);
-
-  useEffect(() => {
     const closeOnOutside = (event: PointerEvent) => {
       if (!sliceMenuOpen) {
         return;
@@ -261,27 +243,6 @@ export function useUiEffects(args: UseUiEffectsArgs) {
       document.removeEventListener('pointerdown', closeOnOutside);
     };
   }, [sliceMenuOpen, sliceMenuRef, setSliceMenuOpen]);
-
-  useEffect(() => {
-    const closeOnOutside = (event: PointerEvent) => {
-      if (!routeMenuOpen) {
-        return;
-      }
-      const target = event.target;
-      if (!(target instanceof Node)) {
-        return;
-      }
-      const clickedMenu = routeMenuRef.current?.contains(target) ?? false;
-      if (!clickedMenu) {
-        setRouteMenuOpen(false);
-      }
-    };
-
-    document.addEventListener('pointerdown', closeOnOutside);
-    return () => {
-      document.removeEventListener('pointerdown', closeOnOutside);
-    };
-  }, [routeMenuOpen, routeMenuRef, setRouteMenuOpen]);
 
   useEffect(() => {
     const closeOnOutside = (event: PointerEvent) => {

@@ -1,4 +1,3 @@
-import { edgePath } from './edgePath';
 import { DiagramEdgeGeometry, middlePoint, routeElkEdges, routeForwardEdge, routePolyline } from './diagramRouting';
 import { buildElkLaneMeta, computeElkLayout } from './elkLayout';
 import { layoutGraph } from './layoutGraph';
@@ -6,7 +5,7 @@ import { projectNodeHeights } from './nodeSizing';
 import type { NodeDimensions } from './nodeSizing';
 import type { LayoutResult, Parsed, Position } from './types';
 
-export type DiagramEngineId = 'classic' | 'elk';
+export type DiagramEngineId = 'elk';
 
 export type DiagramEngineLayout = {
   layout: LayoutResult;
@@ -49,61 +48,56 @@ function toDiagramParsed(parsed: Parsed): Parsed {
 
 export async function computeDiagramLayout(
   parsed: Parsed,
-  engine: DiagramEngineId,
   options: DiagramLayoutOptions = {}
 ): Promise<DiagramEngineLayout> {
   const diagramParsed = toDiagramParsed(parsed);
-  if (engine === 'elk') {
-    const elk = await computeElkLayout(diagramParsed, options.nodeDimensions);
-    return {
-      layout: {
-        pos: elk.pos,
-        w: elk.w,
-        h: elk.h,
-        rowY: {},
-        usedRows: [],
-        rowStreamLabels: elk.rowStreamLabels
-      },
-      laneByKey: elk.laneByKey,
-      rowStreamLabels: elk.rowStreamLabels,
-      precomputedEdges: elk.edges
-    };
-  }
-
-  return computeClassicDiagramLayout(diagramParsed, options);
+  const elk = await computeElkLayout(diagramParsed, options.nodeDimensions);
+  return {
+    layout: {
+      pos: elk.pos,
+      w: elk.w,
+      h: elk.h,
+      rowY: {},
+      usedRows: [],
+      rowStreamLabels: elk.rowStreamLabels
+    },
+    laneByKey: elk.laneByKey,
+    rowStreamLabels: elk.rowStreamLabels,
+    precomputedEdges: elk.edges
+  };
 }
 
-export function computeClassicDiagramLayout(parsed: Parsed, options: DiagramLayoutOptions = {}): DiagramEngineLayout {
+export function computeProvisionalDiagramLayout(parsed: Parsed, options: DiagramLayoutOptions = {}): DiagramEngineLayout {
   const diagramParsed = toDiagramParsed(parsed);
-  const classic = layoutGraph(diagramParsed.nodes, diagramParsed.edges, diagramParsed.boundaries, projectNodeHeights(options.nodeDimensions));
+  const provisional = layoutGraph(
+    diagramParsed.nodes,
+    diagramParsed.edges,
+    diagramParsed.boundaries,
+    projectNodeHeights(options.nodeDimensions)
+  );
+
   return {
-    layout: classic,
+    layout: provisional,
     laneByKey: buildElkLaneMeta(diagramParsed).laneByKey,
-    rowStreamLabels: classic.rowStreamLabels
+    rowStreamLabels: buildElkLaneMeta(diagramParsed).rowStreamLabels
   };
 }
 
 export function routeDiagramEdge(
-  engine: DiagramEngineId,
   from: Position,
   to: Position,
   options?: { sourceAttachmentCount?: number; targetAttachmentCount?: number; routeIndex?: number }
 ): DiagramEdgeGeometry {
-  if (engine === 'elk') {
-    return routeForwardEdge(from, to, options);
-  }
-  const path = edgePath(from, to);
-  return { d: path.d, labelX: path.labelX, labelY: path.labelY };
+  return routeForwardEdge(from, to, options);
 }
 
-export function supportsEditableEdgePoints(engine: DiagramEngineId): boolean {
-  return engine === 'elk';
+export function supportsEditableEdgePoints(): boolean {
+  return true;
 }
 
 export function buildRenderedEdges(
   parsed: Parsed,
   pos: Record<string, Position>,
-  engine: DiagramEngineId,
   overrides?: Record<string, Array<{ x: number; y: number }>>
 ): RenderedDiagramEdge[] {
   const keyedEdges = parsed.edges.map((edge, index) => ({
@@ -116,12 +110,10 @@ export function buildRenderedEdges(
     attachmentCounts.set(edge.from, (attachmentCounts.get(edge.from) ?? 0) + 1);
     attachmentCounts.set(edge.to, (attachmentCounts.get(edge.to) ?? 0) + 1);
   }
-  const elkRouted = engine === 'elk'
-    ? routeElkEdges(
-      keyedEdges.map(({ edge, edgeKey }) => ({ key: edgeKey, from: edge.from, to: edge.to })),
-      pos
-    )
-    : null;
+  const elkRouted = routeElkEdges(
+    keyedEdges.map(({ edge, edgeKey }) => ({ key: edgeKey, from: edge.from, to: edge.to })),
+    pos
+  );
 
   return keyedEdges
     .map(({ edge, index, edgeKey }) => {
@@ -132,7 +124,7 @@ export function buildRenderedEdges(
       }
       const base =
         elkRouted?.[edgeKey] ??
-        routeDiagramEdge(engine, from, to, {
+        routeDiagramEdge(from, to, {
           sourceAttachmentCount: attachmentCounts.get(edge.from) ?? 1,
           targetAttachmentCount: attachmentCounts.get(edge.to) ?? 1,
           routeIndex: index

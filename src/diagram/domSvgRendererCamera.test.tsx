@@ -78,7 +78,6 @@ function renderRenderer(overrides: Partial<DiagramRendererAdapterProps> = {}) {
     docsOpen: false,
     dragTooltip: null,
     dragAndDropEnabled: true,
-    routeMode: 'classic',
     beginCanvasPan: vi.fn(),
     beginNodeDrag: vi.fn(),
     beginEdgeSegmentDrag: vi.fn(),

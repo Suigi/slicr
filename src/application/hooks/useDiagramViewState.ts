@@ -1,6 +1,6 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { buildRenderedEdges, computeClassicDiagramLayout, computeDiagramLayout, type DiagramEngineId } from '../../domain/diagramEngine';
+import { buildRenderedEdges, computeDiagramLayout, computeProvisionalDiagramLayout } from '../../domain/diagramEngine';
 import type { DiagramPoint } from '../../domain/diagramRouting';
 import type { NodeDimensions } from '../../domain/nodeSizing';
 import type { Parsed, Position } from '../../domain/types';
@@ -13,7 +13,6 @@ export type UseDiagramViewStateArgs = {
   parsed: Parsed | null;
   currentDsl: string;
   theme: string;
-  routeMode: DiagramEngineId;
   diagramRendererId: string;
   selectedSliceId: string;
   dragAndDropEnabled: boolean;
@@ -34,7 +33,6 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
     parsed,
     currentDsl,
     theme,
-    routeMode,
     diagramRendererId,
     selectedSliceId,
     dragAndDropEnabled,
@@ -51,39 +49,38 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
   } = args;
 
   const initializedViewportKeyRef = useRef<string | null>(null);
-  const [diagramEngineLayout, setDiagramEngineLayout] = useState<Awaited<ReturnType<typeof computeDiagramLayout>> | null>(null);
+  const [diagramEngineLayoutState, setDiagramEngineLayoutState] = useState<{
+    dsl: string;
+    layout: Awaited<ReturnType<typeof computeDiagramLayout>>;
+  } | null>(null);
   const [measuredNodeDimensions, setMeasuredNodeDimensions] = useState<Record<string, NodeDimensions>>({});
-
-  const classicEngineLayout = useMemo(() => {
+  const provisionalEngineLayout = useMemo(() => {
     if (!parsed || parsed.nodes.size === 0) {
       return null;
     }
-    return computeClassicDiagramLayout(parsed, { nodeDimensions: measuredNodeDimensions });
+    return computeProvisionalDiagramLayout(parsed, { nodeDimensions: measuredNodeDimensions });
   }, [parsed, measuredNodeDimensions]);
 
   useEffect(() => {
-    if (routeMode !== 'elk' || !parsed || parsed.nodes.size === 0) {
+    if (!parsed || parsed.nodes.size === 0) {
       return;
     }
     let active = true;
-    computeDiagramLayout(parsed, 'elk', { nodeDimensions: measuredNodeDimensions })
+    computeDiagramLayout(parsed, { nodeDimensions: measuredNodeDimensions })
       .then((result) => {
         if (!active) {
           return;
         }
-        setDiagramEngineLayout(result);
+        setDiagramEngineLayoutState({ dsl: currentDsl, layout: result });
       })
       .catch(() => {
-        if (!active) {
-          return;
-        }
-        setDiagramEngineLayout(null);
+        // Ignore async layout failures and keep the provisional layout.
       });
 
     return () => {
       active = false;
     };
-  }, [routeMode, parsed, measuredNodeDimensions]);
+  }, [parsed, measuredNodeDimensions, currentDsl]);
 
   useEffect(() => {
     if (!parsed || parsed.nodes.size === 0) {
@@ -127,7 +124,9 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
     };
   }, [parsed, currentDsl, theme]);
 
-  const engineLayout = routeMode === 'elk' ? (diagramEngineLayout ?? classicEngineLayout) : classicEngineLayout;
+  const engineLayout = diagramEngineLayoutState?.dsl === currentDsl
+    ? diagramEngineLayoutState.layout
+    : provisionalEngineLayout;
   const activeLayout = engineLayout?.layout ?? null;
 
   const displayedPos = useMemo(() => {
@@ -146,8 +145,8 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
     if (!parsed) {
       return [] as Array<{ key: string; edgeKey: string; edge: Parsed['edges'][number]; geometry: { d: string; labelX: number; labelY: number; points?: DiagramPoint[] } }>;
     }
-    return buildRenderedEdges(parsed, displayedPos, routeMode, manualEdgePoints);
-  }, [parsed, displayedPos, routeMode, manualEdgePoints]);
+    return buildRenderedEdges(parsed, displayedPos, manualEdgePoints);
+  }, [parsed, displayedPos, manualEdgePoints]);
 
   const {
     canvasPanelRef,
@@ -191,7 +190,6 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
         activeLayout,
         displayedPos,
         renderedEdges,
-        routeMode,
         engineLayout,
         activeNodeKeyFromEditor,
         selectedNodeKey,
@@ -203,7 +201,6 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
       activeLayout,
       displayedPos,
       renderedEdges,
-      routeMode,
       engineLayout,
       activeNodeKeyFromEditor,
       selectedNodeKey,
@@ -224,14 +221,14 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
     };
   }, [diagramRendererId, sceneModel]);
 
-  const rendererViewportKey = `${diagramRendererId}:${selectedSliceId}:${routeMode}`;
+  const rendererViewportKey = `${diagramRendererId}:${selectedSliceId}`;
 
   useEffect(() => {
     const panel = canvasPanelRef.current;
     if (!panel || !sceneModel?.viewport) {
       return;
     }
-    const viewportKey = `${selectedSliceId}:${routeMode}`;
+    const viewportKey = selectedSliceId;
     if (initializedViewportKeyRef.current === viewportKey) {
       return;
     }
@@ -244,7 +241,7 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
     panel.scrollLeft = Math.max(0, sceneModel.viewport.offsetX - 80);
     panel.scrollTop = Math.max(0, sceneModel.viewport.offsetY - 80);
     initializedViewportKeyRef.current = viewportKey;
-  }, [canvasPanelRef, sceneModel, selectedSliceId, routeMode, diagramRendererId]);
+  }, [canvasPanelRef, sceneModel, selectedSliceId, diagramRendererId]);
 
   useEffect(() => {
     const pendingFocusNodeKey = pendingFocusNodeKeyRef.current;

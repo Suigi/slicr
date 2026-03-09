@@ -13,8 +13,8 @@ When starting a task, update this file and set the status to `[in progress]`.
 After completing the task, update this file and set the status to `[completed]`.
 
 ## Generic Guidance
-- Keep classic layout width fixed at `180px`.
-- Target only ELK behavior for variable node width in this task.
+- Target the shipped ELK layout behavior for variable node width in this task.
+- Ignore the provisional bootstrap placement for width work unless a future task explicitly expands its responsibilities.
 - Use semantic assertions (not full geometry snapshots).
 
 ## Steps
@@ -39,4 +39,4 @@ After completing the task, update this file and set the status to `[completed]`.
 
 6. [not started] **Task cleanup**
    - Mark completed steps in this file.
-   - Keep any deferred/non-goal work explicit (for example: classic width remains fixed at `180px`).
+   - Keep any deferred/non-goal work explicit (for example: provisional bootstrap placement still uses fixed-width columns).

@@ -1,5 +1,4 @@
 import { createContext, createElement, type ReactNode, useContext } from 'react';
-import type { DiagramEngineId } from '../../../domain/diagramEngine';
 import type { ActionsSection, DiagramSection } from '../../../application/appViewModel';
 
 export type DiagramInteractionContextValue = {
@@ -18,7 +17,6 @@ export type DiagramInteractionContextValue = {
     | 'beginEdgeSegmentDrag'
   >;
   docsOpen: boolean;
-  routeMode: DiagramEngineId;
   actions: Pick<ActionsSection, 'onNodeHoverRange' | 'onNodeSelect' | 'onNodeOpenInEditor' | 'onEdgeHover'>;
 };
 

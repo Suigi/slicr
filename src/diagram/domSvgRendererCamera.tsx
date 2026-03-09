@@ -35,7 +35,6 @@ export function DomSvgDiagramRendererCamera({
   docsOpen,
   dragTooltip,
   dragAndDropEnabled,
-  routeMode,
   beginCanvasPan,
   beginNodeDrag,
   beginEdgeSegmentDrag,
@@ -104,52 +103,52 @@ export function DomSvgDiagramRendererCamera({
     metaKey: boolean;
   };
 
-  const handleWheelZoom = (event: WheelLikeEvent) => {
-    if (!cameraControlsEnabled) {
-      return;
-    }
-    if (!sceneModel?.viewport) {
-      return;
-    }
-
-    if (!event.ctrlKey && !event.metaKey) {
-      if (event.deltaX === 0 && event.deltaY === 0) {
-        return;
-      }
-      setCamera((current) => ({
-        ...current,
-        x: current.x - event.deltaX,
-        y: current.y - event.deltaY
-      }));
-      return;
-    }
-
-    if (event.deltaY === 0) {
-      return;
-    }
-
-    const zoomFactor = Math.pow(1.1, -event.deltaY / 100);
-
-    const rect = canvasPanelRef.current?.getBoundingClientRect();
-    const scrollLeft = canvasPanelRef.current?.scrollLeft ?? 0;
-    const scrollTop = canvasPanelRef.current?.scrollTop ?? 0;
-    const localX = rect ? event.clientX - rect.left + scrollLeft : event.clientX;
-    const localY = rect ? event.clientY - rect.top + scrollTop : event.clientY;
-
-    setCamera((current) => {
-      return zoomCameraAroundClientPoint(
-        sceneModel,
-        current,
-        localX,
-        localY,
-        zoomFactor
-      );
-    });
-  };
-
   useEffect(() => {
     const el = canvasPanelRef.current;
     if (!el) return;
+
+    const handleWheelZoom = (event: WheelLikeEvent) => {
+      if (!cameraControlsEnabled) {
+        return;
+      }
+      if (!sceneModel?.viewport) {
+        return;
+      }
+
+      if (!event.ctrlKey && !event.metaKey) {
+        if (event.deltaX === 0 && event.deltaY === 0) {
+          return;
+        }
+        setCamera((current) => ({
+          ...current,
+          x: current.x - event.deltaX,
+          y: current.y - event.deltaY
+        }));
+        return;
+      }
+
+      if (event.deltaY === 0) {
+        return;
+      }
+
+      const zoomFactor = Math.pow(1.1, -event.deltaY / 100);
+
+      const rect = canvasPanelRef.current?.getBoundingClientRect();
+      const scrollLeft = canvasPanelRef.current?.scrollLeft ?? 0;
+      const scrollTop = canvasPanelRef.current?.scrollTop ?? 0;
+      const localX = rect ? event.clientX - rect.left + scrollLeft : event.clientX;
+      const localY = rect ? event.clientY - rect.top + scrollTop : event.clientY;
+
+      setCamera((current) => {
+        return zoomCameraAroundClientPoint(
+          sceneModel,
+          current,
+          localX,
+          localY,
+          zoomFactor
+        );
+      });
+    };
 
     const onWheel = (e: WheelEvent) => {
       if (!cameraControlsEnabled || !sceneModel?.viewport) {
@@ -340,7 +339,7 @@ export function DomSvgDiagramRendererCamera({
                       </text>
                     )}
                     {dragAndDropEnabled &&
-                      supportsEditableEdgePoints(routeMode) &&
+                      supportsEditableEdgePoints() &&
                       edge.points?.map((point, pointIndex) => {
                         const nextPoint = edge.points?.[pointIndex + 1];
                         if (!nextPoint) {

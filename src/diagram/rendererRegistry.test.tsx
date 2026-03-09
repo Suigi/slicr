@@ -46,7 +46,6 @@ function renderWithRegistryRenderer(rendererId: 'dom-svg' | 'dom-svg-camera') {
     docsOpen: false,
     dragTooltip: null,
     dragAndDropEnabled: true,
-    routeMode: 'classic',
     beginCanvasPan: vi.fn(),
     beginNodeDrag: vi.fn(),
     beginEdgeSegmentDrag: vi.fn(),

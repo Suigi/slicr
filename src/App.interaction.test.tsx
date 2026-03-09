@@ -207,21 +207,21 @@ describe('App interactions', () => {
     expect(expandAll).not.toBeNull();
   });
 
-  it('defaults render engine dropdown flag on and persists it on localhost', () => {
+  it('defaults diagram dev controls on and persists the flag on localhost', () => {
     renderApp();
 
-    const menuToggle = document.querySelector('button[aria-label="Select render mode"]');
-    expect(menuToggle).not.toBeNull();
+    const resetButton = document.querySelector('button[aria-label="Reset diagram positions"]');
+    expect(resetButton).not.toBeNull();
     expect(localStorage.getItem(RENDER_ENGINE_DROPDOWN_FLAG_STORAGE_KEY)).toBe('true');
   });
 
-  it('hides render engine dropdown when persisted flag is disabled', () => {
+  it('hides diagram dev controls when the persisted flag is disabled', () => {
     localStorage.setItem(RENDER_ENGINE_DROPDOWN_FLAG_STORAGE_KEY, 'false');
 
     renderApp();
 
-    const menuToggle = document.querySelector('button[aria-label="Select render mode"]');
-    expect(menuToggle).toBeNull();
+    const resetButton = document.querySelector('button[aria-label="Reset diagram positions"]');
+    expect(resetButton).toBeNull();
   });
 
   it('uses dom-svg-camera renderer by default and persists renderer id', () => {
