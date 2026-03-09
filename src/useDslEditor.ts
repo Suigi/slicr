@@ -341,7 +341,7 @@ function collectSelectedLineStarts(state: EditorState): Set<number> {
   return starts;
 }
 
-export type EditorViewLike = {
+export type EditorViewStub = {
   state: {
     doc: {
       toString: () => string;
@@ -352,11 +352,17 @@ export type EditorViewLike = {
   destroy: () => void;
 };
 
+export type EditorViewLike = EditorView | EditorViewStub;
+
 type CreateEditorView = (args: {
   parent: HTMLDivElement;
   doc: string;
   onDocChanged: (nextDoc: string) => void;
 }) => EditorViewLike;
+
+function isEditorView(editorView: EditorViewLike | null): editorView is EditorView {
+  return editorView instanceof EditorView;
+}
 
 const createFoldMarker = (open: boolean) => {
   const svgNS = 'http://www.w3.org/2000/svg';
@@ -835,7 +841,7 @@ export function useDslEditor({
 
   const focusRange = (range: Range) => {
     const editorView = editorViewRef.current;
-    if (!editorView || !(editorView instanceof EditorView)) {
+    if (!isEditorView(editorView)) {
       return;
     }
     const docLength = editorView.state.doc.length;
@@ -849,7 +855,7 @@ export function useDslEditor({
 
   const hasFocusedCursor = () => {
     const editorView = editorViewRef.current;
-    return editorView instanceof EditorView && editorView.hasFocus;
+    return isEditorView(editorView) && editorView.hasFocus;
   };
 
   const insertAtCursorOrEnd = (block: string): Range => {
@@ -860,7 +866,7 @@ export function useDslEditor({
       return { from: 0, to: 0 };
     }
 
-    if (!editorView || !(editorView instanceof EditorView)) {
+    if (!isEditorView(editorView)) {
       onDocChangedRef.current((current) => {
         if (!current.trim()) {
           return trimmed;
@@ -905,7 +911,7 @@ export function useDslEditor({
 
   useEffect(() => {
     const editorView = editorViewRef.current;
-    if (!editorView || !(editorView instanceof EditorView)) {
+    if (!isEditorView(editorView)) {
       return;
     }
 
@@ -922,7 +928,7 @@ export function useDslEditor({
 
   useEffect(() => {
     const editorView = editorViewRef.current;
-    if (!editorView || !(editorView instanceof EditorView)) {
+    if (!isEditorView(editorView)) {
       return;
     }
 
@@ -944,24 +950,23 @@ export function useDslEditor({
       }
     });
 
-    if (onRangeHoverRef.current) {
-      const view = editorView as EditorView;
-      view.dom.addEventListener('mousemove', (event) => {
-        const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+    if (onRangeHoverRef.current && isEditorView(editorView)) {
+      editorView.dom.addEventListener('mousemove', (event) => {
+        const pos = editorView.posAtCoords({ x: event.clientX, y: event.clientY });
         if (pos !== null) {
           onRangeHoverRef.current?.({ from: pos, to: pos });
         } else {
           onRangeHoverRef.current?.(null);
         }
       });
-      view.dom.addEventListener('mouseleave', () => {
+      editorView.dom.addEventListener('mouseleave', () => {
         onRangeHoverRef.current?.(null);
       });
     }
 
     editorViewRef.current = editorView;
 
-    if (editorView instanceof EditorView) {
+    if (isEditorView(editorView)) {
       const onTabKeyDown = (event: KeyboardEvent) => {
         if (event.key !== 'Tab') {
           return;

@@ -4,10 +4,9 @@ import {
   OverviewScenarioMetadata,
   RenderedDiagramEdge
 } from '../domain/diagramEngine';
-import type { ParsedScenario } from '../domain/types';
-import { routeRoundedPolyline } from '../domain/diagramRouting';
-import { PAD_X, rowFor } from '../domain/layoutGraph';
-import type { LayoutResult, Parsed, Position, VisualNode } from '../domain/types';
+import type {LayoutResult, Parsed, ParsedScenario, Position, VisualNode} from '../domain/types';
+import {routeRoundedPolyline} from '../domain/diagramRouting';
+import {PAD_X, rowFor} from '../domain/layoutGraph';
 import type {
   DiagramBoundary,
   DiagramEdge,
@@ -499,7 +498,6 @@ export function buildSceneModel(input: BuildSceneModelInput): DiagramSceneModel 
     const points = geometry.points ?? [];
     const path = geometry.points ? routeRoundedPolyline(geometry.points, 5) : geometry.d;
     const isHovered = hoveredEdgeKey === edgeKey;
-    const isRelated = isHovered;
     return {
       renderKey: key,
       key: edgeKey,
@@ -514,7 +512,7 @@ export function buildSceneModel(input: BuildSceneModelInput): DiagramSceneModel 
       labelX: geometry.labelX,
       labelY: geometry.labelY,
       hovered: isHovered,
-      related: isRelated
+      related: isHovered
     };
   });
 

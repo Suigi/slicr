@@ -1,6 +1,6 @@
-import { Dispatch, PointerEvent as ReactPointerEvent, RefObject, SetStateAction, useRef, useState } from 'react';
-import type { DiagramPoint } from './domain/diagramRouting';
-import type { Parsed, Position } from './domain/types';
+import {Dispatch, PointerEvent as ReactPointerEvent, RefObject, SetStateAction, useRef, useState} from 'react';
+import type {DiagramPoint} from './domain/diagramRouting';
+import type {Parsed, Position} from './domain/types';
 
 const DRAG_GRID_SIZE = 5;
 
@@ -189,12 +189,10 @@ export function useDiagramInteractions({
           return current;
         }
         if (horizontal) {
-          const snappedY = snapToGrid(p1.y + dy);
-          a.y = snappedY;
+          a.y = snapToGrid(p1.y + dy);
           b.y = snapToGrid(p2.y + dy);
         } else {
-          const snappedX = snapToGrid(p1.x + dx);
-          a.x = snappedX;
+          a.x = snapToGrid(p1.x + dx);
           b.x = snapToGrid(p2.x + dx);
         }
         latestPoints = next.map((point) => ({ ...point }));

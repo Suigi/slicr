@@ -171,10 +171,8 @@ export function matchDiagramGeometry(actual: DiagramGeometry, expected: DiagramE
       if (edgeExpected.from && edge.from !== edgeExpected.from) {
         return false;
       }
-      if (edgeExpected.to && edge.to !== edgeExpected.to) {
-        return false;
-      }
-      return true;
+      return !(edgeExpected.to && edge.to !== edgeExpected.to);
+
     });
 
     const expectedLabel = edgeExpected.key ?? `${edgeExpected.from ?? '*'}->${edgeExpected.to ?? '*'}`;
