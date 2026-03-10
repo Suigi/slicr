@@ -1,6 +1,7 @@
 import type { Dispatch, PointerEvent as ReactPointerEvent, RefObject, SetStateAction } from 'react';
 import { supportsEditableEdgePoints } from '../domain/diagramEngine';
 import type { DiagramPoint } from '../domain/diagramRouting';
+import type { DiagramMode } from '../application/appViewModel';
 import type { DiagramSceneModel } from './rendererContract';
 import type { DiagramRendererId } from '../domain/runtimeFlags';
 import { NodeCard } from '../NodeCard';
@@ -33,6 +34,7 @@ function scenarioAreaLeft(sceneModel: DiagramSceneModel): number {
 
 function renderScenarioBoxes(
   scenarios: DiagramScenario[],
+  hideData: boolean,
   onNodeHoverRange: (range: Range | null) => void,
   onNodeSelect: (nodeKey: string) => void,
   onNodeOpenInEditor: (nodeKey: string, range: Range) => void
@@ -50,6 +52,7 @@ function renderScenarioBoxes(
             key={`${scenario.name}-given-${entry.key}-${index}`}
             {...toScenarioNodeCardProps(entry)}
             className={`scenario-node-card ${entry.className ?? ''}`.trim()}
+            hideData={hideData}
             onMouseEnter={() => onNodeHoverRange(entry.srcRange)}
             onMouseLeave={() => onNodeHoverRange(null)}
             onClick={(event) => {
@@ -69,6 +72,7 @@ function renderScenarioBoxes(
           <NodeCard
             {...toScenarioNodeCardProps(scenario.when)}
             className={`scenario-node-card ${scenario.when.className ?? ''}`.trim()}
+            hideData={hideData}
             onMouseEnter={() => onNodeHoverRange(scenario.when!.srcRange)}
             onMouseLeave={() => onNodeHoverRange(null)}
             onClick={(event) => {
@@ -89,6 +93,7 @@ function renderScenarioBoxes(
             key={`${scenario.name}-then-${entry.key}-${index}`}
             {...toScenarioNodeCardProps(entry)}
             className={`scenario-node-card ${entry.className ?? ''}`.trim()}
+            hideData={hideData}
             onMouseEnter={() => onNodeHoverRange(entry.srcRange)}
             onMouseLeave={() => onNodeHoverRange(null)}
             onClick={(event) => {
@@ -107,7 +112,9 @@ function renderScenarioBoxes(
 }
 
 export type DiagramRendererAdapterProps = {
+  diagramMode: DiagramMode;
   sceneModel: DiagramSceneModel | null;
+  overviewNodeDataVisible?: boolean;
   canvasPanelRef: RefObject<HTMLDivElement | null>;
   isPanning: boolean;
   docsOpen: boolean;
@@ -125,13 +132,16 @@ export type DiagramRendererAdapterProps = {
   onNodeSelect: (nodeKey: string) => void;
   onNodeOpenInEditor: (nodeKey: string, range: Range) => void;
   onEdgeHover: Dispatch<SetStateAction<string | null>>;
+  onToggleOverviewNodeDataVisibility?: () => void;
   rendererId?: DiagramRendererId;
   cameraControlsEnabled?: boolean;
   initialCamera?: { x: number; y: number; zoom: number };
 };
 
 export function DomSvgDiagramRenderer({
+  diagramMode,
   sceneModel,
+  overviewNodeDataVisible,
   canvasPanelRef,
   isPanning,
   docsOpen,
@@ -144,8 +154,13 @@ export function DomSvgDiagramRenderer({
   onNodeSelect,
   onNodeOpenInEditor,
   onEdgeHover,
+  onToggleOverviewNodeDataVisibility,
   rendererId = 'dom-svg'
 }: DiagramRendererAdapterProps) {
+  void diagramMode;
+  void onToggleOverviewNodeDataVisibility;
+  const hideOverviewNodeData = diagramMode === 'overview' && overviewNodeDataVisible === false;
+
   return (
     <div
       ref={canvasPanelRef}
@@ -231,6 +246,7 @@ export function DomSvgDiagramRenderer({
                 node={entry.node}
                 nodePrefix={entry.nodePrefix}
                 className={entry.className}
+                hideData={hideOverviewNodeData}
                 style={{
                   left: `${entry.x}px`,
                   top: `${entry.y}px`,
@@ -342,7 +358,7 @@ export function DomSvgDiagramRenderer({
                       width: `${group.width}px`
                     }}
                   >
-                    {renderScenarioBoxes(group.scenarios, onNodeHoverRange, onNodeSelect, onNodeOpenInEditor)}
+                    {renderScenarioBoxes(group.scenarios, hideOverviewNodeData, onNodeHoverRange, onNodeSelect, onNodeOpenInEditor)}
                   </div>
                 ))}
               </>
@@ -354,7 +370,7 @@ export function DomSvgDiagramRenderer({
                   left: `${scenarioAreaLeft(sceneModel)}px`
                 }}
               >
-                {renderScenarioBoxes(sceneModel.scenarios, onNodeHoverRange, onNodeSelect, onNodeOpenInEditor)}
+                {renderScenarioBoxes(sceneModel.scenarios, hideOverviewNodeData, onNodeHoverRange, onNodeSelect, onNodeOpenInEditor)}
               </div>
             )}
           </div>

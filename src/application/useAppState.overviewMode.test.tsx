@@ -23,7 +23,10 @@ function Harness({ onState }: { onState: (state: UseAppStateResult) => void }) {
   return (
     <>
       <NodeMeasureLayer diagram={state.diagram} constants={state.constants} />
-      <ScenarioGroupMeasureLayer scenarioGroups={state.diagram.measurementScenarioGroups} />
+      <ScenarioGroupMeasureLayer
+        scenarioGroups={state.diagram.measurementScenarioGroups}
+        overviewNodeDataVisible={state.diagram.overviewNodeDataVisible}
+      />
     </>
   );
 }
@@ -135,6 +138,45 @@ describe('useAppState overview mode', () => {
     expect(latestState?.diagram.diagramMode).toBe('slice');
     expect(latestState?.actions.onShowProjectOverview).toBeTypeOf('function');
     expect(latestState?.actions.onHideProjectOverview).toBeTypeOf('function');
+  });
+
+  it('exposes a default-visible overview node data flag and toggle action on the app state contract', async () => {
+    await renderHarness();
+
+    expect(latestState?.diagram.overviewNodeDataVisible).toBe(true);
+    expect(latestState?.actions.onToggleOverviewNodeDataVisibility).toBeTypeOf('function');
+
+    await runAction(() => {
+      latestState?.actions.onToggleOverviewNodeDataVisibility();
+    });
+
+    expect(latestState?.diagram.overviewNodeDataVisible).toBe(false);
+  });
+
+  it('preserves the overview node data preference across leaving and re-entering overview in the same session', async () => {
+    await renderHarness();
+
+    await runAction(() => {
+      latestState?.actions.onShowProjectOverview();
+      latestState?.actions.onToggleOverviewNodeDataVisibility();
+    });
+
+    expect(latestState?.diagram.diagramMode).toBe('overview');
+    expect(latestState?.diagram.overviewNodeDataVisible).toBe(false);
+
+    await runAction(() => {
+      latestState?.actions.onHideProjectOverview();
+    });
+
+    expect(latestState?.diagram.diagramMode).toBe('slice');
+    expect(latestState?.diagram.overviewNodeDataVisible).toBe(false);
+
+    await runAction(() => {
+      latestState?.actions.onShowProjectOverview();
+    });
+
+    expect(latestState?.diagram.diagramMode).toBe('overview');
+    expect(latestState?.diagram.overviewNodeDataVisible).toBe(false);
   });
 
   it('enters overview mode by clearing the visible slice selection and closing the editor', async () => {
@@ -422,5 +464,101 @@ describe('useAppState overview mode', () => {
     expect(overviewNode).toBeDefined();
     expect(overviewNode?.x).not.toBe(315);
     expect(overviewNode?.y).not.toBe(265);
+  });
+
+  it('remeasures overview nodes and scenario groups without data rows when overview node data is hidden', async () => {
+    const originalGetBoundingClientRect = HTMLElement.prototype.getBoundingClientRect;
+    HTMLElement.prototype.getBoundingClientRect = function mockOverviewMeasurement() {
+      if (this.matches('.node-measure-box[data-node-key]')) {
+        const hasFields = this.querySelector('.node-fields') !== null;
+        return {
+          x: 0,
+          y: 0,
+          top: 0,
+          left: 0,
+          right: 240,
+          bottom: hasFields ? 120 : 64,
+          width: 240,
+          height: hasFields ? 120 : 64,
+          toJSON: () => ({})
+        } as DOMRect;
+      }
+
+      if (this.matches('.scenario-group-measure[data-scenario-group-key]')) {
+        return {
+          x: 0,
+          y: 0,
+          top: 0,
+          left: 0,
+          right: 320,
+          bottom: 180,
+          width: 320,
+          height: 180,
+          toJSON: () => ({})
+        } as DOMRect;
+      }
+
+      return originalGetBoundingClientRect.call(this);
+    };
+
+    try {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'slice-a',
+        slices: [{
+          id: 'slice-a',
+          dsl: [
+            'slice "Alpha"',
+            '',
+            'evt:item-created',
+            'data:',
+            '  title: Alpha',
+            '',
+            'cmd:rename',
+            'data:',
+            '  newName: Beta',
+            '',
+            'evt:item-renamed',
+            'data:',
+            '  title: Beta',
+            '',
+            'scenario "Rename"',
+            'given:',
+            '  evt:item-created',
+            '',
+            'when:',
+            '  cmd:rename',
+            '',
+            'then:',
+            '  evt:item-renamed'
+          ].join('\n')
+        }]
+      })
+    );
+
+    await renderHarness();
+
+    await runAction(() => {
+      latestState?.actions.onShowProjectOverview();
+    });
+
+    const visibleScene = await waitForOverviewScene();
+    const visibleRenameNode = visibleScene?.nodes.find((node) => node.key === 'slice-a::rename');
+    expect(visibleRenameNode).toBeDefined();
+    expect(document.querySelectorAll('.node-measure-layer .node-fields').length).toBeGreaterThan(0);
+
+    await runAction(() => {
+      latestState?.actions.onToggleOverviewNodeDataVisibility();
+    });
+
+    const hiddenScene = await waitForOverviewScene();
+    const hiddenRenameNode = hiddenScene?.nodes.find((node) => node.key === 'slice-a::rename');
+    expect(hiddenRenameNode).toBeDefined();
+    expect(hiddenRenameNode!.h).toBeLessThan(visibleRenameNode!.h);
+    expect(document.querySelectorAll('.node-measure-layer .node-fields')).toHaveLength(0);
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = originalGetBoundingClientRect;
+    }
   });
 });

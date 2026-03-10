@@ -7,12 +7,13 @@ type NodeMeasureLayerProps = {
 };
 
 export function NodeMeasureLayer({ diagram, constants }: NodeMeasureLayerProps) {
-  const { parsed } = diagram;
+  const { parsed, diagramMode, overviewNodeDataVisible } = diagram;
   const {
     TYPE_LABEL,
     NODE_VERSION_SUFFIX,
     NODE_MEASURE_NODE_CLASS
   } = constants;
+  const hideOverviewNodeData = diagramMode === 'overview' && overviewNodeDataVisible === false;
 
   if (!parsed || parsed.nodes.size === 0) {
     return null;
@@ -31,7 +32,12 @@ export function NodeMeasureLayer({ diagram, constants }: NodeMeasureLayerProps) 
         return (
           <div key={`measure-cell-${node.key}`} className="node-measure-cell">
             <div className={NODE_MEASURE_NODE_CLASS} data-node-key={node.key}>
-              <NodeCard node={measureNode} nodePrefix={nodePrefix} className="node-measure-node" />
+              <NodeCard
+                node={measureNode}
+                nodePrefix={nodePrefix}
+                className="node-measure-node"
+                hideData={hideOverviewNodeData}
+              />
             </div>
           </div>
         );

@@ -4,9 +4,11 @@ import type { ActionsSection, DiagramSection } from '../../../application/appVie
 export type DiagramInteractionContextValue = {
   diagram: Pick<
     DiagramSection,
+    | 'diagramMode'
     | 'DiagramRenderer'
     | 'rendererViewportKey'
     | 'sceneModel'
+    | 'overviewNodeDataVisible'
     | 'initialCamera'
     | 'dragTooltip'
     | 'dragAndDropEnabled'
@@ -17,7 +19,7 @@ export type DiagramInteractionContextValue = {
     | 'beginEdgeSegmentDrag'
   >;
   docsOpen: boolean;
-  actions: Pick<ActionsSection, 'onNodeHoverRange' | 'onNodeSelect' | 'onNodeOpenInEditor' | 'onEdgeHover'>;
+  actions: Pick<ActionsSection, 'onNodeHoverRange' | 'onNodeSelect' | 'onNodeOpenInEditor' | 'onEdgeHover' | 'onToggleOverviewNodeDataVisibility'>;
 };
 
 const DiagramInteractionContext = createContext<DiagramInteractionContextValue | null>(null);

@@ -2785,6 +2785,22 @@ header h1 {
   pointer-events: all;
 }
 
+.camera-zoom-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 8px;
+  margin-right: 2px;
+  border-right: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.camera-zoom-toggle input {
+  margin: 0;
+}
+
 .camera-zoom-button {
   width: 28px;
   height: 28px;

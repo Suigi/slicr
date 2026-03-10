@@ -77,6 +77,7 @@ export type EditorSection = {
 
 export type DiagramSection = {
   diagramMode: DiagramMode;
+  overviewNodeDataVisible: boolean;
   parsed: Parsed | null;
   parsedSliceProjectionList: ParsedSliceProjection<Parsed>[];
   currentDsl: string;
@@ -181,6 +182,7 @@ export type ActionsSection = {
   onShowUsageCommand: () => void;
   onShowProjectOverview: () => void;
   onHideProjectOverview: () => void;
+  onToggleOverviewNodeDataVisibility: () => void;
 };
 
 export type AppShellProps = {

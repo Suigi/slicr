@@ -3,9 +3,11 @@ import { useDiagramInteractionContext } from './contexts/DiagramInteractionConte
 export function DiagramCanvas() {
   const { diagram, docsOpen, actions } = useDiagramInteractionContext();
   const {
+    diagramMode,
     DiagramRenderer,
     rendererViewportKey,
     sceneModel,
+    overviewNodeDataVisible,
     initialCamera,
     dragTooltip,
     dragAndDropEnabled,
@@ -19,7 +21,9 @@ export function DiagramCanvas() {
   return (
     <DiagramRenderer
       key={rendererViewportKey}
+      diagramMode={diagramMode}
       sceneModel={sceneModel}
+      overviewNodeDataVisible={overviewNodeDataVisible}
       canvasPanelRef={canvasPanelRef}
       isPanning={isPanning}
       docsOpen={docsOpen}
@@ -32,6 +36,7 @@ export function DiagramCanvas() {
       onNodeSelect={actions.onNodeSelect}
       onNodeOpenInEditor={actions.onNodeOpenInEditor}
       onEdgeHover={actions.onEdgeHover}
+      onToggleOverviewNodeDataVisibility={actions.onToggleOverviewNodeDataVisibility}
       initialCamera={initialCamera}
     />
   );

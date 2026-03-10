@@ -27,6 +27,7 @@ const EMPTY_OVERVIEW_CROSS_SLICE_LINKS: OverviewCrossSliceLink[] = [];
 
 export type UseDiagramViewStateArgs = {
   diagramMode: DiagramMode;
+  overviewNodeDataVisible: boolean;
   parsed: Parsed | null;
   parsedSliceProjectionList: ParsedSliceProjection<Parsed>[];
   currentDsl: string;
@@ -50,6 +51,7 @@ export type UseDiagramViewStateArgs = {
 export function useDiagramViewState(args: UseDiagramViewStateArgs) {
   const {
     diagramMode,
+    overviewNodeDataVisible,
     parsed,
     parsedSliceProjectionList,
     currentDsl,
@@ -88,10 +90,10 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
   const diagramParsed = diagramMode === 'overview' ? overviewGraph?.parsed ?? null : parsed;
   const layoutStateKey = useMemo(() => {
     if (diagramMode === 'overview') {
-      return `overview:${parsedSliceProjectionList.map((slice) => `${slice.id}:${slice.dsl}`).join('|')}`;
+      return `overview:${overviewNodeDataVisible ? 'data:on' : 'data:off'}:${parsedSliceProjectionList.map((slice) => `${slice.id}:${slice.dsl}`).join('|')}`;
     }
     return `slice:${selectedSliceId}:${currentDsl}`;
-  }, [currentDsl, diagramMode, parsedSliceProjectionList, selectedSliceId]);
+  }, [currentDsl, diagramMode, overviewNodeDataVisible, parsedSliceProjectionList, selectedSliceId]);
   const [diagramEngineLayoutState, setDiagramEngineLayoutState] = useState<{
     key: string;
     layout: Awaited<ReturnType<typeof computeDiagramLayout>> | Awaited<ReturnType<typeof computeOverviewDiagramLayout>>;
@@ -205,7 +207,7 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
         };
       });
     });
-  }, [currentDsl, diagramParsed, layoutStateKey, theme]);
+  }, [currentDsl, diagramParsed, layoutStateKey, overviewNodeDataVisible, theme]);
 
   const engineLayout = diagramEngineLayoutState?.key === layoutStateKey
     ? diagramEngineLayoutState.layout

@@ -4,6 +4,7 @@ import { SCENARIO_GROUP_MEASURE_CLASS } from '../../nodeMeasurement';
 
 type ScenarioGroupMeasureLayerProps = {
   scenarioGroups: DiagramScenarioGroup[];
+  overviewNodeDataVisible: boolean;
 };
 
 function toScenarioNodeCardProps(entry: DiagramScenarioNode) {
@@ -21,7 +22,10 @@ function toScenarioNodeCardProps(entry: DiagramScenarioNode) {
   };
 }
 
-export function ScenarioGroupMeasureLayer({ scenarioGroups }: ScenarioGroupMeasureLayerProps) {
+export function ScenarioGroupMeasureLayer({
+  scenarioGroups,
+  overviewNodeDataVisible
+}: ScenarioGroupMeasureLayerProps) {
   if (scenarioGroups.length === 0) {
     return null;
   }
@@ -47,6 +51,7 @@ export function ScenarioGroupMeasureLayer({ scenarioGroups }: ScenarioGroupMeasu
                     key={`${scenario.name}-given-${entry.key}-${index}`}
                     {...toScenarioNodeCardProps(entry)}
                     className={`scenario-node-card ${entry.className ?? ''}`.trim()}
+                    hideData={!overviewNodeDataVisible}
                   />
                 ))}
               </div>
@@ -56,6 +61,7 @@ export function ScenarioGroupMeasureLayer({ scenarioGroups }: ScenarioGroupMeasu
                   <NodeCard
                     {...toScenarioNodeCardProps(scenario.when)}
                     className={`scenario-node-card ${scenario.when.className ?? ''}`.trim()}
+                    hideData={!overviewNodeDataVisible}
                   />
                 )}
               </div>
@@ -66,6 +72,7 @@ export function ScenarioGroupMeasureLayer({ scenarioGroups }: ScenarioGroupMeasu
                     key={`${scenario.name}-then-${entry.key}-${index}`}
                     {...toScenarioNodeCardProps(entry)}
                     className={`scenario-node-card ${entry.className ?? ''}`.trim()}
+                    hideData={!overviewNodeDataVisible}
                   />
                 ))}
               </div>

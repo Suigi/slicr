@@ -37,6 +37,8 @@ export function useAppState(): UseAppStateResult {
     setEditorOpen,
     diagramMode,
     setDiagramMode,
+    overviewNodeDataVisible,
+    setOverviewNodeDataVisible,
     sliceSelectedNodeKey,
     setSliceSelectedNodeKey,
     overviewSelectedNodeKey,
@@ -194,6 +196,7 @@ export function useAppState(): UseAppStateResult {
 
   const diagramView = useDiagramViewState({
     diagramMode,
+    overviewNodeDataVisible,
     parsed,
     parsedSliceProjectionList,
     currentDsl,
@@ -323,6 +326,7 @@ export function useAppState(): UseAppStateResult {
     overviewReturnState,
     setEditorOpen: setTrackedEditorOpen,
     setDiagramMode,
+    setOverviewNodeDataVisible,
     focusRange,
     setSliceMenuOpen,
     setProjectRailOpen,
@@ -377,6 +381,7 @@ export function useAppState(): UseAppStateResult {
     },
     diagram: {
       diagramMode,
+      overviewNodeDataVisible,
       parsed: diagramView.parsed,
       parsedSliceProjectionList,
       currentDsl,

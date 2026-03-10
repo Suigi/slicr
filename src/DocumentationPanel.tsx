@@ -180,7 +180,9 @@ function FeatureCard({ feature, diagramRendererId }: { feature: DocumentationFea
               }}
             >
               <DiagramRenderer
+                diagramMode="slice"
                 sceneModel={preview.sceneModel}
+                overviewNodeDataVisible
                 canvasPanelRef={canvasPanelRef}
                 isPanning={false}
                 docsOpen={false}
@@ -193,6 +195,7 @@ function FeatureCard({ feature, diagramRendererId }: { feature: DocumentationFea
                 onNodeSelect={() => {}}
                 onNodeOpenInEditor={() => {}}
                 onEdgeHover={noopEdgeHover}
+                onToggleOverviewNodeDataVisibility={() => {}}
                 rendererId={diagramRendererId}
                 cameraControlsEnabled={false}
                 initialCamera={preview.initialCamera}

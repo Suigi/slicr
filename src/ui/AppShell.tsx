@@ -70,9 +70,11 @@ export function AppShell(props: AppShellProps) {
         <DiagramInteractionProvider
           value={{
             diagram: {
+              diagramMode: diagram.diagramMode,
               DiagramRenderer: diagram.DiagramRenderer,
               rendererViewportKey: diagram.rendererViewportKey,
               sceneModel: diagram.sceneModel,
+              overviewNodeDataVisible: diagram.overviewNodeDataVisible,
               initialCamera: diagram.initialCamera,
               dragTooltip: diagram.dragTooltip,
               dragAndDropEnabled: diagram.dragAndDropEnabled,
@@ -87,7 +89,8 @@ export function AppShell(props: AppShellProps) {
               onNodeHoverRange: actions.onNodeHoverRange,
               onNodeSelect: actions.onNodeSelect,
               onNodeOpenInEditor: actions.onNodeOpenInEditor,
-              onEdgeHover: actions.onEdgeHover
+              onEdgeHover: actions.onEdgeHover,
+              onToggleOverviewNodeDataVisibility: actions.onToggleOverviewNodeDataVisibility
             }
           }}
         >
@@ -158,7 +161,10 @@ export function AppShell(props: AppShellProps) {
       </div>
 
       <NodeMeasureLayer diagram={diagram} constants={constants} />
-      <ScenarioGroupMeasureLayer scenarioGroups={diagram.measurementScenarioGroups} />
+      <ScenarioGroupMeasureLayer
+        scenarioGroups={diagram.measurementScenarioGroups}
+        overviewNodeDataVisible={diagram.overviewNodeDataVisible}
+      />
     </>
   );
 }

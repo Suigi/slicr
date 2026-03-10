@@ -65,6 +65,7 @@ function ViewStateHarness({
   }, [pendingFocusNodeKey]);
   const viewState = useDiagramViewState({
     diagramMode: 'slice',
+    overviewNodeDataVisible: true,
     parsed: parsedValue,
     parsedSliceProjectionList: [],
     currentDsl: dsl,
@@ -93,7 +94,11 @@ function ViewStateHarness({
     onSceneModel(viewState.sceneModel);
   }, [onSceneModel, viewState.sceneModel]);
 
-  const measureLayerDiagram = { parsed: viewState.parsed } as never;
+  const measureLayerDiagram = {
+    diagramMode: 'slice',
+    overviewNodeDataVisible: true,
+    parsed: viewState.parsed
+  } as never;
 
   return (
     <>

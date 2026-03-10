@@ -121,7 +121,8 @@ function renderRenderer(Renderer: RendererComponent, overrides: Partial<DiagramR
   document.body.appendChild(host);
   root = ReactDOM.createRoot(host);
 
-  const props: DiagramRendererAdapterProps = {
+  const props = {
+    diagramMode: 'slice' as const,
     sceneModel: createScene(),
     canvasPanelRef: { current: null },
     isPanning: false,
@@ -136,7 +137,7 @@ function renderRenderer(Renderer: RendererComponent, overrides: Partial<DiagramR
     onNodeOpenInEditor: vi.fn(),
     onEdgeHover: vi.fn(),
     ...overrides
-  };
+  } satisfies DiagramRendererAdapterProps;
 
   act(() => {
     root?.render(<Renderer {...props} />);

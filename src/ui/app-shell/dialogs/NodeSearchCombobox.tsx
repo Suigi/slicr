@@ -51,10 +51,20 @@ export function NodeSearchCombobox<T>(props: NodeSearchComboboxProps<T>) {
 
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
+  const autoFocusTimeoutRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
+  const blurTimeoutRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
+  const scrollTimeoutRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [hideUntilInput, setHideUntilInput] = useState(false);
   const [hasFocus, setHasFocus] = useState(false);
   const showSuggestions = hasFocus && !hideUntilInput;
+
+  const clearTimer = (ref: React.RefObject<ReturnType<typeof globalThis.setTimeout> | null>) => {
+    if (ref.current !== null) {
+      globalThis.clearTimeout(ref.current);
+      ref.current = null;
+    }
+  };
 
   const scrollActiveIntoView = () => {
     if (!suggestionsRef.current) return;
@@ -75,8 +85,21 @@ export function NodeSearchCombobox<T>(props: NodeSearchComboboxProps<T>) {
 
   useEffect(() => {
     if (!autoFocus) return;
-    window.setTimeout(() => inputRef.current?.focus(), 0);
+    clearTimer(autoFocusTimeoutRef);
+    autoFocusTimeoutRef.current = globalThis.setTimeout(() => {
+      autoFocusTimeoutRef.current = null;
+      inputRef.current?.focus();
+    }, 0);
+    return () => {
+      clearTimer(autoFocusTimeoutRef);
+    };
   }, [autoFocus]);
+
+  useEffect(() => () => {
+    clearTimer(autoFocusTimeoutRef);
+    clearTimer(blurTimeoutRef);
+    clearTimer(scrollTimeoutRef);
+  }, []);
 
   return (
     <div className={pickerClassName}>
@@ -91,13 +114,16 @@ export function NodeSearchCombobox<T>(props: NodeSearchComboboxProps<T>) {
           setHideUntilInput(false);
         }}
         onFocus={(event) => {
+          clearTimer(blurTimeoutRef);
           setHasFocus(true);
           if (selectAllOnFocus) {
             event.currentTarget.setSelectionRange(0, event.currentTarget.value.length);
           }
         }}
         onBlur={() => {
-          window.setTimeout(() => {
+          clearTimer(blurTimeoutRef);
+          blurTimeoutRef.current = globalThis.setTimeout(() => {
+            blurTimeoutRef.current = null;
             setHasFocus(false);
             setActiveIndex(-1);
           }, 60);
@@ -108,7 +134,11 @@ export function NodeSearchCombobox<T>(props: NodeSearchComboboxProps<T>) {
             event.preventDefault();
             setActiveIndex((current) => {
               const next = (current + 1 + options.length) % options.length;
-              window.setTimeout(scrollActiveIntoView, 0);
+              clearTimer(scrollTimeoutRef);
+              scrollTimeoutRef.current = globalThis.setTimeout(() => {
+                scrollTimeoutRef.current = null;
+                scrollActiveIntoView();
+              }, 0);
               return next;
             });
             return;
@@ -118,11 +148,19 @@ export function NodeSearchCombobox<T>(props: NodeSearchComboboxProps<T>) {
             event.preventDefault();
             setActiveIndex((current) => {
               if (current < 0) {
-                window.setTimeout(scrollActiveIntoView, 0);
+                clearTimer(scrollTimeoutRef);
+                scrollTimeoutRef.current = globalThis.setTimeout(() => {
+                  scrollTimeoutRef.current = null;
+                  scrollActiveIntoView();
+                }, 0);
                 return options.length - 1;
               }
               const next = (current - 1 + options.length) % options.length;
-              window.setTimeout(scrollActiveIntoView, 0);
+              clearTimer(scrollTimeoutRef);
+              scrollTimeoutRef.current = globalThis.setTimeout(() => {
+                scrollTimeoutRef.current = null;
+                scrollActiveIntoView();
+              }, 0);
               return next;
             });
             return;

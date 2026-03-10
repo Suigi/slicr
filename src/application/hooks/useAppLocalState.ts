@@ -38,6 +38,7 @@ export function useAppLocalState() {
   });
   const [editorOpen, setEditorOpen] = useState(false);
   const [diagramMode, setDiagramMode] = useState<DiagramMode>('slice');
+  const [overviewNodeDataVisible, setOverviewNodeDataVisible] = useState(true);
   const [sliceSelectedNodeKey, setSliceSelectedNodeKey] = useState<string | null>(null);
   const [overviewSelectedNodeKey, setOverviewSelectedNodeKey] = useState<string | null>(null);
   const [overviewReturnState, setOverviewReturnState] = useState<{ editorOpen: boolean; selectedNodeKey: string | null }>({
@@ -101,6 +102,8 @@ export function useAppLocalState() {
     setEditorOpen,
     diagramMode,
     setDiagramMode,
+    overviewNodeDataVisible,
+    setOverviewNodeDataVisible,
     sliceSelectedNodeKey,
     setSliceSelectedNodeKey,
     overviewSelectedNodeKey,

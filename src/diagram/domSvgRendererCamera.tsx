@@ -31,6 +31,7 @@ function scenarioAreaLeft(sceneModel: NonNullable<DiagramRendererAdapterProps['s
 
 function renderScenarioBoxes(
   scenarios: DiagramScenario[],
+  hideData: boolean,
   onNodeHoverRange: DiagramRendererAdapterProps['onNodeHoverRange'],
   onNodeSelect: DiagramRendererAdapterProps['onNodeSelect'],
   onNodeOpenInEditor: DiagramRendererAdapterProps['onNodeOpenInEditor']
@@ -48,6 +49,7 @@ function renderScenarioBoxes(
             key={`${scenario.name}-given-${entry.key}-${index}`}
             {...toScenarioNodeCardProps(entry)}
             className={`scenario-node-card ${entry.className ?? ''}`.trim()}
+            hideData={hideData}
             onMouseEnter={() => onNodeHoverRange(entry.srcRange)}
             onMouseLeave={() => onNodeHoverRange(null)}
             onClick={(event) => {
@@ -67,6 +69,7 @@ function renderScenarioBoxes(
           <NodeCard
             {...toScenarioNodeCardProps(scenario.when)}
             className={`scenario-node-card ${scenario.when.className ?? ''}`.trim()}
+            hideData={hideData}
             onMouseEnter={() => onNodeHoverRange(scenario.when!.srcRange)}
             onMouseLeave={() => onNodeHoverRange(null)}
             onClick={(event) => {
@@ -87,6 +90,7 @@ function renderScenarioBoxes(
             key={`${scenario.name}-then-${entry.key}-${index}`}
             {...toScenarioNodeCardProps(entry)}
             className={`scenario-node-card ${entry.className ?? ''}`.trim()}
+            hideData={hideData}
             onMouseEnter={() => onNodeHoverRange(entry.srcRange)}
             onMouseLeave={() => onNodeHoverRange(null)}
             onClick={(event) => {
@@ -107,7 +111,9 @@ function renderScenarioBoxes(
 const DEFAULT_CAMERA = { x: 0, y: 0, zoom: 1 } as const;
 
 export function DomSvgDiagramRendererCamera({
+  diagramMode,
   sceneModel,
+  overviewNodeDataVisible = true,
   canvasPanelRef,
   isPanning,
   docsOpen,
@@ -120,6 +126,7 @@ export function DomSvgDiagramRendererCamera({
   onNodeSelect,
   onNodeOpenInEditor,
   onEdgeHover,
+  onToggleOverviewNodeDataVisibility,
   rendererId = 'dom-svg',
   cameraControlsEnabled = true,
   initialCamera
@@ -132,6 +139,8 @@ export function DomSvgDiagramRendererCamera({
     ? initialCamera
     : camera;
   void beginCanvasPan;
+  const showOverviewNodeDataToggle = diagramMode === 'overview' && cameraControlsEnabled;
+  const hideOverviewNodeData = diagramMode === 'overview' && overviewNodeDataVisible === false;
 
   const beginCameraPan = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!cameraControlsEnabled) {
@@ -386,6 +395,7 @@ export function DomSvgDiagramRendererCamera({
                 node={entry.node}
                 nodePrefix={entry.nodePrefix}
                 className={entry.className}
+                hideData={hideOverviewNodeData}
                 style={{
                   left: `${entry.x}px`,
                   top: `${entry.y}px`,
@@ -505,7 +515,7 @@ export function DomSvgDiagramRendererCamera({
                       width: `${group.width}px`
                     }}
                   >
-                    {renderScenarioBoxes(group.scenarios, onNodeHoverRange, onNodeSelect, onNodeOpenInEditor)}
+                    {renderScenarioBoxes(group.scenarios, hideOverviewNodeData, onNodeHoverRange, onNodeSelect, onNodeOpenInEditor)}
                   </div>
                 ))}
               </>
@@ -517,7 +527,7 @@ export function DomSvgDiagramRendererCamera({
                   left: `${scenarioAreaLeft(sceneModel)}px`
                 }}
               >
-                {renderScenarioBoxes(sceneModel.scenarios, onNodeHoverRange, onNodeSelect, onNodeOpenInEditor)}
+                {renderScenarioBoxes(sceneModel.scenarios, hideOverviewNodeData, onNodeHoverRange, onNodeSelect, onNodeOpenInEditor)}
               </div>
             )}
           </div>
@@ -526,6 +536,17 @@ export function DomSvgDiagramRendererCamera({
       <div className="canvas-ui-overlay">
         {cameraControlsEnabled && (
           <div className="camera-zoom-toolbar" onPointerDown={(event) => event.stopPropagation()}>
+            {showOverviewNodeDataToggle && (
+              <label className="camera-zoom-toggle">
+                <input
+                  type="checkbox"
+                  aria-label="Show Node Data"
+                  checked={overviewNodeDataVisible}
+                  onChange={() => onToggleOverviewNodeDataVisibility?.()}
+                />
+                <span>Show Node Data</span>
+              </label>
+            )}
             <button
               type="button"
               className="camera-zoom-button"

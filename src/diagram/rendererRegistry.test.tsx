@@ -43,6 +43,7 @@ function renderWithRegistryRenderer(rendererId: 'dom-svg' | 'dom-svg-camera') {
   };
 
   const props: DiagramRendererAdapterProps = {
+    diagramMode: 'slice',
     sceneModel,
     canvasPanelRef: { current: null },
     isPanning: false,

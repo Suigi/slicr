@@ -42,6 +42,7 @@ type UseAppActionsArgs = {
   overviewReturnState: { editorOpen: boolean; selectedNodeKey: string | null };
   setEditorOpen: Dispatch<SetStateAction<boolean>>;
   setDiagramMode: Dispatch<SetStateAction<DiagramMode>>;
+  setOverviewNodeDataVisible: Dispatch<SetStateAction<boolean>>;
   focusRange: (range: Range) => void;
   setSliceMenuOpen: Dispatch<SetStateAction<boolean>>;
   setProjectRailOpen: Dispatch<SetStateAction<boolean>>;
@@ -97,6 +98,7 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
     overviewReturnState,
     setEditorOpen,
     setDiagramMode,
+    setOverviewNodeDataVisible,
     focusRange,
     setSliceMenuOpen,
     setProjectRailOpen,
@@ -434,6 +436,7 @@ export function useAppActions(args: UseAppActionsArgs): ActionsSection {
       setOverviewPlaceholderSceneModel(null);
       setDiagramMode('slice');
       setCommandPaletteOpen(false);
-    }
+    },
+    onToggleOverviewNodeDataVisibility: () => setOverviewNodeDataVisible((current) => !current)
   };
 }

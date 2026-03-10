@@ -68,6 +68,44 @@ function baseScene(): DiagramSceneModel {
   };
 }
 
+function sceneWithNodeData(): DiagramSceneModel {
+  const scene = baseScene();
+  scene.nodes = [
+    {
+      ...scene.nodes[0],
+      node: {
+        ...scene.nodes[0].node,
+        data: { Title: 'Visible value' }
+      }
+    }
+  ];
+  scene.scenarios = [
+    {
+      name: 'Scenario',
+      srcRange: { from: 20, to: 40 },
+      given: [{
+        key: 'scenario-given',
+        type: 'evt',
+        title: 'scenario-given',
+        prefix: 'evt',
+        srcRange: { from: 21, to: 22 },
+        node: {
+          type: 'evt',
+          name: 'scenario-given',
+          alias: null,
+          stream: null,
+          key: 'scenario-given',
+          data: { Note: 'Scenario data' },
+          srcRange: { from: 21, to: 22 }
+        }
+      }],
+      when: null,
+      then: []
+    }
+  ];
+  return scene;
+}
+
 function renderRenderer(overrides: Partial<DiagramRendererAdapterProps> = {}) {
   host = document.createElement('div');
   document.body.appendChild(host);
@@ -75,6 +113,7 @@ function renderRenderer(overrides: Partial<DiagramRendererAdapterProps> = {}) {
 
   const canvasPanelRef = { current: null };
   const props: DiagramRendererAdapterProps = {
+    diagramMode: 'slice',
     sceneModel: baseScene(),
     canvasPanelRef,
     isPanning: false,
@@ -165,6 +204,7 @@ describe('DomSvgDiagramRendererCamera', () => {
     const canvasPanelRef = { current: null };
     const lateInitialCamera = { x: -820, y: -820, zoom: 1 };
     const props: DiagramRendererAdapterProps = {
+      diagramMode: 'slice',
       sceneModel: null,
       canvasPanelRef,
       isPanning: false,
@@ -208,6 +248,44 @@ describe('DomSvgDiagramRendererCamera', () => {
   it('does not render toolbar when camera controls are disabled', () => {
     renderRenderer({ cameraControlsEnabled: false });
     expect(document.querySelector('.camera-zoom-toolbar')).toBeNull();
+  });
+
+  it('renders a checked Show Node Data checkbox next to the camera controls in overview mode', () => {
+    const onToggleOverviewNodeDataVisibility = vi.fn();
+
+    renderRenderer({
+      diagramMode: 'overview',
+      overviewNodeDataVisible: true,
+      onToggleOverviewNodeDataVisibility
+    });
+
+    const toolbar = document.querySelector('.camera-zoom-toolbar') as HTMLElement | null;
+    const checkbox = document.querySelector('input[type="checkbox"][aria-label="Show Node Data"]') as HTMLInputElement | null;
+    expect(toolbar).not.toBeNull();
+    expect(checkbox).not.toBeNull();
+    expect(checkbox?.checked).toBe(true);
+    expect(checkbox?.closest('.camera-zoom-toolbar')).toBe(toolbar);
+
+    act(() => {
+      checkbox?.click();
+    });
+
+    expect(onToggleOverviewNodeDataVisibility).toHaveBeenCalledTimes(1);
+  });
+
+  it('hides overview node data rows from diagram and scenario cards when the flag is off', () => {
+    renderRenderer({
+      diagramMode: 'overview',
+      overviewNodeDataVisible: false,
+      sceneModel: sceneWithNodeData()
+    });
+
+    const renderedFields = document.querySelectorAll('.canvas-panel .node-fields');
+    expect(renderedFields).toHaveLength(0);
+    expect(document.querySelector('.canvas-panel .node-title')?.textContent).toContain('node-1');
+    expect(document.querySelector('.scenario-box .node-title')?.textContent).toContain('scenario-given');
+    expect(document.querySelector('.canvas-panel')?.textContent).not.toContain('Visible value');
+    expect(document.querySelector('.canvas-panel')?.textContent).not.toContain('Scenario data');
   });
 
   it('does not render scenario area when no scenarios exist', () => {

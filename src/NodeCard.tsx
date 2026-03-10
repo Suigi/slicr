@@ -10,6 +10,7 @@ type NodeCardProps = {
   className?: string;
   style?: CSSProperties;
   maxFields?: number;
+  hideData?: boolean;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
   onClick?: (event: MouseEvent<HTMLDivElement>) => void;
@@ -37,7 +38,7 @@ export function NodeCard(props: NodeCardProps) {
         <span className="node-title">{props.node.alias ?? props.node.name}</span>
       </div>
 
-      {props.node.data && (
+      {props.node.data && !props.hideData && (
         <div className="node-fields">
           {displayedFields.map((field) => {
             const isInboundMapped = props.node.mappedDataKeys?.has(field.key) ?? false;
