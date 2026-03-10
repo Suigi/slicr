@@ -68,7 +68,8 @@ Run the test and record the actual outcome:
 
 ```
 ACTUAL: [what actually happened]
-MATCH: yes / no — [if no: what assumption was wrong, and what does that reveal?]
+<newline>
+MATCH: ✅ / ❌ — [if ❌: what assumption was wrong, and what does that reveal?]
 ```
 
 Only proceed to step 6 once the failure matches your prediction. If it does not match, identify the hidden assumption that was violated, update your understanding, and return to step 2 or 3 as needed.

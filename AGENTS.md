@@ -2,7 +2,7 @@
 
 ## Tests and Test-Driven Development
 
-- **ALWAYS** run tests via the `vitest` MCP server
+- **ALWAYS** run tests via the `./scripts/test.sh` script. It is a wrapper for `vitest` and forwards all arguments.
 - Use the $ptdd skill when adding or changing behavior.
 
 ## Running npm in this repo

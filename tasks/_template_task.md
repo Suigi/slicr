@@ -29,6 +29,20 @@ Each file follows this structure:
 ```md
 # <Feature Name> Tasks
 
+## Feature Description
+<short summary of the feature, including a link to feature plan document>
+
+## Workflow
+
+Tasks should move through these status values in order:
+
+* `[created]`: the task was described, but no work was done to implement it
+* `[started]`: an agent sets this status before starting to work on a task
+* `[done]`: an agent sets this status once a task is completed
+
+**IMPORTANT**: Only **ONE** (1) task should be in the `[started]` status at a time.
+Agents must update the task file as they work: set a task to `[started]` immediately before implementation begins, and set it to `[done]` as soon as that task is complete.
+
 ## Task 1: <Short task title>
 ### Status
 [created]
@@ -101,6 +115,8 @@ Tasks should move through these status values in order:
 * `[started]`: an agent sets this status before starting to work on a task
 * `[done]`: an agent sets this status once a task is completed
 
+Agents must update the task file as they work: set a task to `[started]` immediately before implementation begins, and set it to `[done]` as soon as that task is complete.
+
 ### Description
 
 Use one concise paragraph explaining:
@@ -158,6 +174,20 @@ Copy this block when creating a new `*-tasks.md` file:
 
 ```md
 # <Feature Name> Tasks
+
+## Feature Description
+<short summary of the feature, including a link to feature plan document>
+
+## Workflow
+
+Tasks should move through these status values in order:
+
+* `[created]`: the task was described, but no work was done to implement it
+* `[started]`: an agent sets this status before starting to work on a task
+* `[done]`: an agent sets this status once a task is completed
+
+**IMPORTANT**: Only **ONE** (1) task should be in the `[started]` status at a time.
+Agents must update the task file as they work: set a task to `[started]` immediately before implementation begins, and set it to `[done]` as soon as that task is complete.
 
 ## Task 1: <Short task title>
 ### Status

@@ -43,8 +43,8 @@ Run only the new test (or the narrowest relevant test scope) and record the actu
 
 ```
 ACTUAL: [what actually happened]
-
-MATCH: yes / no — [if no: what assumption was wrong, and what does that reveal?]
+<newline>
+MATCH: ✅ / ❌ — [if ❌: what assumption was wrong, and what does that reveal?]
 ```
 
 Only proceed to step 4 once the failure matches your prediction. If it does not match, identify the hidden assumption that was violated, update your understanding, and revise the test as needed.
