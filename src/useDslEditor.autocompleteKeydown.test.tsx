@@ -8,7 +8,7 @@ import { Dispatch, SetStateAction, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
 import { afterEach, describe, expect, it } from 'vitest';
 import { slicr } from './slicrLanguage';
-import { EditorViewLike, useDslEditor } from './useDslEditor';
+import { useDslEditor } from './useDslEditor';
 
 type HarnessProps = {
   dsl: string;
@@ -39,7 +39,7 @@ function Harness(props: HarnessProps) {
         parent
       });
       props.onViewCreated(view);
-      return view as unknown as EditorViewLike;
+      return view;
     }
   });
 
