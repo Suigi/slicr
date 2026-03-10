@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { buildOverviewDiagramGraph } from './diagramEngine';
 import type { ParsedSliceProjection } from './parsedSliceProjection';
 import type { Parsed, VisualNode } from './types';
-import { collectOverviewBoundaryNodes, toCrossSliceLogicalRef } from './overviewCrossSliceLinks';
+import {
+  collectOverviewBoundaryNodes,
+  deriveOverviewCrossSliceLinks,
+  toCrossSliceLogicalRef
+} from './overviewCrossSliceLinks';
 
 function makeNode(key: string, name: string): VisualNode {
   return {
@@ -120,6 +124,116 @@ describe('overviewCrossSliceLinks', () => {
         hasIncoming: false,
         hasOutgoing: false
       }
+    ]);
+  });
+
+  it('links every eligible end occurrence to every eligible start occurrence in later slices with the same logical ref', () => {
+    const alphaSource: VisualNode = { ...makeNode('evt:order-created@1', 'order-created@1'), type: 'evt' };
+    const betaTargetOne: VisualNode = { ...makeNode('evt:order-created@2', 'order-created@2'), type: 'evt' };
+    const gammaTarget: VisualNode = { ...makeNode('evt:order-created@3', 'order-created@3'), type: 'evt' };
+    const gammaTargetTwo: VisualNode = { ...makeNode('evt:order-created@4', 'order-created@4'), type: 'evt' };
+    const betaFollower = makeNode('cmd:beta-follower', 'beta-follower');
+    const gammaLeader = makeNode('cmd:gamma-leader', 'gamma-leader');
+
+    const projections = [
+      makeProjection('slice-1', {
+        sliceName: 'Alpha',
+        nodes: new Map([[alphaSource.key, alphaSource]]),
+        edges: [],
+        warnings: [],
+        boundaries: [],
+        scenarios: [],
+        scenarioOnlyNodeKeys: []
+      }),
+      makeProjection('slice-2', {
+        sliceName: 'Beta',
+        nodes: new Map([
+          [betaTargetOne.key, betaTargetOne],
+          [betaFollower.key, betaFollower]
+        ]),
+        edges: [{ from: betaTargetOne.key, to: betaFollower.key, label: null }],
+        warnings: [],
+        boundaries: [],
+        scenarios: [],
+        scenarioOnlyNodeKeys: []
+      }),
+      makeProjection('slice-3', {
+        sliceName: 'Gamma',
+        nodes: new Map([
+          [gammaLeader.key, gammaLeader],
+          [gammaTarget.key, gammaTarget],
+          [gammaTargetTwo.key, gammaTargetTwo]
+        ]),
+        edges: [{ from: gammaLeader.key, to: gammaTarget.key, label: null }],
+        warnings: [],
+        boundaries: [],
+        scenarios: [],
+        scenarioOnlyNodeKeys: []
+      })
+    ];
+    const overview = buildOverviewDiagramGraph(projections);
+
+    const links = deriveOverviewCrossSliceLinks(projections, overview.nodeMetadataByKey);
+
+    expect(links.map((link) => ({
+      logicalRef: link.logicalRef,
+      fromOverviewNodeKey: link.fromOverviewNodeKey,
+      toOverviewNodeKey: link.toOverviewNodeKey,
+      fromSliceId: link.fromSliceId,
+      toSliceId: link.toSliceId
+    }))).toEqual([
+      {
+        logicalRef: 'evt:order-created',
+        fromOverviewNodeKey: 'slice-1::evt:order-created@1',
+        toOverviewNodeKey: 'slice-2::evt:order-created@2',
+        fromSliceId: 'slice-1',
+        toSliceId: 'slice-2'
+      },
+      {
+        logicalRef: 'evt:order-created',
+        fromOverviewNodeKey: 'slice-1::evt:order-created@1',
+        toOverviewNodeKey: 'slice-3::evt:order-created@4',
+        fromSliceId: 'slice-1',
+        toSliceId: 'slice-3'
+      }
+    ]);
+  });
+
+  it('uses endpoint-pair keys so distinct source-target pairs remain distinct deterministically', () => {
+    const sourceOne: VisualNode = { ...makeNode('evt:order-created@1', 'order-created@1'), type: 'evt' };
+    const sourceTwo: VisualNode = { ...makeNode('evt:order-created@2', 'order-created@2'), type: 'evt' };
+    const target: VisualNode = { ...makeNode('evt:order-created@3', 'order-created@3'), type: 'evt' };
+
+    const projections = [
+      makeProjection('slice-1', {
+        sliceName: 'Alpha',
+        nodes: new Map([
+          [sourceOne.key, sourceOne],
+          [sourceTwo.key, sourceTwo]
+        ]),
+        edges: [],
+        warnings: [],
+        boundaries: [],
+        scenarios: [],
+        scenarioOnlyNodeKeys: []
+      }),
+      makeProjection('slice-2', {
+        sliceName: 'Beta',
+        nodes: new Map([[target.key, target]]),
+        edges: [],
+        warnings: [],
+        boundaries: [],
+        scenarios: [],
+        scenarioOnlyNodeKeys: []
+      })
+    ];
+    const overview = buildOverviewDiagramGraph(projections);
+
+    const links = deriveOverviewCrossSliceLinks(projections, overview.nodeMetadataByKey);
+
+    expect(links.map((link) => link.key)).toEqual([
+      'slice-1::evt:order-created@1->slice-2::evt:order-created@3',
+      'slice-1::evt:order-created@2->slice-2::evt:order-created@3'
     ]);
   });
 });

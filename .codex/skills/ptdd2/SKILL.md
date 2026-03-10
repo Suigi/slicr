@@ -39,7 +39,8 @@ PREDICTION: The test will fail with [error type / assertion failure] because [re
 Be specific: identify which assertion will fail and what value it will receive instead of the expected one.
 
 **3. Run the test and evaluate**
-Run only the new test (or the narrowest relevant test scope) and record the actual outcome:
+Run only the new test (or the narrowest relevant test scope) and record the actual outcome.
+Use the exact format below and make sure to use the ✅ and ❌ emojis indicating whether the prediction was correct or not.
 
 ```
 ACTUAL: [what actually happened]
@@ -66,8 +67,8 @@ Record the actual outcome:
 
 ```
 ACTUAL: [what happened]
-
-MATCH: yes / no — [if no: what assumption was wrong?]
+<newline>
+MATCH: ✅ / ❌ — [if ❌: what assumption was wrong?]
 ```
 
 If tests are unexpectedly broken, do not proceed. Diagnose and fix before continuing.

@@ -15,6 +15,19 @@ export type OverviewBoundaryNode = {
   hasOutgoing: boolean;
 };
 
+export type OverviewCrossSliceLink = {
+  key: string;
+  logicalRef: string;
+  fromOverviewNodeKey: string;
+  toOverviewNodeKey: string;
+  fromSliceId: string;
+  toSliceId: string;
+  fromSliceIndex: number;
+  toSliceIndex: number;
+  distance: number;
+  renderMode: 'shared-node' | 'dashed-connector';
+};
+
 export function toCrossSliceLogicalRef(type: string, name: string): string {
   return `${type}:${name.replace(/@[^@]*$/, '')}`;
 }
@@ -73,4 +86,63 @@ export function collectOverviewBoundaryNodes(
         }];
       });
   });
+}
+
+export function deriveOverviewCrossSliceLinks(
+  parsedSlices: ParsedSliceProjection<Parsed>[],
+  overviewNodeMetadataByKey: Map<string, OverviewNodeMetadata>
+): OverviewCrossSliceLink[] {
+  const candidates = collectOverviewBoundaryNodes(parsedSlices, overviewNodeMetadataByKey);
+  const sourceCandidatesByLogicalRef = new Map<string, OverviewBoundaryNode[]>();
+  const targetCandidatesByLogicalRef = new Map<string, OverviewBoundaryNode[]>();
+
+  for (const candidate of candidates) {
+    if (!candidate.hasOutgoing) {
+      const sourceCandidates = sourceCandidatesByLogicalRef.get(candidate.logicalRef) ?? [];
+      sourceCandidates.push(candidate);
+      sourceCandidatesByLogicalRef.set(candidate.logicalRef, sourceCandidates);
+    }
+    if (!candidate.hasIncoming) {
+      const targetCandidates = targetCandidatesByLogicalRef.get(candidate.logicalRef) ?? [];
+      targetCandidates.push(candidate);
+      targetCandidatesByLogicalRef.set(candidate.logicalRef, targetCandidates);
+    }
+  }
+
+  const links: OverviewCrossSliceLink[] = [];
+  const seenPairs = new Set<string>();
+
+  for (const [logicalRef, sourceCandidates] of sourceCandidatesByLogicalRef.entries()) {
+    const targetCandidates = targetCandidatesByLogicalRef.get(logicalRef) ?? [];
+
+    for (const sourceCandidate of sourceCandidates) {
+      for (const targetCandidate of targetCandidates) {
+        const distance = targetCandidate.sliceIndex - sourceCandidate.sliceIndex;
+        if (distance <= 0) {
+          continue;
+        }
+
+        const pairKey = `${sourceCandidate.overviewNodeKey}->${targetCandidate.overviewNodeKey}`;
+        if (seenPairs.has(pairKey)) {
+          continue;
+        }
+        seenPairs.add(pairKey);
+
+        links.push({
+          key: pairKey,
+          logicalRef,
+          fromOverviewNodeKey: sourceCandidate.overviewNodeKey,
+          toOverviewNodeKey: targetCandidate.overviewNodeKey,
+          fromSliceId: sourceCandidate.sourceSliceId,
+          toSliceId: targetCandidate.sourceSliceId,
+          fromSliceIndex: sourceCandidate.sliceIndex,
+          toSliceIndex: targetCandidate.sliceIndex,
+          distance,
+          renderMode: distance === 1 ? 'shared-node' : 'dashed-connector'
+        });
+      }
+    }
+  }
+
+  return links;
 }
