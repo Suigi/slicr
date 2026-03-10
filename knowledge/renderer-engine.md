@@ -11,19 +11,19 @@ This document captures the current learnings and the preparation plan for switch
 ## Current State (After Phase 0 + Phase 1 + Phase 2)
 
 - Rendering contract exists in:
-  - `/Users/daniel/src/private/slicr/src/diagram/rendererContract.ts`
+  - `./src/diagram/rendererContract.ts`
 - Scene builder exists in:
-  - `/Users/daniel/src/private/slicr/src/diagram/sceneModel.ts`
+  - `./src/diagram/sceneModel.ts`
 - App now renders from scene model (instead of inline lane/viewport/path computations):
-  - `/Users/daniel/src/private/slicr/src/App.tsx`
+  - `./src/App.tsx`
 - DOM/SVG renderer adapter extracted to:
-  - `/Users/daniel/src/private/slicr/src/diagram/domSvgRenderer.tsx`
+  - `./src/diagram/domSvgRenderer.tsx`
 - Renderer registry/factory added:
-  - `/Users/daniel/src/private/slicr/src/diagram/rendererRegistry.ts`
+  - `./src/diagram/rendererRegistry.ts`
 - Experimental renderer skeleton added:
-  - `/Users/daniel/src/private/slicr/src/diagram/domSvgCameraRenderer.tsx`
+  - `./src/diagram/domSvgCameraRenderer.tsx`
 - Renderer selection flag added/persisted via runtime flags:
-  - `/Users/daniel/src/private/slicr/src/domain/runtimeFlags.ts`
+  - `./src/domain/runtimeFlags.ts`
 
 ### Key architectural shift already done
 
@@ -56,7 +56,7 @@ Yes, these remain the highest-value preparatory phases before swapping renderer 
 
 ## Renderer Contract Learnings
 
-From `/Users/daniel/src/private/slicr/src/diagram/rendererContract.ts`:
+From `./src/diagram/rendererContract.ts`:
 
 - Enforced invariants:
   - Stable IDs for nodes and edges.
@@ -73,7 +73,7 @@ Implication: future engines should consume these primitives, not recompute them.
 
 ## Scene Builder Learnings
 
-From `/Users/daniel/src/private/slicr/src/diagram/sceneModel.ts`:
+From `./src/diagram/sceneModel.ts`:
 
 - Captures currently-shipped rendering behavior in one place:
   - viewport bounds + margins

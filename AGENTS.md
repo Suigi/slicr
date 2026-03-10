@@ -59,3 +59,8 @@ nix-shell --run 'npm test'
 - Communication style in sessions:
   - Keep updates short and frequent.
   - State what is being changed next, then report test/build outcomes.
+
+## Skills
+
+- Use [$feature-process-init](./.codex/skills/feature-process-init/SKILL.md) when starting a new feature with the repo's feature-process workflow: clarify the request, suggest the slug, create `tasks/_process/<three-digit-id>-<slug>/`, write `02-plan.md`, and create `03-tasks.md` before implementation starts.
+- Use [$feature-process-execute-task](./.codex/skills/feature-process-execute-task/SKILL.md) when a feature folder already exists and the next step is to implement exactly one planned task with PTDD, validation, and learnings updates.

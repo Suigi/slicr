@@ -199,6 +199,77 @@ describe('overviewCrossSliceLinks', () => {
     ]);
   });
 
+  it('excludes same-slice matches while still emitting every later-slice match for the same logical ref', () => {
+    const alphaLeader = makeNode('cmd:alpha-leader', 'alpha-leader');
+    const alphaFollower = makeNode('cmd:alpha-follower', 'alpha-follower');
+    const alphaSource: VisualNode = { ...makeNode('evt:order-created@1', 'order-created@1'), type: 'evt' };
+    const alphaSameSliceTarget: VisualNode = { ...makeNode('evt:order-created@2', 'order-created@2'), type: 'evt' };
+    const betaTargetOne: VisualNode = { ...makeNode('evt:order-created@3', 'order-created@3'), type: 'evt' };
+    const betaTargetTwo: VisualNode = { ...makeNode('evt:order-created@4', 'order-created@4'), type: 'evt' };
+    const betaFollowerOne = makeNode('cmd:beta-follower-1', 'beta-follower-1');
+    const betaFollowerTwo = makeNode('cmd:beta-follower-2', 'beta-follower-2');
+
+    const projections = [
+      makeProjection('slice-1', {
+        sliceName: 'Alpha',
+        nodes: new Map([
+          [alphaLeader.key, alphaLeader],
+          [alphaFollower.key, alphaFollower],
+          [alphaSource.key, alphaSource],
+          [alphaSameSliceTarget.key, alphaSameSliceTarget]
+        ]),
+        edges: [
+          { from: alphaLeader.key, to: alphaSource.key, label: null },
+          { from: alphaSameSliceTarget.key, to: alphaFollower.key, label: null }
+        ],
+        warnings: [],
+        boundaries: [],
+        scenarios: [],
+        scenarioOnlyNodeKeys: []
+      }),
+      makeProjection('slice-2', {
+        sliceName: 'Beta',
+        nodes: new Map([
+          [betaTargetOne.key, betaTargetOne],
+          [betaTargetTwo.key, betaTargetTwo],
+          [betaFollowerOne.key, betaFollowerOne],
+          [betaFollowerTwo.key, betaFollowerTwo]
+        ]),
+        edges: [
+          { from: betaTargetOne.key, to: betaFollowerOne.key, label: null },
+          { from: betaTargetTwo.key, to: betaFollowerTwo.key, label: null }
+        ],
+        warnings: [],
+        boundaries: [],
+        scenarios: [],
+        scenarioOnlyNodeKeys: []
+      })
+    ];
+    const overview = buildOverviewDiagramGraph(projections);
+
+    const links = deriveOverviewCrossSliceLinks(projections, overview.nodeMetadataByKey);
+
+    expect(links.map((link) => ({
+      fromOverviewNodeKey: link.fromOverviewNodeKey,
+      toOverviewNodeKey: link.toOverviewNodeKey,
+      fromSliceId: link.fromSliceId,
+      toSliceId: link.toSliceId
+    }))).toEqual([
+      {
+        fromOverviewNodeKey: 'slice-1::evt:order-created@1',
+        toOverviewNodeKey: 'slice-2::evt:order-created@3',
+        fromSliceId: 'slice-1',
+        toSliceId: 'slice-2'
+      },
+      {
+        fromOverviewNodeKey: 'slice-1::evt:order-created@1',
+        toOverviewNodeKey: 'slice-2::evt:order-created@4',
+        fromSliceId: 'slice-1',
+        toSliceId: 'slice-2'
+      }
+    ]);
+  });
+
   it('uses endpoint-pair keys so distinct source-target pairs remain distinct deterministically', () => {
     const sourceOne: VisualNode = { ...makeNode('evt:order-created@1', 'order-created@1'), type: 'evt' };
     const sourceTwo: VisualNode = { ...makeNode('evt:order-created@2', 'order-created@2'), type: 'evt' };
