@@ -1,4 +1,5 @@
 import {
+  routeDiagramEdge,
   DiagramEngineLayout,
   OverviewNodeMetadata,
   OverviewScenarioMetadata,
@@ -602,8 +603,20 @@ export function buildSceneModel(input: BuildSceneModelInput): DiagramSceneModel 
   nodes.push(...sharedRepresentativeNodes);
 
   const edges: DiagramEdge[] = renderedEdges.map(({ key, edgeKey, edge, geometry }) => {
-    const points = geometry.points ?? [];
-    const path = geometry.points ? routeRoundedPolyline(geometry.points, 5) : geometry.d;
+    const outgoingSharedNode = sharedNodeByBackingKey.get(edge.from);
+    const shouldRerouteFromSharedNode = outgoingSharedNode?.targetNodeKey === edge.from;
+    const reroutedGeometry = shouldRerouteFromSharedNode
+      ? (() => {
+          const sharedSourcePosition = displayedPos[outgoingSharedNode.sourceNodeKey];
+          const targetPosition = displayedPos[edge.to];
+          if (!sharedSourcePosition || !targetPosition) {
+            return geometry;
+          }
+          return routeDiagramEdge(sharedSourcePosition, targetPosition);
+        })()
+      : geometry;
+    const points = reroutedGeometry.points ?? [];
+    const path = reroutedGeometry.points ? routeRoundedPolyline(reroutedGeometry.points, 5) : reroutedGeometry.d;
     const isHovered = hoveredEdgeKey === edgeKey;
     return {
       renderKey: key,
@@ -612,12 +625,12 @@ export function buildSceneModel(input: BuildSceneModelInput): DiagramSceneModel 
       from: edge.from,
       to: edge.to,
       path,
-      d: geometry.d,
+      d: reroutedGeometry.d,
       label: edge.label,
       points,
       draggableSegmentIndices: buildDraggableSegmentIndices(points.length),
-      labelX: geometry.labelX,
-      labelY: geometry.labelY,
+      labelX: reroutedGeometry.labelX,
+      labelY: reroutedGeometry.labelY,
       hovered: isHovered,
       related: isHovered
     };

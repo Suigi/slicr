@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RenderedDiagramEdge } from '../domain/diagramEngine';
+import { RenderedDiagramEdge, routeDiagramEdge } from '../domain/diagramEngine';
 import type { LayoutResult, Parsed, Position, VisualNode } from '../domain/types';
 import { routeRoundedPolyline } from '../domain/diagramRouting';
 import { buildSceneModel } from './sceneModel';
@@ -576,6 +576,76 @@ describe('buildSceneModel', () => {
         className: 'highlighted selected'
       })
     );
+  });
+
+  it('reroutes outgoing edges from a hidden adjacent target node through the shared visible node position', () => {
+    const parsed: Parsed = {
+      sliceName: 'Overview',
+      nodes: new Map<string, VisualNode>([
+        ['slice-1::shared', node('slice-1::shared', 'evt', 1, 2)],
+        ['slice-2::shared', node('slice-2::shared', 'evt', 3, 4)],
+        ['slice-2::next', node('slice-2::next', 'cmd', 5, 6)]
+      ]),
+      edges: [{ from: 'slice-2::shared', to: 'slice-2::next', label: 'continue' }],
+      warnings: [],
+      boundaries: [],
+      scenarios: [],
+      scenarioOnlyNodeKeys: []
+    };
+    const activeLayout: LayoutResult = {
+      pos: {
+        'slice-1::shared': { x: 100, y: 120, w: 180, h: 90 },
+        'slice-2::shared': { x: 420, y: 120, w: 180, h: 90 },
+        'slice-2::next': { x: 740, y: 120, w: 180, h: 90 }
+      },
+      rowY: { 1: 120 },
+      usedRows: [1],
+      rowStreamLabels: {},
+      w: 1040,
+      h: 320
+    };
+    const originalGeometry = routeDiagramEdge(activeLayout.pos['slice-2::shared'], activeLayout.pos['slice-2::next']);
+    const expectedReroutedGeometry = routeDiagramEdge(activeLayout.pos['slice-1::shared'], activeLayout.pos['slice-2::next']);
+
+    const scene = buildSceneModel({
+      parsed,
+      activeLayout,
+      displayedPos: activeLayout.pos,
+      renderedEdges: [{
+        key: 'slice-2::shared-slice-2::next-0',
+        edgeKey: 'slice-2::shared->slice-2::next#0',
+        edge: parsed.edges[0]!,
+        geometry: originalGeometry
+      }],
+      engineLayout: null,
+      activeNodeKeyFromEditor: null,
+      selectedNodeKey: null,
+      hoveredEdgeKey: null,
+      hoveredTraceNodeKey: null,
+      overviewCrossSliceLinks: [
+        {
+          key: 'slice-1::shared->slice-2::shared',
+          logicalRef: 'evt:shared',
+          fromOverviewNodeKey: 'slice-1::shared',
+          toOverviewNodeKey: 'slice-2::shared',
+          fromSliceId: 'slice-1',
+          toSliceId: 'slice-2',
+          fromSliceIndex: 0,
+          toSliceIndex: 1,
+          distance: 1,
+          renderMode: 'shared-node'
+        }
+      ]
+    });
+
+    expect(scene?.edges[0]).toEqual(expect.objectContaining({
+      from: 'slice-2::shared',
+      to: 'slice-2::next',
+      points: expectedReroutedGeometry.points,
+      path: routeRoundedPolyline(expectedReroutedGeometry.points!, 5)
+    }));
+    expect(scene?.edges[0]?.points[0]).toEqual(expectedReroutedGeometry.points?.[0]);
+    expect(scene?.edges[0]?.points[0]).not.toEqual(originalGeometry.points?.[0]);
   });
 
   it('expands overview viewport bounds to include measured scenario-group width', () => {
