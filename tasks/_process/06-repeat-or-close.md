@@ -12,7 +12,7 @@ Either start the next task in the queue or close the feature when the task list 
 
 ## What To Do
 
-1. Re-open `tasks/_process/<three-digit-id>-<slug>/03-tasks.md`.
+1. Re-open `tasks/<three-digit-id>-<slug>/03-tasks.md`.
 2. If any task remains `[created]`, return to Phase 4 and implement the next one.
 3. If all tasks are `[done]`, review whether `02-plan.md` and `05-learnings.md` in the same folder still match the implemented result.
 4. Summarize the feature status in terms of:

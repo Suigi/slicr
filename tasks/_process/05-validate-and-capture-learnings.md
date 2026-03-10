@@ -16,7 +16,7 @@ Prove the completed task is stable, then record what future work should remember
 2. At minimum, follow the repo's expected closeout checks for behavior changes.
 3. Record whether failures are new, expected, or unrelated pre-existing issues.
 4. If validation passes, mark the task `[done]`.
-5. Add any durable implementation lessons to `tasks/_process/<three-digit-id>-<slug>/05-learnings.md`.
+5. Add any durable implementation lessons to `tasks/<three-digit-id>-<slug>/05-learnings.md`.
 6. Keep learnings short and operational.
 
 ## Validation Matrix

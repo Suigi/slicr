@@ -1,9 +1,9 @@
 ---
-name: feature-process-init
-description: Use this skill when starting a new feature with the repo's feature-process workflow. It clarifies the request, suggests a slug, creates the next `tasks/_process/<three-digit-id>-<slug>/` folder, writes `02-plan.md`, and creates `03-tasks.md` from the process templates before any implementation starts.
+name: spec-01-init
+description: Use this skill when starting a new feature with the repo's feature-process workflow. It clarifies the request, suggests a slug, creates the next `tasks/<three-digit-id>-<slug>/` folder, writes `02-plan.md`, and creates `03-tasks.md` from the process templates before any implementation starts.
 ---
 
-# Feature Process Init
+# Spec 01 Init
 
 Use this skill when the user wants to start a new feature using the workflow in [tasks/_process/README.md](./tasks/_process/README.md).
 

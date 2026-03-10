@@ -16,7 +16,7 @@ Use the files in this directory to design and implement a new feature in the sam
 
 For each new feature, create one folder:
 
-`tasks/_process/<three-digit-id>-<slug>/`
+`tasks/<three-digit-id>-<slug>/`
 
 That folder should normally contain:
 
@@ -34,7 +34,7 @@ Follow [00-response-prefix-rules.md](./tasks/_process/00-response-prefix-rules.m
 
 ## Example
 
-See [001-example-feature](./tasks/_process/001-example-feature) for a minimal example of the expected output files.
+See [001-example-feature](/Users/daniel/src/private/slicr/tasks/001-example-feature) for a minimal example of the expected output files.
 
 ## Expected Outputs By Phase
 

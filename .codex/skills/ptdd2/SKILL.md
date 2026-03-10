@@ -9,6 +9,14 @@ description: "Implement software features using Predictive Test-Driven Developme
 
 This skill guides an LLM through implementing software behavior using Predictive Test-Driven Development. The core discipline is that predictions about test outcomes must be committed to text *before* running tests — this forces genuine understanding and surfaces hidden assumptions early.
 
+## Response Prefix
+
+- `STARTER_CHARACTER`: `2️⃣`
+- If a workflow phase is also active, prefix responses with both starter characters in this order: phase first, then `2️⃣`.
+- Example combined prefix: `⚙️2️⃣ `
+- If this skill is active without a workflow phase, use `2️⃣ `.
+- If neither a phase nor a skill-specific prefix applies, fall back to `💬 `.
+
 The skill operates in two modes:
 
 - **Collaborative mode**: The LLM proposes the next behavior slice and test description, discusses them with the human, and proceeds only after explicit human approval. Use this when implementing a feature iteratively with human oversight.

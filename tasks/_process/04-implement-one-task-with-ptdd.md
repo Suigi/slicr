@@ -1,4 +1,4 @@
-# Phase 4: Implement One Task With PTDD
+# Phase 4: Implement One Task With PTDD2 (autonomous mode)
 
 ## Response Prefix
 
@@ -12,8 +12,8 @@ Complete exactly one task from the task list using predictive test-driven develo
 
 ## What To Do
 
-1. Read `tasks/_process/<three-digit-id>-<slug>/02-plan.md`.
-2. Read `tasks/_process/<three-digit-id>-<slug>/03-tasks.md` and pick the next unfinished task.
+1. Read `tasks/<three-digit-id>-<slug>/02-plan.md`.
+2. Read `tasks/<three-digit-id>-<slug>/03-tasks.md` and pick the next unfinished task.
 3. Mark that task `[started]` immediately before implementation.
 4. Read only the code needed for that task and its direct dependencies.
 5. Re-check the task against the plan so you do not miss constraints that were omitted from the task summary.
@@ -37,8 +37,8 @@ Complete exactly one task from the task list using predictive test-driven develo
 
 - the implementation files for the task
 - the relevant test files
-- `tasks/_process/<three-digit-id>-<slug>/02-plan.md` if constraints need clarification
-- `tasks/_process/<three-digit-id>-<slug>/03-tasks.md`
+- `tasks/<three-digit-id>-<slug>/02-plan.md` if constraints need clarification
+- `tasks/<three-digit-id>-<slug>/03-tasks.md`
 - optional scratch tracking files such as `test-list.md` if useful locally
 
 ## Guardrails

@@ -1,9 +1,9 @@
 ---
-name: feature-process-execute-task
-description: Use this skill when a feature already has a `tasks/_process/<three-digit-id>-<slug>/` folder with `02-plan.md` and `03-tasks.md`, and the next step is to implement exactly one task using PTDD, validate it, update `05-learnings.md`, and decide whether to loop or close.
+name: spec-03-execute-task
+description: Use this skill when a feature already has a `tasks/<three-digit-id>-<slug>/` folder with `02-plan.md` and `03-tasks.md`, and the next step is to implement exactly one task using PTDD, validate it, update `05-learnings.md`, and decide whether to loop or close.
 ---
 
-# Feature Process Execute Task
+# Spec 03 Execute Task
 
 Use this skill when a feature folder already exists and the next step is to execute one planned task.
 

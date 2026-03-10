@@ -16,15 +16,26 @@ Use these rules while following the feature process workflow.
 - Phase 5 `05-validate-and-capture-learnings.md`: `🧪`
 - Phase 6 `06-repeat-or-close.md`: `🔁`
 
+## Skill Starter Characters
+
+- `$ptdd`: `1️⃣`
+- `$ptdd2`: `2️⃣`
+
 ## Agent Output Rule
 
-- Prefix every agent answer with the `STARTER_CHARACTER` of the phase currently being followed.
-- If the current message does not clearly belong to one active phase, prefix the answer with `💬`.
-- Keep the prefix to a single leading character followed by a space.
+- Prefix every agent answer with the applicable `STARTER_CHARACTER` values.
+- If both a phase and a skill apply, place the phase character first and the skill character second.
+- If multiple skills apply at the same time, place the phase character first and then list the active skill characters in a stable left-to-right order.
+- If only a phase applies, use only the phase character.
+- If only a skill applies, use only the skill character.
+- If the current message does not clearly belong to any active phase or skill, prefix the answer with `💬`.
+- Keep the prefix characters together at the start of the answer, followed by a space.
 
 Examples:
 
 - `🔍 I found two plausible interpretations of the request.`
+- `⚙️1️⃣ I am writing the first failing test for this task.`
+- `⚙️2️⃣ I am updating the implementation after the predicted failure matched.`
+- `1️⃣ I need approval on the next PTDD behavior slice before writing the test.`
 - `✍️ I created the initial task breakdown in the feature folder.`
-- `⚙️ I am marking Task 2 as [started] and writing the first failing test.`
 - `💬 I need clarification before selecting a phase.`

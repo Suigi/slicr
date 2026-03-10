@@ -14,7 +14,7 @@ Convert the clarified feature definition into a durable design document that ano
 
 1. Suggest a short slug for the feature.
 2. Follow [00-folder-id-and-slug-rules.md](./tasks/_process/00-folder-id-and-slug-rules.md) to choose the folder name.
-3. Choose the next available three-digit id and create a feature process folder named `tasks/_process/<three-digit-id>-<slug>`.
+3. Choose the next available three-digit id and create a feature folder named `tasks/<three-digit-id>-<slug>`.
 4. Create a `02-plan.md` file inside that folder.
 5. Write the design note around observable behavior and architectural shape, not vague aspirations.
 6. Include the decisions that came out of Phase 1.
@@ -43,7 +43,7 @@ Convert the clarified feature definition into a durable design document that ano
 
 ## Output
 
-Create or update `tasks/_process/<three-digit-id>-<slug>/02-plan.md` with enough detail that task decomposition becomes mechanical.
+Create or update `tasks/<three-digit-id>-<slug>/02-plan.md` with enough detail that task decomposition becomes mechanical.
 
 ## Guardrails
 

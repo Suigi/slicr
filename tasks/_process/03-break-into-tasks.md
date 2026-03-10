@@ -12,7 +12,7 @@ Turn the design note into an ordered implementation queue with narrow, testable 
 
 ## What To Do
 
-1. Re-use the folder created in Phase 2: `tasks/_process/<three-digit-id>-<slug>`.
+1. Re-use the folder created in Phase 2: `tasks/<three-digit-id>-<slug>`.
 2. Create a `03-tasks.md` file in that folder and make it follow [03-tasks_template.md](./tasks/_process/03-tasks_template.md).
 3. Decompose the feature into sequential tasks that each change one layer or behavior at a time.
 4. Order tasks so later tasks depend on earlier scaffolding rather than mixing concerns.
@@ -47,8 +47,8 @@ Turn the design note into an ordered implementation queue with narrow, testable 
 
 Create or update:
 
-- `tasks/_process/<three-digit-id>-<slug>/03-tasks.md`
-- `tasks/_process/<three-digit-id>-<slug>/05-learnings.md` when applicable
+- `tasks/<three-digit-id>-<slug>/03-tasks.md`
+- `tasks/<three-digit-id>-<slug>/05-learnings.md` when applicable
 
 ## Guardrails
 
