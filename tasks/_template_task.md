@@ -43,6 +43,11 @@ Tasks should move through these status values in order:
 **IMPORTANT**: Only **ONE** (1) task should be in the `[started]` status at a time.
 Agents must update the task file as they work: set a task to `[started]` immediately before implementation begins, and set it to `[done]` as soon as that task is complete.
 
+## Learnings
+
+Add any learnings about the feature to ./tasks/<feature-name>-learnings.md.
+Add any learnings about the project overall to the documents in the ./knowledge directory.
+
 ## Task 1: <Short task title>
 ### Status
 [created]
@@ -188,6 +193,11 @@ Tasks should move through these status values in order:
 
 **IMPORTANT**: Only **ONE** (1) task should be in the `[started]` status at a time.
 Agents must update the task file as they work: set a task to `[started]` immediately before implementation begins, and set it to `[done]` as soon as that task is complete.
+
+## Learnings
+
+Add any learnings about the feature to ./tasks/<feature-name>-learnings.md.
+Add any learnings about the project overall to the documents in the ./knowledge directory.
 
 ## Task 1: <Short task title>
 ### Status

@@ -30,6 +30,8 @@ function renderWithRegistryRenderer(rendererId: 'dom-svg' | 'dom-svg-camera') {
   const sceneModel: DiagramSceneModel = {
     nodes: [],
     edges: [],
+    crossSliceLinks: [],
+    sharedNodeAnchors: [],
     lanes: [],
     boundaries: [],
     scenarios: [],

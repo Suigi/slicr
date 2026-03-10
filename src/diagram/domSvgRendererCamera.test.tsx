@@ -50,6 +50,8 @@ function baseScene(): DiagramSceneModel {
       }
     ],
     edges: [],
+    crossSliceLinks: [],
+    sharedNodeAnchors: [],
     lanes: [],
     boundaries: [],
     scenarios: [],

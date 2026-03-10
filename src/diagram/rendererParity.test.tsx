@@ -98,6 +98,8 @@ function createScene(): DiagramSceneModel {
         related: false
       }
     ],
+    crossSliceLinks: [],
+    sharedNodeAnchors: [],
     lanes: [],
     boundaries: [],
     scenarios: [],

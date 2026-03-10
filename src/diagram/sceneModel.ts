@@ -4,6 +4,7 @@ import {
   OverviewScenarioMetadata,
   RenderedDiagramEdge
 } from '../domain/diagramEngine';
+import type { OverviewCrossSliceLink } from '../domain/overviewCrossSliceLinks';
 import type {LayoutResult, Parsed, ParsedScenario, Position, VisualNode} from '../domain/types';
 import {routeRoundedPolyline} from '../domain/diagramRouting';
 import {PAD_X, rowFor} from '../domain/layoutGraph';
@@ -56,6 +57,7 @@ export type BuildSceneModelInput = {
   hoveredTraceNodeKey: string | null;
   overviewNodeMetadataByKey?: Map<string, OverviewNodeMetadata>;
   overviewScenarioMetadataByScenario?: Map<ParsedScenario, OverviewScenarioMetadata>;
+  overviewCrossSliceLinks?: OverviewCrossSliceLink[];
   measuredScenarioGroupWidths?: Record<string, number>;
   canvasMargin?: number;
   laneLabelLeft?: number;
@@ -395,6 +397,20 @@ function buildScenarioGroups(
   });
 }
 
+function nodeCenterRight(position: Position) {
+  return {
+    x: position.x + position.w,
+    y: position.y + position.h / 2
+  };
+}
+
+function nodeCenterLeft(position: Position) {
+  return {
+    x: position.x,
+    y: position.y + position.h / 2
+  };
+}
+
 export function buildSceneModel(input: BuildSceneModelInput): DiagramSceneModel | null {
   const {
     parsed,
@@ -408,6 +424,7 @@ export function buildSceneModel(input: BuildSceneModelInput): DiagramSceneModel 
     hoveredTraceNodeKey,
     overviewNodeMetadataByKey,
     overviewScenarioMetadataByScenario,
+    overviewCrossSliceLinks = [],
     measuredScenarioGroupWidths = {},
     canvasMargin = DEFAULT_CANVAS_MARGIN,
     laneLabelLeft = Math.max(8, PAD_X - 48)
@@ -516,9 +533,55 @@ export function buildSceneModel(input: BuildSceneModelInput): DiagramSceneModel 
     };
   });
 
+  const crossSliceLinks = overviewCrossSliceLinks.flatMap((link) => {
+    const fromPosition = displayedPos[link.fromOverviewNodeKey];
+    const toPosition = displayedPos[link.toOverviewNodeKey];
+    if (!fromPosition || !toPosition) {
+      return [];
+    }
+
+    return [{
+      key: link.key,
+      logicalRef: link.logicalRef,
+      renderMode: link.renderMode,
+      fromNodeKey: link.fromOverviewNodeKey,
+      toNodeKey: link.toOverviewNodeKey,
+      ...(link.renderMode === 'dashed-connector'
+        ? {
+            points: [
+              nodeCenterRight(fromPosition),
+              nodeCenterLeft(toPosition)
+            ]
+          }
+        : {})
+    }];
+  });
+
+  const sharedNodeAnchors = overviewCrossSliceLinks.flatMap((link) => {
+    if (link.renderMode !== 'shared-node') {
+      return [];
+    }
+    const fromPosition = displayedPos[link.fromOverviewNodeKey];
+    const toPosition = displayedPos[link.toOverviewNodeKey];
+    if (!fromPosition || !toPosition) {
+      return [];
+    }
+
+    return [{
+      key: link.key,
+      logicalRef: link.logicalRef,
+      leftSliceNodeKey: link.fromOverviewNodeKey,
+      rightSliceNodeKey: link.toOverviewNodeKey,
+      x: fromPosition.x,
+      y: fromPosition.y
+    }];
+  });
+
   return {
     nodes,
     edges,
+    crossSliceLinks,
+    sharedNodeAnchors,
     lanes,
     boundaries,
     scenarios,

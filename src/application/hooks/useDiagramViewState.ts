@@ -9,6 +9,7 @@ import {
 } from '../../domain/diagramEngine';
 import type { DiagramPoint } from '../../domain/diagramRouting';
 import type { NodeDimensions } from '../../domain/nodeSizing';
+import { deriveOverviewCrossSliceLinks } from '../../domain/overviewCrossSliceLinks';
 import type { ParsedSliceProjection } from '../../domain/parsedSliceProjection';
 import type { Parsed, Position } from '../../domain/types';
 import { measureNodeDimensions, measureScenarioGroupWidths } from '../../nodeMeasurement';
@@ -16,11 +17,13 @@ import { useDiagramInteractions } from '../../useDiagramInteractions';
 import { buildSceneModel } from '../../diagram/sceneModel';
 import { appendSliceEdgeMovedEvent, appendSliceNodeMovedEvent } from '../../sliceLibrary';
 import type { DiagramMode } from '../appViewModel';
+import type { OverviewCrossSliceLink } from '../../domain/overviewCrossSliceLinks';
 
 type DiagramEngineResult = Awaited<ReturnType<typeof computeDiagramLayout>>;
 type OverviewDiagramEngineResult = Awaited<ReturnType<typeof computeOverviewDiagramLayout>>;
 type ActiveLayout = DiagramEngineResult['layout'] | OverviewDiagramEngineResult['layout'];
 type RenderedEdge = ReturnType<typeof buildRenderedEdges>[number];
+const EMPTY_OVERVIEW_CROSS_SLICE_LINKS: OverviewCrossSliceLink[] = [];
 
 export type UseDiagramViewStateArgs = {
   diagramMode: DiagramMode;
@@ -74,6 +77,14 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
   );
   const overviewNodeMetadataByKey = overviewGraph?.nodeMetadataByKey;
   const overviewScenarioMetadataByScenario = overviewGraph?.scenarioMetadataByScenario;
+  const overviewCrossSliceLinks = useMemo(
+    () => (
+      diagramMode === 'overview' && overviewNodeMetadataByKey
+        ? deriveOverviewCrossSliceLinks(parsedSliceProjectionList, overviewNodeMetadataByKey)
+        : EMPTY_OVERVIEW_CROSS_SLICE_LINKS
+    ),
+    [diagramMode, overviewNodeMetadataByKey, parsedSliceProjectionList]
+  );
   const diagramParsed = diagramMode === 'overview' ? overviewGraph?.parsed ?? null : parsed;
   const layoutStateKey = useMemo(() => {
     if (diagramMode === 'overview') {
@@ -246,6 +257,7 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
         hoveredTraceNodeKey,
         overviewNodeMetadataByKey,
         overviewScenarioMetadataByScenario,
+        overviewCrossSliceLinks,
         measuredScenarioGroupWidths
       }),
     [
@@ -260,6 +272,7 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
       hoveredTraceNodeKey,
       overviewNodeMetadataByKey,
       overviewScenarioMetadataByScenario,
+      overviewCrossSliceLinks,
         measuredScenarioGroupWidths
       ]
   );

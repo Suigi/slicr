@@ -113,6 +113,27 @@ describe('buildSceneModel', () => {
     expect(edge?.draggableSegmentIndices).toEqual([0, 1]);
   });
 
+  it('emits empty overview cross-slice primitive arrays when none are derived', () => {
+    const parsed = baseParsed();
+    const activeLayout = baseLayout();
+
+    const scene = buildSceneModel({
+      parsed,
+      activeLayout,
+      displayedPos: activeLayout.pos,
+      renderedEdges: baseRenderedEdges(),
+      engineLayout: null,
+      activeNodeKeyFromEditor: null,
+      selectedNodeKey: null,
+      hoveredEdgeKey: null,
+      hoveredTraceNodeKey: null
+    });
+
+    expect(scene?.crossSliceLinks).toEqual([]);
+    expect(scene?.sharedNodeAnchors).toEqual([]);
+    expect(scene?.edges).toHaveLength(1);
+  });
+
   it('builds elk lanes from lane metadata and node positions', () => {
     const parsed = baseParsed();
     const activeLayout = {
@@ -321,6 +342,104 @@ describe('buildSceneModel', () => {
             when: expect.objectContaining({ key: 'slice-1::a' }),
             then: []
           }
+        ]
+      }
+    ]);
+  });
+
+  it('derives overview shared-node anchors and dashed connector primitives from cross-slice links', () => {
+    const parsed: Parsed = {
+      sliceName: 'Overview',
+      nodes: new Map<string, VisualNode>([
+        ['slice-1::a', node('slice-1::a', 'evt', 1, 2)],
+        ['slice-2::a', node('slice-2::a', 'evt', 3, 4)],
+        ['slice-4::a', node('slice-4::a', 'evt', 5, 6)]
+      ]),
+      edges: [],
+      warnings: [],
+      boundaries: [],
+      scenarios: [],
+      scenarioOnlyNodeKeys: []
+    };
+    const activeLayout: LayoutResult = {
+      pos: {
+        'slice-1::a': { x: 100, y: 120, w: 180, h: 90 },
+        'slice-2::a': { x: 420, y: 120, w: 180, h: 90 },
+        'slice-4::a': { x: 860, y: 300, w: 180, h: 90 }
+      },
+      rowY: { 1: 120, 2: 300 },
+      usedRows: [1, 2],
+      rowStreamLabels: {},
+      w: 1200,
+      h: 600
+    };
+
+    const scene = buildSceneModel({
+      parsed,
+      activeLayout,
+      displayedPos: activeLayout.pos,
+      renderedEdges: [],
+      engineLayout: null,
+      activeNodeKeyFromEditor: null,
+      selectedNodeKey: null,
+      hoveredEdgeKey: null,
+      hoveredTraceNodeKey: null,
+      overviewCrossSliceLinks: [
+        {
+          key: 'slice-1::a->slice-2::a',
+          logicalRef: 'evt:a',
+          fromOverviewNodeKey: 'slice-1::a',
+          toOverviewNodeKey: 'slice-2::a',
+          fromSliceId: 'slice-1',
+          toSliceId: 'slice-2',
+          fromSliceIndex: 0,
+          toSliceIndex: 1,
+          distance: 1,
+          renderMode: 'shared-node'
+        },
+        {
+          key: 'slice-1::a->slice-4::a',
+          logicalRef: 'evt:a',
+          fromOverviewNodeKey: 'slice-1::a',
+          toOverviewNodeKey: 'slice-4::a',
+          fromSliceId: 'slice-1',
+          toSliceId: 'slice-4',
+          fromSliceIndex: 0,
+          toSliceIndex: 3,
+          distance: 3,
+          renderMode: 'dashed-connector'
+        }
+      ]
+    });
+
+    expect(scene?.edges).toEqual([]);
+    expect(scene?.sharedNodeAnchors).toEqual([
+      {
+        key: 'slice-1::a->slice-2::a',
+        logicalRef: 'evt:a',
+        leftSliceNodeKey: 'slice-1::a',
+        rightSliceNodeKey: 'slice-2::a',
+        x: 100,
+        y: 120
+      }
+    ]);
+    expect(scene?.crossSliceLinks).toEqual([
+      {
+        key: 'slice-1::a->slice-2::a',
+        logicalRef: 'evt:a',
+        renderMode: 'shared-node',
+        fromNodeKey: 'slice-1::a',
+        toNodeKey: 'slice-2::a'
+      },
+      {
+        key: 'slice-1::a->slice-4::a',
+        logicalRef: 'evt:a',
+        renderMode: 'dashed-connector',
+        fromNodeKey: 'slice-1::a',
+        toNodeKey: 'slice-4::a',
+        points: [
+          { x: 280, y: 165 },
+          { x: 860, y: 345 }
         ]
       }
     ]);

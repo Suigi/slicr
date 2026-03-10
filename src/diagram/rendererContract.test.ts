@@ -85,6 +85,8 @@ function createScene(overrides: Partial<DiagramSceneModel> = {}): DiagramSceneMo
         related: false
       }
     ],
+    crossSliceLinks: [],
+    sharedNodeAnchors: [],
     lanes: [
       {
         key: 'lane-0',
@@ -190,6 +192,69 @@ describe('rendererContract', () => {
             then: []
           }
         ]
+      }
+    ]);
+  });
+
+  it('accepts explicit overview cross-slice primitives alongside ordinary edges', () => {
+    const scene = createScene({
+      crossSliceLinks: [
+        {
+          key: 'cross-slice-a-b',
+          logicalRef: 'evt:shared',
+          renderMode: 'shared-node',
+          fromNodeKey: 'a',
+          toNodeKey: 'b'
+        },
+        {
+          key: 'cross-slice-a-c',
+          logicalRef: 'evt:shared',
+          renderMode: 'dashed-connector',
+          fromNodeKey: 'a',
+          toNodeKey: 'b',
+          points: [{ x: 120, y: 40 }, { x: 280, y: 40 }]
+        }
+      ],
+      sharedNodeAnchors: [
+        {
+          key: 'anchor-a-b',
+          logicalRef: 'evt:shared',
+          leftSliceNodeKey: 'a',
+          rightSliceNodeKey: 'b',
+          x: 10,
+          y: 20
+        }
+      ]
+    });
+
+    const result = validateDiagramSceneModel(scene);
+
+    expect(result.ok).toBe(true);
+    expect(scene.crossSliceLinks).toEqual([
+      {
+        key: 'cross-slice-a-b',
+        logicalRef: 'evt:shared',
+        renderMode: 'shared-node',
+        fromNodeKey: 'a',
+        toNodeKey: 'b'
+      },
+      {
+        key: 'cross-slice-a-c',
+        logicalRef: 'evt:shared',
+        renderMode: 'dashed-connector',
+        fromNodeKey: 'a',
+        toNodeKey: 'b',
+        points: [{ x: 120, y: 40 }, { x: 280, y: 40 }]
+      }
+    ]);
+    expect(scene.sharedNodeAnchors).toEqual([
+      {
+        key: 'anchor-a-b',
+        logicalRef: 'evt:shared',
+        leftSliceNodeKey: 'a',
+        rightSliceNodeKey: 'b',
+        x: 10,
+        y: 20
       }
     ]);
   });

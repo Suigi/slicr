@@ -122,9 +122,29 @@ export type DiagramScenarioGroup = {
   scenarios: DiagramScenario[];
 };
 
+export type DiagramCrossSliceLink = {
+  key: string;
+  logicalRef: string;
+  renderMode: 'shared-node' | 'dashed-connector';
+  fromNodeKey: string;
+  toNodeKey: string;
+  points?: RoutingPoint[];
+};
+
+export type DiagramSharedNodeAnchor = {
+  key: string;
+  logicalRef: string;
+  leftSliceNodeKey: string;
+  rightSliceNodeKey: string;
+  x: number;
+  y: number;
+};
+
 export type DiagramSceneModel = {
   nodes: DiagramNode[];
   edges: DiagramEdge[];
+  crossSliceLinks: DiagramCrossSliceLink[];
+  sharedNodeAnchors: DiagramSharedNodeAnchor[];
   lanes: DiagramLane[];
   boundaries: DiagramBoundary[];
   scenarios: DiagramScenario[];
@@ -201,6 +221,40 @@ export function validateDiagramSceneModel(scene: DiagramSceneModel): SceneValida
     }
     if (!nodeKeys.has(edge.to)) {
       errors.push(`unknown target node for edge ${edge.key}: ${edge.to}`);
+    }
+  }
+
+  const crossSliceLinkKeys = new Set<string>();
+  for (const link of scene.crossSliceLinks) {
+    if (crossSliceLinkKeys.has(link.key)) {
+      errors.push(`duplicate cross-slice link key: ${link.key}`);
+    }
+    crossSliceLinkKeys.add(link.key);
+
+    if (!nodeKeys.has(link.fromNodeKey)) {
+      errors.push(`unknown source node for cross-slice link ${link.key}: ${link.fromNodeKey}`);
+    }
+    if (!nodeKeys.has(link.toNodeKey)) {
+      errors.push(`unknown target node for cross-slice link ${link.key}: ${link.toNodeKey}`);
+    }
+  }
+
+  const sharedNodeAnchorKeys = new Set<string>();
+  for (const anchor of scene.sharedNodeAnchors) {
+    if (sharedNodeAnchorKeys.has(anchor.key)) {
+      errors.push(`duplicate shared-node anchor key: ${anchor.key}`);
+    }
+    sharedNodeAnchorKeys.add(anchor.key);
+
+    if (!nodeKeys.has(anchor.leftSliceNodeKey)) {
+      errors.push(`unknown left node for shared-node anchor ${anchor.key}: ${anchor.leftSliceNodeKey}`);
+    }
+    if (!nodeKeys.has(anchor.rightSliceNodeKey)) {
+      errors.push(`unknown right node for shared-node anchor ${anchor.key}: ${anchor.rightSliceNodeKey}`);
+    }
+
+    if (![anchor.x, anchor.y].every(isFiniteNumber)) {
+      errors.push(`non-finite shared-node anchor geometry: ${anchor.key}`);
     }
   }
 
