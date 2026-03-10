@@ -411,6 +411,38 @@ function nodeCenterLeft(position: Position) {
   };
 }
 
+function buildAdjacentSharedNodeLookup(overviewCrossSliceLinks: OverviewCrossSliceLink[]) {
+  const hiddenBackingNodeKeys = new Set<string>();
+  const sharedNodeByBackingKey = new Map<string, {
+    renderKey: string;
+    sourceNodeKey: string;
+    targetNodeKey: string;
+    backingNodeKeys: string[];
+  }>();
+
+  for (const link of overviewCrossSliceLinks) {
+    if (link.renderMode !== 'shared-node') {
+      continue;
+    }
+
+    const sharedNode = {
+      renderKey: `shared-node:${link.key}`,
+      sourceNodeKey: link.fromOverviewNodeKey,
+      targetNodeKey: link.toOverviewNodeKey,
+      backingNodeKeys: [link.fromOverviewNodeKey, link.toOverviewNodeKey]
+    };
+    hiddenBackingNodeKeys.add(link.fromOverviewNodeKey);
+    hiddenBackingNodeKeys.add(link.toOverviewNodeKey);
+    sharedNodeByBackingKey.set(link.fromOverviewNodeKey, sharedNode);
+    sharedNodeByBackingKey.set(link.toOverviewNodeKey, sharedNode);
+  }
+
+  return {
+    hiddenBackingNodeKeys,
+    sharedNodeByBackingKey
+  };
+}
+
 export function buildSceneModel(input: BuildSceneModelInput): DiagramSceneModel | null {
   const {
     parsed,
@@ -471,12 +503,13 @@ export function buildSceneModel(input: BuildSceneModelInput): DiagramSceneModel 
     ? renderedEdges.find(({ edgeKey }) => edgeKey === hoveredEdgeKey)
     : undefined;
   const hoveredEdgeNodeKeys = hoveredEdge ? new Set<string>([hoveredEdge.edge.from, hoveredEdge.edge.to]) : new Set<string>();
+  const { hiddenBackingNodeKeys, sharedNodeByBackingKey } = buildAdjacentSharedNodeLookup(overviewCrossSliceLinks);
   const nodes: DiagramNode[] = [...parsed.nodes.values()]
     .filter((node) => !scenarioOnlyNodeKeys.has(node.key))
-    .map((node) => {
+    .flatMap((node) => {
       const position = displayedPos[node.key];
       if (!position) {
-        return null;
+        return [];
       }
       const isHighlighted = activeNodeKeyFromEditor === node.key;
       const isSelected = selectedNodeKey === node.key;
@@ -490,7 +523,7 @@ export function buildSceneModel(input: BuildSceneModelInput): DiagramSceneModel 
       ].filter(Boolean).join(' ');
       const displayNode = toDisplayNode(node);
       const nodePrefix = TYPE_LABEL[node.type] ?? node.type;
-      return {
+      return [{
         renderKey: node.key,
         key: node.key,
         node: displayNode,
@@ -504,12 +537,69 @@ export function buildSceneModel(input: BuildSceneModelInput): DiagramSceneModel 
         w: position.w,
         h: position.h,
         srcRange: displayNode.srcRange,
+        hidden: hiddenBackingNodeKeys.has(node.key),
         highlighted: isHighlighted,
         selected: isSelected,
         related: isRelated
-      };
-    })
-    .filter((node): node is DiagramNode => Boolean(node));
+      }];
+    });
+
+  const sharedRepresentativeNodes: DiagramNode[] = [];
+  const emittedSharedNodeRenderKeys = new Set<string>();
+  for (const node of parsed.nodes.values()) {
+    const sharedNode = sharedNodeByBackingKey.get(node.key);
+    if (!sharedNode || emittedSharedNodeRenderKeys.has(sharedNode.renderKey)) {
+      continue;
+    }
+
+    const sourceNode = parsed.nodes.get(sharedNode.sourceNodeKey);
+    const sourcePosition = displayedPos[sharedNode.sourceNodeKey];
+    if (!sourceNode || !sourcePosition) {
+      continue;
+    }
+
+    emittedSharedNodeRenderKeys.add(sharedNode.renderKey);
+    const isHighlighted = activeNodeKeyFromEditor === sharedNode.sourceNodeKey
+      || activeNodeKeyFromEditor === sharedNode.targetNodeKey;
+    const isSelected = selectedNodeKey === sharedNode.sourceNodeKey
+      || selectedNodeKey === sharedNode.targetNodeKey;
+    const isRelated = hoveredEdgeNodeKeys.has(sharedNode.sourceNodeKey)
+      || hoveredEdgeNodeKeys.has(sharedNode.targetNodeKey);
+    const isTraceHovered = hoveredTraceNodeKey === sharedNode.sourceNodeKey
+      || hoveredTraceNodeKey === sharedNode.targetNodeKey;
+    const className = [
+      isHighlighted ? 'highlighted' : '',
+      isSelected ? 'selected' : '',
+      isRelated ? 'related' : '',
+      isTraceHovered ? 'trace-hovered' : ''
+    ].filter(Boolean).join(' ');
+    const displayNode = toDisplayNode(sourceNode);
+    const nodePrefix = TYPE_LABEL[sourceNode.type] ?? sourceNode.type;
+
+    sharedRepresentativeNodes.push({
+      renderKey: sharedNode.renderKey,
+      key: sharedNode.renderKey,
+      interactionNodeKey: sharedNode.sourceNodeKey,
+      backingNodeKeys: sharedNode.backingNodeKeys,
+      hidden: false,
+      node: displayNode,
+      nodePrefix,
+      className,
+      type: displayNode.type,
+      title: displayNode.alias ?? displayNode.name,
+      prefix: nodePrefix,
+      x: sourcePosition.x,
+      y: sourcePosition.y,
+      w: sourcePosition.w,
+      h: sourcePosition.h,
+      srcRange: displayNode.srcRange,
+      highlighted: isHighlighted,
+      selected: isSelected,
+      related: isRelated
+    });
+  }
+
+  nodes.push(...sharedRepresentativeNodes);
 
   const edges: DiagramEdge[] = renderedEdges.map(({ key, edgeKey, edge, geometry }) => {
     const points = geometry.points ?? [];

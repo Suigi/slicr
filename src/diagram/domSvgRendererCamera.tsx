@@ -379,7 +379,7 @@ export function DomSvgDiagramRendererCamera({
               </div>
             ))}
 
-            {sceneModel.nodes.map((entry) => (
+            {sceneModel.nodes.filter((entry) => !entry.hidden).map((entry) => (
               <NodeCard
                 key={entry.renderKey}
                 node={entry.node}
@@ -395,13 +395,16 @@ export function DomSvgDiagramRendererCamera({
                 onMouseLeave={() => onNodeHoverRange(null)}
                 onClick={(event) => {
                   event.stopPropagation();
-                  onNodeSelect(entry.key);
+                  onNodeSelect(entry.interactionNodeKey ?? entry.key);
                 }}
                 onDoubleClick={(event) => {
                   event.stopPropagation();
-                  onNodeOpenInEditor(entry.key, entry.srcRange);
+                  onNodeOpenInEditor(entry.interactionNodeKey ?? entry.key, entry.srcRange);
                 }}
-                onPointerDown={(event) => beginNodeDrag(toWorldPointerEvent(event), entry.key)}
+                onPointerDown={(event) => beginNodeDrag(
+                  toWorldPointerEvent(event),
+                  entry.interactionNodeKey ?? entry.key
+                )}
               />
             ))}
 

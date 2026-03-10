@@ -445,6 +445,139 @@ describe('buildSceneModel', () => {
     ]);
   });
 
+  it('collapses an adjacent shared-node link into one visible representative at the source position', () => {
+    const parsed: Parsed = {
+      sliceName: 'Overview',
+      nodes: new Map<string, VisualNode>([
+        ['slice-1::a', node('slice-1::a', 'evt', 1, 2)],
+        ['slice-2::a', node('slice-2::a', 'evt', 3, 4)]
+      ]),
+      edges: [],
+      warnings: [],
+      boundaries: [],
+      scenarios: [],
+      scenarioOnlyNodeKeys: []
+    };
+    const activeLayout: LayoutResult = {
+      pos: {
+        'slice-1::a': { x: 100, y: 120, w: 180, h: 90 },
+        'slice-2::a': { x: 420, y: 120, w: 180, h: 90 }
+      },
+      rowY: { 1: 120 },
+      usedRows: [1],
+      rowStreamLabels: {},
+      w: 700,
+      h: 320
+    };
+
+    const scene = buildSceneModel({
+      parsed,
+      activeLayout,
+      displayedPos: activeLayout.pos,
+      renderedEdges: [],
+      engineLayout: null,
+      activeNodeKeyFromEditor: null,
+      selectedNodeKey: null,
+      hoveredEdgeKey: null,
+      hoveredTraceNodeKey: null,
+      overviewCrossSliceLinks: [
+        {
+          key: 'slice-1::a->slice-2::a',
+          logicalRef: 'evt:a',
+          fromOverviewNodeKey: 'slice-1::a',
+          toOverviewNodeKey: 'slice-2::a',
+          fromSliceId: 'slice-1',
+          toSliceId: 'slice-2',
+          fromSliceIndex: 0,
+          toSliceIndex: 1,
+          distance: 1,
+          renderMode: 'shared-node'
+        }
+      ]
+    });
+
+    expect(scene?.nodes).toEqual([
+      expect.objectContaining({
+        key: 'slice-1::a',
+        hidden: true
+      }),
+      expect.objectContaining({
+        key: 'slice-2::a',
+        hidden: true
+      }),
+      expect.objectContaining({
+        renderKey: 'shared-node:slice-1::a->slice-2::a',
+        key: 'shared-node:slice-1::a->slice-2::a',
+        interactionNodeKey: 'slice-1::a',
+        hidden: false,
+        x: 100,
+        y: 120,
+        title: 'slice-1::a',
+        backingNodeKeys: ['slice-1::a', 'slice-2::a']
+      })
+    ]);
+  });
+
+  it('mirrors hidden backing-node highlight and selection state onto the shared representative', () => {
+    const parsed: Parsed = {
+      sliceName: 'Overview',
+      nodes: new Map<string, VisualNode>([
+        ['slice-1::a', node('slice-1::a', 'evt', 1, 2)],
+        ['slice-2::a', node('slice-2::a', 'evt', 3, 4)]
+      ]),
+      edges: [],
+      warnings: [],
+      boundaries: [],
+      scenarios: [],
+      scenarioOnlyNodeKeys: []
+    };
+    const activeLayout: LayoutResult = {
+      pos: {
+        'slice-1::a': { x: 100, y: 120, w: 180, h: 90 },
+        'slice-2::a': { x: 420, y: 120, w: 180, h: 90 }
+      },
+      rowY: { 1: 120 },
+      usedRows: [1],
+      rowStreamLabels: {},
+      w: 700,
+      h: 320
+    };
+
+    const scene = buildSceneModel({
+      parsed,
+      activeLayout,
+      displayedPos: activeLayout.pos,
+      renderedEdges: [],
+      engineLayout: null,
+      activeNodeKeyFromEditor: 'slice-2::a',
+      selectedNodeKey: 'slice-2::a',
+      hoveredEdgeKey: null,
+      hoveredTraceNodeKey: null,
+      overviewCrossSliceLinks: [
+        {
+          key: 'slice-1::a->slice-2::a',
+          logicalRef: 'evt:a',
+          fromOverviewNodeKey: 'slice-1::a',
+          toOverviewNodeKey: 'slice-2::a',
+          fromSliceId: 'slice-1',
+          toSliceId: 'slice-2',
+          fromSliceIndex: 0,
+          toSliceIndex: 1,
+          distance: 1,
+          renderMode: 'shared-node'
+        }
+      ]
+    });
+
+    expect(scene?.nodes.find((entry) => entry.key === 'shared-node:slice-1::a->slice-2::a')).toEqual(
+      expect.objectContaining({
+        highlighted: true,
+        selected: true,
+        className: 'highlighted selected'
+      })
+    );
+  });
+
   it('expands overview viewport bounds to include measured scenario-group width', () => {
     const parsed: Parsed = {
       sliceName: 'Overview',

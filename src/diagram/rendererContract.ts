@@ -13,6 +13,9 @@ export type DiagramPoint = { x: number; y: number };
 export type DiagramNode = {
   renderKey: string;
   key: string;
+  interactionNodeKey?: string;
+  backingNodeKeys?: string[];
+  hidden?: boolean;
   node: VisualNode;
   nodePrefix: string;
   className: string;

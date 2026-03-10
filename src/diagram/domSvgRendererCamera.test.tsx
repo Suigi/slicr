@@ -217,6 +217,65 @@ describe('DomSvgDiagramRendererCamera', () => {
     expect(document.querySelector('.scenario-box')).toBeNull();
   });
 
+  it('renders only the shared representative node and selects the source key when clicked', () => {
+    const onNodeSelect = vi.fn();
+    renderRenderer({
+      onNodeSelect,
+      sceneModel: {
+        ...baseScene(),
+        nodes: [
+          {
+            ...baseScene().nodes[0],
+            key: 'slice-1::shared',
+            renderKey: 'slice-1::shared',
+            title: 'shared',
+            node: {
+              ...baseScene().nodes[0].node,
+              key: 'slice-1::shared',
+              name: 'shared'
+            },
+            hidden: true
+          },
+          {
+            ...baseScene().nodes[0],
+            key: 'slice-2::shared',
+            renderKey: 'slice-2::shared',
+            x: 420,
+            title: 'shared',
+            node: {
+              ...baseScene().nodes[0].node,
+              key: 'slice-2::shared',
+              name: 'shared'
+            },
+            hidden: true
+          },
+          {
+            ...baseScene().nodes[0],
+            key: 'shared-node:slice-1::shared->slice-2::shared',
+            renderKey: 'shared-node:slice-1::shared->slice-2::shared',
+            interactionNodeKey: 'slice-1::shared',
+            title: 'shared',
+            node: {
+              ...baseScene().nodes[0].node,
+              key: 'shared-node:slice-1::shared->slice-2::shared',
+              name: 'shared'
+            }
+          }
+        ]
+      }
+    });
+
+    const renderedNodes = [...document.querySelectorAll('.node')];
+    expect(renderedNodes).toHaveLength(1);
+    expect(renderedNodes[0]?.textContent).toContain('shared');
+
+    act(() => {
+      renderedNodes[0]?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(onNodeSelect).toHaveBeenCalledWith('slice-1::shared');
+  });
+
   it('pans camera via background drag without mutating node world coordinates', () => {
     renderRenderer();
 
