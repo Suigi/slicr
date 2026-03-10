@@ -86,6 +86,7 @@
   --node-width-max: 250px;
   --warning-tooltip-border: #6b7280;
   --warning-tooltip-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+  --overview-dashed-connector: color-mix(in srgb, var(--arrow) 72%, transparent);
 
   --scrollbar-track: #14141c;
   --scrollbar-thumb: #323247;
@@ -175,6 +176,7 @@
   --node-shadow-generic: 0 0 0 2px var(--generic), 0 6px 20px rgb(75 85 99 / 14%);
   --warning-tooltip-border: #374151;
   --warning-tooltip-shadow: 0 8px 22px rgb(15 23 42 / 16%);
+  --overview-dashed-connector: color-mix(in srgb, var(--arrow) 72%, transparent);
   --scrollbar-track: #eef1f8;
   --scrollbar-thumb: #c4cad8;
   --scrollbar-thumb-hover: #adb5c8;
@@ -3238,6 +3240,13 @@ header h1 {
   stroke-width: 1.5;
   pointer-events: none;
   transition: stroke 0.15s, stroke-width 0.15s;
+}
+
+.overview-dashed-connector {
+  fill: none;
+  stroke-width: 1.5;
+  stroke-dasharray: 8 6;
+  pointer-events: none;
 }
 
 g.related .arrow-path {

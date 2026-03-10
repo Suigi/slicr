@@ -276,6 +276,82 @@ describe('DomSvgDiagramRendererCamera', () => {
     expect(onNodeSelect).toHaveBeenCalledWith('slice-1::shared');
   });
 
+  it('renders non-adjacent cross-slice links as overview dashed connectors without edge labels', () => {
+    renderRenderer({
+      sceneModel: {
+        ...baseScene(),
+        crossSliceLinks: [
+          {
+            key: 'slice-1::shared->slice-4::shared',
+            logicalRef: 'evt:shared',
+            renderMode: 'dashed-connector',
+            fromNodeKey: 'slice-1::shared',
+            toNodeKey: 'slice-4::shared',
+            points: [
+              { x: 280, y: 195 },
+              { x: 860, y: 345 }
+            ]
+          }
+        ],
+        edges: [
+          {
+            renderKey: 'edge-1',
+            key: 'edge-1',
+            edgeKey: 'edge-1',
+            from: 'node-1',
+            to: 'node-1',
+            path: 'M 100 195 L 280 195',
+            d: 'M 100 195 L 280 195',
+            label: 'kept-edge-label',
+            points: [],
+            draggableSegmentIndices: [],
+            labelX: 190,
+            labelY: 188,
+            hovered: false,
+            related: false
+          }
+        ]
+      }
+    });
+
+    const dashedConnectors = [...document.querySelectorAll('.overview-dashed-connector')];
+    expect(dashedConnectors).toHaveLength(1);
+    expect(dashedConnectors[0]?.getAttribute('marker-end')).toBeNull();
+
+    const labels = [...document.querySelectorAll('.arrow-label')].map((label) => label.textContent?.trim());
+    expect(labels).toEqual(['[kept-edge-label]']);
+  });
+
+  it('applies a fade-out and fade-in stroke gradient to overview dashed connectors', () => {
+    renderRenderer({
+      sceneModel: {
+        ...baseScene(),
+        crossSliceLinks: [
+          {
+            key: 'slice-1::shared->slice-4::shared',
+            logicalRef: 'evt:shared',
+            renderMode: 'dashed-connector',
+            fromNodeKey: 'slice-1::shared',
+            toNodeKey: 'slice-4::shared',
+            points: [
+              { x: 280, y: 195 },
+              { x: 860, y: 345 }
+            ]
+          }
+        ]
+      }
+    });
+
+    const dashedConnector = document.querySelector('.overview-dashed-connector');
+    const gradient = document.querySelector('.overview-dashed-connector-gradient');
+    const stopOpacities = [...document.querySelectorAll('.overview-dashed-connector-gradient stop')]
+      .map((stop) => stop.getAttribute('stop-opacity'));
+
+    expect(dashedConnector?.getAttribute('stroke')).toEqual(expect.stringMatching(/^url\(#overview-dashed-connector-gradient-/));
+    expect(gradient).not.toBeNull();
+    expect(stopOpacities).toEqual(['0.65', '0', '0', '0.65']);
+  });
+
   it('pans camera via background drag without mutating node world coordinates', () => {
     renderRenderer();
 

@@ -7,6 +7,7 @@ import { NodeCard } from '../NodeCard';
 import type { Range } from '../useDslEditor';
 import type { DragTooltipState } from '../useDiagramInteractions';
 import type { DiagramScenario, DiagramScenarioNode } from './rendererContract';
+import { OverviewDashedConnectors } from './overviewDashedConnectors';
 
 function toScenarioNodeCardProps(entry: DiagramScenarioNode) {
   return {
@@ -259,6 +260,8 @@ export function DomSvgDiagramRenderer({
                   <path d="M0,0 L0,6 L8,3 z" fill="var(--edge-highlight)" />
                 </marker>
               </defs>
+
+              <OverviewDashedConnectors crossSliceLinks={sceneModel.crossSliceLinks} />
 
               {sceneModel.edges.map((edge) => {
                 const handleEdgeHoverEnter = () => onEdgeHover(edge.edgeKey);
