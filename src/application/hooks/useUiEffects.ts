@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import type { SliceLibrary } from '../../sliceLibrary';
 import { saveSliceLibrary, saveSliceLayoutOverrides, selectSlice } from '../../sliceLibrary';
 import type { ProjectIndex } from '../../projectLibrary';
+import type { DiagramMode } from '../appViewModel';
 
 export type UseUiEffectsArgs = {
   projectIndex: ProjectIndex;
@@ -29,6 +30,7 @@ export type UseUiEffectsArgs = {
   selectedNode: { key: string } | null;
   showDataTraceTab: boolean;
   selectedNodeUsesKeys: string[];
+  diagramMode: DiagramMode;
   setSelectedNodeKey: Dispatch<SetStateAction<string | null>>;
   setHighlightRange: Dispatch<SetStateAction<{ from: number; to: number } | null>>;
   setLibrary: Dispatch<SetStateAction<SliceLibrary>>;
@@ -44,6 +46,8 @@ export type UseUiEffectsArgs = {
   setCrossSliceTraceExpandedKeys: Dispatch<SetStateAction<Record<string, boolean>>>;
   setSelectedNodePanelTab: Dispatch<SetStateAction<'usage' | 'crossSliceData' | 'trace'>>;
   applySelectedSliceOverrides: (sliceId: string) => void;
+  onShowProjectOverview: () => void;
+  onHideProjectOverview: () => void;
 };
 
 export function useUiEffects(args: UseUiEffectsArgs) {
@@ -72,6 +76,7 @@ export function useUiEffects(args: UseUiEffectsArgs) {
     selectedNode,
     showDataTraceTab,
     selectedNodeUsesKeys,
+    diagramMode,
     setSelectedNodeKey,
     setHighlightRange,
     setLibrary,
@@ -86,7 +91,9 @@ export function useUiEffects(args: UseUiEffectsArgs) {
     setCreateSliceTemplateDialogOpen,
     setCrossSliceTraceExpandedKeys,
     setSelectedNodePanelTab,
-    applySelectedSliceOverrides
+    applySelectedSliceOverrides,
+    onShowProjectOverview,
+    onHideProjectOverview
   } = args;
 
   useEffect(() => {
@@ -308,6 +315,17 @@ export function useUiEffects(args: UseUiEffectsArgs) {
         return;
       }
 
+      const isProjectOverviewShortcut = (event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'o';
+      if (isProjectOverviewShortcut) {
+        event.preventDefault();
+        if (diagramMode === 'overview') {
+          onHideProjectOverview();
+          return;
+        }
+        onShowProjectOverview();
+        return;
+      }
+
       const isNextSliceShortcut = (event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'j';
       const isPreviousSliceShortcut = (event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'k';
       if (isNextSliceShortcut || isPreviousSliceShortcut) {
@@ -366,6 +384,7 @@ export function useUiEffects(args: UseUiEffectsArgs) {
     selectedNode,
     showDataTraceTab,
     selectedNodeUsesKeys,
+    diagramMode,
     createProjectDialogOpen,
     compactEventsDialogOpen,
     addNodeDialogOpen,
@@ -382,6 +401,8 @@ export function useUiEffects(args: UseUiEffectsArgs) {
     setSelectedNodeKey,
     setHighlightRange,
     setLibrary,
-    applySelectedSliceOverrides
+    applySelectedSliceOverrides,
+    onShowProjectOverview,
+    onHideProjectOverview
   ]);
 }

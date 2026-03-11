@@ -264,6 +264,36 @@ describe('App interactions', () => {
     expect(document.querySelector('.main .canvas-panel')).not.toBeNull();
   });
 
+  it('toggles project overview with Cmd+Shift+O', async () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'slice-a',
+        slices: [{ id: 'slice-a', dsl: 'slice "Overview"\n\nevt:selected-node' }]
+      })
+    );
+
+    await renderApp();
+    await waitForElement('.main .canvas-camera-world');
+
+    expect(document.querySelector('.overview-slice-frame')).toBeNull();
+
+    await dispatchAndFlush(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'O', metaKey: true, shiftKey: true, bubbles: true }));
+    });
+
+    expect(await waitForElement('.overview-slice-frame')).not.toBeNull();
+
+    await dispatchAndFlush(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'O', metaKey: true, shiftKey: true, bubbles: true }));
+    });
+
+    await waitForElement('.main .canvas-camera-world');
+
+    expect(document.querySelector('.overview-slice-frame')).toBeNull();
+    expect(document.querySelector('.main .canvas-camera-world')).not.toBeNull();
+  });
+
   it('keeps overview node clicks in-canvas without reopening hidden panels', async () => {
     localStorage.setItem(
       SLICES_STORAGE_KEY,
