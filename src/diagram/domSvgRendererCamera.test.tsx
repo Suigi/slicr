@@ -505,6 +505,30 @@ describe('DomSvgDiagramRendererCamera', () => {
     expect(Number(worldAfterClamp?.dataset.cameraZoom ?? 0)).toBeCloseTo(0.4, 5);
   });
 
+  it('zooms on the first wheel tick when control is already held before the wheel event reports ctrlKey', () => {
+    renderRenderer();
+
+    const panel = document.querySelector('.canvas-panel') as HTMLElement | null;
+    expect(panel).not.toBeNull();
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Control', bubbles: true }));
+      panel?.dispatchEvent(new WheelEvent('wheel', {
+        bubbles: true,
+        deltaY: -100,
+        ctrlKey: false,
+        clientX: 240,
+        clientY: 260
+      }));
+    });
+
+    const worldAfterFirstTick = document.querySelector('.canvas-camera-world') as HTMLElement | null;
+    expect(worldAfterFirstTick).not.toBeNull();
+    expect(Number(worldAfterFirstTick?.dataset.cameraZoom ?? 0)).toBeCloseTo(1.1, 5);
+    expect(Number(worldAfterFirstTick?.dataset.cameraX ?? 0)).toBeCloseTo(-20, 5);
+    expect(Number(worldAfterFirstTick?.dataset.cameraY ?? 0)).toBeCloseTo(-20, 5);
+  });
+
   it('converts node drag pointerdown into world-space coordinates under camera pan/zoom', () => {
     const beginNodeDrag = vi.fn();
     renderRenderer({ beginNodeDrag });

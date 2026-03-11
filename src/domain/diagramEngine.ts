@@ -93,7 +93,7 @@ export function buildOverviewDiagramGraph(parsedSlices: ParsedSliceProjection<Pa
 
   for (const slice of parsedSlices) {
     const diagramParsed = toDiagramParsed(slice.parsed);
-    for (const [dslOrder, [key, node]] of [...diagramParsed.nodes.entries()].entries()) {
+    for (const [dslOrder, [key, node]] of [...slice.parsed.nodes.entries()].entries()) {
       const namespacedKey = namespaceNodeKey(slice.id, key);
       nodes.set(namespacedKey, {
         ...node,
@@ -135,7 +135,7 @@ export function buildOverviewDiagramGraph(parsedSlices: ParsedSliceProjection<Pa
       });
     }
     scenarioOnlyNodeKeys.push(
-      ...diagramParsed.scenarioOnlyNodeKeys.map((nodeKey) => namespaceNodeKey(slice.id, nodeKey))
+      ...slice.parsed.scenarioOnlyNodeKeys.map((nodeKey) => namespaceNodeKey(slice.id, nodeKey))
     );
   }
 
@@ -237,7 +237,8 @@ export async function computeOverviewDiagramLayout(
 ): Promise<DiagramEngineLayout> {
   const overviewGraph = buildOverviewDiagramGraph(parsedSlices);
   const mergedParsed = overviewGraph.parsed;
-  if (mergedParsed.nodes.size === 0) {
+  const layoutParsed = toDiagramParsed(mergedParsed);
+  if (layoutParsed.nodes.size === 0) {
     return {
       layout: {
         pos: {},
@@ -252,13 +253,13 @@ export async function computeOverviewDiagramLayout(
     };
   }
 
-  const elk = await computeElkLayout(mergedParsed, options.nodeDimensions);
+  const elk = await computeElkLayout(layoutParsed, options.nodeDimensions);
   const sliceOrderSpecs = buildOverviewSliceOrderSpecs(
     parsedSlices,
     overviewGraph.nodeMetadataByKey,
     options.scenarioGroupWidths
   );
-  const laneKeys = buildLaneKeys(mergedParsed, elk.laneByKey);
+  const laneKeys = buildLaneKeys(layoutParsed, elk.laneByKey);
   applyOverviewPostLayoutPasses({
     sliceSpecs: sliceOrderSpecs,
     laneKeys,
@@ -268,7 +269,7 @@ export async function computeOverviewDiagramLayout(
     leftLayoutPadding: LEFT_LAYOUT_PADDING
   });
   const precomputedEdges = routeElkEdges(
-    mergedParsed.edges.map((edge, index) => ({
+    layoutParsed.edges.map((edge, index) => ({
       key: `${edge.from}->${edge.to}#${index}`,
       from: edge.from,
       to: edge.to

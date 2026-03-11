@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { supportsEditableEdgePoints } from '../domain/diagramEngine';
 import { NodeCard } from '../NodeCard';
@@ -135,6 +135,7 @@ export function DomSvgDiagramRendererCamera({
     () => initialCamera ?? DEFAULT_CAMERA
   );
   const [cameraControlled, setCameraControlled] = useState(Boolean(initialCamera));
+  const heldWheelZoomModifiersRef = useRef({ ctrl: false, meta: false });
   const effectiveCamera = !cameraControlled && initialCamera
     ? initialCamera
     : camera;
@@ -196,6 +197,40 @@ export function DomSvgDiagramRendererCamera({
   };
 
   useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Control') {
+        heldWheelZoomModifiersRef.current.ctrl = true;
+      }
+      if (event.key === 'Meta') {
+        heldWheelZoomModifiersRef.current.meta = true;
+      }
+    };
+
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.key === 'Control') {
+        heldWheelZoomModifiersRef.current.ctrl = false;
+      }
+      if (event.key === 'Meta') {
+        heldWheelZoomModifiersRef.current.meta = false;
+      }
+    };
+
+    const resetHeldModifiers = () => {
+      heldWheelZoomModifiersRef.current.ctrl = false;
+      heldWheelZoomModifiersRef.current.meta = false;
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', resetHeldModifiers);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', resetHeldModifiers);
+    };
+  }, []);
+
+  useEffect(() => {
     const el = canvasPanelRef.current;
     if (!el) return;
 
@@ -207,7 +242,12 @@ export function DomSvgDiagramRendererCamera({
         return;
       }
 
-      if (!event.ctrlKey && !event.metaKey) {
+      const modifierZoomActive = event.ctrlKey
+        || event.metaKey
+        || heldWheelZoomModifiersRef.current.ctrl
+        || heldWheelZoomModifiersRef.current.meta;
+
+      if (!modifierZoomActive) {
         if (event.deltaX === 0 && event.deltaY === 0) {
           return;
         }

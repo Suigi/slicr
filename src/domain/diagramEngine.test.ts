@@ -285,6 +285,40 @@ describe('diagramEngine dimensions plumbing', () => {
     ]);
   });
 
+  it('preserves scenario-only nodes in the overview graph so scenario cards keep their data', () => {
+    const scenarioGivenNode = makeNode('evt:item-created', 'Item created');
+    scenarioGivenNode.data = { title: 'Alpha' };
+    const scenarioThenNode = makeNode('evt:item-renamed', 'Item renamed');
+    scenarioThenNode.data = { title: 'Beta' };
+    const parsed: Parsed = {
+      sliceName: 'slice',
+      nodes: new Map([
+        ['cmd:rename', makeNode('cmd:rename', 'Rename')],
+        [scenarioGivenNode.key, scenarioGivenNode],
+        [scenarioThenNode.key, scenarioThenNode]
+      ]),
+      edges: [],
+      warnings: [],
+      boundaries: [],
+      scenarios: [
+        {
+          name: 'Rename item',
+          srcRange: { from: 0, to: 10 },
+          given: [{ key: 'evt:item-created', type: 'evt', name: 'item-created', alias: null, srcRange: { from: 11, to: 12 } }],
+          when: { key: 'cmd:rename', type: 'cmd', name: 'rename', alias: null, srcRange: { from: 13, to: 14 } },
+          then: [{ key: 'evt:item-renamed', type: 'evt', name: 'item-renamed', alias: null, srcRange: { from: 15, to: 16 } }]
+        }
+      ],
+      scenarioOnlyNodeKeys: [scenarioGivenNode.key, scenarioThenNode.key]
+    };
+
+    const overview = buildOverviewDiagramGraph([makeProjection('slice-1', parsed)]);
+
+    expect(overview.parsed.nodes.get('slice-1::evt:item-created')?.data).toEqual({ title: 'Alpha' });
+    expect(overview.parsed.nodes.get('slice-1::evt:item-renamed')?.data).toEqual({ title: 'Beta' });
+    expect(overview.parsed.scenarioOnlyNodeKeys).toEqual(['slice-1::evt:item-created', 'slice-1::evt:item-renamed']);
+  });
+
   it('records source slice metadata for each merged overview scenario', () => {
     const firstParsed: Parsed = {
       sliceName: 'first',
