@@ -12,7 +12,7 @@ Prove the completed task is stable, then record what future work should remember
 
 ## What To Do
 
-1. Run the repository validation workflow required by local instructions.
+1. Run the repository validation workflow required by local instructions. Use the local [$validate](.codex/skills/validate/SKILL.md) skill.
 2. At minimum, follow the repo's expected closeout checks for behavior changes.
 3. Record whether failures are new, expected, or unrelated pre-existing issues.
 4. If validation passes, mark the task `[done]`.
@@ -23,6 +23,7 @@ Prove the completed task is stable, then record what future work should remember
 
 - Run the focused test for the task while iterating.
 - Before closing the task, run the repo's required full validation flow for behavior changes.
+- Use `./scripts/test.sh` for both focused and full test runs; let [$validate](.codex/skills/validate/SKILL.md) drive the full closeout sequence.
 - Include lint, full tests, typecheck, and build whenever local repo instructions require them.
 - If one command is intentionally skipped, say so explicitly in the closeout summary.
 
