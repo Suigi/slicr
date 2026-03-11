@@ -12,6 +12,9 @@ A `*-tasks.md` file turns a plan or feature into an ordered implementation check
 * explicit dependencies on earlier tasks
 * optional notes for scope control or implementation guidance
 
+These tasks should describe implementation milestones only.
+Do not add standalone tasks for process steps such as full validation, learnings capture, or phase completion.
+
 ## Naming
 
 Use the `*-tasks.md` suffix for files that break work into ordered implementation tasks.
@@ -169,6 +172,7 @@ Keep tasks aligned with the existing files in this directory:
 * Order tasks in the sequence they should be implemented.
 * Keep task titles short and action-oriented.
 * Keep descriptions brief but concrete.
+* Make each task about implementation work, not process bookkeeping.
 * Prefer acceptance criteria that can map cleanly to tests or observable UI behavior.
 * Use dependencies to make sequencing explicit instead of burying order inside prose.
 * Use notes to prevent scope creep.

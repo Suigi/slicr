@@ -10,13 +10,18 @@
 
 Convert the clarified feature definition into a durable design document that another agent can implement without re-discovering the intent.
 
+## Preconditions
+
+Start Phase 2 only if the Phase 1 thread contains an explicit user approval to proceed.
+If that approval is missing, do not create the feature folder or write `02-plan.md`.
+
 ## What To Do
 
 1. Suggest a short slug for the feature.
 2. Follow [00-folder-id-and-slug-rules.md](./tasks/_process/00-folder-id-and-slug-rules.md) to choose the folder name.
 3. Choose the next available three-digit id and create a feature folder named `tasks/<three-digit-id>-<slug>`.
 4. Create a `02-plan.md` file inside that folder.
-5. Write the design note around observable behavior and architectural shape, not vague aspirations.
+5. Write the design note around observable behavior and architectural shape.
 6. Include the decisions that came out of Phase 1.
 7. Structure the note so it can drive implementation and testing.
 
@@ -50,7 +55,6 @@ Create or update `tasks/<three-digit-id>-<slug>/02-plan.md` with enough detail t
 - Do not bury important decisions in prose.
 - Do not mix implementation status into the plan.
 - Keep the plan focused on one feature, not adjacent cleanup.
-- Suggest a slug before writing the plan so later files use the same folder.
 
 ## Stop Signals
 

@@ -24,6 +24,9 @@ Turn the design note into an ordered implementation queue with narrow, testable 
    - notes that prevent scope creep
 6. Create a `learnings.md` file in the same folder if the workflow expects one.
 
+Implementation tasks should describe feature work only.
+Do not add separate tasks for process steps such as full validation, learnings capture, or phase completion; those belong to later workflow phases.
+
 ## Good Task Shapes
 
 - derive domain data
@@ -39,6 +42,7 @@ Turn the design note into an ordered implementation queue with narrow, testable 
 - Prefer one layer or one observable behavior per task.
 - Keep tasks small enough to complete in one agent run.
 - Avoid combining architecture work, rendering work, and regression coverage into one task unless the change is trivial.
+- Write tasks as implementation milestones, not process checklist items.
 - Use acceptance criteria that can map directly to tests.
 - Make dependencies explicit instead of implied.
 - Only one task may be `[started]` at a time.
@@ -55,6 +59,7 @@ Create or update:
 - Do not start implementation in this phase.
 - Do not write tasks as vague intentions.
 - Do not create a single giant task for the whole feature.
+- Do not create tasks whose only purpose is running validation, capturing learnings, or advancing the workflow.
 - If a task would require several unrelated red-green cycles, split it before implementation starts.
 
 ## Stop Signals

@@ -9,25 +9,23 @@ Use this skill when the user wants to start a new feature using the workflow in 
 
 This skill covers phases 1 to 3 only. It does not implement feature code.
 
+## Phase Boundary Guard
+
+This skill spans Phases 1 to 3, but the agent must pause after Phase 1 until the user explicitly approves moving to Phase 2.
+Do not assume that asking to "start the skill" is approval for later phases.
+
 ## Workflow
 
 1. Read [tasks/_process/README.md](./tasks/_process/README.md).
 2. Follow [tasks/_process/00-response-prefix-rules.md](./tasks/_process/00-response-prefix-rules.md).
 3. Run Phase 1 from [tasks/_process/01-clarify-feature.md](./tasks/_process/01-clarify-feature.md).
-4. Run Phase 2 from [tasks/_process/02-write-design-note.md](./tasks/_process/02-write-design-note.md).
-5. Use [tasks/_process/00-folder-id-and-slug-rules.md](./tasks/_process/00-folder-id-and-slug-rules.md) to choose the folder name.
-6. Write `02-plan.md` in the new feature folder.
-7. Run Phase 3 from [tasks/_process/03-break-into-tasks.md](./tasks/_process/03-break-into-tasks.md).
-8. Create `03-tasks.md` using [tasks/_process/03-tasks_template.md](./tasks/_process/03-tasks_template.md).
-9. Create `05-learnings.md` if the workflow calls for it.
+4. Stop after Phase 1 and wait for explicit user approval to continue.
+5. After approval, run Phase 2 from [tasks/_process/02-write-design-note.md](./tasks/_process/02-write-design-note.md) and create `02-plan.md`.
+6. Run Phase 3 from [tasks/_process/03-break-into-tasks.md](./tasks/_process/03-break-into-tasks.md) and create `03-tasks.md` plus `05-learnings.md` if needed.
 
 ## Required Outputs
 
-At the end of this skill, the feature folder should usually contain:
-
-- `02-plan.md`
-- `03-tasks.md`
-- `05-learnings.md`
+After Phases 2 and 3, the feature folder should usually contain `02-plan.md`, `03-tasks.md`, and `05-learnings.md`.
 
 ## Stop Conditions
 

@@ -10,13 +10,19 @@
 
 Turn an initial feature request into a concrete problem statement with explicit scope boundaries and open questions.
 
+## Hard Stop
+
+After presenting the Phase 1 understanding, STOP.
+Do not create folders, write plan files, or begin Phase 2 unless the user explicitly says to proceed.
+Silence, implied agreement, or a new implementation detail is not approval.
+
 ## What To Do
 
 1. Read the relevant local code and docs before proposing a solution.
 2. Identify the existing subsystem that would likely own the feature.
-3. Ask as many clarifying questions as needed to remove ambiguity.
+3. Ask only the clarifying questions needed to remove ambiguity that would affect scope, architecture, or user-visible behavior.
 4. Do not make feature decisions on your own in this phase.
-5. Ask only questions that materially affect architecture, scope, or user-visible behavior.
+5. Keep questions narrow and decision-relevant.
 6. Prefer questions about:
    - where the feature applies
    - what should stay unchanged
@@ -25,7 +31,9 @@ Turn an initial feature request into a concrete problem statement with explicit 
    - ordering or ambiguity rules
 7. When useful, present a small set of realistic implementation options with tradeoffs.
 8. After the questions are answered, present your understanding of the feature back to the user for confirmation.
-9. Do not move to Phase 2 until the user explicitly approves that understanding and tells you to proceed.
+9. Ask for explicit approval to proceed to Phase 2.
+10. Stop and wait for the user's reply.
+11. Only after that approval, move to Phase 2.
 
 ## Output
 
@@ -40,7 +48,6 @@ Produce a short design-oriented response that includes:
 
 - Do not start coding in this phase.
 - Do not jump to a detailed plan until the core rules are settled.
-- Keep questions narrow and decision-relevant, but ask as many as needed.
 - Separate stable facts from assumptions.
 - Do not choose unresolved product or design behavior on the user's behalf.
 
@@ -64,5 +71,5 @@ Move to the next phase only when the following are clear:
 - any special rendering or interaction requirements
 - the preferred implementation direction
 - the agent has presented its understanding of the feature
-- the user has explicitly approved moving on to Phase 2
+- the user has explicitly approved moving on to Phase 2 in a direct reply
 - there are no more open questions
