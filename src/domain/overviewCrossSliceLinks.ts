@@ -146,3 +146,13 @@ export function deriveOverviewCrossSliceLinks(
 
   return links;
 }
+
+export function buildOverviewBoundaryAnchorByKey(
+  overviewCrossSliceLinks: OverviewCrossSliceLink[]
+): Map<string, string> {
+  return new Map(
+    overviewCrossSliceLinks
+      .filter((link) => link.renderMode === 'shared-node')
+      .map((link) => [link.toOverviewNodeKey, link.fromOverviewNodeKey])
+  );
+}

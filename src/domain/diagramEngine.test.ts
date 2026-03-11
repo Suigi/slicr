@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildOverviewDiagramGraph, computeDiagramLayout, computeOverviewDiagramLayout } from './diagramEngine';
+import { deriveOverviewCrossSliceLinks } from './overviewCrossSliceLinks';
 import { parseDsl } from './parseDsl';
 import type { ParsedSliceProjection } from './parsedSliceProjection';
 import type { Parsed, Position, VisualNode } from './types';
@@ -568,6 +569,225 @@ describe('diagramEngine dimensions plumbing', () => {
 
     expect(layout.laneByKey.get('slice-1::ui:form')).toBe(0);
     expect(layout.laneByKey.get('slice-2::cmd:submit')).toBe(1);
+  });
+
+  it('compacts the first visible target-slice node leftward for adjacent shared-node overview links', async () => {
+    const firstParsed = parseDsl(`slice "Alpha"
+
+evt:order-created`);
+    const secondParsed = parseDsl(`slice "Beta"
+
+evt:order-created
+cmd:ship-order <- evt:order-created`);
+    const projections = [
+      makeProjection('slice-1', firstParsed),
+      makeProjection('slice-2', secondParsed)
+    ];
+    const overview = buildOverviewDiagramGraph(projections);
+    const crossSliceLinks = deriveOverviewCrossSliceLinks(projections, overview.nodeMetadataByKey);
+
+    expect(crossSliceLinks).toEqual([
+      expect.objectContaining({
+        fromOverviewNodeKey: 'slice-1::order-created',
+        toOverviewNodeKey: 'slice-2::order-created',
+        renderMode: 'shared-node'
+      })
+    ]);
+
+    const layout = await computeOverviewDiagramLayout(projections);
+    const source = layout.layout.pos['slice-1::order-created'];
+    const targetFollower = layout.layout.pos['slice-2::ship-order'];
+
+    expect(source).toBeDefined();
+    expect(targetFollower).toBeDefined();
+    expect(targetFollower.x).toBe(source.x + source.w + 80);
+  });
+
+  it('positions the first visible target-slice node immediately after the shared representative for adjacent overview links', async () => {
+    const firstParsed = parseDsl(`slice "Alpha"
+
+evt:order-created`);
+    const secondParsed = parseDsl(`slice "Beta"
+
+evt:order-created
+cmd:ship-order <- evt:order-created`);
+
+    const layout = await computeOverviewDiagramLayout([
+      makeProjection('slice-1', firstParsed),
+      makeProjection('slice-2', secondParsed)
+    ]);
+    const source = layout.layout.pos['slice-1::order-created'];
+    const targetFollower = layout.layout.pos['slice-2::ship-order'];
+
+    expect(source).toBeDefined();
+    expect(targetFollower).toBeDefined();
+    expect(targetFollower.x).toBe(source.x + source.w + 80);
+  });
+
+  it('keeps later overview slices ordered to the right of a compacted adjacent shared-node target slice', async () => {
+    const alphaParsed = parseDsl(`slice "Alpha"
+
+evt:order-created`);
+    const betaParsed = parseDsl(`slice "Beta"
+
+evt:order-created
+cmd:ship-order <- evt:order-created`);
+    const gammaParsed = parseDsl(`slice "Gamma"
+
+cmd:invoice-order`);
+
+    const layout = await computeOverviewDiagramLayout([
+      makeProjection('slice-1', alphaParsed),
+      makeProjection('slice-2', betaParsed),
+      makeProjection('slice-3', gammaParsed)
+    ]);
+    const betaFollower = layout.layout.pos['slice-2::ship-order'];
+    const gammaLeader = layout.layout.pos['slice-3::invoice-order'];
+
+    expect(betaFollower).toBeDefined();
+    expect(gammaLeader).toBeDefined();
+    expect(gammaLeader.x).toBe(betaFollower.x + betaFollower.w + 80);
+  });
+
+  it('compacts multiple independent adjacent shared-node pairs across different slice boundaries', async () => {
+    const alphaParsed = parseDsl(`slice "Alpha"
+
+evt:order-created`);
+    const betaParsed = parseDsl(`slice "Beta"
+
+evt:order-created
+cmd:ship-order <- evt:order-created`);
+    const gammaParsed = parseDsl(`slice "Gamma"
+
+evt:invoice-requested`);
+    const deltaParsed = parseDsl(`slice "Delta"
+
+evt:invoice-requested
+cmd:send-invoice <- evt:invoice-requested`);
+
+    const layout = await computeOverviewDiagramLayout([
+      makeProjection('slice-1', alphaParsed),
+      makeProjection('slice-2', betaParsed),
+      makeProjection('slice-3', gammaParsed),
+      makeProjection('slice-4', deltaParsed)
+    ]);
+    const alphaSource = layout.layout.pos['slice-1::order-created'];
+    const betaFollower = layout.layout.pos['slice-2::ship-order'];
+    const gammaSource = layout.layout.pos['slice-3::invoice-requested'];
+    const deltaFollower = layout.layout.pos['slice-4::send-invoice'];
+
+    expect(alphaSource).toBeDefined();
+    expect(betaFollower).toBeDefined();
+    expect(gammaSource).toBeDefined();
+    expect(deltaFollower).toBeDefined();
+    expect(betaFollower.x).toBe(alphaSource.x + alphaSource.w + 80);
+    expect(deltaFollower.x).toBe(gammaSource.x + gammaSource.w + 80);
+  });
+
+  it('exposes the hidden shared-node boundary-anchor gap regression in reserve-book overview layout', async () => {
+    const registrationParsed = parseDsl(`slice "Book Registration"
+
+ui:book-registration-form "Book Registration"
+
+cmd:register-book "Register Book"
+<- ui:book-registration-form
+
+evt:book-registered "Book Registered"
+<- cmd:register-book
+
+---
+
+rm:available-books "Available Books"
+<- evt:book-registered`);
+    const reserveBookParsed = parseDsl(`slice "Reserve Book"
+
+rm:available-books "Available Books"
+
+---
+
+ui:available-books "Reserve Book Form"
+<- rm:available-books
+
+cmd:reserve-book "ReserveBook"
+<- ui:available-books
+
+evt:book-reserved "BookReserved"
+<- cmd:reserve-book
+
+---
+
+rm:available-books@2 "Available Books"
+<- evt:book-reserved`);
+
+    const layout = await computeOverviewDiagramLayout([
+      makeProjection('slice-1', registrationParsed),
+      makeProjection('slice-2', reserveBookParsed)
+    ]);
+
+    const reserveBookForm = layout.layout.pos['slice-2::ui:available-books'];
+    const reserveBook = layout.layout.pos['slice-2::reserve-book'];
+    const bookReserved = layout.layout.pos['slice-2::book-reserved'];
+    const registeredBook = layout.layout.pos['slice-1::book-registered'];
+    const availableBooks = layout.layout.pos['slice-1::available-books'];
+    const rightSliceAvailableBooks = layout.layout.pos['slice-2::available-books@2'];
+    const minimumGap = 40;
+    const maximumInterSliceGap = 160;
+
+    expect(reserveBookForm).toBeDefined();
+    expect(reserveBook).toBeDefined();
+    expect(bookReserved).toBeDefined();
+    expect(registeredBook).toBeDefined();
+    expect(availableBooks).toBeDefined();
+    expect(rightSliceAvailableBooks).toBeDefined();
+    expect(reserveBook.x).toBeGreaterThan(reserveBookForm.x + minimumGap);
+    expect(bookReserved.x).toBeGreaterThan(reserveBook.x + minimumGap);
+
+    const leftSliceRightMost = Math.max(
+      registeredBook.x + registeredBook.w,
+      availableBooks.x + availableBooks.w
+    );
+    const rightSliceLeftMost = Math.min(
+      reserveBookForm.x,
+      reserveBook.x,
+      bookReserved.x,
+      rightSliceAvailableBooks.x
+    );
+
+    expect(rightSliceLeftMost).toBeLessThan(leftSliceRightMost + maximumInterSliceGap);
+  });
+
+  it('preserves successor-gap and boundary-floor legality in a compacted overview target slice', async () => {
+    const alphaParsed = parseDsl(`slice "Alpha"
+
+evt:availability-published`);
+    const reserveBookParsed = parseDsl(`slice "Reserve Book"
+
+evt:availability-published
+cmd:lookup-book <- evt:availability-published
+cmd:reserve-book
+evt:book-reserved <- cmd:reserve-book
+---
+rm:reservation-status <- evt:book-reserved`);
+
+    const layout = await computeOverviewDiagramLayout([
+      makeProjection('slice-1', alphaParsed),
+      makeProjection('slice-2', reserveBookParsed)
+    ]);
+
+    const sharedSource = layout.layout.pos['slice-1::availability-published'];
+    const lookupBook = layout.layout.pos['slice-2::lookup-book'];
+    const reserveBook = layout.layout.pos['slice-2::reserve-book'];
+    const bookReserved = layout.layout.pos['slice-2::book-reserved'];
+    const reservationStatus = layout.layout.pos['slice-2::reservation-status'];
+
+    expect(sharedSource).toBeDefined();
+    expect(lookupBook).toBeDefined();
+    expect(reserveBook).toBeDefined();
+    expect(bookReserved).toBeDefined();
+    expect(reservationStatus).toBeDefined();
+    expect(lookupBook.x).toBe(sharedSource.x + sharedSource.w + 80);
+    expect(bookReserved.x).toBeGreaterThanOrEqual(reserveBook.x + 40);
+    expect(reservationStatus.x).toBeGreaterThanOrEqual(reserveBook.x + reserveBook.w + 80);
   });
 
   it('computes ELK layout without requiring an engine parameter', async () => {

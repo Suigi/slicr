@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { RenderedDiagramEdge, routeDiagramEdge } from '../domain/diagramEngine';
+import {
+  buildOverviewDiagramGraph,
+  computeOverviewDiagramLayout,
+  RenderedDiagramEdge,
+  routeDiagramEdge
+} from '../domain/diagramEngine';
+import { deriveOverviewCrossSliceLinks } from '../domain/overviewCrossSliceLinks';
+import { parseDsl } from '../domain/parseDsl';
 import type { LayoutResult, Parsed, Position, VisualNode } from '../domain/types';
 import { routeRoundedPolyline } from '../domain/diagramRouting';
 import { buildSceneModel } from './sceneModel';
@@ -646,6 +653,198 @@ describe('buildSceneModel', () => {
     }));
     expect(scene?.edges[0]?.points[0]).toEqual(expectedReroutedGeometry.points?.[0]);
     expect(scene?.edges[0]?.points[0]).not.toEqual(originalGeometry.points?.[0]);
+  });
+
+  it('preserves hidden targets shared representatives and rerouted edges when overview compaction spans multiple slice boundaries', async () => {
+    const projections = [
+      { id: 'slice-1', dsl: 'slice "Alpha"', parsed: parseDsl(`slice "Alpha"\n\nevt:order-created`) },
+      {
+        id: 'slice-2',
+        dsl: 'slice "Beta"',
+        parsed: parseDsl(`slice "Beta"\n\nevt:order-created\ncmd:ship-order <- evt:order-created`)
+      },
+      { id: 'slice-3', dsl: 'slice "Gamma"', parsed: parseDsl(`slice "Gamma"\n\nevt:invoice-requested`) },
+      {
+        id: 'slice-4',
+        dsl: 'slice "Delta"',
+        parsed: parseDsl(`slice "Delta"\n\nevt:invoice-requested\ncmd:send-invoice <- evt:invoice-requested`)
+      }
+    ];
+    const overview = buildOverviewDiagramGraph(projections);
+    const engineLayout = await computeOverviewDiagramLayout(projections);
+    const overviewCrossSliceLinks = deriveOverviewCrossSliceLinks(projections, overview.nodeMetadataByKey);
+    const renderedEdges: RenderedDiagramEdge[] = overview.parsed.edges.map((edge, index) => {
+      const edgeKey = `${edge.from}->${edge.to}#${index}`;
+      const geometry = engineLayout.precomputedEdges?.[edgeKey];
+      if (!geometry) {
+        throw new Error(`Missing precomputed edge geometry for ${edgeKey}`);
+      }
+
+      return {
+        key: edgeKey,
+        edgeKey,
+        edge,
+        geometry
+      };
+    });
+
+    const scene = buildSceneModel({
+      parsed: overview.parsed,
+      activeLayout: engineLayout.layout,
+      displayedPos: engineLayout.layout.pos,
+      renderedEdges,
+      engineLayout,
+      activeNodeKeyFromEditor: null,
+      selectedNodeKey: null,
+      hoveredEdgeKey: null,
+      hoveredTraceNodeKey: null,
+      overviewNodeMetadataByKey: overview.nodeMetadataByKey,
+      overviewScenarioMetadataByScenario: overview.scenarioMetadataByScenario,
+      overviewCrossSliceLinks
+    });
+
+    const firstSource = engineLayout.layout.pos['slice-1::order-created'];
+    const firstFollower = engineLayout.layout.pos['slice-2::ship-order'];
+    const secondSource = engineLayout.layout.pos['slice-3::invoice-requested'];
+    const secondFollower = engineLayout.layout.pos['slice-4::send-invoice'];
+    const firstExpectedGeometry = routeDiagramEdge(firstSource, firstFollower);
+    const secondExpectedGeometry = routeDiagramEdge(secondSource, secondFollower);
+
+    expect(scene?.nodes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        key: 'slice-2::order-created',
+        hidden: true
+      }),
+      expect.objectContaining({
+        key: 'slice-4::invoice-requested',
+        hidden: true
+      }),
+      expect.objectContaining({
+        key: 'shared-node:slice-1::order-created->slice-2::order-created',
+        interactionNodeKey: 'slice-1::order-created',
+        x: firstSource.x,
+        y: firstSource.y,
+        hidden: false,
+        backingNodeKeys: ['slice-1::order-created', 'slice-2::order-created']
+      }),
+      expect.objectContaining({
+        key: 'shared-node:slice-3::invoice-requested->slice-4::invoice-requested',
+        interactionNodeKey: 'slice-3::invoice-requested',
+        x: secondSource.x,
+        y: secondSource.y,
+        hidden: false,
+        backingNodeKeys: ['slice-3::invoice-requested', 'slice-4::invoice-requested']
+      })
+    ]));
+    expect(scene?.sharedNodeAnchors).toEqual([
+      expect.objectContaining({
+        key: 'slice-1::order-created->slice-2::order-created',
+        x: firstSource.x,
+        y: firstSource.y
+      }),
+      expect.objectContaining({
+        key: 'slice-3::invoice-requested->slice-4::invoice-requested',
+        x: secondSource.x,
+        y: secondSource.y
+      })
+    ]);
+    expect(scene?.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        key: 'slice-2::order-created->slice-2::ship-order#0',
+        points: firstExpectedGeometry.points,
+        path: routeRoundedPolyline(firstExpectedGeometry.points!, 5)
+      }),
+      expect.objectContaining({
+        key: 'slice-4::invoice-requested->slice-4::send-invoice#1',
+        points: secondExpectedGeometry.points,
+        path: routeRoundedPolyline(secondExpectedGeometry.points!, 5)
+      })
+    ]));
+  });
+
+  it('aligns overview slice frames dividers and scenario groups to compacted shared-node bounds', async () => {
+    const firstParsed = parseDsl(`slice "Alpha"
+
+evt:order-created`);
+    const secondParsed = parseDsl(`slice "Beta"
+
+evt:order-created
+---
+cmd:ship-order <- evt:order-created`);
+    secondParsed.scenarios = [
+      {
+        name: 'Ship order',
+        srcRange: { from: 10, to: 20 },
+        given: [],
+        when: {
+          key: 'ship-order',
+          type: 'cmd',
+          name: 'ship-order',
+          alias: null,
+          srcRange: { from: 11, to: 12 }
+        },
+        then: []
+      }
+    ];
+    const thirdParsed = parseDsl(`slice "Gamma"
+
+cmd:invoice-order`);
+    const projections = [
+      { id: 'slice-1', dsl: 'slice "Alpha"', parsed: firstParsed },
+      { id: 'slice-2', dsl: 'slice "Beta"', parsed: secondParsed },
+      { id: 'slice-3', dsl: 'slice "Gamma"', parsed: thirdParsed }
+    ];
+    const overview = buildOverviewDiagramGraph(projections);
+    const engineLayout = await computeOverviewDiagramLayout(projections);
+    const overviewCrossSliceLinks = deriveOverviewCrossSliceLinks(projections, overview.nodeMetadataByKey);
+    const renderedEdges: RenderedDiagramEdge[] = overview.parsed.edges.map((edge, index) => {
+      const edgeKey = `${edge.from}->${edge.to}#${index}`;
+      const geometry = engineLayout.precomputedEdges?.[edgeKey];
+      if (!geometry) {
+        throw new Error(`Missing precomputed edge geometry for ${edgeKey}`);
+      }
+
+      return {
+        key: edgeKey,
+        edgeKey,
+        edge,
+        geometry
+      };
+    });
+
+    const scene = buildSceneModel({
+      parsed: overview.parsed,
+      activeLayout: engineLayout.layout,
+      displayedPos: engineLayout.layout.pos,
+      renderedEdges,
+      engineLayout,
+      activeNodeKeyFromEditor: null,
+      selectedNodeKey: null,
+      hoveredEdgeKey: null,
+      hoveredTraceNodeKey: null,
+      overviewNodeMetadataByKey: overview.nodeMetadataByKey,
+      overviewScenarioMetadataByScenario: overview.scenarioMetadataByScenario,
+      overviewCrossSliceLinks
+    });
+
+    const source = engineLayout.layout.pos['slice-1::order-created'];
+    const targetFollower = engineLayout.layout.pos['slice-2::ship-order'];
+    const alphaFrame = scene?.sliceFrames.find((frame) => frame.key === 'overview-slice-frame-slice-1');
+    const betaFrame = scene?.sliceFrames.find((frame) => frame.key === 'overview-slice-frame-slice-2');
+    const betaScenarioGroup = scene?.scenarioGroups?.find((group) => group.sliceId === 'slice-2');
+    const compactedBoundary = scene?.boundaries.find((boundary) => boundary.key === 'slice-divider-0-slice-2::order-created');
+
+    expect(source).toBeDefined();
+    expect(targetFollower).toBeDefined();
+    expect(alphaFrame).toBeDefined();
+    expect(betaFrame).toBeDefined();
+    expect(betaScenarioGroup).toBeDefined();
+    expect(compactedBoundary).toBeDefined();
+    expect(betaFrame?.left).toBe(targetFollower.x - 28);
+    expect(betaFrame?.labelLeft).toBe(betaFrame?.left);
+    expect(betaScenarioGroup?.left).toBe(betaFrame?.left);
+    expect(compactedBoundary?.x).toBe(source.x + source.w + 40);
+    expect(betaFrame!.left).toBeGreaterThanOrEqual(alphaFrame!.left + alphaFrame!.width);
   });
 
   it('expands overview viewport bounds to include measured scenario-group width', () => {

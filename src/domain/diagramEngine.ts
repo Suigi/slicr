@@ -1,9 +1,10 @@
 import { DiagramEdgeGeometry, middlePoint, routeElkEdges, routeForwardEdge, routePolyline } from './diagramRouting';
-import { buildElkLaneMeta, computeElkLayout } from './elkLayout';
-import { applyOverviewPostLayoutPasses } from './elkPostLayout';
+import { buildElkLaneMeta, buildTopoOrder, computeElkLayout } from './elkLayout';
+import { applyOverviewPostLayoutPasses, buildBoundarySpecs } from './elkPostLayout';
 import { layoutGraph, PAD_X } from './layoutGraph';
 import { projectNodeHeights } from './nodeSizing';
 import type { NodeDimensions } from './nodeSizing';
+import { buildOverviewBoundaryAnchorByKey, deriveOverviewCrossSliceLinks } from './overviewCrossSliceLinks';
 import type { ParsedSliceProjection } from './parsedSliceProjection';
 import type { LayoutResult, Parsed, ParsedScenario, Position, VisualNode } from './types';
 
@@ -254,6 +255,19 @@ export async function computeOverviewDiagramLayout(
   }
 
   const elk = await computeElkLayout(layoutParsed, options.nodeDimensions);
+  const topoOrder = buildTopoOrder(layoutParsed);
+  const dslOrder = new Map<string, number>();
+  [...layoutParsed.nodes.keys()].forEach((key, index) => dslOrder.set(key, index));
+  const overviewCrossSliceLinks = deriveOverviewCrossSliceLinks(parsedSlices, overviewGraph.nodeMetadataByKey);
+  const overviewBoundaryAnchorByKey = buildOverviewBoundaryAnchorByKey(overviewCrossSliceLinks);
+  const boundarySpecs = buildBoundarySpecs(layoutParsed.boundaries, dslOrder, overviewBoundaryAnchorByKey);
+  const adjacentSharedNodePairs = overviewCrossSliceLinks
+    .filter((link) => link.renderMode === 'shared-node')
+    .map((link) => ({
+      sourceNodeKey: link.fromOverviewNodeKey,
+      targetNodeKey: link.toOverviewNodeKey,
+      targetSliceId: link.toSliceId
+    }));
   const sliceOrderSpecs = buildOverviewSliceOrderSpecs(
     parsedSlices,
     overviewGraph.nodeMetadataByKey,
@@ -261,12 +275,18 @@ export async function computeOverviewDiagramLayout(
   );
   const laneKeys = buildLaneKeys(layoutParsed, elk.laneByKey);
   applyOverviewPostLayoutPasses({
-    sliceSpecs: sliceOrderSpecs,
-    laneKeys,
-    nodesById: elk.pos,
-    minInterSliceGap: MIN_INTER_SLICE_GAP,
-    minLaneGap: MIN_LANE_GAP,
-    leftLayoutPadding: LEFT_LAYOUT_PADDING
+    adjacentSharedNodePairs,
+      sliceSpecs: sliceOrderSpecs,
+      laneKeys,
+      nodesById: elk.pos,
+      edges: layoutParsed.edges,
+      topoOrder,
+      dslOrder,
+      boundarySpecs,
+      minSuccessorGap: 40,
+      minInterSliceGap: MIN_INTER_SLICE_GAP,
+      minLaneGap: MIN_LANE_GAP,
+      leftLayoutPadding: LEFT_LAYOUT_PADDING
   });
   const precomputedEdges = routeElkEdges(
     layoutParsed.edges.map((edge, index) => ({

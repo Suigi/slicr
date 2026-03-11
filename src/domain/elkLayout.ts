@@ -1,7 +1,12 @@
 import ELK from 'elkjs/lib/elk.bundled.js';
 import type { ElkNode } from 'elkjs/lib/elk-api';
 import { DiagramEdgeGeometry, routeElkEdges } from './diagramRouting';
-import { applyBoundaryFloorPass, applyLaneGapPass, applySuccessorGapPass } from './elkPostLayout';
+import {
+  applyBoundaryFloorPass,
+  applyLaneGapPass,
+  applySuccessorGapPass,
+  buildBoundarySpecs
+} from './elkPostLayout';
 import { nodeHeight, PAD_X, rowFor } from './layoutGraph';
 import { DEFAULT_NODE_WIDTH, projectNodeHeights } from './nodeSizing';
 import type { NodeDimensions } from './nodeSizing';
@@ -120,7 +125,7 @@ function applyEdgeDensityGapPass(
   return changed;
 }
 
-function buildTopoOrder(parsed: Parsed): Map<string, number> {
+export function buildTopoOrder(parsed: Parsed): Map<string, number> {
   const nodeKeys = [...parsed.nodes.keys()];
   const dslOrder = new Map<string, number>();
   nodeKeys.forEach((key, index) => dslOrder.set(key, index));
@@ -263,16 +268,7 @@ export async function computeElkLayout(
   const { laneByKey, rowStreamLabels } = buildElkLaneMeta(parsed);
   const dslOrder = new Map<string, number>();
   [...parsed.nodes.keys()].forEach((key, index) => dslOrder.set(key, index));
-  const boundarySpecs = parsed.boundaries
-    .map((boundary) => {
-      const afterIndex = dslOrder.get(boundary.after);
-      if (afterIndex === undefined) {
-        return null;
-      }
-      return { afterKey: boundary.after, afterIndex };
-    })
-    .filter((spec): spec is { afterKey: string; afterIndex: number } => spec !== null)
-    .sort((a, b) => a.afterIndex - b.afterIndex);
+  const boundarySpecs = buildBoundarySpecs(parsed.boundaries, dslOrder);
   const children = [...parsed.nodes.values()].sort((a, b) => {
     const topoA = topoOrder.get(a.key) ?? Number.MAX_SAFE_INTEGER;
     const topoB = topoOrder.get(b.key) ?? Number.MAX_SAFE_INTEGER;

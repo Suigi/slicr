@@ -5,7 +5,7 @@ import {
   OverviewScenarioMetadata,
   RenderedDiagramEdge
 } from '../domain/diagramEngine';
-import type { OverviewCrossSliceLink } from '../domain/overviewCrossSliceLinks';
+import { buildOverviewBoundaryAnchorByKey, type OverviewCrossSliceLink } from '../domain/overviewCrossSliceLinks';
 import type {LayoutResult, Parsed, ParsedScenario, Position, VisualNode} from '../domain/types';
 import {routeRoundedPolyline} from '../domain/diagramRouting';
 import {PAD_X, rowFor} from '../domain/layoutGraph';
@@ -138,18 +138,21 @@ function computeCanvasViewport(
 function buildOverviewSliceFrames(
   displayedPos: Record<string, Position>,
   visibleNodeKeys: Set<string>,
-  overviewNodeMetadataByKey?: Map<string, OverviewNodeMetadata>
+  overviewNodeMetadataByKey?: Map<string, OverviewNodeMetadata>,
+  overviewCrossSliceLinks: OverviewCrossSliceLink[] = []
 ): DiagramSliceFrame[] {
   if (!overviewNodeMetadataByKey || overviewNodeMetadataByKey.size === 0) {
     return [];
   }
 
-  const sliceBounds = new Map<string, {
+  const hiddenTargetNodeKeys = new Set(
+    overviewCrossSliceLinks
+      .filter((link) => link.renderMode === 'shared-node')
+      .map((link) => link.toOverviewNodeKey)
+  );
+  const sliceNodes = new Map<string, {
     label: string;
-    minX: number;
-    minY: number;
-    maxX: number;
-    maxY: number;
+    nodes: Position[];
   }>();
 
   for (const key of visibleNodeKeys) {
@@ -159,26 +162,35 @@ function buildOverviewSliceFrames(
       continue;
     }
 
-    const existing = sliceBounds.get(metadata.sourceSliceId);
-    sliceBounds.set(metadata.sourceSliceId, {
+    const existing = sliceNodes.get(metadata.sourceSliceId);
+    const nodes = existing?.nodes ?? [];
+    nodes.push(position);
+    sliceNodes.set(metadata.sourceSliceId, {
       label: metadata.sourceSliceName,
-      minX: existing ? Math.min(existing.minX, position.x) : position.x,
-      minY: existing ? Math.min(existing.minY, position.y) : position.y,
-      maxX: existing ? Math.max(existing.maxX, position.x + position.w) : position.x + position.w,
-      maxY: existing ? Math.max(existing.maxY, position.y + position.h) : position.y + position.h
+      nodes
     });
   }
 
-  return [...sliceBounds.entries()].map(([sliceId, bounds]) => {
-    const left = bounds.minX - OVERVIEW_SLICE_FRAME_PADDING_X;
-    const top = bounds.minY - OVERVIEW_SLICE_FRAME_PADDING_TOP;
+  return [...sliceNodes.entries()].map(([sliceId, slice]) => {
+    const visibleNodes = [...visibleNodeKeys]
+      .filter((key) => overviewNodeMetadataByKey.get(key)?.sourceSliceId === sliceId)
+      .filter((key) => !hiddenTargetNodeKeys.has(key))
+      .map((key) => displayedPos[key])
+      .filter((position): position is Position => Boolean(position));
+    const effectiveNodes = visibleNodes.length > 0 ? visibleNodes : slice.nodes;
+    const minX = Math.min(...effectiveNodes.map((position) => position.x));
+    const minY = Math.min(...effectiveNodes.map((position) => position.y));
+    const maxX = Math.max(...effectiveNodes.map((position) => position.x + position.w));
+    const maxY = Math.max(...effectiveNodes.map((position) => position.y + position.h));
+    const left = minX - OVERVIEW_SLICE_FRAME_PADDING_X;
+    const top = minY - OVERVIEW_SLICE_FRAME_PADDING_TOP;
     return {
       key: `overview-slice-frame-${sliceId}`,
-      label: bounds.label,
+      label: slice.label,
       left,
       top,
-      width: (bounds.maxX - bounds.minX) + OVERVIEW_SLICE_FRAME_PADDING_X * 2,
-      height: (bounds.maxY - bounds.minY) + OVERVIEW_SLICE_FRAME_PADDING_TOP + OVERVIEW_SLICE_FRAME_PADDING_BOTTOM,
+      width: (maxX - minX) + OVERVIEW_SLICE_FRAME_PADDING_X * 2,
+      height: (maxY - minY) + OVERVIEW_SLICE_FRAME_PADDING_TOP + OVERVIEW_SLICE_FRAME_PADDING_BOTTOM,
       labelLeft: left,
       labelTop: top - OVERVIEW_SLICE_FRAME_LABEL_GAP - OVERVIEW_SLICE_FRAME_LABEL_HEIGHT
     };
@@ -247,13 +259,20 @@ function buildLanes(
   });
 }
 
-function buildBoundaries(parsed: Parsed, displayedPos: Record<string, Position>, lanes: DiagramLane[], worldHeight: number): DiagramBoundary[] {
+function buildBoundaries(
+  parsed: Parsed,
+  displayedPos: Record<string, Position>,
+  lanes: DiagramLane[],
+  worldHeight: number,
+  overviewBoundaryAnchorByKey: Map<string, string> = new Map()
+): DiagramBoundary[] {
   const topLaneY = lanes.length === 0 ? 0 : lanes[0].y;
   const dividerTop = (topLaneY - 28) - 40;
 
   return parsed.boundaries
     .map((boundary, index) => {
-      const afterPos = displayedPos[boundary.after];
+      const anchorKey = overviewBoundaryAnchorByKey.get(boundary.after) ?? boundary.after;
+      const afterPos = displayedPos[anchorKey];
       if (!afterPos) {
         return null;
       }
@@ -476,8 +495,14 @@ export function buildSceneModel(input: BuildSceneModelInput): DiagramSceneModel 
       visibleDisplayedPos[key] = position;
     }
   }
-  const boundaries = buildBoundaries(parsed, visibleDisplayedPos, lanes, activeLayout.h);
-  const sliceFrames = buildOverviewSliceFrames(visibleDisplayedPos, visibleNodeKeys, overviewNodeMetadataByKey);
+  const overviewBoundaryAnchorByKey = buildOverviewBoundaryAnchorByKey(overviewCrossSliceLinks);
+  const boundaries = buildBoundaries(parsed, visibleDisplayedPos, lanes, activeLayout.h, overviewBoundaryAnchorByKey);
+  const sliceFrames = buildOverviewSliceFrames(
+    visibleDisplayedPos,
+    visibleNodeKeys,
+    overviewNodeMetadataByKey,
+    overviewCrossSliceLinks
+  );
   const scenarios = buildScenarios(parsed, activeNodeKeyFromEditor, selectedNodeKey);
   const scenarioGroups = buildScenarioGroups(
     parsed,
