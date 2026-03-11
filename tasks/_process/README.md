@@ -4,13 +4,13 @@ Use the files in this directory to design and implement a new feature in the sam
 
 ## Sequence
 
-1. Start with [01-clarify-feature.md](./tasks/_process/01-clarify-feature.md).
-2. Then follow [02-write-design-note.md](./tasks/_process/02-write-design-note.md).
-3. Then follow [03-break-into-tasks.md](./tasks/_process/03-break-into-tasks.md).
+1. Start with [01-clarify-feature.md](tasks/_process/01-clarify-feature.md).
+2. Then follow [02-write-design-note.md](tasks/_process/02-write-design-note.md).
+3. Then follow [03-break-into-tasks.md](tasks/_process/03-break-into-tasks.md).
 4. Then loop through:
-   - [04-implement-one-task-with-ptdd.md](./tasks/_process/04-implement-one-task-with-ptdd.md)
-   - [05-validate-and-capture-learnings.md](./tasks/_process/05-validate-and-capture-learnings.md)
-   - [06-repeat-or-close.md](./tasks/_process/06-repeat-or-close.md)
+   - [04-implement-one-task-with-ptdd.md](tasks/_process/04-implement-one-task-with-ptdd.md)
+   - [05-validate-and-capture-learnings.md](tasks/_process/05-validate-and-capture-learnings.md)
+   - [06-repeat-or-close.md](tasks/_process/06-repeat-or-close.md)
 
 ## Feature Folder Layout
 
@@ -26,15 +26,23 @@ That folder should normally contain:
 
 ## Naming Rules
 
-Follow [00-folder-id-and-slug-rules.md](./tasks/_process/00-folder-id-and-slug-rules.md) before creating a new feature folder.
+Follow [00-folder-id-and-slug-rules.md](tasks/_process/00-folder-id-and-slug-rules.md) before creating a new feature folder.
+
+## Current Feature Pointer
+
+Follow [00-current-feature-rules.md](tasks/_process/00-current-feature-rules.md).
+
+`tasks/_process/current-feature.toml` is the single repo-level pointer to the active feature.
+Workflow phases and spec skills should resolve the feature folder from that file unless the user explicitly names a different folder.
+If the pointer is missing, empty, or stale, stop and ask instead of scanning `tasks/`.
 
 ## Response Prefix Rules
 
-Follow [00-response-prefix-rules.md](./tasks/_process/00-response-prefix-rules.md) while executing the workflow.
+Follow [00-response-prefix-rules.md](tasks/_process/00-response-prefix-rules.md) while executing the workflow.
 
 ## Example
 
-See [001-example-feature](/Users/daniel/src/private/slicr/tasks/001-example-feature) for a minimal example of the expected output files.
+See [001-example-feature](tasks/001-example-feature) for a minimal example of the expected output files.
 
 ## Expected Outputs By Phase
 

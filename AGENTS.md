@@ -62,6 +62,6 @@ nix-shell --run 'npm test'
 
 ## Skills
 
-- Use [$spec-01-init](./.codex/skills/spec-01-init/SKILL.md) when starting a new feature with the repo's feature-process workflow: clarify the request, suggest the slug, create `tasks/<three-digit-id>-<slug>/`, write `02-plan.md`, and create `03-tasks.md` before implementation starts.
-- Use [$spec-02-review-docs](./.codex/skills/spec-02-review-docs/SKILL.md) after `02-plan.md` and `03-tasks.md` already exist but before implementation starts, when the goal is to review those docs, ask clarifying questions, and fold the answers back into the documents.
-- Use [$spec-03-execute-task](./.codex/skills/spec-03-execute-task/SKILL.md) when a feature folder already exists and the next step is to implement exactly one planned task with PTDD, validation, and learnings updates.
+- Use [$spec-01-init](.codex/skills/spec-01-init/SKILL.md) when starting a new feature with the repo's feature-process workflow: clarify the request, suggest the slug, create `tasks/<three-digit-id>-<slug>/`, write `02-plan.md`, and create `03-tasks.md` before implementation starts.
+- Use [$spec-02-review-docs](.codex/skills/spec-02-review-docs/SKILL.md) after `02-plan.md` and `03-tasks.md` already exist but before implementation starts, when the goal is to review those docs, ask clarifying questions, and fold the answers back into the documents.
+- Use [$spec-03-execute-task](.codex/skills/spec-03-execute-task/SKILL.md) when a feature folder already exists and the next step is to implement exactly one planned task with PTDD, validation, and learnings updates.

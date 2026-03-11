@@ -1,0 +1,7 @@
+# Single repo-level pointer to the active feature folder.
+# Update this file as the workflow advances.
+
+feature_dir = "tasks/003-overview-shared-node-layout"
+phase = "implementation"
+current_task = ""
+status = "active"

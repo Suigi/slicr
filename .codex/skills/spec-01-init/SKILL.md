@@ -5,7 +5,7 @@ description: Use this skill when starting a new feature with the repo's feature-
 
 # Spec 01 Init
 
-Use this skill when the user wants to start a new feature using the workflow in [tasks/_process/README.md](./tasks/_process/README.md).
+Use this skill when the user wants to start a new feature using the workflow in [tasks/_process/README.md](tasks/_process/README.md).
 
 This skill covers phases 1 to 3 only. It does not implement feature code.
 
@@ -16,16 +16,18 @@ Do not assume that asking to "start the skill" is approval for later phases.
 
 ## Workflow
 
-1. Read [tasks/_process/README.md](./tasks/_process/README.md).
-2. Follow [tasks/_process/00-response-prefix-rules.md](./tasks/_process/00-response-prefix-rules.md).
-3. Run Phase 1 from [tasks/_process/01-clarify-feature.md](./tasks/_process/01-clarify-feature.md).
-4. Stop after Phase 1 and wait for explicit user approval to continue.
-5. After approval, run Phase 2 from [tasks/_process/02-write-design-note.md](./tasks/_process/02-write-design-note.md) and create `02-plan.md`.
-6. Run Phase 3 from [tasks/_process/03-break-into-tasks.md](./tasks/_process/03-break-into-tasks.md) and create `03-tasks.md` plus `05-learnings.md` if needed.
+1. Read [tasks/_process/README.md](tasks/_process/README.md).
+2. Follow [tasks/_process/00-current-feature-rules.md](tasks/_process/00-current-feature-rules.md).
+3. Follow [tasks/_process/00-response-prefix-rules.md](tasks/_process/00-response-prefix-rules.md).
+4. Run Phase 1 from [tasks/_process/01-clarify-feature.md](tasks/_process/01-clarify-feature.md).
+5. Stop after Phase 1 and wait for explicit user approval to continue.
+6. After approval, run Phase 2 from [tasks/_process/02-write-design-note.md](tasks/_process/02-write-design-note.md), create `02-plan.md`, and update `tasks/_process/current-feature.toml`.
+7. Run Phase 3 from [tasks/_process/03-break-into-tasks.md](tasks/_process/03-break-into-tasks.md), create `03-tasks.md` plus `05-learnings.md` if needed, and keep `tasks/_process/current-feature.toml` current.
 
 ## Required Outputs
 
 After Phases 2 and 3, the feature folder should usually contain `02-plan.md`, `03-tasks.md`, and `05-learnings.md`.
+`tasks/_process/current-feature.toml` should point at that folder.
 
 ## Stop Conditions
 

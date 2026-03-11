@@ -12,17 +12,20 @@ Complete exactly one task from the task list using predictive test-driven develo
 
 ## What To Do
 
-1. Read `tasks/<three-digit-id>-<slug>/02-plan.md`.
-2. Read `tasks/<three-digit-id>-<slug>/03-tasks.md` and pick the next unfinished task.
-3. Mark that task `[started]` immediately before implementation.
-4. Read only the code needed for that task and its direct dependencies.
-5. Re-check the task against the plan so you do not miss constraints that were omitted from the task summary.
-6. Predict the smallest missing behavior.
-7. Add or adjust a focused test first.
-8. Run the relevant test and confirm it fails for the expected reason when possible.
-9. Implement the smallest code change that moves the behavior forward.
-10. Re-run the focused test.
-11. Repeat in small steps until the task acceptance criteria are satisfied.
+1. Resolve the feature folder from `tasks/_process/current-feature.toml`, unless the user explicitly names a different folder.
+2. Validate that the pointer is usable for implementation by checking that `feature_dir`, `02-plan.md`, and `03-tasks.md` exist.
+3. Read `tasks/<three-digit-id>-<slug>/02-plan.md`.
+4. Read `tasks/<three-digit-id>-<slug>/03-tasks.md` and pick the next unfinished task.
+5. Mark that task `[started]` immediately before implementation.
+6. Update `tasks/_process/current-feature.toml` to keep the same `feature_dir`, set `phase = "implementation"`, set `current_task` to the selected task id, and keep `status = "active"`.
+7. Read only the code needed for that task and its direct dependencies.
+8. Re-check the task against the plan so you do not miss constraints that were omitted from the task summary.
+9. Predict the smallest missing behavior.
+10. Add or adjust a focused test first.
+11. Run the relevant test and confirm it fails for the expected reason when possible.
+12. Implement the smallest code change that moves the behavior forward.
+13. Re-run the focused test.
+14. Repeat in small steps until the task acceptance criteria are satisfied.
 
 ## Expected Agent Behavior
 
@@ -39,6 +42,7 @@ Complete exactly one task from the task list using predictive test-driven develo
 - the relevant test files
 - `tasks/<three-digit-id>-<slug>/02-plan.md` if constraints need clarification
 - `tasks/<three-digit-id>-<slug>/03-tasks.md`
+- `tasks/_process/current-feature.toml`
 - optional scratch tracking files such as `test-list.md` if useful locally
 
 ## Guardrails

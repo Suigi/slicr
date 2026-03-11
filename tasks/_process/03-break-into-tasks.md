@@ -12,17 +12,19 @@ Turn the design note into an ordered implementation queue with narrow, testable 
 
 ## What To Do
 
-1. Re-use the folder created in Phase 2: `tasks/<three-digit-id>-<slug>`.
-2. Create a `03-tasks.md` file in that folder and make it follow [03-tasks_template.md](./tasks/_process/03-tasks_template.md).
-3. Decompose the feature into sequential tasks that each change one layer or behavior at a time.
-4. Order tasks so later tasks depend on earlier scaffolding rather than mixing concerns.
-5. Give each task:
+1. Re-use the folder created in Phase 2 from `tasks/_process/current-feature.toml`, unless the user explicitly names a different folder.
+2. Confirm the pointer is valid by checking that the folder exists and already contains `02-plan.md`.
+3. Update `tasks/_process/current-feature.toml` to keep the same `feature_dir`, set `phase = "task-breakdown"`, clear `current_task`, and keep `status = "active"`.
+4. Create a `03-tasks.md` file in that folder and make it follow [03-tasks_template.md](tasks/_process/03-tasks_template.md).
+5. Decompose the feature into sequential tasks that each change one layer or behavior at a time.
+6. Order tasks so later tasks depend on earlier scaffolding rather than mixing concerns.
+7. Give each task:
    - a short action-oriented title
    - one focused description
    - acceptance criteria phrased as observable outcomes
    - explicit dependencies
    - notes that prevent scope creep
-6. Create a `learnings.md` file in the same folder if the workflow expects one.
+8. Create a `learnings.md` file in the same folder if the workflow expects one.
 
 Implementation tasks should describe feature work only.
 Do not add separate tasks for process steps such as full validation, learnings capture, or phase completion; those belong to later workflow phases.
@@ -37,7 +39,7 @@ Do not add separate tasks for process steps such as full validation, learnings c
 
 ## Writing Rules
 
-- Follow [03-tasks_template.md](./tasks/_process/03-tasks_template.md) for structure and section naming.
+- Follow [03-tasks_template.md](tasks/_process/03-tasks_template.md) for structure and section naming.
 - Keep each task small enough that one agent run can usually finish it end-to-end.
 - Prefer one layer or one observable behavior per task.
 - Keep tasks small enough to complete in one agent run.
@@ -53,6 +55,7 @@ Create or update:
 
 - `tasks/<three-digit-id>-<slug>/03-tasks.md`
 - `tasks/<three-digit-id>-<slug>/05-learnings.md` when applicable
+- `tasks/_process/current-feature.toml`
 
 ## Guardrails
 

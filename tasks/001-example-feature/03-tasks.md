@@ -2,7 +2,7 @@
 
 ## Feature Description
 
-Implement the example feature described in [02-plan.md](/Users/daniel/src/private/slicr/tasks/001-example-feature/02-plan.md).
+Implement the example feature described in [02-plan.md](tasks/001-example-feature/02-plan.md).
 
 ## Workflow
 
@@ -17,8 +17,8 @@ Agents must update this file as they work: set a task to `[started]` immediately
 
 ## Learnings
 
-Add any learnings about the feature to [05-learnings.md](/Users/daniel/src/private/slicr/tasks/001-example-feature/05-learnings.md).
-Add any learnings about the project overall to the documents in the `./knowledge` directory.
+Add any learnings about the feature to [05-learnings.md](tasks/001-example-feature/05-learnings.md).
+Add any learnings about the project overall to the documents in the `knowledge` directory.
 
 ## Task 1: Add the smallest missing behavior
 ### Status

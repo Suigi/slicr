@@ -20,14 +20,17 @@ Use this skill when:
 
 ## Workflow
 
-1. Read [tasks/_process/README.md](../../../tasks/_process/README.md).
-2. Follow [tasks/_process/00-response-prefix-rules.md](../../../tasks/_process/00-response-prefix-rules.md).
-3. Read the target feature folder's `02-plan.md` and `03-tasks.md`.
-4. Review them for ambiguity, missing decisions, weak wording, and task-plan misalignment.
-5. Ask as many clarifying questions as needed, following the spirit of [tasks/_process/01-clarify-feature.md](../../../tasks/_process/01-clarify-feature.md).
-6. Do not make unresolved product or design decisions on your own.
-7. After the user answers, update `02-plan.md` and `03-tasks.md` directly to capture the decisions.
-8. If the answers reveal a durable lesson about planning or task shaping, update `05-learnings.md` too.
+1. Read [tasks/_process/README.md](tasks/_process/README.md).
+2. Follow [tasks/_process/00-current-feature-rules.md](tasks/_process/00-current-feature-rules.md).
+3. Follow [tasks/_process/00-response-prefix-rules.md](tasks/_process/00-response-prefix-rules.md).
+4. Resolve the target feature folder from `tasks/_process/current-feature.toml` unless the user explicitly names a different folder.
+5. Read the target feature folder's `02-plan.md` and `03-tasks.md`.
+6. Review them for ambiguity, missing decisions, weak wording, and task-plan misalignment.
+7. Ask as many clarifying questions as needed, following the spirit of [tasks/_process/01-clarify-feature.md](tasks/_process/01-clarify-feature.md).
+8. Do not make unresolved product or design decisions on your own.
+9. After the user answers, update `02-plan.md` and `03-tasks.md` directly to capture the decisions.
+10. If the answers reveal a durable lesson about planning or task shaping, update `05-learnings.md` too.
+11. Keep `tasks/_process/current-feature.toml` pointed at that folder with `status = "active"`.
 
 ## Review Focus
 

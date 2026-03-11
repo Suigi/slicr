@@ -11,12 +11,14 @@ This skill covers phases 4 to 6 only. It should complete at most one task per ru
 
 ## Workflow
 
-1. Read [tasks/_process/README.md](./tasks/_process/README.md).
-2. Follow [tasks/_process/00-response-prefix-rules.md](./tasks/_process/00-response-prefix-rules.md).
-3. Read the feature folder's `02-plan.md` and `03-tasks.md`.
-4. Run Phase 4 from [tasks/_process/04-implement-one-task-with-ptdd.md](./tasks/_process/04-implement-one-task-with-ptdd.md).
-5. Run Phase 5 from [tasks/_process/05-validate-and-capture-learnings.md](./tasks/_process/05-validate-and-capture-learnings.md).
-6. Run Phase 6 from [tasks/_process/06-repeat-or-close.md](./tasks/_process/06-repeat-or-close.md).
+1. Read [tasks/_process/README.md](tasks/_process/README.md).
+2. Follow [tasks/_process/00-current-feature-rules.md](tasks/_process/00-current-feature-rules.md).
+3. Follow [tasks/_process/00-response-prefix-rules.md](tasks/_process/00-response-prefix-rules.md).
+4. Resolve the feature folder from `tasks/_process/current-feature.toml` unless the user explicitly names a different folder.
+5. Read the feature folder's `02-plan.md` and `03-tasks.md`.
+6. Run Phase 4 from [tasks/_process/04-implement-one-task-with-ptdd.md](tasks/_process/04-implement-one-task-with-ptdd.md).
+7. Run Phase 5 from [tasks/_process/05-validate-and-capture-learnings.md](tasks/_process/05-validate-and-capture-learnings.md).
+8. Run Phase 6 from [tasks/_process/06-repeat-or-close.md](tasks/_process/06-repeat-or-close.md).
 
 ## Execution Rules
 
