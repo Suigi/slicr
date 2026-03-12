@@ -95,6 +95,7 @@ type PlaygroundState = {
   edgeOverrides: Record<string, EdgeOverride>;
   showOverlay: boolean;
   showCoordinates: boolean;
+  showShortcuts: boolean;
   edgeCreate: EdgeCreateState | null;
   status: string;
   error: string | null;
@@ -164,6 +165,7 @@ const state: PlaygroundState = {
   edgeOverrides: persistedState?.edgeOverrides ?? {},
   showOverlay: persistedState?.showOverlay ?? false,
   showCoordinates: persistedState?.showCoordinates ?? true,
+  showShortcuts: false,
   edgeCreate: null,
   status: "Ready. Left-drag marquee-selects. Right-drag pans. G groups. Shift+G ungroups.",
   error: null,
@@ -182,30 +184,6 @@ app.innerHTML = `
           and export a Vitest acceptance test.
         </p>
       </div>
-
-      <section class="panel">
-        <div class="panel-head">
-          <h2>Actions</h2>
-          <button id="export-button" class="primary-button" type="button">Export test</button>
-        </div>
-        <div class="button-row">
-          <button id="overlay-button" type="button">Overlay: off</button>
-          <button id="coordinates-button" type="button">Coords: on</button>
-          <button id="layout-button" type="button">Apply layout</button>
-        </div>
-      </section>
-
-      <section class="panel">
-        <h2>Shortcuts</h2>
-        <ul class="shortcut-list">
-          <li><kbd>N</kbd> add node in the lane nearest the cursor and connect from the selected node</li>
-          <li><kbd>E</kbd> start edge mode, then click source and target</li>
-          <li><kbd>O</kbd> toggle computed-layout overlay</li>
-          <li><kbd>G</kbd> group selected nodes, <kbd>Shift</kbd> + <kbd>G</kbd> ungroup</li>
-          <li><kbd>Backspace</kbd> delete the selected node or edge</li>
-          <li><kbd>Right mouse drag</kbd> pan, <kbd>Ctrl</kbd> + wheel or pinch to zoom</li>
-        </ul>
-      </section>
 
       <section class="panel">
         <div class="panel-head">
@@ -241,12 +219,37 @@ app.innerHTML = `
         </div>
       </div>
       <div id="marquee" class="marquee-selection" hidden></div>
-      <div class="canvas-hud top-left" id="mode-chip"></div>
+      <div class="action-controls">
+        <button id="shortcuts-button" class="hud-icon-button action-icon-button" type="button" aria-label="Show shortcuts">?</button>
+        <button id="layout-button" type="button">Reset</button>
+        <button id="export-button" class="primary-button" type="button">Vitest</button>
+      </div>
+      <div class="toggle-controls">
+        <button id="overlay-button" class="toggle-button" type="button" aria-pressed="false">Overlay</button>
+        <button id="coordinates-button" class="toggle-button" type="button" aria-pressed="true">Coords</button>
+      </div>
       <div class="camera-controls">
         <div class="camera-row">
           <button id="zoom-out" type="button" aria-label="Zoom out">−</button>
           <button id="zoom-reset" type="button" aria-label="Fit view">Fit</button>
           <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
+        </div>
+      </div>
+      <div id="shortcuts-popup" class="shortcuts-popup" hidden>
+        <div class="shortcuts-popup-card">
+          <div class="panel-head">
+            <h2>Shortcuts</h2>
+            <button id="shortcuts-close" class="mini-button" type="button" aria-label="Close shortcuts">Close</button>
+          </div>
+          <ul class="shortcut-list">
+            <li><kbd>?</kbd> show or hide this popup</li>
+            <li><kbd>N</kbd> add node in the lane nearest the cursor and connect from the selected node</li>
+            <li><kbd>E</kbd> start edge mode, then click source and target</li>
+            <li><kbd>O</kbd> toggle computed-layout overlay</li>
+            <li><kbd>G</kbd> group selected nodes, <kbd>Shift</kbd> + <kbd>G</kbd> ungroup</li>
+            <li><kbd>Backspace</kbd> delete the selected node or edge</li>
+            <li><kbd>Right mouse drag</kbd> pan, <kbd>Ctrl</kbd> + wheel or pinch to zoom</li>
+          </ul>
         </div>
       </div>
     </main>
@@ -269,7 +272,9 @@ const statusLine = requireElement<HTMLParagraphElement>("#status-line");
 const errorLine = requireElement<HTMLParagraphElement>("#error-line");
 const overlayButton = requireElement<HTMLButtonElement>("#overlay-button");
 const coordinatesButton = requireElement<HTMLButtonElement>("#coordinates-button");
-const modeChip = requireElement<HTMLDivElement>("#mode-chip");
+const shortcutsButton = requireElement<HTMLButtonElement>("#shortcuts-button");
+const shortcutsCloseButton = requireElement<HTMLButtonElement>("#shortcuts-close");
+const shortcutsPopup = requireElement<HTMLDivElement>("#shortcuts-popup");
 const exportButton = requireElement<HTMLButtonElement>("#export-button");
 const resetOverridesButton = requireElement<HTMLButtonElement>("#layout-button");
 const zoomInButton = requireElement<HTMLButtonElement>("#zoom-in");
@@ -325,6 +330,8 @@ function attachEventListeners() {
   zoomInButton.addEventListener("click", () => zoomAtScreenPoint(viewportCenterScreen(), CAMERA_ZOOM_STEP));
   zoomOutButton.addEventListener("click", () => zoomAtScreenPoint(viewportCenterScreen(), 1 / CAMERA_ZOOM_STEP));
   zoomResetButton.addEventListener("click", fitCameraToContent);
+  shortcutsButton.addEventListener("click", toggleShortcutsPopup);
+  shortcutsCloseButton.addEventListener("click", toggleShortcutsPopup);
 }
 
 function computeDerivedState(playgroundState: PlaygroundState): DerivedState {
@@ -369,10 +376,11 @@ function render() {
   graphSummary.textContent = `${state.request.nodes.length} nodes / ${state.request.edges.length} edges / ${state.request.lanes.length} lanes / ${countVisibleGroups()} groups`;
   statusLine.textContent = state.status;
   errorLine.textContent = derived.autoResponse.ok ? "" : derived.autoResponse.error.message;
-  overlayButton.textContent = `Overlay: ${state.showOverlay ? "on" : "off"}`;
-  coordinatesButton.textContent = `Coords: ${state.showCoordinates ? "on" : "off"}`;
+  overlayButton.setAttribute("aria-pressed", String(state.showOverlay));
+  coordinatesButton.setAttribute("aria-pressed", String(state.showCoordinates));
   resetOverridesButton.classList.toggle("has-local-modifications", derived.hasLocalPositioningModifications);
-  modeChip.textContent = state.edgeCreate ? `Edge mode: ${state.edgeCreate.sourceId} -> ?` : `Zoom ${Math.round(state.camera.zoom * 100)}%`;
+  shortcutsPopup.hidden = !state.showShortcuts;
+  shortcutsButton.setAttribute("aria-pressed", String(state.showShortcuts));
   renderInspector();
   renderGraphLists();
 }
@@ -936,7 +944,7 @@ function handlePointerDown(event: PointerEvent) {
     if (!edge) {
       return;
     }
-    state.selection = { type: "segment", edgeId: hit.edgeId, segmentIndex: hit.segmentIndex };
+    state.selection = { type: "edge", id: hit.edgeId };
     state.selectedNodeIds = [];
     dragState = {
       type: "segment",
@@ -1156,7 +1164,13 @@ function handleWheel(event: WheelEvent) {
 }
 
 function handleKeyDown(event: KeyboardEvent) {
+  const isDeleteKey = event.key === "Backspace" || event.key === "Delete";
   if (isEditingElement(event.target)) {
+    return;
+  }
+  if (event.key === "?" || (event.key === "/" && event.shiftKey)) {
+    event.preventDefault();
+    toggleShortcutsPopup();
     return;
   }
   if ((event.key === "g" || event.key === "G") && event.shiftKey) {
@@ -1191,12 +1205,17 @@ function handleKeyDown(event: KeyboardEvent) {
     render();
     return;
   }
-  if (event.key === "Backspace" && state.selection) {
+  if (event.key === "Escape" && state.showShortcuts) {
+    state.showShortcuts = false;
+    render();
+    return;
+  }
+  if (isDeleteKey && state.selection) {
     event.preventDefault();
     deleteSelection();
     return;
   }
-  if (event.key === "Backspace" && state.selectedNodeIds.length > 0) {
+  if (isDeleteKey && state.selectedNodeIds.length > 0) {
     event.preventDefault();
     deleteSelection();
   }
@@ -1416,6 +1435,11 @@ function ensureEdgeOverrideExists(edgeId: string, layoutResult: LayoutResult) {
 function selectSingleNode(nodeId: string) {
   state.selection = { type: "node", id: nodeId };
   state.selectedNodeIds = [nodeId];
+}
+
+function toggleShortcutsPopup() {
+  state.showShortcuts = !state.showShortcuts;
+  render();
 }
 
 function getSelectedNodeIds() {
