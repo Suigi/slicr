@@ -1386,29 +1386,45 @@ function applyOverrides(request: LayoutRequest, autoLayout: LayoutResult, playgr
     const sourceDelta = getNodeDelta(edgeInput.sourceId, autoNodeMap, nodeMap);
     const targetDelta = getNodeDelta(edgeInput.targetId, autoNodeMap, nodeMap);
 
-    const sourceAnchor = projectAnchorToNodeBorder(
-      override?.sourceAnchor
-        ? translatePoint(override.sourceAnchor, sourceDelta)
-        : autoEdge
-          ? translateAnchor(autoEdge.sourceAnchor, autoLayout.nodes, nodes)
-          : defaultSourceAnchor(sourceNode, orientation),
-      sourceNode,
-    );
+    if (
+      !override &&
+      autoEdge &&
+      nearlyEqual(sourceDelta.x, 0) &&
+      nearlyEqual(sourceDelta.y, 0) &&
+      nearlyEqual(targetDelta.x, 0) &&
+      nearlyEqual(targetDelta.y, 0)
+    ) {
+      return {
+        id: autoEdge.id,
+        sourceId: autoEdge.sourceId,
+        targetId: autoEdge.targetId,
+        sourceAnchor: { ...autoEdge.sourceAnchor },
+        targetAnchor: { ...autoEdge.targetAnchor },
+        points: autoEdge.points.map((point) => ({ ...point })),
+      } satisfies EdgeLayout;
+    }
 
-    const targetAnchor = projectAnchorToNodeBorder(
-      override?.targetAnchor
-        ? translatePoint(override.targetAnchor, targetDelta)
-        : autoEdge
-          ? translateAnchor(autoEdge.targetAnchor, autoLayout.nodes, nodes)
-          : defaultTargetAnchor(targetNode, orientation),
-      targetNode,
-    );
+    const sourceAnchor = override?.sourceAnchor
+      ? projectAnchorToNodeBorder(translatePoint(override.sourceAnchor, sourceDelta), sourceNode)
+      : autoEdge
+        ? translatePoint(autoEdge.sourceAnchor, sourceDelta)
+        : defaultSourceAnchor(sourceNode, orientation);
+
+    const targetAnchor = override?.targetAnchor
+      ? projectAnchorToNodeBorder(translatePoint(override.targetAnchor, targetDelta), targetNode)
+      : autoEdge
+        ? translatePoint(autoEdge.targetAnchor, targetDelta)
+        : defaultTargetAnchor(targetNode, orientation);
 
     const points = override?.points
       ? translateEdgePointsWithNodeMotion(override.points, sourceDelta, targetDelta)
-      : routeOrthogonalEdge(sourceAnchor, targetAnchor);
+      : autoEdge
+        ? translateEdgePointsWithNodeMotion(autoEdge.points, sourceDelta, targetDelta)
+        : routeOrthogonalEdge(sourceAnchor, targetAnchor);
 
-    normalizeTerminalEdgeGeometry(points, sourceAnchor, targetAnchor);
+    if (override) {
+      normalizeTerminalEdgeGeometry(points, sourceAnchor, targetAnchor);
+    }
 
     return { id: edgeInput.id, sourceId: edgeInput.sourceId, targetId: edgeInput.targetId, sourceAnchor, targetAnchor, points } satisfies EdgeLayout;
   });
@@ -1419,18 +1435,6 @@ function applyOverrides(request: LayoutRequest, autoLayout: LayoutResult, playgr
     nodes,
     edges,
   };
-}
-
-function translateAnchor(anchor: AnchorPoint, previousNodes: NodeLayout[], nextNodes: NodeLayout[]) {
-  const sourceNode = previousNodes.find((node) => pointInsideNode(anchor, node));
-  if (!sourceNode) {
-    return { ...anchor };
-  }
-  const nextNode = nextNodes.find((node) => node.id === sourceNode.id);
-  if (!nextNode) {
-    return { ...anchor };
-  }
-  return createAnchor(nextNode, anchor.side, anchor.ordinal);
 }
 
 function projectAnchorToNodeBorder(anchor: AnchorPoint, node: NodeLayout): AnchorPoint {
