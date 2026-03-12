@@ -512,6 +512,9 @@ function computeEdgeConstraintX(params: {
     let nextX = sourceX + columnStep;
     const sourceWasShifted = sourceX > (rawBaseXByNode.get(edge.sourceId) ?? 0);
     const sourceHasIncoming = (incomingCountByNode.get(edge.sourceId) ?? 0) > 0;
+    const staysWithinExplicitGroup =
+      sourceNode.groupId !== undefined &&
+      sourceNode.groupId === targetNode.groupId;
     const targetHasEarlierLanePeer =
       sourceNode.laneId !== targetNode.laneId &&
       [...topoIndexById.entries()].some(([nodeId, index]) => {
@@ -521,7 +524,7 @@ function computeEdgeConstraintX(params: {
           index < (topoIndexById.get(targetId) ?? 0)
         );
       });
-    if (sourceHasIncoming && sourceWasShifted && targetHasEarlierLanePeer) {
+    if (!staysWithinExplicitGroup && sourceHasIncoming && sourceWasShifted && targetHasEarlierLanePeer) {
       nextX = Math.max(nextX, sourceX + (widthByNode.get(edge.sourceId) ?? 0) + 10);
     }
     return nextX;
