@@ -198,7 +198,7 @@ app.innerHTML = `
       <section class="panel">
         <h2>Shortcuts</h2>
         <ul class="shortcut-list">
-          <li><kbd>N</kbd> add node at the viewport center</li>
+          <li><kbd>N</kbd> add node in the lane nearest the cursor and connect from the selected node</li>
           <li><kbd>E</kbd> start edge mode, then click source and target</li>
           <li><kbd>O</kbd> toggle computed-layout overlay</li>
           <li><kbd>G</kbd> group selected nodes, <kbd>Shift</kbd> + <kbd>G</kbd> ungroup</li>
@@ -282,6 +282,7 @@ let selectedLaneId =
   persistedState?.selectedLaneId && state.request.lanes.some((lane) => lane.id === persistedState.selectedLaneId)
     ? persistedState.selectedLaneId
     : (state.request.lanes[0]?.id ?? "lane-0");
+let lastPointerScreen: Point | null = null;
 
 attachEventListeners();
 render();
@@ -867,6 +868,7 @@ function removeLane(laneId: string) {
 }
 
 function handlePointerDown(event: PointerEvent) {
+  lastPointerScreen = getScreenPoint(event);
   if (!derived.editableLayout) {
     return;
   }
@@ -983,7 +985,8 @@ function handlePointerDown(event: PointerEvent) {
 }
 
 function handlePointerMove(event: PointerEvent) {
-  const worldPoint = screenToWorld(getScreenPoint(event));
+  lastPointerScreen = getScreenPoint(event);
+  const worldPoint = screenToWorld(lastPointerScreen);
 
   if (state.edgeCreate) {
     state.edgeCreate.previewWorld = worldPoint;
@@ -1225,15 +1228,32 @@ function resolveHitTarget(target: HTMLElement | SVGElement, worldPoint: Point, l
 
 function addNodeAtViewportCenter() {
   const nextId = createUniqueId("node", state.request.nodes.map((node) => node.id));
-  const laneId = state.request.lanes.some((lane) => lane.id === selectedLaneId) ? selectedLaneId : state.request.lanes[0]?.id;
+  const anchorScreen = lastPointerScreen ?? viewportCenterScreen();
+  const anchorWorld = screenToWorld(anchorScreen);
+  const laneId =
+    getNearestLaneId(anchorWorld.y) ??
+    (state.request.lanes.some((lane) => lane.id === selectedLaneId) ? selectedLaneId : state.request.lanes[0]?.id);
   if (!laneId) {
     state.status = "Cannot add a node without at least one lane.";
     render();
     return;
   }
-  state.request.nodes.push({ id: nextId, laneId });
+
+  const selectedNodeIds = getSelectedNodeIds();
+  const sourceId = selectedNodeIds.length === 1 ? selectedNodeIds[0] : null;
+  const groupId = getNearestGroupId(anchorWorld);
+  state.request.nodes.push({ id: nextId, laneId, groupId: groupId ?? undefined });
+  if (sourceId) {
+    const nextEdgeId = createUniqueId("edge", state.request.edges.map((edge) => edge.id));
+    state.request.edges.push({ id: nextEdgeId, sourceId, targetId: nextId });
+    state.status = groupId
+      ? `Added ${nextId} on ${laneId} in ${groupId} and connected ${sourceId} -> ${nextId}.`
+      : `Added ${nextId} on ${laneId} and connected ${sourceId} -> ${nextId}.`;
+  } else {
+    state.status = groupId ? `Added ${nextId} on ${laneId} in ${groupId}.` : `Added ${nextId} on ${laneId}.`;
+  }
+  selectedLaneId = laneId;
   selectSingleNode(nextId);
-  state.status = `Added ${nextId} on ${laneId}.`;
   updateDerivedAndRender();
 }
 
@@ -2139,6 +2159,23 @@ function getNearestLaneId(targetY: number) {
   return ordered[laneIndex]?.id ?? null;
 }
 
+function getNearestGroupId(target: Point) {
+  const groups = derived.editableLayout ? computePlaygroundGroupLayouts(derived.editableLayout) : [];
+  if (groups.length === 0) {
+    return null;
+  }
+  let nearestGroup = groups[0];
+  let bestDistance = distanceToRect(target, nearestGroup);
+  for (const group of groups) {
+    const nextDistance = distanceToRect(target, group);
+    if (nextDistance < bestDistance) {
+      nearestGroup = group;
+      bestDistance = nextDistance;
+    }
+  }
+  return nearestGroup.id;
+}
+
 function distanceToLane(targetY: number, lane: LayoutResult["lanes"][number]) {
   if (targetY < lane.top) {
     return lane.top - targetY;
@@ -2147,6 +2184,12 @@ function distanceToLane(targetY: number, lane: LayoutResult["lanes"][number]) {
     return targetY - lane.bottom;
   }
   return 0;
+}
+
+function distanceToRect(target: Point, rect: { x: number; y: number; width: number; height: number }) {
+  const dx = target.x < rect.x ? rect.x - target.x : target.x > rect.x + rect.width ? target.x - (rect.x + rect.width) : 0;
+  const dy = target.y < rect.y ? rect.y - target.y : target.y > rect.y + rect.height ? target.y - (rect.y + rect.height) : 0;
+  return Math.hypot(dx, dy);
 }
 
 function describeSelection() {
