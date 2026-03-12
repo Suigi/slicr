@@ -29,6 +29,7 @@ const STORAGE_KEY = "layout-lib.playground.v1";
 
 type Selection =
   | { type: "node"; id: string }
+  | { type: "group"; id: string }
   | { type: "edge"; id: string }
   | { type: "segment"; edgeId: string; segmentIndex: number };
 
@@ -50,6 +51,12 @@ type DragState =
       pointerId: number;
       startScreen: Point;
       startCamera: Camera;
+    }
+  | {
+      type: "marquee";
+      pointerId: number;
+      startScreen: Point;
+      currentScreen: Point;
     }
   | {
       type: "node";
@@ -83,6 +90,7 @@ type PlaygroundState = {
   request: LayoutRequest;
   camera: Camera;
   selection: Selection | null;
+  selectedNodeIds: string[];
   nodeOverrides: Record<string, Partial<Pick<NodeLayout, "x" | "y">>>;
   edgeOverrides: Record<string, EdgeOverride>;
   showOverlay: boolean;
@@ -111,11 +119,21 @@ type PersistedPlaygroundState = {
 };
 
 type HitTarget =
+  | { type: "group"; id: string }
   | { type: "resize-node"; id: string }
   | { type: "node"; id: string }
   | { type: "segment"; edgeId: string; segmentIndex: number }
   | { type: "edge"; id: string }
   | null;
+
+type PlaygroundGroupLayout = {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  nodeIds: string[];
+};
 
 const baseRequest: LayoutRequest = {
   nodes: [
@@ -141,12 +159,13 @@ const state: PlaygroundState = {
   request: persistedState?.request ?? structuredClone(baseRequest),
   camera: persistedState?.camera ?? { x: -120, y: -80, zoom: 1 },
   selection: null,
+  selectedNodeIds: [],
   nodeOverrides: persistedState?.nodeOverrides ?? {},
   edgeOverrides: persistedState?.edgeOverrides ?? {},
   showOverlay: persistedState?.showOverlay ?? false,
   showCoordinates: persistedState?.showCoordinates ?? true,
   edgeCreate: null,
-  status: "Ready. N adds a node. E starts edge creation. O toggles overlay.",
+  status: "Ready. Left-drag marquee-selects. Right-drag pans. G groups. Shift+G ungroups.",
   error: null,
 };
 
@@ -182,8 +201,9 @@ app.innerHTML = `
           <li><kbd>N</kbd> add node at the viewport center</li>
           <li><kbd>E</kbd> start edge mode, then click source and target</li>
           <li><kbd>O</kbd> toggle computed-layout overlay</li>
+          <li><kbd>G</kbd> group selected nodes, <kbd>Shift</kbd> + <kbd>G</kbd> ungroup</li>
           <li><kbd>Backspace</kbd> delete the selected node or edge</li>
-          <li><kbd>Two-finger drag</kbd> pan, <kbd>Ctrl</kbd> + wheel or pinch to zoom</li>
+          <li><kbd>Right mouse drag</kbd> pan, <kbd>Ctrl</kbd> + wheel or pinch to zoom</li>
         </ul>
       </section>
 
@@ -214,11 +234,13 @@ app.innerHTML = `
       <div id="scene-root" class="scene-root">
         <div id="scene-grid" class="scene-grid"></div>
         <div id="scene-viewport" class="scene-viewport">
+          <svg id="group-layer" class="group-layer"></svg>
           <svg id="edge-layer" class="edge-layer"></svg>
           <div id="node-layer" class="node-layer"></div>
           <svg id="overlay-layer" class="overlay-layer"></svg>
         </div>
       </div>
+      <div id="marquee" class="marquee-selection" hidden></div>
       <div class="canvas-hud top-left" id="mode-chip"></div>
       <div class="camera-controls">
         <div class="camera-row">
@@ -233,10 +255,12 @@ app.innerHTML = `
 
 const sceneRoot = requireElement<HTMLDivElement>("#scene-root");
 const sceneGrid = requireElement<HTMLDivElement>("#scene-grid");
+const groupLayer = requireElement<SVGSVGElement>("#group-layer");
 const sceneViewport = requireElement<HTMLDivElement>("#scene-viewport");
 const edgeLayer = requireElement<SVGSVGElement>("#edge-layer");
 const nodeLayer = requireElement<HTMLDivElement>("#node-layer");
 const overlayLayer = requireElement<SVGSVGElement>("#overlay-layer");
+const marquee = requireElement<HTMLDivElement>("#marquee");
 const inspector = requireElement<HTMLDivElement>("#inspector");
 const graphLists = requireElement<HTMLDivElement>("#graph-lists");
 const selectionLabel = requireElement<HTMLSpanElement>("#selection-label");
@@ -267,6 +291,7 @@ function attachEventListeners() {
   sceneRoot.addEventListener("pointermove", handlePointerMove);
   sceneRoot.addEventListener("pointerup", handlePointerUp);
   sceneRoot.addEventListener("pointercancel", handlePointerUp);
+  sceneRoot.addEventListener("contextmenu", (event) => event.preventDefault());
   sceneRoot.addEventListener("dblclick", handleDoubleClick);
   sceneRoot.addEventListener("wheel", handleWheel, { passive: false });
 
@@ -281,6 +306,7 @@ function attachEventListeners() {
     state.nodeOverrides = {};
     state.edgeOverrides = {};
     state.selection = null;
+    state.selectedNodeIds = [];
     state.status = "Applied geometry from the layout library.";
     updateDerivedAndRender();
   });
@@ -327,17 +353,19 @@ function render() {
   updateSceneTransform();
 
   if (derived.autoLayout && derived.editableLayout) {
+    renderGroups(derived.editableLayout);
     renderNodes(derived.editableLayout);
     renderEdges(derived.editableLayout);
     renderOverlay(derived.autoLayout, derived.editableLayout);
   } else {
+    groupLayer.innerHTML = "";
     nodeLayer.innerHTML = "";
     edgeLayer.innerHTML = "";
     overlayLayer.innerHTML = "";
   }
 
   selectionLabel.textContent = describeSelection();
-  graphSummary.textContent = `${state.request.nodes.length} nodes / ${state.request.edges.length} edges / ${state.request.lanes.length} lanes`;
+  graphSummary.textContent = `${state.request.nodes.length} nodes / ${state.request.edges.length} edges / ${state.request.lanes.length} lanes / ${countVisibleGroups()} groups`;
   statusLine.textContent = state.status;
   errorLine.textContent = derived.autoResponse.ok ? "" : derived.autoResponse.error.message;
   overlayButton.textContent = `Overlay: ${state.showOverlay ? "on" : "off"}`;
@@ -356,12 +384,17 @@ function updateSceneTransform() {
   sceneViewport.style.height = `${height}px`;
   // Use an explicit affine matrix so the rendered transform matches screenToWorld exactly.
   sceneViewport.style.transform = `matrix(${state.camera.zoom}, 0, 0, ${state.camera.zoom}, ${-state.camera.x * state.camera.zoom}, ${-state.camera.y * state.camera.zoom})`;
+  groupLayer.setAttribute("viewBox", `0 0 ${width} ${height}`);
   edgeLayer.setAttribute("viewBox", `0 0 ${width} ${height}`);
   overlayLayer.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  groupLayer.setAttribute("width", `${width}`);
+  groupLayer.setAttribute("height", `${height}`);
   edgeLayer.setAttribute("width", `${width}`);
   edgeLayer.setAttribute("height", `${height}`);
   overlayLayer.setAttribute("width", `${width}`);
   overlayLayer.setAttribute("height", `${height}`);
+  groupLayer.style.width = `${width}px`;
+  groupLayer.style.height = `${height}px`;
   edgeLayer.style.width = `${width}px`;
   edgeLayer.style.height = `${height}px`;
   overlayLayer.style.width = `${width}px`;
@@ -375,13 +408,30 @@ function updateSceneTransform() {
   const majorOffsetY = mod(-state.camera.y * state.camera.zoom, GRID_MAJOR * state.camera.zoom);
   sceneGrid.style.backgroundSize = `${GRID_DOT * state.camera.zoom}px ${GRID_DOT * state.camera.zoom}px, ${GRID_MINOR * state.camera.zoom}px ${GRID_MINOR * state.camera.zoom}px, ${GRID_MAJOR * state.camera.zoom}px ${GRID_MAJOR * state.camera.zoom}px`;
   sceneGrid.style.backgroundPosition = `${dotOffsetX}px ${dotOffsetY}px, ${minorOffsetX}px ${minorOffsetY}px, ${majorOffsetX}px ${majorOffsetY}px`;
+  updateMarquee();
+}
+
+function renderGroups(layoutResult: LayoutResult) {
+  const groups = computePlaygroundGroupLayouts(layoutResult);
+  const selectedGroupId = state.selection?.type === "group" ? state.selection.id : null;
+  groupLayer.innerHTML = groups
+    .map((group) => {
+      const selected = selectedGroupId === group.id;
+      return `
+        <g class="playground-group ${selected ? "selected" : ""}" data-hit="group" data-group-id="${group.id}">
+          <rect class="playground-group-frame" x="${group.x}" y="${group.y}" width="${group.width}" height="${group.height}" rx="18" ry="18"></rect>
+          <text class="playground-group-label" x="${group.x + 16}" y="${group.y + 20}">${escapeHtml(group.id)}</text>
+        </g>
+      `;
+    })
+    .join("");
 }
 
 function renderNodes(layoutResult: LayoutResult) {
-  const selectedNodeId = state.selection?.type === "node" ? state.selection.id : null;
+  const selectedNodeIds = new Set(getSelectedNodeIds());
   nodeLayer.innerHTML = layoutResult.nodes
     .map((node) => {
-      const selected = selectedNodeId === node.id;
+      const selected = selectedNodeIds.has(node.id);
       const coordinates = state.showCoordinates ? `<div class="node-coordinates">${formatPointLabel({ x: node.x, y: node.y })}</div>` : "";
       return `
         <div class="node-shell" style="left:${node.x}px;top:${node.y}px;width:${node.width}px;height:${node.height}px;">
@@ -528,7 +578,7 @@ function buildArrowHead(edge: EdgeLayout, mode: "selected" | "default") {
 }
 
 function getSelectedAnchorMarkers(layoutResult: LayoutResult) {
-  if (!state.selection || state.selection.type === "node") {
+  if (!state.selection || state.selection.type === "node" || state.selection.type === "group") {
     return "";
   }
   const edgeId = state.selection.type === "edge" ? state.selection.id : state.selection.edgeId;
@@ -563,6 +613,19 @@ function renderInspector() {
     return;
   }
 
+  if (!state.selection && state.selectedNodeIds.length > 1) {
+    const groupIds = [...new Set(state.selectedNodeIds.map((nodeId) => state.request.nodes.find((node) => node.id === nodeId)?.groupId).filter(Boolean))];
+    inspector.innerHTML = `
+      <p class="helper-text">${state.selectedNodeIds.length} nodes selected.</p>
+      <p class="helper-text">${groupIds.length === 1 ? `Shared group: ${escapeHtml(groupIds[0] ?? "")}` : "Press G to create a group."}</p>
+      <button id="group-selected" type="button">Group selection</button>
+      <button id="ungroup-selected" type="button">Ungroup selection</button>
+    `;
+    inspector.querySelector<HTMLButtonElement>("#group-selected")?.addEventListener("click", groupSelection);
+    inspector.querySelector<HTMLButtonElement>("#ungroup-selected")?.addEventListener("click", ungroupSelection);
+    return;
+  }
+
   if (!state.selection) {
     inspector.innerHTML = `
       <p class="empty-state">Select a node or edge to edit its details.</p>
@@ -579,6 +642,16 @@ function renderInspector() {
         render();
       });
     }
+    return;
+  }
+
+  if (state.selection.type === "group") {
+    const nodeIds = getNodeIdsForGroup(state.selection.id);
+    inspector.innerHTML = `
+      <p class="helper-text">Group ${escapeHtml(state.selection.id)} contains ${nodeIds.length} nodes.</p>
+      <button id="ungroup-selected" type="button">Ungroup</button>
+    `;
+    inspector.querySelector<HTMLButtonElement>("#ungroup-selected")?.addEventListener("click", ungroupSelection);
     return;
   }
 
@@ -706,7 +779,7 @@ function renderGraphLists() {
     })
     .join("");
   const nodeItems = state.request.nodes
-    .map((node) => `<button class="list-item ${state.selection?.type === "node" && state.selection.id === node.id ? "selected" : ""}" data-kind="node" data-id="${node.id}" type="button">${escapeHtml(node.id)} <span>${escapeHtml(node.laneId)}</span></button>`)
+    .map((node) => `<button class="list-item ${state.selectedNodeIds.includes(node.id) ? "selected" : ""}" data-kind="node" data-id="${node.id}" type="button">${escapeHtml(node.id)} <span>${escapeHtml(node.laneId)}${formatVisibleGroupSuffix(node.id)}</span></button>`)
     .join("");
   const edgeItems = state.request.edges
     .map((edge) => `<button class="list-item ${state.selection?.type === "edge" && state.selection.id === edge.id ? "selected" : ""}" data-kind="edge" data-id="${edge.id}" type="button">${escapeHtml(edge.id)} <span>${escapeHtml(edge.sourceId)} → ${escapeHtml(edge.targetId)}</span></button>`)
@@ -744,7 +817,12 @@ function renderGraphLists() {
         render();
         return;
       }
-      state.selection = kind === "node" ? { type: "node", id } : { type: "edge", id };
+      if (kind === "node") {
+        selectSingleNode(id);
+      } else {
+        state.selection = { type: "edge", id };
+        state.selectedNodeIds = [];
+      }
       state.status = `${kind} ${id} selected.`;
       render();
     });
@@ -792,6 +870,20 @@ function handlePointerDown(event: PointerEvent) {
   if (!derived.editableLayout) {
     return;
   }
+  if (event.button === 2) {
+    dragState = {
+      type: "pan",
+      pointerId: event.pointerId,
+      startScreen: getScreenPoint(event),
+      startCamera: { ...state.camera },
+    };
+    sceneRoot.setPointerCapture(event.pointerId);
+    render();
+    return;
+  }
+  if (event.button !== 0) {
+    return;
+  }
   const target = event.target as HTMLElement | SVGElement;
   const screenPoint = getScreenPoint(event);
   const worldPoint = screenToWorld(screenPoint);
@@ -809,7 +901,7 @@ function handlePointerDown(event: PointerEvent) {
   }
 
   if (hit?.type === "resize-node") {
-    state.selection = { type: "node", id: hit.id };
+    selectSingleNode(hit.id);
     const node = derived.editableLayout.nodes.find((candidate) => candidate.id === hit.id);
     if (!node) {
       return;
@@ -833,6 +925,7 @@ function handlePointerDown(event: PointerEvent) {
       return;
     }
     state.selection = { type: "segment", edgeId: hit.edgeId, segmentIndex: hit.segmentIndex };
+    state.selectedNodeIds = [];
     dragState = {
       type: "segment",
       pointerId: event.pointerId,
@@ -846,8 +939,15 @@ function handlePointerDown(event: PointerEvent) {
     return;
   }
 
+  if (hit?.type === "group") {
+    state.selection = { type: "group", id: hit.id };
+    state.selectedNodeIds = getNodeIdsForGroup(hit.id);
+    render();
+    return;
+  }
+
   if (hit?.type === "node") {
-    state.selection = { type: "node", id: hit.id };
+    selectSingleNode(hit.id);
     const node = derived.editableLayout.nodes.find((candidate) => candidate.id === hit.id);
     if (!node) {
       return;
@@ -865,16 +965,18 @@ function handlePointerDown(event: PointerEvent) {
 
   if (hit?.type === "edge") {
     state.selection = { type: "edge", id: hit.id };
+    state.selectedNodeIds = [];
     render();
     return;
   }
 
   state.selection = null;
+  state.selectedNodeIds = [];
   dragState = {
-    type: "pan",
+    type: "marquee",
     pointerId: event.pointerId,
     startScreen: screenPoint,
-    startCamera: { ...state.camera },
+    currentScreen: screenPoint,
   };
   sceneRoot.setPointerCapture(event.pointerId);
   render();
@@ -898,6 +1000,13 @@ function handlePointerMove(event: PointerEvent) {
     const deltaY = (current.y - dragState.startScreen.y) / state.camera.zoom;
     state.camera.x = dragState.startCamera.x - deltaX;
     state.camera.y = dragState.startCamera.y - deltaY;
+    render();
+    return;
+  }
+
+  if (dragState.type === "marquee") {
+    dragState.currentScreen = getScreenPoint(event);
+    updateMarqueeSelection(dragState, derived.editableLayout);
     render();
     return;
   }
@@ -972,8 +1081,12 @@ function handlePointerMove(event: PointerEvent) {
 
 function handlePointerUp(event: PointerEvent) {
   if (dragState?.pointerId === event.pointerId) {
+    if (dragState.type === "marquee") {
+      finalizeMarqueeSelection();
+    }
     dragState = null;
     sceneRoot.releasePointerCapture(event.pointerId);
+    render();
   }
 }
 
@@ -1011,6 +1124,7 @@ function handleDoubleClick(event: MouseEvent) {
   nextPoints.splice(insertionIndex, 0, inserted);
   override.points = nextPoints;
   state.selection = { type: "segment", edgeId: edge.id, segmentIndex: hit.segmentIndex };
+  state.selectedNodeIds = [];
   state.status = `Added bend point to ${edge.id}.`;
   updateDerivedAndRender();
 }
@@ -1030,6 +1144,16 @@ function handleWheel(event: WheelEvent) {
 
 function handleKeyDown(event: KeyboardEvent) {
   if (isEditingElement(event.target)) {
+    return;
+  }
+  if ((event.key === "g" || event.key === "G") && event.shiftKey) {
+    event.preventDefault();
+    ungroupSelection();
+    return;
+  }
+  if (event.key === "g" || event.key === "G") {
+    event.preventDefault();
+    groupSelection();
     return;
   }
   if (event.key === "n" || event.key === "N") {
@@ -1057,12 +1181,21 @@ function handleKeyDown(event: KeyboardEvent) {
   if (event.key === "Backspace" && state.selection) {
     event.preventDefault();
     deleteSelection();
+    return;
+  }
+  if (event.key === "Backspace" && state.selectedNodeIds.length > 0) {
+    event.preventDefault();
+    deleteSelection();
   }
 }
 
 function resolveHitTarget(target: HTMLElement | SVGElement, worldPoint: Point, layoutResult: LayoutResult): HitTarget {
   const element = target.closest<HTMLElement | SVGElement>("[data-hit]");
   const hitType = element?.getAttribute("data-hit");
+  if (hitType === "group") {
+    const id = element?.getAttribute("data-group-id");
+    return id ? { type: "group", id } : null;
+  }
   if (hitType === "resize-node") {
     const id = element?.getAttribute("data-node-id");
     return id ? { type: "resize-node", id } : null;
@@ -1099,13 +1232,13 @@ function addNodeAtViewportCenter() {
     return;
   }
   state.request.nodes.push({ id: nextId, laneId });
-  state.selection = { type: "node", id: nextId };
+  selectSingleNode(nextId);
   state.status = `Added ${nextId} on ${laneId}.`;
   updateDerivedAndRender();
 }
 
 function startEdgeMode() {
-  const selectedNodeId = state.selection?.type === "node" ? state.selection.id : state.request.nodes[0]?.id;
+  const selectedNodeId = getSelectedNodeIds()[0] ?? state.request.nodes[0]?.id;
   if (!selectedNodeId) {
     state.status = "Add a node before creating edges.";
     render();
@@ -1130,27 +1263,37 @@ function completeEdgeCreation(targetId: string) {
   const nextId = createUniqueId("edge", state.request.edges.map((edge) => edge.id));
   state.request.edges.push({ id: nextId, sourceId, targetId });
   state.selection = { type: "edge", id: nextId };
+  state.selectedNodeIds = [];
   state.edgeCreate = null;
   state.status = `Created ${nextId}: ${sourceId} -> ${targetId}.`;
   updateDerivedAndRender();
 }
 
 function deleteSelection() {
-  if (!state.selection) {
+  const selectedNodeIds = getSelectedNodeIds();
+  if (!state.selection && selectedNodeIds.length === 0) {
     return;
   }
-  if (state.selection.type === "node") {
-    const nodeId = state.selection.id;
-    state.request.nodes = state.request.nodes.filter((node) => node.id !== nodeId);
-    state.request.edges = state.request.edges.filter((edge) => edge.sourceId !== nodeId && edge.targetId !== nodeId);
-    delete state.nodeOverrides[nodeId];
+  if (state.selection?.type === "group") {
+    state.status = "Press Shift+G to ungroup the selected group.";
+    render();
+    return;
+  }
+  if (selectedNodeIds.length > 0) {
+    const selectedNodeIdSet = new Set(selectedNodeIds);
+    state.request.nodes = state.request.nodes.filter((node) => !selectedNodeIdSet.has(node.id));
+    state.request.edges = state.request.edges.filter((edge) => !selectedNodeIdSet.has(edge.sourceId) && !selectedNodeIdSet.has(edge.targetId));
+    selectedNodeIds.forEach((nodeId) => {
+      delete state.nodeOverrides[nodeId];
+    });
     Object.keys(state.edgeOverrides).forEach((edgeId) => {
       if (!state.request.edges.some((edge) => edge.id === edgeId)) {
         delete state.edgeOverrides[edgeId];
       }
     });
-    state.status = `Deleted node ${nodeId} and its connected edges.`;
-  } else if (state.selection.type === "edge") {
+    cleanupGroupsAfterNodeChanges();
+    state.status = selectedNodeIds.length === 1 ? `Deleted node ${selectedNodeIds[0]} and its connected edges.` : `Deleted ${selectedNodeIds.length} selected nodes.`;
+  } else if (state.selection?.type === "edge") {
     const edgeId = state.selection.id;
     state.request.edges = state.request.edges.filter((edge) => edge.id !== edgeId);
     delete state.edgeOverrides[edgeId];
@@ -1159,6 +1302,7 @@ function deleteSelection() {
     state.status = "Select the edge to delete it. Segment selection is for dragging only.";
   }
   state.selection = null;
+  state.selectedNodeIds = [];
   updateDerivedAndRender();
 }
 
@@ -1189,6 +1333,7 @@ function renameNode(currentId: string, nextId: string) {
     state.nodeOverrides[nextId] = state.nodeOverrides[currentId];
     delete state.nodeOverrides[currentId];
   }
+  state.selectedNodeIds = state.selectedNodeIds.map((nodeId) => (nodeId === currentId ? nextId : nodeId));
   state.selection = { type: "node", id: nextId };
   state.status = `Renamed node ${currentId} to ${nextId}.`;
   updateDerivedAndRender();
@@ -1214,6 +1359,7 @@ function renameEdge(currentId: string, nextId: string) {
     delete state.edgeOverrides[currentId];
   }
   state.selection = { type: "edge", id: nextId };
+  state.selectedNodeIds = [];
   state.status = `Renamed edge ${currentId} to ${nextId}.`;
   updateDerivedAndRender();
 }
@@ -1235,6 +1381,246 @@ function ensureEdgeOverrideExists(edgeId: string, layoutResult: LayoutResult) {
     targetAnchor: { ...edge.targetAnchor },
     points: edge.points.map((point) => ({ ...point })),
   };
+}
+
+function selectSingleNode(nodeId: string) {
+  state.selection = { type: "node", id: nodeId };
+  state.selectedNodeIds = [nodeId];
+}
+
+function getSelectedNodeIds() {
+  if (state.selectedNodeIds.length > 0) {
+    return state.selectedNodeIds.filter((nodeId) => state.request.nodes.some((node) => node.id === nodeId));
+  }
+  if (state.selection?.type === "node") {
+    return [state.selection.id];
+  }
+  if (state.selection?.type === "group") {
+    return getNodeIdsForGroup(state.selection.id);
+  }
+  return [];
+}
+
+function getNodeIdsForGroup(groupId: string) {
+  return state.request.nodes.filter((node) => node.groupId === groupId).map((node) => node.id);
+}
+
+function computePlaygroundGroupLayouts(layoutResult: LayoutResult): PlaygroundGroupLayout[] {
+  if (!state.request.groups?.length) {
+    return [];
+  }
+  const nodeLayoutById = new Map(layoutResult.nodes.map((node) => [node.id, node]));
+  return [...state.request.groups]
+    .sort((left, right) => left.order - right.order)
+    .flatMap((group) => {
+      const members = state.request.nodes
+        .filter((node) => node.groupId === group.id)
+        .map((node) => nodeLayoutById.get(node.id))
+        .filter((node): node is NodeLayout => Boolean(node));
+      if (members.length === 0) {
+        return [];
+      }
+      if (members.length <= 1) {
+        return [];
+      }
+      const paddingX = 20;
+      const paddingTop = 28;
+      const paddingBottom = 16;
+      const left = Math.min(...members.map((node) => node.x)) - paddingX;
+      const top = Math.min(...members.map((node) => node.y)) - paddingTop;
+      const right = Math.max(...members.map((node) => node.x + node.width)) + paddingX;
+      const bottom = Math.max(...members.map((node) => node.y + node.height)) + paddingBottom;
+      return [{
+        id: group.id,
+        x: left,
+        y: top,
+        width: right - left,
+        height: bottom - top,
+        nodeIds: members.map((node) => node.id),
+      }];
+    });
+}
+
+function groupSelection() {
+  const selectedNodeIds = [...new Set(getSelectedNodeIds())];
+  if (selectedNodeIds.length < 2) {
+    state.status = "Select at least two nodes to create a group.";
+    render();
+    return;
+  }
+  ensureAllNodesHaveGroups();
+  const nextGroupId = createUniqueId("group", state.request.groups?.map((group) => group.id) ?? []);
+  state.request.groups = [...(state.request.groups ?? []), { id: nextGroupId, order: state.request.groups?.length ?? 0 }];
+  state.request.nodes.forEach((node) => {
+    if (selectedNodeIds.includes(node.id)) {
+      node.groupId = nextGroupId;
+    }
+  });
+  normalizeGroupState();
+  state.selection = { type: "group", id: nextGroupId };
+  state.selectedNodeIds = selectedNodeIds;
+  state.status = `Grouped ${selectedNodeIds.length} nodes into ${nextGroupId}.`;
+  updateDerivedAndRender();
+}
+
+function ungroupSelection() {
+  const groupId = state.selection?.type === "group"
+    ? state.selection.id
+    : (() => {
+        const groupIds = [...new Set(getSelectedNodeIds().map((nodeId) => state.request.nodes.find((node) => node.id === nodeId)?.groupId).filter(Boolean))];
+        return groupIds.length === 1 ? (groupIds[0] ?? null) : null;
+      })();
+  if (!groupId) {
+    state.status = "Select nodes from a single group, or select the group frame, to ungroup.";
+    render();
+    return;
+  }
+  if (!state.request.groups?.some((group) => group.id === groupId)) {
+    state.status = `Group ${groupId} no longer exists.`;
+    render();
+    return;
+  }
+  const nodeIds = getNodeIdsForGroup(groupId);
+  const remainingGroupIds = new Set((state.request.groups ?? []).map((group) => group.id));
+  remainingGroupIds.delete(groupId);
+  if (remainingGroupIds.size === 0) {
+    state.request.groups = undefined;
+    state.request.nodes.forEach((node) => {
+      node.groupId = undefined;
+    });
+  } else {
+    state.request.groups = (state.request.groups ?? []).filter((group) => group.id !== groupId);
+    nodeIds.forEach((nodeId) => {
+      const replacementId = createUniqueId("group", state.request.groups?.map((group) => group.id) ?? []);
+      state.request.groups = [...(state.request.groups ?? []), { id: replacementId, order: state.request.groups?.length ?? 0 }];
+      const node = state.request.nodes.find((candidate) => candidate.id === nodeId);
+      if (node) {
+        node.groupId = replacementId;
+      }
+    });
+    normalizeGroupState(true);
+  }
+  state.selection = null;
+  state.selectedNodeIds = nodeIds;
+  state.status = `Ungrouped ${groupId}.`;
+  updateDerivedAndRender();
+}
+
+function ensureAllNodesHaveGroups() {
+  const groups = [...(state.request.groups ?? [])];
+  state.request.nodes.forEach((node) => {
+    if (node.groupId) {
+      return;
+    }
+    const groupId = createUniqueId("group", groups.map((group) => group.id));
+    groups.push({ id: groupId, order: groups.length });
+    node.groupId = groupId;
+  });
+  state.request.groups = groups;
+}
+
+function normalizeGroupState(collapseAllSingletons = false) {
+  if (!state.request.groups?.length) {
+    state.request.groups = undefined;
+    state.request.nodes.forEach((node) => {
+      node.groupId = undefined;
+    });
+    return;
+  }
+  const membership = new Map<string, string[]>();
+  state.request.nodes.forEach((node) => {
+    if (!node.groupId) {
+      return;
+    }
+    const bucket = membership.get(node.groupId) ?? [];
+    bucket.push(node.id);
+    membership.set(node.groupId, bucket);
+  });
+  if (collapseAllSingletons && [...membership.values()].every((nodeIds) => nodeIds.length <= 1)) {
+    state.request.groups = undefined;
+    state.request.nodes.forEach((node) => {
+      node.groupId = undefined;
+    });
+    return;
+  }
+  const positionByNodeId = new Map((derived.editableLayout?.nodes ?? []).map((node) => [node.id, node.x]));
+  state.request.groups = (state.request.groups ?? [])
+    .filter((group) => membership.has(group.id))
+    .sort((left, right) => {
+      const leftX = Math.min(...(membership.get(left.id) ?? []).map((nodeId) => positionByNodeId.get(nodeId) ?? 0));
+      const rightX = Math.min(...(membership.get(right.id) ?? []).map((nodeId) => positionByNodeId.get(nodeId) ?? 0));
+      return leftX - rightX;
+    })
+    .map((group, order) => ({ ...group, order }));
+}
+
+function cleanupGroupsAfterNodeChanges() {
+  if (!state.request.groups?.length) {
+    return;
+  }
+  state.request.groups = state.request.groups.filter((group) => state.request.nodes.some((node) => node.groupId === group.id));
+  if (state.request.groups.length === 0) {
+    state.request.groups = undefined;
+    return;
+  }
+  normalizeGroupState(true);
+}
+
+function countVisibleGroups() {
+  if (!state.request.groups?.length) {
+    return 0;
+  }
+  const memberCounts = new Map<string, number>();
+  state.request.nodes.forEach((node) => {
+    if (!node.groupId) {
+      return;
+    }
+    memberCounts.set(node.groupId, (memberCounts.get(node.groupId) ?? 0) + 1);
+  });
+  return (state.request.groups ?? []).filter((group) => (memberCounts.get(group.id) ?? 0) > 1).length;
+}
+
+function formatVisibleGroupSuffix(nodeId: string) {
+  const node = state.request.nodes.find((candidate) => candidate.id === nodeId);
+  if (!node?.groupId) {
+    return "";
+  }
+  const memberCount = state.request.nodes.filter((candidate) => candidate.groupId === node.groupId).length;
+  return memberCount > 1 ? ` / ${escapeHtml(node.groupId)}` : "";
+}
+
+function updateMarqueeSelection(marqueeState: Extract<DragState, { type: "marquee" }>, layoutResult: LayoutResult) {
+  const marqueeRect = normalizeRect(marqueeState.startScreen, marqueeState.currentScreen);
+  const selectedNodeIds = layoutResult.nodes
+    .filter((node) => rectsIntersect(marqueeRect, worldRectToScreenRect(node)))
+    .map((node) => node.id);
+  state.selectedNodeIds = selectedNodeIds;
+  if (selectedNodeIds.length === 1) {
+    state.selection = { type: "node", id: selectedNodeIds[0] };
+  } else {
+    state.selection = null;
+  }
+}
+
+function finalizeMarqueeSelection() {
+  if (state.selectedNodeIds.length > 1) {
+    state.status = `${state.selectedNodeIds.length} nodes selected.`;
+  } else if (state.selectedNodeIds.length === 1) {
+    state.status = `Node ${state.selectedNodeIds[0]} selected.`;
+  }
+}
+
+function updateMarquee() {
+  if (!dragState || dragState.type !== "marquee") {
+    marquee.hidden = true;
+    return;
+  }
+  const rect = normalizeRect(dragState.startScreen, dragState.currentScreen);
+  marquee.hidden = false;
+  marquee.style.left = `${rect.left}px`;
+  marquee.style.top = `${rect.top}px`;
+  marquee.style.width = `${rect.width}px`;
+  marquee.style.height = `${rect.height}px`;
 }
 
 function fitCameraToContent() {
@@ -1686,6 +2072,39 @@ function getScreenPoint(event: MouseEvent | PointerEvent | WheelEvent): Point {
   return { x: event.clientX - rect.left, y: event.clientY - rect.top };
 }
 
+function worldToScreen(point: Point) {
+  return { x: (point.x - state.camera.x) * state.camera.zoom, y: (point.y - state.camera.y) * state.camera.zoom };
+}
+
+function worldRectToScreenRect(node: NodeLayout) {
+  const topLeft = worldToScreen({ x: node.x, y: node.y });
+  return {
+    left: topLeft.x,
+    top: topLeft.y,
+    width: node.width * state.camera.zoom,
+    height: node.height * state.camera.zoom,
+  };
+}
+
+function normalizeRect(start: Point, end: Point) {
+  const left = Math.min(start.x, end.x);
+  const top = Math.min(start.y, end.y);
+  const right = Math.max(start.x, end.x);
+  const bottom = Math.max(start.y, end.y);
+  return { left, top, width: right - left, height: bottom - top, right, bottom };
+}
+
+function rectsIntersect(
+  left: { left: number; top: number; width: number; height: number; right?: number; bottom?: number },
+  right: { left: number; top: number; width: number; height: number; right?: number; bottom?: number },
+) {
+  const leftRight = left.right ?? left.left + left.width;
+  const leftBottom = left.bottom ?? left.top + left.height;
+  const rightRight = right.right ?? right.left + right.width;
+  const rightBottom = right.bottom ?? right.top + right.height;
+  return left.left <= rightRight && leftRight >= right.left && left.top <= rightBottom && leftBottom >= right.top;
+}
+
 function viewportCenterScreen() {
   const rect = sceneRoot.getBoundingClientRect();
   return { x: rect.width / 2, y: rect.height / 2 };
@@ -1731,11 +2150,17 @@ function distanceToLane(targetY: number, lane: LayoutResult["lanes"][number]) {
 }
 
 function describeSelection() {
+  if (state.selectedNodeIds.length > 1) {
+    return `${state.selectedNodeIds.length} nodes selected`;
+  }
   if (!state.selection) {
     return "Nothing selected";
   }
   if (state.selection.type === "node") {
     return `Node ${state.selection.id}`;
+  }
+  if (state.selection.type === "group") {
+    return `Group ${state.selection.id}`;
   }
   if (state.selection.type === "edge") {
     return `Edge ${state.selection.id}`;

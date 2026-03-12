@@ -144,6 +144,7 @@ kbd {
 
 .scene-grid,
 .scene-viewport,
+.group-layer,
 .edge-layer,
 .overlay-layer,
 .node-layer {
@@ -165,9 +166,15 @@ kbd {
   will-change: transform;
 }
 
+.group-layer,
 .edge-layer,
 .overlay-layer {
   overflow: visible;
+}
+
+.group-layer,
+.edge-layer,
+.overlay-layer {
   pointer-events: none;
 }
 
@@ -197,6 +204,30 @@ kbd {
 
 .lane-band rect {
   fill: rgba(255, 255, 255, 0.45);
+}
+
+.playground-group {
+  pointer-events: auto;
+}
+
+.playground-group-frame {
+  fill: rgba(36, 95, 75, 0.05);
+  stroke: rgba(36, 95, 75, 0.42);
+  stroke-width: 2;
+  stroke-dasharray: 10 8;
+}
+
+.playground-group.selected .playground-group-frame {
+  fill: rgba(36, 95, 75, 0.12);
+  stroke: #163f31;
+}
+
+.playground-group-label {
+  fill: #245f4b;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+  pointer-events: none;
 }
 
 .lane-band-border {
@@ -318,6 +349,14 @@ kbd {
   background: #245f4b;
   color: #f5efe2;
   border-color: #163f31;
+}
+
+.marquee-selection {
+  position: absolute;
+  border: 1px dashed rgba(22, 63, 49, 0.85);
+  background: rgba(36, 95, 75, 0.12);
+  pointer-events: none;
+  z-index: 5;
 }
 
 .node-title {
