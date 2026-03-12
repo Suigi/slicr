@@ -609,14 +609,12 @@ function buildEdgePreviewMarkup(target: Point, layoutResult: LayoutResult) {
 }
 
 function renderInspector() {
-  if (!derived.editableLayout) {
-    inspector.innerHTML = `<p class="empty-state">${derived.autoResponse.ok ? "No layout result." : escapeHtml(derived.autoResponse.error.message)}</p>`;
-    return;
-  }
+  const inspectorError = derived.autoResponse.ok ? null : escapeHtml(derived.autoResponse.error.message);
 
   if (!state.selection && state.selectedNodeIds.length > 1) {
     const groupIds = [...new Set(state.selectedNodeIds.map((nodeId) => state.request.nodes.find((node) => node.id === nodeId)?.groupId).filter(Boolean))];
     inspector.innerHTML = `
+      ${inspectorError ? `<p class="helper-text">${inspectorError}</p>` : ""}
       <p class="helper-text">${state.selectedNodeIds.length} nodes selected.</p>
       <p class="helper-text">${groupIds.length === 1 ? `Shared group: ${escapeHtml(groupIds[0] ?? "")}` : "Press G to create a group."}</p>
       <button id="group-selected" type="button">Group selection</button>
@@ -629,26 +627,15 @@ function renderInspector() {
 
   if (!state.selection) {
     inspector.innerHTML = `
-      <p class="empty-state">Select a node or edge to edit its details.</p>
-      <div class="form-row">
-        <label for="new-node-lane">Default lane</label>
-        <select id="new-node-lane">${state.request.lanes.map((lane) => `<option value="${lane.id}">${lane.id}</option>`).join("")}</select>
-      </div>
+      <p class="empty-state">${inspectorError ?? "Select a node or edge to edit its details."}</p>
     `;
-    const select = inspector.querySelector<HTMLSelectElement>("#new-node-lane");
-    if (select) {
-      select.value = selectedLaneId;
-      select.addEventListener("change", () => {
-        selectedLaneId = select.value;
-        render();
-      });
-    }
     return;
   }
 
   if (state.selection.type === "group") {
     const nodeIds = getNodeIdsForGroup(state.selection.id);
     inspector.innerHTML = `
+      ${inspectorError ? `<p class="helper-text">${inspectorError}</p>` : ""}
       <p class="helper-text">Group ${escapeHtml(state.selection.id)} contains ${nodeIds.length} nodes.</p>
       <button id="ungroup-selected" type="button">Ungroup</button>
     `;
@@ -665,6 +652,7 @@ function renderInspector() {
     }
 
     inspector.innerHTML = `
+      ${inspectorError ? `<p class="helper-text">${inspectorError}</p>` : ""}
       <div class="form-row">
         <label for="node-id">Node id</label>
         <input id="node-id" value="${escapeHtml(nodeInput.id)}" />
@@ -672,6 +660,10 @@ function renderInspector() {
       <div class="form-row">
         <label for="node-lane">Lane</label>
         <select id="node-lane">${state.request.lanes.map((lane) => `<option value="${lane.id}">${lane.id}</option>`).join("")}</select>
+      </div>
+      <div class="form-row">
+        <label for="node-group">Group</label>
+        <select id="node-group">${renderGroupOptions(nodeInput.groupId ?? "")}</select>
       </div>
       <div class="form-row split-row">
         <div>
@@ -687,6 +679,7 @@ function renderInspector() {
     `;
 
     const laneSelect = inspector.querySelector<HTMLSelectElement>("#node-lane");
+    const groupSelect = inspector.querySelector<HTMLSelectElement>("#node-group");
     const idInput = inspector.querySelector<HTMLInputElement>("#node-id");
     const widthInput = inspector.querySelector<HTMLInputElement>("#node-width");
     const heightInput = inspector.querySelector<HTMLInputElement>("#node-height");
@@ -697,6 +690,12 @@ function renderInspector() {
         selectedLaneId = laneSelect.value;
         state.status = `Lane for ${nodeInput.id} updated to ${laneSelect.value}.`;
         updateDerivedAndRender();
+      });
+    }
+    if (groupSelect) {
+      groupSelect.value = nodeInput.groupId ?? "";
+      groupSelect.addEventListener("change", () => {
+        setNodeGroup(nodeInput.id, groupSelect.value || null);
       });
     }
     idInput?.addEventListener("change", () => renameNode(nodeInput.id, idInput.value.trim()));
@@ -721,6 +720,7 @@ function renderInspector() {
     }
 
     inspector.innerHTML = `
+      ${inspectorError ? `<p class="helper-text">${inspectorError}</p>` : ""}
       <div class="form-row">
         <label for="edge-id">Edge id</label>
         <input id="edge-id" value="${escapeHtml(edgeInput.id)}" />
@@ -758,8 +758,8 @@ function renderInspector() {
   const segmentSelection = state.selection;
   const edge = state.request.edges.find((candidate) => candidate.id === segmentSelection.edgeId);
   inspector.innerHTML = edge
-    ? `<p class="helper-text">Editing segment ${segmentSelection.segmentIndex} on ${escapeHtml(edge.id)}. Drag it to move the orthogonal path.</p>`
-    : `<p class="empty-state">Selected segment no longer exists.</p>`;
+    ? `${inspectorError ? `<p class="helper-text">${inspectorError}</p>` : ""}<p class="helper-text">Editing segment ${segmentSelection.segmentIndex} on ${escapeHtml(edge.id)}. Drag it to move the orthogonal path.</p>`
+    : `<p class="empty-state">${inspectorError ?? "Selected segment no longer exists."}</p>`;
 }
 
 function renderGraphLists() {
@@ -819,7 +819,7 @@ function renderGraphLists() {
         return;
       }
       if (kind === "node") {
-        selectSingleNode(id);
+        selectNodeFromList(id);
       } else {
         state.selection = { type: "edge", id };
         state.selectedNodeIds = [];
@@ -837,6 +837,16 @@ function renderGraphLists() {
       }
     });
   });
+}
+
+function selectNodeFromList(nodeId: string) {
+  const node = state.request.nodes.find((candidate) => candidate.id === nodeId);
+  if (!node) {
+    state.status = `Node ${nodeId} no longer exists.`;
+    return;
+  }
+  selectedLaneId = node.laneId;
+  selectSingleNode(nodeId);
 }
 
 function addLane() {
@@ -1586,6 +1596,24 @@ function cleanupGroupsAfterNodeChanges() {
   normalizeGroupState(true);
 }
 
+function setNodeGroup(nodeId: string, nextGroupId: string | null) {
+  const node = state.request.nodes.find((candidate) => candidate.id === nodeId);
+  if (!node) {
+    state.status = `Node ${nodeId} no longer exists.`;
+    render();
+    return;
+  }
+  if (nextGroupId && !state.request.groups?.some((group) => group.id === nextGroupId)) {
+    state.status = `Group ${nextGroupId} no longer exists.`;
+    render();
+    return;
+  }
+  node.groupId = nextGroupId ?? undefined;
+  cleanupGroupsAfterNodeChanges();
+  state.status = nextGroupId ? `Moved ${nodeId} to ${nextGroupId}.` : `Removed ${nodeId} from its group.`;
+  updateDerivedAndRender();
+}
+
 function countVisibleGroups() {
   if (!state.request.groups?.length) {
     return 0;
@@ -2213,6 +2241,17 @@ function describeSelection() {
 
 function renderNodeOptions(selectedId: string) {
   return state.request.nodes.map((node) => `<option value="${node.id}" ${node.id === selectedId ? "selected" : ""}>${node.id}</option>`).join("");
+}
+
+function renderGroupOptions(selectedId: string) {
+  const noneOption = `<option value="" ${selectedId === "" ? "selected" : ""}>None</option>`;
+  const groupOptions = (state.request.groups ?? [])
+    .map((group) => {
+      const memberCount = state.request.nodes.filter((node) => node.groupId === group.id).length;
+      return `<option value="${group.id}" ${group.id === selectedId ? "selected" : ""}>${escapeHtml(group.id)} (${memberCount})</option>`;
+    })
+    .join("");
+  return `${noneOption}${groupOptions}`;
 }
 
 function normalizeOptionalNumber(value: string, fallback: number) {
