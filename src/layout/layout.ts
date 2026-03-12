@@ -3,6 +3,7 @@ import type {
   AnchorSide,
   EdgeInput,
   EdgeLayout,
+  GroupLayout,
   LayoutApi,
   LayoutFailure,
   LaneLayout,
@@ -39,9 +40,26 @@ export const layout: LayoutApi = (request) => {
   }
 
   const nodeById = new Map(request.nodes.map((node) => [node.id, node]));
+  const groupById = request.groups ? new Map(request.groups.map((group) => [group.id, group])) : null;
   for (const node of request.nodes) {
     if (!laneById.has(node.laneId)) {
       return failure("InvalidReference", `Node ${node.id} references missing lane ${node.laneId}.`, { nodeId: node.id, laneId: node.laneId });
+    }
+    if (groupById && !node.groupId) {
+      return failure("MissingGroupAssignment", `Node ${node.id} is missing a group assignment.`, { nodeId: node.id });
+    }
+    if (node.groupId && !groupById?.has(node.groupId)) {
+      return failure("InvalidReference", `Node ${node.id} references missing group ${node.groupId}.`, { nodeId: node.id, groupId: node.groupId });
+    }
+  }
+
+  if (groupById) {
+    const groupOrderCounts = new Set<number>();
+    for (const group of request.groups ?? []) {
+      if (groupOrderCounts.has(group.order)) {
+        return failure("InvalidReference", `Duplicate group order ${group.order}.`, { groupId: group.id });
+      }
+      groupOrderCounts.add(group.order);
     }
   }
 
@@ -100,6 +118,7 @@ export const layout: LayoutApi = (request) => {
 
   const minTargetShift = request.spacing?.minTargetShift ?? 20;
   const minNodeGap = request.spacing?.minNodeGap ?? 40;
+  const groupGap = request.spacing?.groupGap ?? 80;
   const columnStep = minTargetShift + minNodeGap + COLUMN_GAP;
 
   const xByNode = new Map<string, number>(request.nodes.map((node) => [node.id, 0]));
@@ -179,6 +198,57 @@ export const layout: LayoutApi = (request) => {
     }
   }
 
+  let groupLayouts: GroupLayout[] | undefined;
+  if (request.groups && request.groups.length > 0) {
+    const orderedGroups = [...request.groups].sort((left, right) => left.order - right.order);
+    const nodeIdsByGroup = new Map<string, string[]>();
+    for (const node of request.nodes) {
+      if (!node.groupId) {
+        continue;
+      }
+      const bucket = nodeIdsByGroup.get(node.groupId) ?? [];
+      bucket.push(node.id);
+      nodeIdsByGroup.set(node.groupId, bucket);
+    }
+
+    const groupFlow = new Map<string, Set<string>>();
+    for (const edge of request.edges) {
+      const sourceGroupId = nodeById.get(edge.sourceId)?.groupId;
+      const targetGroupId = nodeById.get(edge.targetId)?.groupId;
+      if (!sourceGroupId || !targetGroupId || sourceGroupId === targetGroupId) {
+        continue;
+      }
+      const outgoing = groupFlow.get(sourceGroupId) ?? new Set<string>();
+      outgoing.add(targetGroupId);
+      groupFlow.set(sourceGroupId, outgoing);
+      if (groupFlow.get(targetGroupId)?.has(sourceGroupId)) {
+        return failure("BidirectionalGroupFlow", `Groups ${sourceGroupId} and ${targetGroupId} have bidirectional flow.`, {
+          leftGroupId: sourceGroupId,
+          rightGroupId: targetGroupId,
+        });
+      }
+    }
+
+    let minGroupLeft = 0;
+    for (const group of orderedGroups) {
+      const nodeIds = nodeIdsByGroup.get(group.id) ?? [];
+      if (nodeIds.length === 0) {
+        continue;
+      }
+      const currentLeft = Math.min(...nodeIds.map((nodeId) => xByNode.get(nodeId) ?? 0));
+      const shift = Math.max(0, minGroupLeft - currentLeft);
+      if (shift > 0) {
+        for (const nodeId of nodeIds) {
+          xByNode.set(nodeId, (xByNode.get(nodeId) ?? 0) + shift);
+        }
+      }
+      const resolvedRight = Math.max(
+        ...nodeIds.map((nodeId) => (xByNode.get(nodeId) ?? 0) + (widthByNode.get(nodeId) ?? request.defaults.nodeWidth)),
+      );
+      minGroupLeft = resolvedRight + groupGap;
+    }
+  }
+
   const nodeLayouts: NodeLayout[] = request.nodes.map((node) => ({
     id: node.id,
     x: xByNode.get(node.id) ?? 0,
@@ -186,6 +256,31 @@ export const layout: LayoutApi = (request) => {
     width: widthByNode.get(node.id) ?? request.defaults.nodeWidth,
     height: heightByNode.get(node.id) ?? request.defaults.nodeHeight,
   }));
+  if (request.groups && request.groups.length > 0) {
+    const nodesByGroup = new Map<string, NodeLayout[]>();
+    for (const node of nodeLayouts) {
+      const groupId = nodeById.get(node.id)?.groupId;
+      if (!groupId) {
+        continue;
+      }
+      const bucket = nodesByGroup.get(groupId) ?? [];
+      bucket.push(node);
+      nodesByGroup.set(groupId, bucket);
+    }
+    groupLayouts = [...request.groups]
+      .sort((left, right) => left.order - right.order)
+      .flatMap((group) => {
+        const groupNodes = nodesByGroup.get(group.id) ?? [];
+        if (groupNodes.length === 0) {
+          return [];
+        }
+        const left = Math.min(...groupNodes.map((node) => node.x));
+        const top = Math.min(...groupNodes.map((node) => node.y));
+        const right = Math.max(...groupNodes.map((node) => node.x + node.width));
+        const bottom = Math.max(...groupNodes.map((node) => node.y + node.height));
+        return [{ id: group.id, x: left, y: top, width: right - left, height: bottom - top }];
+      });
+  }
   const nodeLayoutById = new Map(nodeLayouts.map((node) => [node.id, node]));
 
   const sideAssignments = new Map<string, EdgeSideAssignment>();
@@ -253,6 +348,7 @@ export const layout: LayoutApi = (request) => {
     ok: true,
     result: {
       lanes: laneLayouts,
+      groups: groupLayouts,
       nodes: nodeLayouts,
       edges,
     },
