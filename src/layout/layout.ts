@@ -34,6 +34,7 @@ type EdgeSideAssignment = {
 type UpwardDetourPlan = {
   targetAnchorY?: number;
   detourRowY?: number;
+  downRowY?: number;
 };
 
 export const layout: LayoutApi = (request) => {
@@ -327,6 +328,7 @@ export const layout: LayoutApi = (request) => {
   }
 
   const assignedUpwardRows: Array<{ rowY: number; minX: number; maxX: number }> = [];
+  const assignedDownwardRows: Array<{ rowY: number; minX: number; maxX: number; targetX: number; targetY: number }> = [];
   for (const edge of request.edges) {
     const nodeSource = nodeLayoutById.get(edge.sourceId);
     const nodeTarget = nodeLayoutById.get(edge.targetId);
@@ -386,6 +388,82 @@ export const layout: LayoutApi = (request) => {
       upwardDetourPlanByEdgeId.set(edge.id, { targetAnchorY });
     }
     assignedUpwardRows.push({ rowY: targetAnchorY, minX, maxX });
+  }
+
+  const downEdgeCandidates = request.edges
+    .map((edge, index) => {
+      const nodeSource = nodeLayoutById.get(edge.sourceId);
+      const nodeTarget = nodeLayoutById.get(edge.targetId);
+      const sides = sideAssignments.get(edge.id);
+      if (!nodeSource || !nodeTarget || !sides) {
+        return null;
+      }
+
+      const sourceAnchor = createAnchor(nodeSource, sides.source, sourceOrdinalByEdgeId.get(edge.id) ?? 0, "source");
+      const targetAnchor = createAnchor(nodeTarget, sides.target, targetOrdinalByEdgeId.get(edge.id) ?? 0, "target");
+      const orientation = deriveOrientation(
+        laneOrderById.get(nodeById.get(edge.sourceId)?.laneId ?? "") ?? 0,
+        laneOrderById.get(nodeById.get(edge.targetId)?.laneId ?? "") ?? 0,
+      );
+      if (orientation !== "down") {
+        return null;
+      }
+
+      const sourceStub = offsetFromAnchor(sourceAnchor, getSourceStubDistance(sourceAnchor, sourceCountByEdgeId.get(edge.id) ?? 1));
+      const minX = Math.min(sourceAnchor.x, targetAnchor.x);
+      const maxX = Math.max(sourceAnchor.x, targetAnchor.x);
+      const baseRowY = resolveDownwardBaseRow(edge, sourceStub, targetAnchor, nodeLayouts);
+      return { edge, index, sourceAnchor, targetAnchor, minX, maxX, baseRowY };
+    })
+    .filter((candidate): candidate is NonNullable<typeof candidate> => candidate !== null)
+    .sort((left, right) => {
+      if (left.baseRowY !== right.baseRowY) {
+        return right.baseRowY - left.baseRowY;
+      }
+      return left.index - right.index;
+    });
+
+  for (const candidate of downEdgeCandidates) {
+    let downRowY = candidate.baseRowY;
+    while (true) {
+      const blockingRow = assignedDownwardRows.find((assigned) => {
+        const horizontalTrackOverlap =
+          Math.abs(assigned.rowY - downRowY) < UPWARD_REROUTE_SPACING &&
+          horizontalRangesOverlap(candidate.minX, candidate.maxX, assigned.minX, assigned.maxX);
+        if (horizontalTrackOverlap) {
+          return true;
+        }
+
+        const targetVerticalCrossesAssignedHorizontal =
+          assigned.rowY >= downRowY &&
+          assigned.rowY <= candidate.targetAnchor.y &&
+          candidate.targetAnchor.x > assigned.minX &&
+          candidate.targetAnchor.x < assigned.maxX;
+        if (targetVerticalCrossesAssignedHorizontal) {
+          return true;
+        }
+
+        const assignedTargetVerticalCrossesCandidateHorizontal =
+          downRowY >= assigned.rowY &&
+          downRowY <= assigned.targetY &&
+          assigned.targetX > candidate.minX &&
+          assigned.targetX < candidate.maxX;
+        return assignedTargetVerticalCrossesCandidateHorizontal;
+      });
+      if (!blockingRow) {
+        break;
+      }
+      downRowY = blockingRow.rowY + UPWARD_REROUTE_SPACING;
+    }
+
+    upwardDetourPlanByEdgeId.set(candidate.edge.id, { downRowY });
+    assignedDownwardRows.push({
+      rowY: downRowY,
+      minX: candidate.minX,
+      maxX: candidate.maxX,
+      targetX: candidate.targetAnchor.x,
+      targetY: candidate.targetAnchor.y,
+    });
   }
 
   const edges: EdgeLayout[] = request.edges.map((edge) => {
@@ -622,6 +700,14 @@ function routeOrthogonalEdge(
   nodeById: Map<string, NodeInput>,
 ): Point[] {
   const sourceStub = offsetFromAnchor(sourceAnchor, getSourceStubDistance(sourceAnchor, sourceSideCount));
+  if (sourceAnchor.side === "bottom" && upwardDetourPlan?.downRowY !== undefined) {
+    return [
+      { x: sourceAnchor.x, y: sourceAnchor.y },
+      { x: sourceAnchor.x, y: upwardDetourPlan.downRowY },
+      { x: targetAnchor.x, y: upwardDetourPlan.downRowY },
+      { x: targetAnchor.x, y: targetAnchor.y },
+    ];
+  }
   const targetApproach = getTargetApproachPoint(sourceStub, targetAnchor);
   if (shouldDetourUpEdge(edge, sourceStub, targetAnchor, nodeLayouts, laneOrderById, nodeById)) {
     const detourSourceStub = { x: sourceStub.x, y: sourceStub.y - UPWARD_REROUTE_ENTRY_OFFSET };
@@ -708,6 +794,22 @@ function highestObstacleBottom(
   return Math.max(...overlappingNodes.map((node) => node.y + node.height));
 }
 
+function resolveDownwardBaseRow(
+  edge: EdgeInput,
+  sourceStub: Point,
+  targetAnchor: AnchorPoint,
+  nodeLayouts: NodeLayout[],
+) {
+  let rowY = sourceStub.y;
+  while (true) {
+    const overlappingNodes = findDownwardSegmentObstacles(edge, sourceStub.x, targetAnchor.x, rowY, nodeLayouts);
+    if (overlappingNodes.length === 0) {
+      return rowY;
+    }
+    rowY = Math.max(...overlappingNodes.map((node) => node.y + node.height)) + UPWARD_REROUTE_SPACING;
+  }
+}
+
 function findHorizontalSegmentObstacles(
   edge: EdgeInput,
   sourceStub: Point,
@@ -733,6 +835,26 @@ function findHorizontalSegmentObstacles(
     }
     const overlapsY = targetAnchor.y >= node.y && targetAnchor.y <= node.y + node.height;
     const overlapsX = maxX > node.x && minX < node.x + node.width;
+    return overlapsX && overlapsY;
+  });
+}
+
+function findDownwardSegmentObstacles(
+  edge: EdgeInput,
+  sourceX: number,
+  targetX: number,
+  rowY: number,
+  nodeLayouts: NodeLayout[],
+) {
+  const minX = Math.min(sourceX, targetX);
+  const maxX = Math.max(sourceX, targetX);
+
+  return nodeLayouts.filter((node) => {
+    if (node.id === edge.sourceId || node.id === edge.targetId) {
+      return false;
+    }
+    const overlapsX = maxX > node.x && minX < node.x + node.width;
+    const overlapsY = rowY >= node.y && rowY <= node.y + node.height;
     return overlapsX && overlapsY;
   });
 }

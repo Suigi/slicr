@@ -1020,3 +1020,71 @@ it("keeps a gap between rerouted and non-rerouted edges", () => {
   });
 
 });
+
+describe("down arrow collision avoidance", () => {
+  it("avoid collisions between down arrows", () => {
+    const request: LayoutRequest = {
+      nodes: [
+        { id: "node-2", laneId: "lane-1", height: 48 },
+        { id: "node-3", laneId: "lane-1", height: 80, width: 120 },
+        { id: "node-4", laneId: "lane-2" },
+      ],
+      edges: [
+        { id: "edge-3", sourceId: "node-2", targetId: "node-4" },
+        { id: "edge-4", sourceId: "node-3", targetId: "node-4" },
+      ],
+      lanes: [
+        { id: "lane-1", order: 1 },
+        { id: "lane-2", order: 2 },
+      ],
+      defaults: { nodeWidth: 120, nodeHeight: 48 },
+      spacing: { minTargetShift: 20, minNodeGap: 40 },
+    };
+
+    const result = layout(request);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.result.lanes).toEqual([
+      { id: "lane-1", top: -24, bottom: 104 },
+      { id: "lane-2", top: 148, bottom: 244 },
+    ]);
+    expect(result.result.nodes).toEqual([
+      { id: "node-2", x: 0, y: 0, width: 120, height: 48 },
+      { id: "node-3", x: 160, y: 0, width: 120, height: 80 },
+      { id: "node-4", x: 260, y: 172, width: 120, height: 48 },
+    ]);
+    expect(result.result.edges).toEqual([
+      {
+        id: "edge-3",
+        sourceId: "node-2",
+        targetId: "node-4",
+        sourceAnchor: { x: 70, y: 48, side: "bottom", ordinal: 0 },
+        targetAnchor: { x: 310, y: 172, side: "top", ordinal: 0 },
+        points: [
+          { x: 70, y: 48 },
+          { x: 70, y: 110 },
+          { x: 310, y: 110 },
+          { x: 310, y: 172 },
+        ],
+      },
+      {
+        id: "edge-4",
+        sourceId: "node-3",
+        targetId: "node-4",
+        sourceAnchor: { x: 230, y: 80, side: "bottom", ordinal: 0 },
+        targetAnchor: { x: 320, y: 172, side: "top", ordinal: 1 },
+        points: [
+          { x: 230, y: 80 },
+          { x: 230, y: 100 },
+          { x: 320, y: 100 },
+          { x: 320, y: 172 },
+        ],
+      },
+    ]);
+  })
+
+});
