@@ -451,6 +451,6 @@ function writeStatusUpdate(res: ServerResponse, message: StatusUpdateMessage) {
   res.write(`data: ${JSON.stringify(message)}\n\n`);
 }
 
-export default defineConfig({
-  plugins: [testImportPlugin()],
-});
+export default defineConfig(() => ({
+  plugins: process.env.VITEST ? [] : [testImportPlugin()],
+}));
