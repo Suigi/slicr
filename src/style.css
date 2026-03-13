@@ -701,6 +701,83 @@ h3 {
   z-index: 3;
 }
 
+.test-browser-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+}
+
+.test-browser-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(32, 25, 17, 0.28);
+  backdrop-filter: blur(6px);
+}
+
+.test-browser-card {
+  position: absolute;
+  top: 5.3rem;
+  bottom: 1.2rem;
+  right: 1.2rem;
+  width: min(42rem, calc(100vw - 2.4rem));
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1rem;
+  border-radius: 18px;
+  background: rgba(252, 249, 241, 0.96);
+  border: 1px solid var(--panel-border);
+  box-shadow: 0 20px 36px rgba(67, 48, 31, 0.16);
+  backdrop-filter: blur(14px);
+}
+
+.test-case-list {
+  display: grid;
+  gap: 0.7rem;
+  overflow: auto;
+  padding-right: 0.15rem;
+}
+
+.test-case-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.85rem 0.9rem;
+  border: 1px solid rgba(56, 42, 30, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.test-case-file {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
+}
+
+.test-case-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.test-case-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.test-case-suite {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.test-browser-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .shortcuts-popup-card {
   width: min(28rem, calc(100vw - 2rem));
   display: flex;
@@ -753,6 +830,19 @@ h3 {
   .shortcuts-popup {
     left: auto;
     right: 1rem;
+  }
+
+  .test-browser-card {
+    top: 1rem;
+    bottom: 1rem;
+    right: 1rem;
+    left: 1rem;
+    width: auto;
+  }
+
+  .test-case-head {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .action-controls {

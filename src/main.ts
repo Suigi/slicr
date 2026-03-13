@@ -96,9 +96,22 @@ type PlaygroundState = {
   showOverlay: boolean;
   showCoordinates: boolean;
   showShortcuts: boolean;
+  showTestBrowser: boolean;
+  testCases: ImportedTestCaseSummary[];
+  testCaseQuery: string;
+  testBrowserLoading: boolean;
+  testBrowserError: string | null;
+  importingTestCaseId: string | null;
   edgeCreate: EdgeCreateState | null;
   status: string;
   error: string | null;
+};
+
+type ImportedTestCaseSummary = {
+  id: string;
+  file: string;
+  describe: string;
+  title: string;
 };
 
 type DerivedState = {
@@ -166,6 +179,12 @@ const state: PlaygroundState = {
   showOverlay: persistedState?.showOverlay ?? false,
   showCoordinates: persistedState?.showCoordinates ?? true,
   showShortcuts: false,
+  showTestBrowser: false,
+  testCases: [],
+  testCaseQuery: "",
+  testBrowserLoading: false,
+  testBrowserError: null,
+  importingTestCaseId: null,
   edgeCreate: null,
   status: "Ready. Left-drag marquee-selects. Right-drag pans. G groups. Shift+G ungroups.",
   error: null,
@@ -253,6 +272,7 @@ app.innerHTML = `
           </ul>
         </div>
       </div>
+      <div id="test-browser" class="test-browser-modal" hidden></div>
     </main>
   </div>
 `;
@@ -276,6 +296,7 @@ const coordinatesButton = requireElement<HTMLButtonElement>("#coordinates-button
 const shortcutsButton = requireElement<HTMLButtonElement>("#shortcuts-button");
 const shortcutsCloseButton = requireElement<HTMLButtonElement>("#shortcuts-close");
 const shortcutsPopup = requireElement<HTMLDivElement>("#shortcuts-popup");
+const testBrowser = requireElement<HTMLDivElement>("#test-browser");
 const importButton = requireElement<HTMLButtonElement>("#import-button");
 const exportButton = requireElement<HTMLButtonElement>("#export-button");
 const resetOverridesButton = requireElement<HTMLButtonElement>("#layout-button");
@@ -304,7 +325,7 @@ function attachEventListeners() {
   sceneRoot.addEventListener("wheel", handleWheel, { passive: false });
 
   document.addEventListener("keydown", handleKeyDown);
-  importButton.addEventListener("click", () => void importTestFromClipboard());
+  importButton.addEventListener("click", () => void openTestBrowser());
   exportButton.addEventListener("click", () => void exportTest());
   resetOverridesButton.addEventListener("click", () => {
     if (!derived.autoLayout) {
@@ -384,6 +405,8 @@ function render() {
   resetOverridesButton.classList.toggle("has-local-modifications", derived.hasLocalPositioningModifications);
   shortcutsPopup.hidden = !state.showShortcuts;
   shortcutsButton.setAttribute("aria-pressed", String(state.showShortcuts));
+  testBrowser.hidden = !state.showTestBrowser;
+  renderTestBrowser();
   renderInspector();
   renderGraphLists();
 }
@@ -1208,6 +1231,10 @@ function handleKeyDown(event: KeyboardEvent) {
     render();
     return;
   }
+  if (event.key === "Escape" && state.showTestBrowser) {
+    closeTestBrowser();
+    return;
+  }
   if (event.key === "Escape" && state.showShortcuts) {
     state.showShortcuts = false;
     render();
@@ -1744,20 +1771,176 @@ async function importTestFromClipboard() {
 
   try {
     const nextRequest = parseVitestRequestFromClipboard(content);
-    state.request = nextRequest;
-    state.nodeOverrides = {};
-    state.edgeOverrides = {};
-    state.selection = null;
-    state.selectedNodeIds = [];
-    state.edgeCreate = null;
-    selectedLaneId = nextRequest.lanes[0]?.id ?? "lane-0";
-    state.status = "Imported request from clipboard.";
-    updateDerivedAndRender();
-    fitCameraToContent();
+    applyImportedRequest(nextRequest, "Imported request from clipboard.");
   } catch (error) {
     state.status = error instanceof Error ? error.message : "Clipboard import failed.";
     render();
   }
+}
+
+async function openTestBrowser() {
+  state.showTestBrowser = true;
+  state.showShortcuts = false;
+  render();
+
+  if (state.testCases.length > 0 || state.testBrowserLoading) {
+    return;
+  }
+
+  state.testBrowserLoading = true;
+  state.testBrowserError = null;
+  render();
+
+  try {
+    const response = await fetch("/__test-import/cases");
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(readApiError(payload, "Failed to load test cases."));
+    }
+    if (!Array.isArray(payload)) {
+      throw new Error("Test list response is invalid.");
+    }
+    state.testCases = [...payload].sort((left, right) =>
+      `${left.describe} ${left.title}`.localeCompare(`${right.describe} ${right.title}`),
+    );
+    if (state.testCases.length === 0) {
+      state.testBrowserError = "No importable tests found.";
+    }
+  } catch (error) {
+    state.testBrowserError =
+      error instanceof Error ? error.message : "Failed to load test cases. Start the app with the local Vite dev server.";
+  } finally {
+    state.testBrowserLoading = false;
+    render();
+  }
+}
+
+function closeTestBrowser() {
+  state.showTestBrowser = false;
+  state.testBrowserError = null;
+  state.importingTestCaseId = null;
+  render();
+}
+
+async function importTestCase(caseId: string) {
+  state.importingTestCaseId = caseId;
+  state.testBrowserError = null;
+  render();
+
+  try {
+    const response = await fetch(`/__test-import/cases/${encodeURIComponent(caseId)}`);
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(readApiError(payload, "Failed to load test case."));
+    }
+    if (!payload || typeof payload !== "object" || !("request" in payload) || !("title" in payload)) {
+      throw new Error("Test case response is invalid.");
+    }
+    applyImportedRequest(payload.request, `Imported ${payload.title}.`);
+  } catch (error) {
+    state.testBrowserError = error instanceof Error ? error.message : "Failed to import test case.";
+    render();
+  } finally {
+    state.importingTestCaseId = null;
+  }
+}
+
+function renderTestBrowser() {
+  if (!state.showTestBrowser) {
+    testBrowser.innerHTML = "";
+    return;
+  }
+
+  const normalizedQuery = state.testCaseQuery.trim().toLowerCase();
+  const visibleCases = state.testCases.filter((testCase) => {
+    if (!normalizedQuery) {
+      return true;
+    }
+    return `${testCase.file} ${testCase.describe} ${testCase.title}`.toLowerCase().includes(normalizedQuery);
+  });
+  const body = state.testBrowserLoading
+    ? `<p class="helper-text">Loading importable tests…</p>`
+    : visibleCases.length > 0
+      ? visibleCases
+          .map((testCase) => {
+            const importing = state.importingTestCaseId === testCase.id;
+            return `
+              <article class="test-case-card">
+                <div class="test-case-head">
+                  <div class="test-case-copy">
+                    <p class="test-case-suite">${escapeHtml(testCase.describe)}</p>
+                    <h3>${escapeHtml(testCase.title)}</h3>
+                  </div>
+                  <button class="mini-button" data-action="import-test-case" data-id="${escapeHtml(testCase.id)}" type="button" ${importing ? "disabled" : ""}>
+                    ${importing ? "Importing…" : "Import"}
+                  </button>
+                </div>
+                <p class="test-case-file">${escapeHtml(testCase.file)}</p>
+              </article>
+            `;
+          })
+          .join("")
+      : `<p class="empty-state">No tests match the current filter.</p>`;
+
+  testBrowser.innerHTML = `
+    <div class="test-browser-backdrop" data-action="close-test-browser"></div>
+    <div class="test-browser-card" role="dialog" aria-modal="true" aria-labelledby="test-browser-title">
+      <div class="panel-head">
+        <div>
+          <p class="eyebrow">Local Tests</p>
+          <h2 id="test-browser-title">Import from current test cases</h2>
+        </div>
+        <button id="test-browser-close" class="mini-button" type="button">Close</button>
+      </div>
+      <div class="form-row">
+        <label for="test-browser-search">Filter</label>
+        <input id="test-browser-search" value="${escapeHtml(state.testCaseQuery)}" placeholder="Search by file, suite, or test title" />
+      </div>
+      ${state.testBrowserError ? `<p class="error-line">${escapeHtml(state.testBrowserError)}</p>` : ""}
+      <div class="test-case-list">${body}</div>
+      <div class="test-browser-footer">
+        <button id="clipboard-import-button" type="button">Import from clipboard</button>
+      </div>
+    </div>
+  `;
+
+  testBrowser.querySelector<HTMLButtonElement>("#test-browser-close")?.addEventListener("click", closeTestBrowser);
+  testBrowser.querySelector<HTMLDivElement>(".test-browser-backdrop")?.addEventListener("click", closeTestBrowser);
+  testBrowser.querySelector<HTMLInputElement>("#test-browser-search")?.addEventListener("input", (event) => {
+    state.testCaseQuery = (event.currentTarget as HTMLInputElement).value;
+    render();
+  });
+  testBrowser.querySelector<HTMLButtonElement>("#clipboard-import-button")?.addEventListener("click", () => void importTestFromClipboard());
+  testBrowser.querySelectorAll<HTMLButtonElement>("[data-action='import-test-case']").forEach((button) => {
+    button.addEventListener("click", () => {
+      const caseId = button.dataset.id;
+      if (caseId) {
+        void importTestCase(caseId);
+      }
+    });
+  });
+}
+
+function applyImportedRequest(nextRequest: LayoutRequest, status: string) {
+  state.request = nextRequest;
+  state.nodeOverrides = {};
+  state.edgeOverrides = {};
+  state.selection = null;
+  state.selectedNodeIds = [];
+  state.showTestBrowser = false;
+  state.testBrowserError = null;
+  state.edgeCreate = null;
+  selectedLaneId = nextRequest.lanes[0]?.id ?? "lane-0";
+  state.status = status;
+  updateDerivedAndRender();
+  fitCameraToContent();
+}
+
+function readApiError(payload: unknown, fallback: string) {
+  if (!payload || typeof payload !== "object" || !("error" in payload)) {
+    return fallback;
+  }
+  return typeof payload.error === "string" ? payload.error : fallback;
 }
 
 function persistPlaygroundState() {
