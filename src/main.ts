@@ -221,6 +221,7 @@ app.innerHTML = `
       <div id="marquee" class="marquee-selection" hidden></div>
       <div class="action-controls">
         <button id="shortcuts-button" class="hud-icon-button action-icon-button" type="button" aria-label="Show shortcuts">?</button>
+        <button id="import-button" type="button">Import</button>
         <button id="layout-button" type="button">Reset</button>
         <button id="export-button" class="primary-button" type="button">Vitest</button>
       </div>
@@ -275,6 +276,7 @@ const coordinatesButton = requireElement<HTMLButtonElement>("#coordinates-button
 const shortcutsButton = requireElement<HTMLButtonElement>("#shortcuts-button");
 const shortcutsCloseButton = requireElement<HTMLButtonElement>("#shortcuts-close");
 const shortcutsPopup = requireElement<HTMLDivElement>("#shortcuts-popup");
+const importButton = requireElement<HTMLButtonElement>("#import-button");
 const exportButton = requireElement<HTMLButtonElement>("#export-button");
 const resetOverridesButton = requireElement<HTMLButtonElement>("#layout-button");
 const zoomInButton = requireElement<HTMLButtonElement>("#zoom-in");
@@ -302,6 +304,7 @@ function attachEventListeners() {
   sceneRoot.addEventListener("wheel", handleWheel, { passive: false });
 
   document.addEventListener("keydown", handleKeyDown);
+  importButton.addEventListener("click", () => void importTestFromClipboard());
   exportButton.addEventListener("click", () => void exportTest());
   resetOverridesButton.addEventListener("click", () => {
     if (!derived.autoLayout) {
@@ -1729,6 +1732,34 @@ async function exportTest() {
   render();
 }
 
+async function importTestFromClipboard() {
+  let content = "";
+  try {
+    content = await navigator.clipboard.readText();
+  } catch {
+    state.status = "Clipboard read failed.";
+    render();
+    return;
+  }
+
+  try {
+    const nextRequest = parseVitestRequestFromClipboard(content);
+    state.request = nextRequest;
+    state.nodeOverrides = {};
+    state.edgeOverrides = {};
+    state.selection = null;
+    state.selectedNodeIds = [];
+    state.edgeCreate = null;
+    selectedLaneId = nextRequest.lanes[0]?.id ?? "lane-0";
+    state.status = "Imported request from clipboard.";
+    updateDerivedAndRender();
+    fitCameraToContent();
+  } catch (error) {
+    state.status = error instanceof Error ? error.message : "Clipboard import failed.";
+    render();
+  }
+}
+
 function persistPlaygroundState() {
   const snapshot: PersistedPlaygroundState = {
     version: 1,
@@ -1775,6 +1806,98 @@ function loadPersistedState(): PersistedPlaygroundState | null {
 function buildVitestExport(request: LayoutRequest, result: LayoutResult) {
   const caseTitle = `lays out ${request.nodes.length} nodes across ${request.lanes.map((lane) => lane.id).join(", ")}`;
   return indentBlock(`it(${JSON.stringify(caseTitle)}, () => {\n  const request: LayoutRequest = ${formatRequestValue(request)};\n\n  const result = layout(request);\n\n  expect(result.ok).toBe(true);\n  if (!result.ok) {\n    return;\n  }\n\n  expect(result.result.lanes).toEqual(${formatInlineObjectArray(result.lanes, 2)});\n  expect(result.result.nodes).toEqual(${formatInlineObjectArray(result.nodes, 2)});\n  expect(result.result.edges).toEqual(${formatExpandedEdgeArray(result.edges, 2)});\n});\n`, 2);
+}
+
+function parseVitestRequestFromClipboard(content: string): LayoutRequest {
+  const marker = "const request: LayoutRequest =";
+  const markerIndex = content.indexOf(marker);
+  if (markerIndex === -1) {
+    throw new Error("Clipboard does not contain a Vitest request declaration.");
+  }
+
+  const objectStart = content.indexOf("{", markerIndex + marker.length);
+  if (objectStart === -1) {
+    throw new Error("Clipboard request is missing an object literal.");
+  }
+
+  const objectEnd = findMatchingBraceIndex(content, objectStart);
+  if (objectEnd === -1) {
+    throw new Error("Clipboard request object is incomplete.");
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = Function(`"use strict"; return (${content.slice(objectStart, objectEnd + 1)});`)();
+  } catch {
+    throw new Error("Clipboard request could not be parsed.");
+  }
+
+  return validateLayoutRequest(parsed);
+}
+
+function findMatchingBraceIndex(value: string, startIndex: number) {
+  let depth = 0;
+  let inString = false;
+  let stringQuote = "";
+  let escaped = false;
+
+  for (let index = startIndex; index < value.length; index += 1) {
+    const char = value[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (char === stringQuote) {
+        inString = false;
+        stringQuote = "";
+      }
+      continue;
+    }
+
+    if (char === "\"" || char === "'" || char === "`") {
+      inString = true;
+      stringQuote = char;
+      continue;
+    }
+
+    if (char === "{") {
+      depth += 1;
+      continue;
+    }
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return index;
+      }
+    }
+  }
+
+  return -1;
+}
+
+function validateLayoutRequest(value: unknown): LayoutRequest {
+  if (!value || typeof value !== "object") {
+    throw new Error("Clipboard request must be an object.");
+  }
+
+  const candidate = value as Partial<LayoutRequest>;
+  if (!Array.isArray(candidate.nodes) || !Array.isArray(candidate.edges) || !Array.isArray(candidate.lanes)) {
+    throw new Error("Clipboard request is missing nodes, edges, or lanes.");
+  }
+  if (!candidate.defaults || typeof candidate.defaults !== "object") {
+    throw new Error("Clipboard request is missing defaults.");
+  }
+
+  if (!Number.isFinite(candidate.defaults.nodeWidth) || !Number.isFinite(candidate.defaults.nodeHeight)) {
+    throw new Error("Clipboard request defaults are invalid.");
+  }
+
+  return structuredClone(candidate as LayoutRequest);
 }
 
 function pruneRedundantOverrides(playgroundState: PlaygroundState, autoLayout: LayoutResult) {
