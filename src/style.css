@@ -69,6 +69,19 @@ button:hover {
   background: #ffffff;
 }
 
+#save-button:disabled {
+  cursor: not-allowed;
+  color: rgba(32, 25, 17, 0.48);
+  background: rgba(95, 84, 64, 0.14);
+  border-color: rgba(95, 84, 64, 0.22);
+}
+
+#save-button:disabled:hover {
+  transform: none;
+  border-color: rgba(95, 84, 64, 0.22);
+  background: rgba(95, 84, 64, 0.14);
+}
+
 button.has-local-modifications {
   background: rgba(190, 74, 47, 0.12);
   border-color: rgba(190, 74, 47, 0.32);
