@@ -7,8 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "watch": "vitest --reporter=default --reporter=src/vitest/cliReporter.ts",
-    "test": "vitest --reporter=vitest-llm-reporter"
+    "watch": "vitest --reporter=default --reporter=src/vitest/cliReporter.ts --reporter=src/vitest/statusCliReporter.ts",
+    "test": "vitest --reporter=vitest-llm-reporter --reporter=src/vitest/statusCliReporter.ts"
   },
   "devDependencies": {
     "typescript": "~5.9.3",
