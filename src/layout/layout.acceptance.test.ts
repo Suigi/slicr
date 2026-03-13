@@ -614,5 +614,68 @@ describe("layout acceptance: minimal A -> B -> C", () => {
     ]);
   });
 
+  it("routes a farther upward sibling edge around the nearer target node", () => {
+    const request: LayoutRequest = {
+      nodes: [
+        { id: "node-6", laneId: "lane-1" },
+        { id: "node-4", laneId: "lane-0" },
+        { id: "node-7", laneId: "lane-0" },
+      ],
+      edges: [
+        { id: "edge-1", sourceId: "node-6", targetId: "node-4" },
+        { id: "edge-2", sourceId: "node-6", targetId: "node-7" },
+      ],
+      lanes: [
+        { id: "lane-0", order: 0 },
+        { id: "lane-1", order: 1 },
+      ],
+      defaults: { nodeWidth: 120, nodeHeight: 48 },
+      spacing: { minTargetShift: 20, minNodeGap: 40 },
+    };
+
+    const result = layout(request);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.result.nodes).toEqual([
+      { id: "node-6", x: 0, y: 140, width: 120, height: 48 },
+      { id: "node-4", x: 100, y: 0, width: 120, height: 48 },
+      { id: "node-7", x: 260, y: 0, width: 120, height: 48 },
+    ]);
+    expect(result.result.edges).toEqual([
+      {
+        id: "edge-1",
+        sourceId: "node-6",
+        targetId: "node-4",
+        sourceAnchor: { x: 70, y: 140, side: "top", ordinal: 0 },
+        targetAnchor: { x: 100, y: 19, side: "left", ordinal: 0 },
+        points: [
+          { x: 70, y: 140 },
+          { x: 70, y: 120 },
+          { x: 70, y: 19 },
+          { x: 100, y: 19 },
+        ],
+      },
+      {
+        id: "edge-2",
+        sourceId: "node-6",
+        targetId: "node-7",
+        sourceAnchor: { x: 80, y: 140, side: "top", ordinal: 1 },
+        targetAnchor: { x: 260, y: 19, side: "left", ordinal: 0 },
+        points: [
+          { x: 80, y: 140 },
+          { x: 80, y: 120 },
+          { x: 80, y: 68 },
+          { x: 240, y: 68 },
+          { x: 240, y: 19 },
+          { x: 260, y: 19 },
+        ],
+      },
+    ]);
+  });
+
 
 });

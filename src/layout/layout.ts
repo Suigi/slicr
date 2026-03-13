@@ -336,10 +336,14 @@ export const layout: LayoutApi = (request) => {
         sourceAnchor,
         targetAnchor,
         points: routeOrthogonalEdge(
+          edge,
           sourceAnchor,
           targetAnchor,
           sourceCountByEdgeId.get(edge.id) ?? 1,
           targetCountByEdgeId.get(edge.id) ?? 1,
+          nodeLayouts,
+          laneOrderById,
+          nodeById,
         ),
       };
   });
@@ -534,13 +538,29 @@ function computeEdgeConstraintX(params: {
 }
 
 function routeOrthogonalEdge(
+  edge: EdgeInput,
   sourceAnchor: AnchorPoint,
   targetAnchor: AnchorPoint,
   sourceSideCount: number,
   _targetSideCount: number,
+  nodeLayouts: NodeLayout[],
+  laneOrderById: Map<string, number>,
+  nodeById: Map<string, NodeInput>,
 ): Point[] {
   const sourceStub = offsetFromAnchor(sourceAnchor, getSourceStubDistance(sourceAnchor, sourceSideCount));
   const targetApproach = getTargetApproachPoint(sourceStub, targetAnchor);
+  if (shouldDetourUpEdge(edge, sourceStub, targetAnchor, nodeLayouts, laneOrderById, nodeById)) {
+    const detourY = highestObstacleBottom(edge, sourceStub, targetAnchor, nodeLayouts, nodeById) + EDGE_STUB;
+    const detourApproach = offsetFromAnchor(targetAnchor, EDGE_STUB);
+    return [
+      { x: sourceAnchor.x, y: sourceAnchor.y },
+      sourceStub,
+      { x: sourceStub.x, y: detourY },
+      { x: detourApproach.x, y: detourY },
+      { x: detourApproach.x, y: targetAnchor.y },
+      { x: targetAnchor.x, y: targetAnchor.y },
+    ];
+  }
   return [
     { x: sourceAnchor.x, y: sourceAnchor.y },
     sourceStub,
@@ -569,6 +589,75 @@ function getTargetApproachPoint(referencePoint: Point, targetAnchor: AnchorPoint
     return { x: referencePoint.x, y: targetAnchor.y };
   }
   return { x: targetAnchor.x, y: referencePoint.y };
+}
+
+function shouldDetourUpEdge(
+  edge: EdgeInput,
+  sourceStub: Point,
+  targetAnchor: AnchorPoint,
+  nodeLayouts: NodeLayout[],
+  laneOrderById: Map<string, number>,
+  nodeById: Map<string, NodeInput>,
+) {
+  const sourceNode = nodeById.get(edge.sourceId);
+  const targetNode = nodeById.get(edge.targetId);
+  if (!sourceNode || !targetNode) {
+    return false;
+  }
+
+  const orientation = deriveOrientation(
+    laneOrderById.get(sourceNode.laneId) ?? 0,
+    laneOrderById.get(targetNode.laneId) ?? 0,
+  );
+  if (orientation !== "up") {
+    return false;
+  }
+
+  const overlappingNodes = findHorizontalSegmentObstacles(edge, sourceStub, targetAnchor, nodeLayouts, nodeById);
+  return overlappingNodes.length > 0;
+}
+
+function highestObstacleBottom(
+  edge: EdgeInput,
+  sourceStub: Point,
+  targetAnchor: AnchorPoint,
+  nodeLayouts: NodeLayout[],
+  nodeById: Map<string, NodeInput>,
+) {
+  const overlappingNodes = findHorizontalSegmentObstacles(edge, sourceStub, targetAnchor, nodeLayouts, nodeById);
+  if (overlappingNodes.length === 0) {
+    return targetAnchor.y;
+  }
+  return Math.max(...overlappingNodes.map((node) => node.y + node.height));
+}
+
+function findHorizontalSegmentObstacles(
+  edge: EdgeInput,
+  sourceStub: Point,
+  targetAnchor: AnchorPoint,
+  nodeLayouts: NodeLayout[],
+  nodeById: Map<string, NodeInput>,
+) {
+  const targetNode = nodeById.get(edge.targetId);
+  if (!targetNode) {
+    return [];
+  }
+
+  const minX = Math.min(sourceStub.x, targetAnchor.x);
+  const maxX = Math.max(sourceStub.x, targetAnchor.x);
+
+  return nodeLayouts.filter((node) => {
+    if (node.id === edge.sourceId || node.id === edge.targetId) {
+      return false;
+    }
+    const candidate = nodeById.get(node.id);
+    if (!candidate || candidate.laneId !== targetNode.laneId) {
+      return false;
+    }
+    const overlapsY = targetAnchor.y >= node.y && targetAnchor.y <= node.y + node.height;
+    const overlapsX = maxX > node.x && minX < node.x + node.width;
+    return overlapsX && overlapsY;
+  });
 }
 
 function anchorSideVector(side: AnchorSide): Point {
