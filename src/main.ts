@@ -429,7 +429,10 @@ function render() {
   }
 
   selectionLabel.textContent = describeSelection();
-  graphSummary.textContent = `${state.request.nodes.length} nodes / ${state.request.edges.length} edges / ${state.request.lanes.length} lanes / ${countVisibleGroups()} groups`;
+  graphSummary.innerHTML = `${state.request.nodes.length}&nbsp;nodes / ${state.request.edges.length}&nbsp;edges / ${state.request.lanes.length}&nbsp;lanes`;
+  if (countVisibleGroups() > 0) {
+    graphSummary.innerHTML += ` / ${countVisibleGroups()}&nbsp;groups`;
+  }
   statusLine.textContent = state.status;
   errorLine.textContent = derived.autoResponse.ok ? "" : derived.autoResponse.error.message;
   overlayButton.setAttribute("aria-pressed", String(state.showOverlay));
