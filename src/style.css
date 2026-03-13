@@ -739,18 +739,53 @@ h3 {
 }
 
 .test-case-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-  padding: 0.85rem 0.9rem;
-  border: 1px solid rgba(56, 42, 30, 0.14);
+  display: grid;
+  grid-template-rows: auto auto;
+  position: relative;
+  --test-status-rail: rgba(106, 93, 75, 0.42);
+  padding: 0.85rem 0.9rem 0.85rem 1.15rem;
+  border: 1px solid rgba(56, 42, 30, 0.12);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 1px 2px rgba(67, 48, 31, 0.05),
+    0 8px 20px rgba(67, 48, 31, 0.04);
+}
+
+.test-case-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 6px;
+  background: var(--test-status-rail);
+  border-radius: 14px 0 0 14px;
+}
+
+.test-case-card.pass {
+  --test-status-rail: #3f8b58;
+}
+
+.test-case-card.fail {
+  --test-status-rail: #be4a2f;
+  background: #fff6f6;
+}
+
+.test-case-card.skip,
+.test-case-card.todo,
+.test-case-card.unknown {
+  --test-status-rail: rgba(106, 93, 75, 0.42);
+}
+
+.test-case-card.fail::before {
+  box-shadow: 0 0 12px rgba(190, 74, 47, 0.45);
 }
 
 .test-case-file {
+  align-self: end;
+  margin-top: 0.1rem;
   color: var(--muted);
   font-size: 0.8rem;
+  line-height: 1.35;
   font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
 }
 
@@ -759,6 +794,7 @@ h3 {
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem;
+  min-width: 0;
 }
 
 .test-case-copy {
@@ -766,11 +802,19 @@ h3 {
   flex-direction: column;
   gap: 0.15rem;
   min-width: 0;
+  flex: 1 1 auto;
 }
 
 .test-case-suite {
   color: var(--muted);
   font-size: 0.82rem;
+  line-height: 1.3;
+}
+
+.test-case-copy h3 {
+  display: block;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .test-browser-footer {

@@ -114,6 +114,7 @@ type ImportedTestCaseSummary = {
   file: string;
   describe: string;
   title: string;
+  status: "pass" | "fail" | "skip" | "todo" | "unknown";
 };
 
 type DerivedState = {
@@ -1851,6 +1852,7 @@ async function importTestCase(caseId: string) {
       file: payload.file,
       describe: payload.describe,
       title: payload.title,
+      status: payload.status,
     });
   } catch (error) {
     state.testBrowserError = error instanceof Error ? error.message : "Failed to import test case.";
@@ -1917,7 +1919,7 @@ function renderTestBrowser() {
           .map((testCase) => {
             const importing = state.importingTestCaseId === testCase.id;
             return `
-              <article class="test-case-card">
+              <article class="test-case-card ${escapeHtml(testCase.status)}">
                 <div class="test-case-head">
                   <div class="test-case-copy">
                     <p class="test-case-suite">${escapeHtml(testCase.describe)}</p>
@@ -2004,10 +2006,12 @@ function isImportedTestCaseSummary(value: unknown): value is ImportedTestCaseSum
       "file" in value &&
       "describe" in value &&
       "title" in value &&
+      "status" in value &&
       typeof value.id === "string" &&
       typeof value.file === "string" &&
       typeof value.describe === "string" &&
-      typeof value.title === "string",
+      typeof value.title === "string" &&
+      typeof value.status === "string",
   );
 }
 

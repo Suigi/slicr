@@ -3,12 +3,14 @@ import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import ts from "typescript";
 import { defineConfig, type Plugin } from "vite";
+import { DEFAULT_STATUS_FILE, type VitestStatusSnapshot } from "./src/vitest/statusReporter";
 
 type ImportedTestCase = {
   id: string;
   file: string;
   describe: string;
   title: string;
+  status: "pass" | "fail" | "skip" | "todo" | "unknown";
   request: unknown;
   start: number;
   end: number;
@@ -31,7 +33,7 @@ function testImportPlugin(): Plugin {
           if (url === "/__test-import/cases") {
             sendJson(
               res,
-              cases.map(({ id, file, describe, title }) => ({ id, file, describe, title })),
+              cases.map(({ id, file, describe, title, status }) => ({ id, file, describe, title, status })),
             );
             return;
           }
@@ -68,8 +70,12 @@ function testImportPlugin(): Plugin {
 async function collectImportableTestCases(root: string) {
   const srcDir = path.join(root, "src");
   const files = await findTestFiles(srcDir);
+  const statusById = await loadLastRunStatus(root);
   const cases = await Promise.all(files.map(async (filePath) => parseImportableCases(root, filePath)));
-  return cases.flat();
+  return cases.flat().map((testCase) => ({
+    ...testCase,
+    status: statusById.get(testCase.id) ?? "unknown",
+  }));
 }
 
 async function findTestFiles(dir: string): Promise<string[]> {
@@ -121,6 +127,7 @@ async function parseImportableCases(root: string, filePath: string): Promise<Imp
               file: relativeFile,
               describe: describeTitle,
               title,
+              status: "unknown",
               request: requestObject,
               start: node.getStart(sourceFile),
               end: node.getEnd(),
@@ -159,6 +166,17 @@ function readInlineRequest(body: ts.ConciseBody, sourceFile: ts.SourceFile) {
   }
 
   return null;
+}
+
+async function loadLastRunStatus(root: string) {
+  const statusFile = path.join(root, DEFAULT_STATUS_FILE);
+  try {
+    const raw = await readFile(statusFile, "utf8");
+    const snapshot = JSON.parse(raw) as VitestStatusSnapshot;
+    return new Map(snapshot.tests.map((entry) => [entry.id, entry.status]));
+  } catch {
+    return new Map<string, ImportedTestCase["status"]>();
+  }
 }
 
 function evaluateObjectLiteral(value: string) {
