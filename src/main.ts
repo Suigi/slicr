@@ -98,10 +98,12 @@ type PlaygroundState = {
   showShortcuts: boolean;
   showTestBrowser: boolean;
   testCases: ImportedTestCaseSummary[];
+  activeImportedTestCase: ImportedTestCaseSummary | null;
   testCaseQuery: string;
   testBrowserLoading: boolean;
   testBrowserError: string | null;
   importingTestCaseId: string | null;
+  savingImportedTest: boolean;
   edgeCreate: EdgeCreateState | null;
   status: string;
   error: string | null;
@@ -181,10 +183,12 @@ const state: PlaygroundState = {
   showShortcuts: false,
   showTestBrowser: false,
   testCases: [],
+  activeImportedTestCase: null,
   testCaseQuery: "",
   testBrowserLoading: false,
   testBrowserError: null,
   importingTestCaseId: null,
+  savingImportedTest: false,
   edgeCreate: null,
   status: "Ready. Left-drag marquee-selects. Right-drag pans. G groups. Shift+G ungroups.",
   error: null,
@@ -242,6 +246,7 @@ app.innerHTML = `
         <button id="shortcuts-button" class="hud-icon-button action-icon-button" type="button" aria-label="Show shortcuts">?</button>
         <button id="import-button" type="button">Import</button>
         <button id="layout-button" type="button">Reset</button>
+        <button id="save-button" type="button" disabled>Save</button>
         <button id="export-button" class="primary-button" type="button">Vitest</button>
       </div>
       <div class="toggle-controls">
@@ -298,6 +303,7 @@ const shortcutsCloseButton = requireElement<HTMLButtonElement>("#shortcuts-close
 const shortcutsPopup = requireElement<HTMLDivElement>("#shortcuts-popup");
 const testBrowser = requireElement<HTMLDivElement>("#test-browser");
 const importButton = requireElement<HTMLButtonElement>("#import-button");
+const saveButton = requireElement<HTMLButtonElement>("#save-button");
 const exportButton = requireElement<HTMLButtonElement>("#export-button");
 const resetOverridesButton = requireElement<HTMLButtonElement>("#layout-button");
 const zoomInButton = requireElement<HTMLButtonElement>("#zoom-in");
@@ -326,6 +332,7 @@ function attachEventListeners() {
 
   document.addEventListener("keydown", handleKeyDown);
   importButton.addEventListener("click", () => void openTestBrowser());
+  saveButton.addEventListener("click", () => void saveImportedTest());
   exportButton.addEventListener("click", () => void exportTest());
   resetOverridesButton.addEventListener("click", () => {
     if (!derived.autoLayout) {
@@ -403,6 +410,8 @@ function render() {
   overlayButton.setAttribute("aria-pressed", String(state.showOverlay));
   coordinatesButton.setAttribute("aria-pressed", String(state.showCoordinates));
   resetOverridesButton.classList.toggle("has-local-modifications", derived.hasLocalPositioningModifications);
+  saveButton.disabled = !state.activeImportedTestCase || state.savingImportedTest || !derived.editableLayout;
+  saveButton.textContent = state.savingImportedTest ? "Saving…" : "Save";
   shortcutsPopup.hidden = !state.showShortcuts;
   shortcutsButton.setAttribute("aria-pressed", String(state.showShortcuts));
   testBrowser.hidden = !state.showTestBrowser;
@@ -1800,7 +1809,8 @@ async function openTestBrowser() {
     if (!Array.isArray(payload)) {
       throw new Error("Test list response is invalid.");
     }
-    state.testCases = [...payload].sort((left, right) =>
+    const importedCases = payload.filter(isImportedTestCaseSummary);
+    state.testCases = [...importedCases].sort((left, right) =>
       `${left.describe} ${left.title}`.localeCompare(`${right.describe} ${right.title}`),
     );
     if (state.testCases.length === 0) {
@@ -1833,15 +1843,57 @@ async function importTestCase(caseId: string) {
     if (!response.ok) {
       throw new Error(readApiError(payload, "Failed to load test case."));
     }
-    if (!payload || typeof payload !== "object" || !("request" in payload) || !("title" in payload)) {
+    if (!isImportedTestCasePayload(payload)) {
       throw new Error("Test case response is invalid.");
     }
-    applyImportedRequest(payload.request, `Imported ${payload.title}.`);
+    applyImportedRequest(payload.request, `Imported ${payload.title}.`, {
+      id: payload.id,
+      file: payload.file,
+      describe: payload.describe,
+      title: payload.title,
+    });
   } catch (error) {
     state.testBrowserError = error instanceof Error ? error.message : "Failed to import test case.";
     render();
   } finally {
     state.importingTestCaseId = null;
+  }
+}
+
+async function saveImportedTest() {
+  if (!state.activeImportedTestCase) {
+    state.status = "Import a test case before saving.";
+    render();
+    return;
+  }
+  if (!derived.editableLayout) {
+    state.status = "No layout to save.";
+    render();
+    return;
+  }
+
+  state.savingImportedTest = true;
+  render();
+
+  try {
+    const content = buildVitestExport(state.request, derived.editableLayout, state.activeImportedTestCase.title);
+    const response = await fetch(`/__test-import/cases/${encodeURIComponent(state.activeImportedTestCase.id)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content }),
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(readApiError(payload, "Failed to save test case."));
+    }
+    state.status = `Saved ${state.activeImportedTestCase.title} to ${state.activeImportedTestCase.file}.`;
+    render();
+  } catch (error) {
+    state.status = error instanceof Error ? error.message : "Failed to save test case.";
+    render();
+  } finally {
+    state.savingImportedTest = false;
+    render();
   }
 }
 
@@ -1921,12 +1973,13 @@ function renderTestBrowser() {
   });
 }
 
-function applyImportedRequest(nextRequest: LayoutRequest, status: string) {
+function applyImportedRequest(nextRequest: LayoutRequest, status: string, importedTestCase: ImportedTestCaseSummary | null = null) {
   state.request = nextRequest;
   state.nodeOverrides = {};
   state.edgeOverrides = {};
   state.selection = null;
   state.selectedNodeIds = [];
+  state.activeImportedTestCase = importedTestCase;
   state.showTestBrowser = false;
   state.testBrowserError = null;
   state.edgeCreate = null;
@@ -1941,6 +1994,25 @@ function readApiError(payload: unknown, fallback: string) {
     return fallback;
   }
   return typeof payload.error === "string" ? payload.error : fallback;
+}
+
+function isImportedTestCaseSummary(value: unknown): value is ImportedTestCaseSummary {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      "id" in value &&
+      "file" in value &&
+      "describe" in value &&
+      "title" in value &&
+      typeof value.id === "string" &&
+      typeof value.file === "string" &&
+      typeof value.describe === "string" &&
+      typeof value.title === "string",
+  );
+}
+
+function isImportedTestCasePayload(value: unknown): value is ImportedTestCaseSummary & { request: LayoutRequest } {
+  return isImportedTestCaseSummary(value) && "request" in value;
 }
 
 function persistPlaygroundState() {
@@ -1986,8 +2058,7 @@ function loadPersistedState(): PersistedPlaygroundState | null {
   }
 }
 
-function buildVitestExport(request: LayoutRequest, result: LayoutResult) {
-  const caseTitle = `lays out ${request.nodes.length} nodes across ${request.lanes.map((lane) => lane.id).join(", ")}`;
+function buildVitestExport(request: LayoutRequest, result: LayoutResult, caseTitle = `lays out ${request.nodes.length} nodes across ${request.lanes.map((lane) => lane.id).join(", ")}`) {
   return indentBlock(`it(${JSON.stringify(caseTitle)}, () => {\n  const request: LayoutRequest = ${formatRequestValue(request)};\n\n  const result = layout(request);\n\n  expect(result.ok).toBe(true);\n  if (!result.ok) {\n    return;\n  }\n\n  expect(result.result.lanes).toEqual(${formatInlineObjectArray(result.lanes, 2)});\n  expect(result.result.nodes).toEqual(${formatInlineObjectArray(result.nodes, 2)});\n  expect(result.result.edges).toEqual(${formatExpandedEdgeArray(result.edges, 2)});\n});\n`, 2);
 }
 

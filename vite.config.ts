@@ -1,4 +1,5 @@
-import { readdir, readFile, stat } from "node:fs/promises";
+import type { IncomingMessage, ServerResponse } from "node:http";
+import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import ts from "typescript";
 import { defineConfig, type Plugin } from "vite";
@@ -9,6 +10,8 @@ type ImportedTestCase = {
   describe: string;
   title: string;
   request: unknown;
+  start: number;
+  end: number;
 };
 
 function testImportPlugin(): Plugin {
@@ -38,6 +41,17 @@ function testImportPlugin(): Plugin {
           const match = cases.find((entry) => entry.id === caseId);
           if (!match) {
             sendJson(res, { error: "Test case not found." }, 404);
+            return;
+          }
+
+          if (req.method === "POST") {
+            const body = await readJsonBody(req);
+            if (!body || typeof body !== "object" || !("content" in body) || typeof body.content !== "string") {
+              sendJson(res, { error: "Request body must include string content." }, 400);
+              return;
+            }
+            await overwriteTestCase(server.config.root, match, body.content);
+            sendJson(res, { ok: true });
             return;
           }
 
@@ -108,6 +122,8 @@ async function parseImportableCases(root: string, filePath: string): Promise<Imp
               describe: describeTitle,
               title,
               request: requestObject,
+              start: node.getStart(sourceFile),
+              end: node.getEnd(),
             });
           }
           return;
@@ -171,7 +187,25 @@ function getCallName(expression: ts.LeftHandSideExpression) {
   return null;
 }
 
-function sendJson(res: Parameters<NonNullable<Plugin["configureServer"]>>[0]["middlewares"]["use"] extends never ? never : any, body: unknown, statusCode = 200) {
+async function overwriteTestCase(root: string, testCase: ImportedTestCase, nextContent: string) {
+  const absoluteFile = path.join(root, testCase.file);
+  const fileContents = await readFile(absoluteFile, "utf8");
+  const updatedContents = `${fileContents.slice(0, testCase.start)}${nextContent}${fileContents.slice(testCase.end)}`;
+  await writeFile(absoluteFile, updatedContents, "utf8");
+}
+
+async function readJsonBody(req: IncomingMessage) {
+  const chunks: Uint8Array[] = [];
+  for await (const chunk of req) {
+    chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+  }
+  if (chunks.length === 0) {
+    return null;
+  }
+  return JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
+}
+
+function sendJson(res: ServerResponse, body: unknown, statusCode = 200) {
   res.statusCode = statusCode;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.end(JSON.stringify(body));
