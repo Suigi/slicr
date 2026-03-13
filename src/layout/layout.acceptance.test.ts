@@ -640,6 +640,10 @@ describe("layout acceptance: minimal A -> B -> C", () => {
       return;
     }
 
+    expect(result.result.lanes).toEqual([
+      { id: "lane-0", top: -24, bottom: 72 },
+      { id: "lane-1", top: 116, bottom: 212 },
+    ]);
     expect(result.result.nodes).toEqual([
       { id: "node-6", x: 0, y: 140, width: 120, height: 48 },
       { id: "node-4", x: 100, y: 0, width: 120, height: 48 },

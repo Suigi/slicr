@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { watch, type FSWatcher } from "node:fs";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import ts from "typescript";
@@ -16,20 +17,48 @@ type ImportedTestCase = {
   end: number;
 };
 
+type ImportedTestCaseStatus = ImportedTestCase["status"];
+type StatusUpdateMessage = {
+  statuses: Array<{ id: string; status: ImportedTestCaseStatus }>;
+};
+
+type TestStatusStoreOptions = {
+  loadStatuses?: (root: string) => Promise<Map<string, ImportedTestCaseStatus>>;
+  watchRoot?: (root: string, onChange: () => void) => FSWatcher;
+  writeUpdate?: (res: ServerResponse, message: StatusUpdateMessage) => void;
+};
+
 function testImportPlugin(): Plugin {
+  const statusStore = createTestStatusStore();
+
   return {
     name: "test-import-browser",
     apply: "serve",
     configureServer(server) {
+      const root = server.config.root;
+      void statusStore.start(root);
+      server.httpServer?.once("close", () => statusStore.stop());
+
       server.middlewares.use(async (req, res, next) => {
-        const url = req.url;
+        const url = req.url?.split("?")[0];
+        if (url === "/__test-import/status-stream") {
+          if (req.method !== "GET") {
+            sendJson(res, { error: "Method not allowed." }, 405);
+            return;
+          }
+          await statusStore.ready();
+          statusStore.addClient(res);
+          return;
+        }
+
         if (!url?.startsWith("/__test-import/cases")) {
           next();
           return;
         }
 
         try {
-          const cases = await collectImportableTestCases(server.config.root);
+          await statusStore.ready();
+          const cases = await collectImportableTestCases(root, statusStore);
           if (url === "/__test-import/cases") {
             sendJson(
               res,
@@ -53,6 +82,7 @@ function testImportPlugin(): Plugin {
               return;
             }
             await overwriteTestCase(server.config.root, match, body.content);
+            statusStore.markDirty(match.id);
             sendJson(res, { ok: true });
             return;
           }
@@ -67,14 +97,13 @@ function testImportPlugin(): Plugin {
   };
 }
 
-async function collectImportableTestCases(root: string) {
+async function collectImportableTestCases(root: string, statusStore: ReturnType<typeof createTestStatusStore>) {
   const srcDir = path.join(root, "src");
   const files = await findTestFiles(srcDir);
-  const statusById = await loadLastRunStatus(root);
   const cases = await Promise.all(files.map(async (filePath) => parseImportableCases(root, filePath)));
   return cases.flat().map((testCase) => ({
     ...testCase,
-    status: statusById.get(testCase.id) ?? "unknown",
+    status: statusStore.getStatus(testCase.id),
   }));
 }
 
@@ -227,6 +256,132 @@ function sendJson(res: ServerResponse, body: unknown, statusCode = 200) {
   res.statusCode = statusCode;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.end(JSON.stringify(body));
+}
+
+export function createTestStatusStore(options: TestStatusStoreOptions = {}) {
+  const clients = new Set<ServerResponse>();
+  const fileStatuses = new Map<string, ImportedTestCaseStatus>();
+  const inMemoryOverrides = new Map<string, ImportedTestCaseStatus>();
+  const loadStatuses = options.loadStatuses ?? loadLastRunStatus;
+  const writeUpdate = options.writeUpdate ?? writeStatusUpdate;
+  let rootDir: string | null = null;
+  let watcher: FSWatcher | null = null;
+  let reloadPromise: Promise<void> | null = null;
+  let readyPromise: Promise<void> = Promise.resolve();
+
+  return {
+    async start(root: string) {
+      if (rootDir === root) {
+        return;
+      }
+      this.stop();
+      rootDir = root;
+      readyPromise = reloadStatuses();
+      await readyPromise;
+      watcher = (options.watchRoot ?? watchStatusRoot)(root, () => {
+        void reloadStatuses();
+      });
+      watcher.on("error", () => {
+        void reloadStatuses();
+      });
+    },
+    stop() {
+      watcher?.close();
+      watcher = null;
+      for (const client of clients) {
+        client.end();
+      }
+      clients.clear();
+      fileStatuses.clear();
+      inMemoryOverrides.clear();
+      rootDir = null;
+      reloadPromise = null;
+      readyPromise = Promise.resolve();
+    },
+    ready() {
+      return readyPromise;
+    },
+    addClient(res: ServerResponse) {
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream; charset=utf-8",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+      });
+      res.write(": connected\n\n");
+      clients.add(res);
+      writeUpdate(res, buildStatusUpdateMessage());
+      res.on("close", () => {
+        clients.delete(res);
+      });
+    },
+    getStatus(testId: string): ImportedTestCaseStatus {
+      return inMemoryOverrides.get(testId) ?? fileStatuses.get(testId) ?? "unknown";
+    },
+    markDirty(testId: string) {
+      inMemoryOverrides.set(testId, "unknown");
+      broadcast(buildStatusUpdateMessage([{ id: testId, status: "unknown" }]));
+    },
+    async reloadForTests() {
+      await reloadStatuses();
+    },
+  };
+
+  async function reloadStatuses() {
+    if (!rootDir) {
+      return;
+    }
+    if (reloadPromise) {
+      return reloadPromise;
+    }
+    reloadPromise = (async () => {
+      const nextStatuses = await loadStatuses(rootDir!);
+      fileStatuses.clear();
+      for (const [id, status] of nextStatuses) {
+        fileStatuses.set(id, status);
+        inMemoryOverrides.delete(id);
+      }
+      broadcast(buildStatusUpdateMessage());
+    })().finally(() => {
+      reloadPromise = null;
+    });
+    return reloadPromise;
+  }
+
+  function broadcast(message: StatusUpdateMessage) {
+    for (const client of clients) {
+      writeUpdate(client, message);
+    }
+  }
+
+  function buildStatusUpdateMessage(
+    overrideStatuses?: Array<{ id: string; status: ImportedTestCaseStatus }>,
+  ): StatusUpdateMessage {
+    if (overrideStatuses) {
+      return { statuses: overrideStatuses };
+    }
+    const combinedStatuses = new Map(fileStatuses);
+    for (const [id, status] of inMemoryOverrides) {
+      combinedStatuses.set(id, status);
+    }
+    return {
+      statuses: [...combinedStatuses.entries()]
+        .sort(([leftId], [rightId]) => leftId.localeCompare(rightId))
+        .map(([id, status]) => ({ id, status })),
+    };
+  }
+}
+
+function watchStatusRoot(root: string, onChange: () => void) {
+  return watch(root, (_, filename) => {
+    if (String(filename) === DEFAULT_STATUS_FILE) {
+      onChange();
+    }
+  });
+}
+
+function writeStatusUpdate(res: ServerResponse, message: StatusUpdateMessage) {
+  res.write(`event: test-statuses\n`);
+  res.write(`data: ${JSON.stringify(message)}\n\n`);
 }
 
 export default defineConfig({

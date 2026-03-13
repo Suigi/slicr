@@ -133,6 +133,7 @@ type PersistedPlaygroundState = {
   selectedLaneId: string | null;
   showOverlay: boolean;
   showCoordinates: boolean;
+  showTestBrowser: boolean;
 };
 
 type HitTarget =
@@ -182,7 +183,7 @@ const state: PlaygroundState = {
   showOverlay: persistedState?.showOverlay ?? false,
   showCoordinates: persistedState?.showCoordinates ?? true,
   showShortcuts: false,
-  showTestBrowser: false,
+  showTestBrowser: persistedState?.showTestBrowser ?? false,
   testCases: [],
   activeImportedTestCase: null,
   testCaseQuery: "",
@@ -318,9 +319,14 @@ let selectedLaneId =
     ? persistedState.selectedLaneId
     : (state.request.lanes[0]?.id ?? "lane-0");
 let lastPointerScreen: Point | null = null;
+let testStatusEventSource: EventSource | null = null;
 
 attachEventListeners();
+connectTestStatusStream();
 render();
+if (state.showTestBrowser) {
+  void openTestBrowser();
+}
 
 function attachEventListeners() {
   sceneRoot.addEventListener("pointerdown", handlePointerDown);
@@ -1888,6 +1894,7 @@ async function saveImportedTest() {
     if (!response.ok) {
       throw new Error(readApiError(payload, "Failed to save test case."));
     }
+    applyTestStatusUpdates([{ id: state.activeImportedTestCase.id, status: "unknown" }]);
     state.status = `Saved ${state.activeImportedTestCase.title} to ${state.activeImportedTestCase.file}.`;
     render();
   } catch (error) {
@@ -1991,6 +1998,64 @@ function applyImportedRequest(nextRequest: LayoutRequest, status: string, import
   fitCameraToContent();
 }
 
+function connectTestStatusStream() {
+  if (typeof EventSource === "undefined") {
+    return;
+  }
+
+  testStatusEventSource?.close();
+  const eventSource = new EventSource("/__test-import/status-stream");
+  eventSource.addEventListener("test-statuses", (event) => {
+    if (!(event instanceof MessageEvent)) {
+      return;
+    }
+    try {
+      const payload = JSON.parse(event.data) as unknown;
+      if (!isStatusUpdatePayload(payload)) {
+        return;
+      }
+      applyTestStatusUpdates(payload.statuses);
+    } catch {
+      // Ignore malformed events and keep the stream alive.
+    }
+  });
+  eventSource.onerror = () => {
+    if (testStatusEventSource === eventSource && eventSource.readyState === EventSource.CLOSED) {
+      window.setTimeout(connectTestStatusStream, 1000);
+    }
+  };
+  testStatusEventSource = eventSource;
+}
+
+function applyTestStatusUpdates(updates: Array<{ id: string; status: ImportedTestCaseSummary["status"] }>) {
+  if (updates.length === 0) {
+    return;
+  }
+
+  const statusById = new Map(updates.map((entry) => [entry.id, entry.status]));
+  let changed = false;
+  state.testCases = state.testCases.map((testCase) => {
+    const nextStatus = statusById.get(testCase.id);
+    if (!nextStatus || nextStatus === testCase.status) {
+      return testCase;
+    }
+    changed = true;
+    return { ...testCase, status: nextStatus };
+  });
+
+  if (state.activeImportedTestCase) {
+    const nextStatus = statusById.get(state.activeImportedTestCase.id);
+    if (nextStatus && nextStatus !== state.activeImportedTestCase.status) {
+      state.activeImportedTestCase = { ...state.activeImportedTestCase, status: nextStatus };
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    render();
+  }
+}
+
 function readApiError(payload: unknown, fallback: string) {
   if (!payload || typeof payload !== "object" || !("error" in payload)) {
     return fallback;
@@ -2015,6 +2080,26 @@ function isImportedTestCaseSummary(value: unknown): value is ImportedTestCaseSum
   );
 }
 
+function isStatusUpdatePayload(
+  value: unknown,
+): value is { statuses: Array<{ id: string; status: ImportedTestCaseSummary["status"] }> } {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      "statuses" in value &&
+      Array.isArray(value.statuses) &&
+      value.statuses.every(
+        (entry) =>
+          entry &&
+          typeof entry === "object" &&
+          "id" in entry &&
+          "status" in entry &&
+          typeof entry.id === "string" &&
+          typeof entry.status === "string",
+      ),
+  );
+}
+
 function isImportedTestCasePayload(value: unknown): value is ImportedTestCaseSummary & { request: LayoutRequest } {
   return isImportedTestCaseSummary(value) && "request" in value;
 }
@@ -2029,6 +2114,7 @@ function persistPlaygroundState() {
     selectedLaneId,
     showOverlay: state.showOverlay,
     showCoordinates: state.showCoordinates,
+    showTestBrowser: state.showTestBrowser,
   };
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
@@ -2056,6 +2142,7 @@ function loadPersistedState(): PersistedPlaygroundState | null {
       selectedLaneId: parsed.selectedLaneId ?? null,
       showOverlay: parsed.showOverlay ?? false,
       showCoordinates: parsed.showCoordinates ?? true,
+      showTestBrowser: parsed.showTestBrowser ?? false,
     };
   } catch {
     return null;
