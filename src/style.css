@@ -635,8 +635,8 @@ h3 {
 
 .toggle-controls button {
   min-width: 0;
-  min-height: 2.75rem;
-  padding: 0.7rem 0.95rem 0.7rem 3rem;
+  height: 2.75rem;
+  padding: 0 0.95rem 0 3rem;
 }
 
 .toggle-button {
@@ -657,6 +657,19 @@ h3 {
   transform: translateY(-50%);
 }
 
+.toggle-button::after {
+  content: "";
+  position: absolute;
+  left: 1.28rem;
+  top: 50%;
+  width: 0.38rem;
+  height: 0.72rem;
+  border-right: 0.18rem solid transparent;
+  border-bottom: 0.18rem solid transparent;
+  transform: translateY(-58%) rotate(45deg) scale(0.9);
+  opacity: 0;
+}
+
 .toggle-button[aria-pressed="true"] {
   border-color: rgba(36, 95, 75, 0.35);
   background: rgba(36, 95, 75, 0.1);
@@ -664,10 +677,12 @@ h3 {
 
 .toggle-button[aria-pressed="true"]::before {
   border-color: #245f4b;
-  background:
-    linear-gradient(135deg, transparent 0 40%, #245f4b 40% 56%, transparent 56%),
-    linear-gradient(45deg, transparent 0 58%, #245f4b 58% 72%, transparent 72%),
-    rgba(255, 255, 255, 0.96);
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.toggle-button[aria-pressed="true"]::after {
+  border-color: #245f4b;
+  opacity: 1;
 }
 
 .camera-controls {
