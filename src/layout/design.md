@@ -241,6 +241,10 @@ Anchor side selection is fixed by derived edge orientation:
 - Paths may cross group boundaries.
 - Paths should minimize crossings and unnecessary shared horizontal segments.
 - Paths must respect node and group geometry.
+- Upward reroutes that must pass around target-lane nodes should run on horizontal tracks positioned `10` units below the blocking node's bottom edge.
+- Multiple upward reroutes in the same reroute channel should stack with `10` units of separation between their horizontal tracks.
+- Overlapping upward reroutes should preserve a minimum vertical gap of `10` units, even when their obstacle-derived base tracks differ.
+- Straight upward target approaches should also preserve that same `10` unit minimum gap relative to overlapping upward reroute tracks.
 - The library should return explicit polyline points.
 
 ## 7. Rule Catalog

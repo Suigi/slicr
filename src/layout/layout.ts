@@ -20,6 +20,8 @@ const HORIZONTAL_SOURCE_BIAS = 5;
 const HORIZONTAL_TARGET_BIAS = -5;
 const VERTICAL_ANCHOR_SPACING = 10;
 const HORIZONTAL_ANCHOR_SPACING = 10;
+const UPWARD_REROUTE_ENTRY_OFFSET = 2;
+const UPWARD_REROUTE_SPACING = 10;
 
 type EdgeOrientation = "side" | "up" | "down";
 type AnchorRole = "source" | "target";
@@ -27,6 +29,11 @@ type AnchorRole = "source" | "target";
 type EdgeSideAssignment = {
   source: AnchorSide;
   target: AnchorSide;
+};
+
+type UpwardDetourPlan = {
+  targetAnchorY?: number;
+  detourRowY?: number;
 };
 
 export const layout: LayoutApi = (request) => {
@@ -288,6 +295,7 @@ export const layout: LayoutApi = (request) => {
   const targetOrdinalByEdgeId = new Map<string, number>();
   const sourceCountByEdgeId = new Map<string, number>();
   const targetCountByEdgeId = new Map<string, number>();
+  const upwardDetourPlanByEdgeId = new Map<string, UpwardDetourPlan>();
   const anchorUsage = new Map<string, number>();
   const anchorTotals = new Map<string, number>();
 
@@ -318,6 +326,68 @@ export const layout: LayoutApi = (request) => {
     targetCountByEdgeId.set(edge.id, getTotal(anchorTotals, edge.targetId, sides.target, "target"));
   }
 
+  const assignedUpwardRows: Array<{ rowY: number; minX: number; maxX: number }> = [];
+  for (const edge of request.edges) {
+    const nodeSource = nodeLayoutById.get(edge.sourceId);
+    const nodeTarget = nodeLayoutById.get(edge.targetId);
+    const sides = sideAssignments.get(edge.id);
+    if (!nodeSource || !nodeTarget || !sides) {
+      continue;
+    }
+
+    const sourceAnchor = createAnchor(nodeSource, sides.source, sourceOrdinalByEdgeId.get(edge.id) ?? 0, "source");
+    const targetAnchor = createAnchor(nodeTarget, sides.target, targetOrdinalByEdgeId.get(edge.id) ?? 0, "target");
+    const sourceStub = offsetFromAnchor(sourceAnchor, getSourceStubDistance(sourceAnchor, sourceCountByEdgeId.get(edge.id) ?? 1));
+    const orientation = deriveOrientation(
+      laneOrderById.get(nodeById.get(edge.sourceId)?.laneId ?? "") ?? 0,
+      laneOrderById.get(nodeById.get(edge.targetId)?.laneId ?? "") ?? 0,
+    );
+    if (orientation !== "up") {
+      continue;
+    }
+
+    const overlapsExistingUpwardRow = (candidateRowY: number, minX: number, maxX: number) =>
+      assignedUpwardRows.find(
+        (assigned) =>
+          Math.abs(assigned.rowY - candidateRowY) < UPWARD_REROUTE_SPACING &&
+          horizontalRangesOverlap(minX, maxX, assigned.minX, assigned.maxX),
+      );
+
+    if (shouldDetourUpEdge(edge, sourceStub, targetAnchor, nodeLayouts, laneOrderById, nodeById)) {
+      const targetApproach = offsetFromAnchor(targetAnchor, EDGE_STUB);
+      const minX = Math.min(sourceStub.x, targetApproach.x);
+      const maxX = Math.max(sourceStub.x, targetApproach.x);
+      let detourRowY = highestObstacleBottom(edge, sourceStub, targetAnchor, nodeLayouts, nodeById) + UPWARD_REROUTE_SPACING;
+      while (true) {
+        const blockingRow = overlapsExistingUpwardRow(detourRowY, minX, maxX);
+        if (!blockingRow) {
+          break;
+        }
+        detourRowY = blockingRow.rowY + UPWARD_REROUTE_SPACING;
+      }
+
+      upwardDetourPlanByEdgeId.set(edge.id, { detourRowY });
+      assignedUpwardRows.push({ rowY: detourRowY, minX, maxX });
+      continue;
+    }
+
+    const minX = Math.min(sourceStub.x, targetAnchor.x);
+    const maxX = Math.max(sourceStub.x, targetAnchor.x);
+    let targetAnchorY = targetAnchor.y;
+    while (true) {
+      const blockingRow = overlapsExistingUpwardRow(targetAnchorY, minX, maxX);
+      if (!blockingRow) {
+        break;
+      }
+      targetAnchorY = blockingRow.rowY + UPWARD_REROUTE_SPACING;
+    }
+
+    if (Math.abs(targetAnchorY - targetAnchor.y) > Number.EPSILON) {
+      upwardDetourPlanByEdgeId.set(edge.id, { targetAnchorY });
+    }
+    assignedUpwardRows.push({ rowY: targetAnchorY, minX, maxX });
+  }
+
   const edges: EdgeLayout[] = request.edges.map((edge) => {
     const nodeSource = nodeLayoutById.get(edge.sourceId);
     const nodeTarget = nodeLayoutById.get(edge.targetId);
@@ -327,7 +397,11 @@ export const layout: LayoutApi = (request) => {
     }
 
     const sourceAnchor = createAnchor(nodeSource, sides.source, sourceOrdinalByEdgeId.get(edge.id) ?? 0, "source");
-    const targetAnchor = createAnchor(nodeTarget, sides.target, targetOrdinalByEdgeId.get(edge.id) ?? 0, "target");
+    const targetAnchorBase = createAnchor(nodeTarget, sides.target, targetOrdinalByEdgeId.get(edge.id) ?? 0, "target");
+    const upwardPlan = upwardDetourPlanByEdgeId.get(edge.id);
+    const targetAnchor = upwardPlan?.targetAnchorY === undefined
+      ? targetAnchorBase
+      : { ...targetAnchorBase, y: upwardPlan.targetAnchorY };
 
     return {
       id: edge.id,
@@ -340,7 +414,7 @@ export const layout: LayoutApi = (request) => {
           sourceAnchor,
           targetAnchor,
           sourceCountByEdgeId.get(edge.id) ?? 1,
-          targetCountByEdgeId.get(edge.id) ?? 1,
+          upwardPlan,
           nodeLayouts,
           laneOrderById,
           nodeById,
@@ -542,7 +616,7 @@ function routeOrthogonalEdge(
   sourceAnchor: AnchorPoint,
   targetAnchor: AnchorPoint,
   sourceSideCount: number,
-  _targetSideCount: number,
+  upwardDetourPlan: UpwardDetourPlan | undefined,
   nodeLayouts: NodeLayout[],
   laneOrderById: Map<string, number>,
   nodeById: Map<string, NodeInput>,
@@ -550,12 +624,15 @@ function routeOrthogonalEdge(
   const sourceStub = offsetFromAnchor(sourceAnchor, getSourceStubDistance(sourceAnchor, sourceSideCount));
   const targetApproach = getTargetApproachPoint(sourceStub, targetAnchor);
   if (shouldDetourUpEdge(edge, sourceStub, targetAnchor, nodeLayouts, laneOrderById, nodeById)) {
-    const detourY = highestObstacleBottom(edge, sourceStub, targetAnchor, nodeLayouts, nodeById) + EDGE_STUB;
+    const detourSourceStub = { x: sourceStub.x, y: sourceStub.y - UPWARD_REROUTE_ENTRY_OFFSET };
+    const detourY =
+      upwardDetourPlan?.detourRowY ??
+      highestObstacleBottom(edge, sourceStub, targetAnchor, nodeLayouts, nodeById) + UPWARD_REROUTE_SPACING;
     const detourApproach = offsetFromAnchor(targetAnchor, EDGE_STUB);
     return [
       { x: sourceAnchor.x, y: sourceAnchor.y },
-      sourceStub,
-      { x: sourceStub.x, y: detourY },
+      detourSourceStub,
+      { x: detourSourceStub.x, y: detourY },
       { x: detourApproach.x, y: detourY },
       { x: detourApproach.x, y: targetAnchor.y },
       { x: targetAnchor.x, y: targetAnchor.y },
@@ -658,6 +735,10 @@ function findHorizontalSegmentObstacles(
     const overlapsX = maxX > node.x && minX < node.x + node.width;
     return overlapsX && overlapsY;
   });
+}
+
+function horizontalRangesOverlap(leftMinX: number, leftMaxX: number, rightMinX: number, rightMaxX: number) {
+  return leftMaxX > rightMinX && leftMinX < rightMaxX;
 }
 
 function anchorSideVector(side: AnchorSide): Point {

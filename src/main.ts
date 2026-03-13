@@ -117,6 +117,24 @@ type ImportedTestCaseSummary = {
   status: "pass" | "fail" | "skip" | "todo" | "unknown";
 };
 
+type ImportedAssertedGeometry = {
+  nodes: NodeGeometryAssertion[];
+  edges: EdgeGeometryAssertion[];
+};
+
+type NodeGeometryAssertion = {
+  id: string;
+  x: number;
+  y: number;
+};
+
+type EdgeGeometryAssertion = {
+  id: string;
+  sourceAnchor: AnchorPoint;
+  targetAnchor: AnchorPoint;
+  points: Point[];
+};
+
 type DerivedState = {
   autoResponse: LayoutResponse;
   autoLayout: LayoutResult | null;
@@ -203,7 +221,7 @@ app.innerHTML = `
     <aside class="sidebar">
       <div>
         <p class="eyebrow">Layout Playground</p>
-        <h1>Graph editor</h1>
+        <h1> 🧪 🤖 🚀</h1>
         <p class="lede">
           Declare nodes and edges, compare manual overrides against the computed layout,
           and export a Vitest acceptance test.
@@ -1853,13 +1871,18 @@ async function importTestCase(caseId: string) {
     if (!isImportedTestCasePayload(payload)) {
       throw new Error("Test case response is invalid.");
     }
-    applyImportedRequest(payload.request, `Imported ${payload.title}.`, {
-      id: payload.id,
-      file: payload.file,
-      describe: payload.describe,
-      title: payload.title,
-      status: payload.status,
-    });
+    applyImportedRequest(
+      payload.request,
+      `Imported ${payload.title}.`,
+      {
+        id: payload.id,
+        file: payload.file,
+        describe: payload.describe,
+        title: payload.title,
+        status: payload.status,
+      },
+      payload.assertedGeometry,
+    );
   } catch (error) {
     state.testBrowserError = error instanceof Error ? error.message : "Failed to import test case.";
     render();
@@ -1982,10 +2005,17 @@ function renderTestBrowser() {
   });
 }
 
-function applyImportedRequest(nextRequest: LayoutRequest, status: string, importedTestCase: ImportedTestCaseSummary | null = null) {
+function applyImportedRequest(
+  nextRequest: LayoutRequest,
+  status: string,
+  importedTestCase: ImportedTestCaseSummary | null = null,
+  assertedGeometry: ImportedAssertedGeometry | null = null,
+) {
   state.request = nextRequest;
-  state.nodeOverrides = {};
-  state.edgeOverrides = {};
+  const importedOverrides =
+    importedTestCase?.status === "fail" ? buildImportedOverrides(nextRequest, assertedGeometry) : null;
+  state.nodeOverrides = importedOverrides?.nodeOverrides ?? {};
+  state.edgeOverrides = importedOverrides?.edgeOverrides ?? {};
   state.selection = null;
   state.selectedNodeIds = [];
   state.activeImportedTestCase = importedTestCase;
@@ -1996,6 +2026,88 @@ function applyImportedRequest(nextRequest: LayoutRequest, status: string, import
   state.status = status;
   updateDerivedAndRender();
   fitCameraToContent();
+}
+
+function buildImportedOverrides(request: LayoutRequest, assertedGeometry: ImportedAssertedGeometry | null) {
+  if (!assertedGeometry) {
+    return null;
+  }
+
+  const autoResponse = layout(request);
+  if (!autoResponse.ok) {
+    return null;
+  }
+
+  const autoLayout = autoResponse.result;
+  const assertedNodeById = new Map(assertedGeometry.nodes.map((node) => [node.id, node]));
+
+  const nodeOverrides = Object.fromEntries(
+    assertedGeometry.nodes.flatMap((node) => {
+      const autoNode = autoLayout.nodes.find((candidate) => candidate.id === node.id);
+      if (!autoNode) {
+        return [];
+      }
+      const override: Partial<Pick<NodeLayout, "x" | "y">> = {};
+      if (!nearlyEqual(node.x, autoNode.x)) {
+        override.x = node.x;
+      }
+      if (!nearlyEqual(node.y, autoNode.y)) {
+        override.y = node.y;
+      }
+      return Object.keys(override).length > 0 ? [[node.id, override]] : [];
+    }),
+  );
+
+  const nodeDeltaById = new Map(
+    autoLayout.nodes.map((autoNode) => {
+      const assertedNode = assertedNodeById.get(autoNode.id);
+      return [
+        autoNode.id,
+        {
+          x: (assertedNode?.x ?? autoNode.x) - autoNode.x,
+          y: (assertedNode?.y ?? autoNode.y) - autoNode.y,
+        },
+      ] satisfies [string, Point];
+    }),
+  );
+
+  const edgeOverrides = Object.fromEntries(
+    assertedGeometry.edges.flatMap((edge) => {
+      const autoEdge = autoLayout.edges.find((candidate) => candidate.id === edge.id);
+      if (!autoEdge) {
+        return [];
+      }
+
+      const sourceDelta = nodeDeltaById.get(autoEdge.sourceId) ?? { x: 0, y: 0 };
+      const targetDelta = nodeDeltaById.get(autoEdge.targetId) ?? { x: 0, y: 0 };
+      const override: EdgeOverride = {};
+      const sourceAnchor = translatePoint(edge.sourceAnchor, { x: -sourceDelta.x, y: -sourceDelta.y });
+      const targetAnchor = translatePoint(edge.targetAnchor, { x: -targetDelta.x, y: -targetDelta.y });
+      const points = edge.points.map((point, index, allPoints) => {
+        if (index <= 1) {
+          return translatePoint(point, { x: -sourceDelta.x, y: -sourceDelta.y });
+        }
+        if (index >= allPoints.length - 2) {
+          return translatePoint(point, { x: -targetDelta.x, y: -targetDelta.y });
+        }
+        return { ...point };
+      });
+
+      if (!anchorMatches(sourceAnchor, autoEdge.sourceAnchor)) {
+        override.sourceAnchor = sourceAnchor;
+      }
+      if (!anchorMatches(targetAnchor, autoEdge.targetAnchor)) {
+        override.targetAnchor = targetAnchor;
+      }
+      if (!pointsMatch(points, autoEdge.points)) {
+        override.points = points;
+      }
+
+      return Object.keys(override).length > 0 ? [[edge.id, override]] : [];
+    }),
+  );
+
+  return { nodeOverrides, edgeOverrides };
 }
 
 function connectTestStatusStream() {
@@ -2100,8 +2212,77 @@ function isStatusUpdatePayload(
   );
 }
 
-function isImportedTestCasePayload(value: unknown): value is ImportedTestCaseSummary & { request: LayoutRequest } {
-  return isImportedTestCaseSummary(value) && "request" in value;
+function isImportedTestCasePayload(
+  value: unknown,
+): value is ImportedTestCaseSummary & { request: LayoutRequest; assertedGeometry: ImportedAssertedGeometry | null } {
+  return (
+    isImportedTestCaseSummary(value) &&
+    "request" in value &&
+    (!("assertedGeometry" in value) || value.assertedGeometry === null || isImportedAssertedGeometry(value.assertedGeometry))
+  );
+}
+
+function isImportedAssertedGeometry(value: unknown): value is ImportedAssertedGeometry {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      "nodes" in value &&
+      "edges" in value &&
+      Array.isArray(value.nodes) &&
+      Array.isArray(value.edges) &&
+      value.nodes.every(isNodeGeometryAssertion) &&
+      value.edges.every(isEdgeGeometryAssertion),
+  );
+}
+
+function isNodeGeometryAssertion(value: unknown): value is NodeGeometryAssertion {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      "id" in value &&
+      "x" in value &&
+      "y" in value &&
+      typeof value.id === "string" &&
+      typeof value.x === "number" &&
+      typeof value.y === "number",
+  );
+}
+
+function isEdgeGeometryAssertion(value: unknown): value is EdgeGeometryAssertion {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      "id" in value &&
+      "sourceAnchor" in value &&
+      "targetAnchor" in value &&
+      "points" in value &&
+      typeof value.id === "string" &&
+      isAnchorPoint(value.sourceAnchor) &&
+      isAnchorPoint(value.targetAnchor) &&
+      Array.isArray(value.points) &&
+      value.points.every(isPoint),
+  );
+}
+
+function isAnchorPoint(value: unknown): value is AnchorPoint {
+  return Boolean(
+    isPoint(value) &&
+      "side" in value &&
+      "ordinal" in value &&
+      (value.side === "top" || value.side === "right" || value.side === "bottom" || value.side === "left") &&
+      typeof value.ordinal === "number",
+  );
+}
+
+function isPoint(value: unknown): value is Point {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      "x" in value &&
+      "y" in value &&
+      typeof value.x === "number" &&
+      typeof value.y === "number",
+  );
 }
 
 function persistPlaygroundState() {
@@ -2150,7 +2331,7 @@ function loadPersistedState(): PersistedPlaygroundState | null {
 }
 
 function buildVitestExport(request: LayoutRequest, result: LayoutResult, caseTitle = `lays out ${request.nodes.length} nodes across ${request.lanes.map((lane) => lane.id).join(", ")}`) {
-  return indentBlock(`it(${JSON.stringify(caseTitle)}, () => {\n  const request: LayoutRequest = ${formatRequestValue(request)};\n\n  const result = layout(request);\n\n  expect(result.ok).toBe(true);\n  if (!result.ok) {\n    return;\n  }\n\n  expect(result.result.lanes).toEqual(${formatInlineObjectArray(result.lanes, 2)});\n  expect(result.result.nodes).toEqual(${formatInlineObjectArray(result.nodes, 2)});\n  expect(result.result.edges).toEqual(${formatExpandedEdgeArray(result.edges, 2)});\n});\n`, 2);
+  return `it(${JSON.stringify(caseTitle)}, () => {\n    const request: LayoutRequest = ${indentBlock(formatRequestValue(request), 4).trimStart()};\n\n    const result = layout(request);\n\n    expect(result.ok).toBe(true);\n    if (!result.ok) {\n      return;\n    }\n\n    expect(result.result.lanes).toEqual(${formatInlineObjectArray(result.lanes, 4)});\n    expect(result.result.nodes).toEqual(${formatInlineObjectArray(result.nodes, 4)});\n    expect(result.result.edges).toEqual(${formatExpandedEdgeArray(result.edges, 4)});\n  })`;
 }
 
 function parseVitestRequestFromClipboard(content: string): LayoutRequest {

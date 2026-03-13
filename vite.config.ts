@@ -13,11 +13,16 @@ type ImportedTestCase = {
   title: string;
   status: "pass" | "fail" | "skip" | "todo" | "unknown";
   request: unknown;
+  assertedGeometry: ImportedAssertedGeometry | null;
   start: number;
   end: number;
 };
 
 type ImportedTestCaseStatus = ImportedTestCase["status"];
+type ImportedAssertedGeometry = {
+  nodes: unknown[];
+  edges: unknown[];
+};
 type StatusUpdateMessage = {
   statuses: Array<{ id: string; status: ImportedTestCaseStatus }>;
 };
@@ -124,7 +129,7 @@ async function findTestFiles(dir: string): Promise<string[]> {
   return files.flat();
 }
 
-async function parseImportableCases(root: string, filePath: string): Promise<ImportedTestCase[]> {
+export async function parseImportableCases(root: string, filePath: string): Promise<ImportedTestCase[]> {
   const fileContents = await readFile(filePath, "utf8");
   const sourceFile = ts.createSourceFile(filePath, fileContents, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   const cases: ImportedTestCase[] = [];
@@ -149,6 +154,7 @@ async function parseImportableCases(root: string, filePath: string): Promise<Imp
           }
           const requestObject = readInlineRequest(callback.body, sourceFile);
           if (requestObject) {
+            const assertedGeometry = readAssertedGeometry(callback.body, sourceFile);
             const describeTitle = describeStack.at(-1) ?? relativeFile;
             const id = `${relativeFile}::${describeTitle}::${title}`;
             cases.push({
@@ -158,6 +164,7 @@ async function parseImportableCases(root: string, filePath: string): Promise<Imp
               title,
               status: "unknown",
               request: requestObject,
+              assertedGeometry,
               start: node.getStart(sourceFile),
               end: node.getEnd(),
             });
@@ -195,6 +202,66 @@ function readInlineRequest(body: ts.ConciseBody, sourceFile: ts.SourceFile) {
   }
 
   return null;
+}
+
+function readAssertedGeometry(body: ts.ConciseBody, sourceFile: ts.SourceFile): ImportedAssertedGeometry | null {
+  if (!ts.isBlock(body)) {
+    return null;
+  }
+
+  let nodes: unknown[] | null = null;
+  let edges: unknown[] | null = null;
+
+  for (const statement of body.statements) {
+    if (!ts.isExpressionStatement(statement) || !ts.isCallExpression(statement.expression)) {
+      continue;
+    }
+    const assertion = readToEqualAssertion(statement.expression, sourceFile);
+    if (!assertion || !Array.isArray(assertion.value)) {
+      continue;
+    }
+    if (assertion.subject === "result.result.nodes") {
+      nodes = assertion.value;
+      continue;
+    }
+    if (assertion.subject === "result.result.edges") {
+      edges = assertion.value;
+    }
+  }
+
+  if (!nodes && !edges) {
+    return null;
+  }
+  return {
+    nodes: nodes ?? [],
+    edges: edges ?? [],
+  };
+}
+
+function readToEqualAssertion(expression: ts.CallExpression, sourceFile: ts.SourceFile) {
+  if (
+    !ts.isPropertyAccessExpression(expression.expression) ||
+    expression.expression.name.text !== "toEqual" ||
+    expression.arguments.length !== 1
+  ) {
+    return null;
+  }
+
+  const matcherCall = expression.expression.expression;
+  if (
+    !ts.isCallExpression(matcherCall) ||
+    !ts.isIdentifier(matcherCall.expression) ||
+    matcherCall.expression.text !== "expect" ||
+    matcherCall.arguments.length !== 1
+  ) {
+    return null;
+  }
+
+  const subject = matcherCall.arguments[0].getText(sourceFile);
+  return {
+    subject,
+    value: evaluateObjectLiteral(expression.arguments[0].getText(sourceFile)),
+  };
 }
 
 async function loadLastRunStatus(root: string) {
