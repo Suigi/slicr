@@ -1564,9 +1564,6 @@ function computePlaygroundGroupLayouts(layoutResult: LayoutResult): PlaygroundGr
       if (members.length === 0) {
         return [];
       }
-      if (members.length <= 1) {
-        return [];
-      }
       const paddingX = 20;
       const paddingTop = 28;
       const paddingBottom = 16;
@@ -1602,8 +1599,8 @@ function getGroupLayoutWidth(groupId: string, layoutResult: LayoutResult) {
 
 function groupSelection() {
   const selectedNodeIds = [...new Set(getSelectedNodeIds())];
-  if (selectedNodeIds.length < 2) {
-    state.status = "Select at least two nodes to create a group.";
+  if (selectedNodeIds.length === 0) {
+    state.status = "Select at least one node to create a group.";
     render();
     return;
   }
@@ -1754,7 +1751,7 @@ function countVisibleGroups() {
     }
     memberCounts.set(node.groupId, (memberCounts.get(node.groupId) ?? 0) + 1);
   });
-  return (state.request.groups ?? []).filter((group) => (memberCounts.get(group.id) ?? 0) > 1).length;
+  return (state.request.groups ?? []).filter((group) => (memberCounts.get(group.id) ?? 0) > 0).length;
 }
 
 function formatVisibleGroupSuffix(nodeId: string) {
@@ -1762,8 +1759,7 @@ function formatVisibleGroupSuffix(nodeId: string) {
   if (!node?.groupId) {
     return "";
   }
-  const memberCount = state.request.nodes.filter((candidate) => candidate.groupId === node.groupId).length;
-  return memberCount > 1 ? ` / ${escapeHtml(node.groupId)}` : "";
+  return ` / ${escapeHtml(node.groupId)}`;
 }
 
 function updateMarqueeSelection(marqueeState: Extract<DragState, { type: "marquee" }>, layoutResult: LayoutResult) {
