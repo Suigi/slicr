@@ -37,6 +37,17 @@ type UpwardDetourPlan = {
   downRowY?: number;
 };
 
+type NeighborPosition = {
+  nodeId: string;
+  position: number;
+};
+
+type LaneOrderEntry = {
+  node: NodeInput;
+  originalIndex: number;
+  barycenter: number | null;
+};
+
 export const layout: LayoutApi = (request) => {
   const laneById = new Map(request.lanes.map((lane) => [lane.id, lane]));
   const laneOrderCounts = new Set<number>();
@@ -140,6 +151,11 @@ export const layout: LayoutApi = (request) => {
   }
 
   const topoIndexById = new Map(topoOrder.map((nodeId, index) => [nodeId, index]));
+  for (const laneNodes of nodesByLane.values()) {
+    laneNodes.sort((left, right) => (topoIndexById.get(left.id) ?? 0) - (topoIndexById.get(right.id) ?? 0));
+  }
+  const laneIndexById = new Map(orderedLanes.map((lane, index) => [lane.id, index]));
+  const adjacentNeighborsByNode = buildAdjacentNeighborsByNode(request.nodes, request.edges, nodeById, laneIndexById);
 
   for (const nodeId of topoOrder) {
     let nextX = 0;
@@ -156,6 +172,26 @@ export const layout: LayoutApi = (request) => {
   while (changed && iterations < maxIterations) {
     changed = false;
     iterations += 1;
+
+    for (let laneIndex = orderedLanes.length - 2; laneIndex >= 0; laneIndex -= 1) {
+      changed =
+        reorderLaneByBarycenter(
+          nodesByLane.get(orderedLanes[laneIndex]?.id ?? ""),
+          orderedLanes[laneIndex + 1]?.id ?? "",
+          buildLanePositions(nodesByLane),
+          adjacentNeighborsByNode,
+        ) || changed;
+    }
+
+    for (let laneIndex = 1; laneIndex < orderedLanes.length; laneIndex += 1) {
+      changed =
+        reorderLaneByBarycenter(
+          nodesByLane.get(orderedLanes[laneIndex]?.id ?? ""),
+          orderedLanes[laneIndex - 1]?.id ?? "",
+          buildLanePositions(nodesByLane),
+          adjacentNeighborsByNode,
+        ) || changed;
+    }
 
     for (const nodeId of topoOrder) {
       let nextX = xByNode.get(nodeId) ?? 0;
@@ -185,15 +221,6 @@ export const layout: LayoutApi = (request) => {
     }
 
     for (const laneNodes of nodesByLane.values()) {
-      laneNodes.sort((left, right) => {
-        const leftX = xByNode.get(left.id) ?? 0;
-        const rightX = xByNode.get(right.id) ?? 0;
-        if (leftX !== rightX) {
-          return leftX - rightX;
-        }
-        return (topoIndexById.get(left.id) ?? 0) - (topoIndexById.get(right.id) ?? 0);
-      });
-
       let cursor = 0;
       for (const node of laneNodes) {
         const resolvedX = Math.max(xByNode.get(node.id) ?? 0, cursor);
@@ -297,11 +324,13 @@ export const layout: LayoutApi = (request) => {
   const sideAssignments = new Map<string, EdgeSideAssignment>();
   const sourceOrdinalByEdgeId = new Map<string, number>();
   const targetOrdinalByEdgeId = new Map<string, number>();
+  const targetRequestSlotByEdgeId = new Map<string, number>();
   const sourceCountByEdgeId = new Map<string, number>();
   const targetCountByEdgeId = new Map<string, number>();
   const upwardDetourPlanByEdgeId = new Map<string, UpwardDetourPlan>();
-  const anchorUsage = new Map<string, number>();
-  const anchorTotals = new Map<string, number>();
+  const edgeIndexById = new Map(request.edges.map((edge, index) => [edge.id, index]));
+  const sourceEdgesByKey = new Map<string, string[]>();
+  const targetEdgesByKey = new Map<string, string[]>();
 
   for (const edge of request.edges) {
     const sourceNode = nodeById.get(edge.sourceId);
@@ -315,20 +344,36 @@ export const layout: LayoutApi = (request) => {
     );
     const sides = sideAssignmentForOrientation(orientation);
     sideAssignments.set(edge.id, sides);
-    incrementTotal(anchorTotals, edge.sourceId, sides.source, "source");
-    incrementTotal(anchorTotals, edge.targetId, sides.target, "target");
-    sourceOrdinalByEdgeId.set(edge.id, nextOrdinal(anchorUsage, edge.sourceId, sides.source, "source"));
-    targetOrdinalByEdgeId.set(edge.id, nextOrdinal(anchorUsage, edge.targetId, sides.target, "target"));
+    addEdgeToAnchorBucket(sourceEdgesByKey, edge.sourceId, sides.source, edge.id);
+    addEdgeToAnchorBucket(targetEdgesByKey, edge.targetId, sides.target, edge.id);
   }
 
-  for (const edge of request.edges) {
-    const sides = sideAssignments.get(edge.id);
-    if (!sides) {
-      continue;
-    }
-    sourceCountByEdgeId.set(edge.id, getTotal(anchorTotals, edge.sourceId, sides.source, "source"));
-    targetCountByEdgeId.set(edge.id, getTotal(anchorTotals, edge.targetId, sides.target, "target"));
+  for (const edgeIds of targetEdgesByKey.values()) {
+    edgeIds.forEach((edgeId, index) => {
+      targetRequestSlotByEdgeId.set(edgeId, index);
+    });
   }
+
+  assignAnchorOrdinals({
+    edgeIdsByBucket: sourceEdgesByKey,
+    edges: request.edges,
+    edgeIndexById,
+    nodeLayoutById,
+    sideAssignments,
+    role: "source",
+    ordinalByEdgeId: sourceOrdinalByEdgeId,
+    countByEdgeId: sourceCountByEdgeId,
+  });
+  assignAnchorOrdinals({
+    edgeIdsByBucket: targetEdgesByKey,
+    edges: request.edges,
+    edgeIndexById,
+    nodeLayoutById,
+    sideAssignments,
+    role: "target",
+    ordinalByEdgeId: targetOrdinalByEdgeId,
+    countByEdgeId: targetCountByEdgeId,
+  });
 
   const assignedUpwardRows: Array<{ rowY: number; minX: number; maxX: number }> = [];
   const assignedDownwardRows: Array<{ rowY: number; minX: number; maxX: number; targetX: number; targetY: number }> = [];
@@ -340,13 +385,19 @@ export const layout: LayoutApi = (request) => {
       continue;
     }
 
-    const sourceAnchor = createAnchor(nodeSource, sides.source, sourceOrdinalByEdgeId.get(edge.id) ?? 0, "source");
-    const targetAnchor = createAnchor(nodeTarget, sides.target, targetOrdinalByEdgeId.get(edge.id) ?? 0, "target");
-    const sourceStub = offsetFromAnchor(sourceAnchor, getSourceStubDistance(sourceAnchor, sourceCountByEdgeId.get(edge.id) ?? 1));
     const orientation = deriveOrientation(
       laneOrderById.get(nodeById.get(edge.sourceId)?.laneId ?? "") ?? 0,
       laneOrderById.get(nodeById.get(edge.targetId)?.laneId ?? "") ?? 0,
     );
+    const sourceAnchor = createAnchor(nodeSource, sides.source, sourceOrdinalByEdgeId.get(edge.id) ?? 0, "source");
+    const targetAnchor = resolveTargetAnchorBase(
+      edge.id,
+      createAnchor(nodeTarget, sides.target, targetOrdinalByEdgeId.get(edge.id) ?? 0, "target"),
+      targetOrdinalByEdgeId,
+      targetRequestSlotByEdgeId,
+      orientation,
+    );
+    const sourceStub = offsetFromAnchor(sourceAnchor, getSourceStubDistance(sourceAnchor, sourceCountByEdgeId.get(edge.id) ?? 1));
     if (orientation !== "up") {
       continue;
     }
@@ -494,7 +545,16 @@ export const layout: LayoutApi = (request) => {
     }
 
     const sourceAnchor = createAnchor(nodeSource, sides.source, sourceOrdinalByEdgeId.get(edge.id) ?? 0, "source");
-    const targetAnchorBase = createAnchor(nodeTarget, sides.target, targetOrdinalByEdgeId.get(edge.id) ?? 0, "target");
+    const targetAnchorBase = resolveTargetAnchorBase(
+      edge.id,
+      createAnchor(nodeTarget, sides.target, targetOrdinalByEdgeId.get(edge.id) ?? 0, "target"),
+      targetOrdinalByEdgeId,
+      targetRequestSlotByEdgeId,
+      deriveOrientation(
+        laneOrderById.get(nodeById.get(edge.sourceId)?.laneId ?? "") ?? 0,
+        laneOrderById.get(nodeById.get(edge.targetId)?.laneId ?? "") ?? 0,
+      ),
+    );
     const upwardPlan = upwardDetourPlanByEdgeId.get(edge.id);
     const targetAnchor = upwardPlan?.targetAnchorY === undefined
       ? targetAnchorBase
@@ -637,6 +697,237 @@ function createAnchor(node: NodeLayout, side: AnchorSide, ordinal: number, role:
     side,
     ordinal,
   };
+}
+
+function buildAdjacentNeighborsByNode(
+  nodes: NodeInput[],
+  edges: EdgeInput[],
+  nodeById: Map<string, NodeInput>,
+  laneIndexById: Map<string, number>,
+) {
+  const neighborsByNode = new Map<string, Map<string, string[]>>(nodes.map((node) => [node.id, new Map<string, string[]>()]));
+
+  for (const edge of edges) {
+    const sourceNode = nodeById.get(edge.sourceId);
+    const targetNode = nodeById.get(edge.targetId);
+    if (!sourceNode || !targetNode) {
+      continue;
+    }
+    const sourceLaneIndex = laneIndexById.get(sourceNode.laneId);
+    const targetLaneIndex = laneIndexById.get(targetNode.laneId);
+    if (sourceLaneIndex === undefined || targetLaneIndex === undefined) {
+      continue;
+    }
+    if (Math.abs(sourceLaneIndex - targetLaneIndex) !== 1) {
+      continue;
+    }
+    addNeighbor(neighborsByNode, sourceNode.id, targetNode.laneId, targetNode.id);
+    addNeighbor(neighborsByNode, targetNode.id, sourceNode.laneId, sourceNode.id);
+  }
+
+  return neighborsByNode;
+}
+
+function addNeighbor(
+  neighborsByNode: Map<string, Map<string, string[]>>,
+  nodeId: string,
+  laneId: string,
+  neighborId: string,
+) {
+  const laneNeighbors = neighborsByNode.get(nodeId);
+  if (!laneNeighbors) {
+    return;
+  }
+  const neighborIds = laneNeighbors.get(laneId) ?? [];
+  neighborIds.push(neighborId);
+  laneNeighbors.set(laneId, neighborIds);
+}
+
+function buildLanePositions(nodesByLane: Map<string, NodeInput[]>) {
+  const lanePositions = new Map<string, Map<string, number>>();
+  for (const [laneId, laneNodes] of nodesByLane.entries()) {
+    lanePositions.set(
+      laneId,
+      new Map(laneNodes.map((node, index) => [node.id, index])),
+    );
+  }
+  return lanePositions;
+}
+
+function reorderLaneByBarycenter(
+  laneNodes: NodeInput[] | undefined,
+  referenceLaneId: string,
+  lanePositions: Map<string, Map<string, number>>,
+  adjacentNeighborsByNode: Map<string, Map<string, string[]>>,
+) {
+  if (!laneNodes || laneNodes.length < 2) {
+    return false;
+  }
+
+  const referencePositions = lanePositions.get(referenceLaneId);
+  if (!referencePositions) {
+    return false;
+  }
+
+  const originalOrder = laneNodes.map((node) => node.id);
+  const nextOrder: NodeInput[] = [];
+  let index = 0;
+  while (index < laneNodes.length) {
+    const startNode = laneNodes[index];
+    if (!startNode) {
+      break;
+    }
+    const blockGroupId = startNode.groupId;
+    const block: NodeInput[] = [];
+    while (index < laneNodes.length && laneNodes[index]?.groupId === blockGroupId) {
+      const laneNode = laneNodes[index];
+      if (laneNode) {
+        block.push(laneNode);
+      }
+      index += 1;
+    }
+    const reorderedBlock = reorderBlockByBarycenter(block, referenceLaneId, referencePositions, adjacentNeighborsByNode);
+    nextOrder.push(...reorderedBlock);
+  }
+
+  let reordered = false;
+  for (let currentIndex = 0; currentIndex < laneNodes.length; currentIndex += 1) {
+    const nextNode = nextOrder[currentIndex];
+    if (!nextNode) {
+      continue;
+    }
+    laneNodes[currentIndex] = nextNode;
+    if (nextNode.id !== originalOrder[currentIndex]) {
+      reordered = true;
+    }
+  }
+
+  return reordered;
+}
+
+function resolveTargetAnchorBase(
+  edgeId: string,
+  targetAnchor: AnchorPoint,
+  targetOrdinalByEdgeId: Map<string, number>,
+  targetRequestSlotByEdgeId: Map<string, number>,
+  orientation: EdgeOrientation,
+) {
+  if (orientation !== "up" || (targetAnchor.side !== "left" && targetAnchor.side !== "right")) {
+    return targetAnchor;
+  }
+  const semanticOrdinal = targetOrdinalByEdgeId.get(edgeId) ?? targetAnchor.ordinal;
+  const requestSlot = targetRequestSlotByEdgeId.get(edgeId) ?? semanticOrdinal;
+  if (requestSlot === semanticOrdinal) {
+    return targetAnchor;
+  }
+  return {
+    ...targetAnchor,
+    y: targetAnchor.y + (requestSlot - semanticOrdinal) * HORIZONTAL_ANCHOR_SPACING,
+  };
+}
+
+function addEdgeToAnchorBucket(
+  edgeIdsByBucket: Map<string, string[]>,
+  nodeId: string,
+  side: AnchorSide,
+  edgeId: string,
+) {
+  const bucketKey = `${nodeId}:${side}`;
+  const bucket = edgeIdsByBucket.get(bucketKey) ?? [];
+  bucket.push(edgeId);
+  edgeIdsByBucket.set(bucketKey, bucket);
+}
+
+function assignAnchorOrdinals(params: {
+  edgeIdsByBucket: Map<string, string[]>;
+  edges: EdgeInput[];
+  edgeIndexById: Map<string, number>;
+  nodeLayoutById: Map<string, NodeLayout>;
+  sideAssignments: Map<string, EdgeSideAssignment>;
+  role: AnchorRole;
+  ordinalByEdgeId: Map<string, number>;
+  countByEdgeId: Map<string, number>;
+}) {
+  const { edgeIdsByBucket, edges, edgeIndexById, nodeLayoutById, sideAssignments, role, ordinalByEdgeId, countByEdgeId } = params;
+  const edgeById = new Map(edges.map((edge) => [edge.id, edge]));
+
+  for (const edgeIds of edgeIdsByBucket.values()) {
+    const sortedEdgeIds = [...edgeIds].sort((leftId, rightId) => {
+      const leftEdge = edgeById.get(leftId);
+      const rightEdge = edgeById.get(rightId);
+      if (!leftEdge || !rightEdge) {
+        return (edgeIndexById.get(leftId) ?? 0) - (edgeIndexById.get(rightId) ?? 0);
+      }
+      const side = sideAssignments.get(leftId)?.[role];
+      if (!side || side !== sideAssignments.get(rightId)?.[role]) {
+        return (edgeIndexById.get(leftId) ?? 0) - (edgeIndexById.get(rightId) ?? 0);
+      }
+
+      const leftOppositeNode = nodeLayoutById.get(role === "source" ? leftEdge.targetId : leftEdge.sourceId);
+      const rightOppositeNode = nodeLayoutById.get(role === "source" ? rightEdge.targetId : rightEdge.sourceId);
+      if (!leftOppositeNode || !rightOppositeNode) {
+        return (edgeIndexById.get(leftId) ?? 0) - (edgeIndexById.get(rightId) ?? 0);
+      }
+
+      const leftPosition = anchorOrderingPosition(side, leftOppositeNode);
+      const rightPosition = anchorOrderingPosition(side, rightOppositeNode);
+      if (leftPosition !== rightPosition) {
+        return leftPosition - rightPosition;
+      }
+      return (edgeIndexById.get(leftId) ?? 0) - (edgeIndexById.get(rightId) ?? 0);
+    });
+
+    sortedEdgeIds.forEach((edgeId, ordinal) => {
+      ordinalByEdgeId.set(edgeId, ordinal);
+      countByEdgeId.set(edgeId, sortedEdgeIds.length);
+    });
+  }
+}
+
+function anchorOrderingPosition(side: AnchorSide, oppositeNode: NodeLayout) {
+  if (side === "top" || side === "bottom") {
+    return oppositeNode.x + oppositeNode.width / 2;
+  }
+  return oppositeNode.y + oppositeNode.height / 2;
+}
+
+function reorderBlockByBarycenter(
+  nodes: NodeInput[],
+  referenceLaneId: string,
+  referencePositions: Map<string, number>,
+  adjacentNeighborsByNode: Map<string, Map<string, string[]>>,
+) {
+  const entries: LaneOrderEntry[] = nodes.map((node, originalIndex) => ({
+    node,
+    originalIndex,
+    barycenter: computeBarycenter(node.id, referenceLaneId, referencePositions, adjacentNeighborsByNode),
+  }));
+
+  entries.sort((left, right) => {
+    if (left.barycenter !== null && right.barycenter !== null && left.barycenter !== right.barycenter) {
+      return left.barycenter - right.barycenter;
+    }
+    return left.originalIndex - right.originalIndex;
+  });
+
+  return entries.map((entry) => entry.node);
+}
+
+function computeBarycenter(
+  nodeId: string,
+  referenceLaneId: string,
+  referencePositions: Map<string, number>,
+  adjacentNeighborsByNode: Map<string, Map<string, string[]>>,
+) {
+  const neighbors = adjacentNeighborsByNode.get(nodeId)?.get(referenceLaneId) ?? [];
+  const positions: NeighborPosition[] = neighbors
+    .map((neighborId) => ({ nodeId: neighborId, position: referencePositions.get(neighborId) ?? -1 }))
+    .filter((neighbor) => neighbor.position >= 0);
+  if (positions.length === 0) {
+    return null;
+  }
+  const total = positions.reduce((sum, neighbor) => sum + neighbor.position, 0);
+  return total / positions.length;
 }
 
 function computeEdgeConstraintX(params: {
