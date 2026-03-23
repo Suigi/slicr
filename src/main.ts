@@ -704,12 +704,35 @@ function renderInspector() {
   }
 
   if (state.selection.type === "group") {
-    const nodeIds = getNodeIdsForGroup(state.selection.id);
+    const groupSelection = state.selection;
+    const groupInput = state.request.groups?.find((group) => group.id === groupSelection.id);
+    const nodeIds = getNodeIdsForGroup(groupSelection.id);
+    const layoutWidth = derived.editableLayout ? getGroupLayoutWidth(groupSelection.id, derived.editableLayout) : null;
+    if (!groupInput) {
+      inspector.innerHTML = `<p class="empty-state">Selected group no longer exists.</p>`;
+      return;
+    }
     inspector.innerHTML = `
       ${inspectorError ? `<p class="helper-text">${inspectorError}</p>` : ""}
-      <p class="helper-text">Group ${escapeHtml(state.selection.id)} contains ${nodeIds.length} nodes.</p>
+      <p class="helper-text">Group ${escapeHtml(groupSelection.id)} contains ${nodeIds.length} nodes.</p>
+      <div class="form-row">
+        <label for="group-footprint-width">Footprint width</label>
+        <input id="group-footprint-width" type="number" min="10" step="10" placeholder="Auto" value="${groupInput.footprintWidth ?? ""}" />
+      </div>
+      <div class="form-row output-row">
+        <span class="output-label">Layout width</span>
+        <output class="output-field">${layoutWidth ?? ""}</output>
+      </div>
       <button id="ungroup-selected" type="button">Ungroup</button>
     `;
+    inspector.querySelector<HTMLInputElement>("#group-footprint-width")?.addEventListener("change", (event) => {
+      const nextValue = normalizeOptionalPositiveNumber((event.currentTarget as HTMLInputElement).value);
+      groupInput.footprintWidth = nextValue;
+      state.status = nextValue
+        ? `Set footprint width for ${groupInput.id} to ${nextValue}.`
+        : `Cleared footprint width for ${groupInput.id}.`;
+      updateDerivedAndRender();
+    });
     inspector.querySelector<HTMLButtonElement>("#ungroup-selected")?.addEventListener("click", ungroupSelection);
     return;
   }
@@ -1560,6 +1583,21 @@ function computePlaygroundGroupLayouts(layoutResult: LayoutResult): PlaygroundGr
         nodeIds: members.map((node) => node.id),
       }];
     });
+}
+
+function getGroupLayoutWidth(groupId: string, layoutResult: LayoutResult) {
+  const groupNodes = state.request.nodes
+    .filter((node) => node.groupId === groupId)
+    .map((node) => layoutResult.nodes.find((candidate) => candidate.id === node.id))
+    .filter((node): node is NodeLayout => Boolean(node));
+  if (groupNodes.length === 0) {
+    return null;
+  }
+  const left = Math.min(...groupNodes.map((node) => node.x));
+  const right = Math.max(...groupNodes.map((node) => node.x + node.width));
+  const actualWidth = right - left;
+  const footprintWidth = state.request.groups?.find((group) => group.id === groupId)?.footprintWidth ?? 0;
+  return Math.max(actualWidth, footprintWidth);
 }
 
 function groupSelection() {
@@ -2928,6 +2966,15 @@ function renderGroupOptions(selectedId: string) {
     })
     .join("");
   return `${noneOption}${groupOptions}`;
+}
+
+function normalizeOptionalPositiveNumber(value: string) {
+  const trimmed = value.trim();
+  if (trimmed === "") {
+    return undefined;
+  }
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 function normalizeOptionalNumber(value: string, fallback: number) {

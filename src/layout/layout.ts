@@ -253,7 +253,10 @@ export const layout: LayoutApi = (request) => {
       const resolvedRight = Math.max(
         ...nodeIds.map((nodeId) => (xByNode.get(nodeId) ?? 0) + (widthByNode.get(nodeId) ?? request.defaults.nodeWidth)),
       );
-      minGroupLeft = resolvedRight + groupGap;
+      const resolvedLeft = Math.min(...nodeIds.map((nodeId) => xByNode.get(nodeId) ?? 0));
+      const actualWidth = resolvedRight - resolvedLeft;
+      const footprintWidth = Math.max(actualWidth, group.footprintWidth ?? 0);
+      minGroupLeft = resolvedLeft + footprintWidth + groupGap;
     }
   }
 

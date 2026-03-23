@@ -29,6 +29,7 @@ export interface LaneInput {
 export interface GroupInput {
   id: string;
   order: number;
+  footprintWidth?: number;
 }
 
 export interface DefaultSizeOptions {

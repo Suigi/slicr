@@ -68,6 +68,39 @@ describe("layout acceptance: minimal A -> B -> C", () => {
     ]);
   });
 
+  it("reserves extra horizontal space for a group's footprint width without changing its bounds", () => {
+    const request: LayoutRequest = {
+      nodes: [
+        { id: "node-1", laneId: "lane-0", groupId: "group-1", width: 120 },
+        { id: "node-2", laneId: "lane-0", groupId: "group-2", width: 120 },
+      ],
+      edges: [],
+      lanes: [{ id: "lane-0", order: 0 }],
+      groups: [
+        { id: "group-1", order: 0, footprintWidth: 300 },
+        { id: "group-2", order: 1 },
+      ],
+      defaults: { nodeWidth: 120, nodeHeight: 48 },
+      spacing: { groupGap: 80, minNodeGap: 40, minTargetShift: 20 },
+    };
+
+    const result = layout(request);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.result.nodes).toEqual([
+      { id: "node-1", x: 0, y: 0, width: 120, height: 48 },
+      { id: "node-2", x: 380, y: 0, width: 120, height: 48 },
+    ]);
+    expect(result.result.groups).toEqual([
+      { id: "group-1", x: 0, y: 0, width: 120, height: 48 },
+      { id: "group-2", x: 380, y: 0, width: 120, height: 48 },
+    ]);
+  });
+
   it("lays out 6 nodes across lane-0, lane-1, lane-2", () => {
     const request: LayoutRequest = {
     nodes: [
