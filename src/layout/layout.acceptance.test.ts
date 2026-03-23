@@ -1118,6 +1118,71 @@ describe("down arrow collision avoidance", () => {
         ],
       },
     ]);
-  })
+  });
+
+  it("lays out downward fan-in edges", () => {
+    const request: LayoutRequest = {
+      nodes: [
+        { id: "node-1", laneId: "lane-0", width: 120 },
+        { id: "node-2", laneId: "lane-1" },
+        { id: "node-3", laneId: "lane-0" },
+      ],
+      edges: [
+        { id: "edge-1", sourceId: "node-1", targetId: "node-2" },
+        { id: "edge-2", sourceId: "node-3", targetId: "node-2" },
+      ],
+      lanes: [
+        { id: "lane-0", order: 0 },
+        { id: "lane-1", order: 1 },
+      ],
+      defaults: { nodeWidth: 120, nodeHeight: 48 },
+      spacing: { groupGap: 80, minNodeGap: 40, minTargetShift: 20 },
+    };
+
+    const result = layout(request);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.result.lanes).toEqual([
+      { id: "lane-0", top: -24, bottom: 72 },
+      { id: "lane-1", top: 116, bottom: 212 },
+    ]);
+    expect(result.result.nodes).toEqual([
+      { id: "node-1", x: 0, y: 0, width: 120, height: 48 },
+      { id: "node-2", x: 260, y: 140, width: 120, height: 48 },
+      { id: "node-3", x: 160, y: 0, width: 120, height: 48 },
+    ]);
+    expect(result.result.edges).toEqual([
+      {
+        id: "edge-1",
+        sourceId: "node-1",
+        targetId: "node-2",
+        sourceAnchor: { x: 70, y: 48, side: "bottom", ordinal: 0 },
+        targetAnchor: { x: 310, y: 140, side: "top", ordinal: 0 },
+        points: [
+          { x: 70, y: 48 },
+          { x: 70, y: 80 },
+          { x: 310, y: 80 },
+          { x: 310, y: 140 },
+        ],
+      },
+      {
+        id: "edge-2",
+        sourceId: "node-3",
+        targetId: "node-2",
+        sourceAnchor: { x: 230, y: 48, side: "bottom", ordinal: 0 },
+        targetAnchor: { x: 320, y: 140, side: "top", ordinal: 1 },
+        points: [
+          { x: 230, y: 48 },
+          { x: 230, y: 70 },
+          { x: 320, y: 70 },
+          { x: 320, y: 140 },
+        ],
+      },
+    ]);
+  });
 
 });

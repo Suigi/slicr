@@ -416,7 +416,18 @@ export const layout: LayoutApi = (request) => {
       const minX = Math.min(sourceAnchor.x, targetAnchor.x);
       const maxX = Math.max(sourceAnchor.x, targetAnchor.x);
       const baseRowY = resolveDownwardBaseRow(edge, sourceStub, targetAnchor, nodeLayouts);
-      return { edge, index, sourceAnchor, targetAnchor, minX, maxX, baseRowY };
+      return {
+        edge,
+        index,
+        sourceAnchor,
+        sourceStub,
+        targetAnchor,
+        minX,
+        maxX,
+        baseRowY,
+        targetOrdinal: targetOrdinalByEdgeId.get(edge.id) ?? 0,
+        targetCount: targetCountByEdgeId.get(edge.id) ?? 1,
+      };
     })
     .filter((candidate): candidate is NonNullable<typeof candidate> => candidate !== null)
     .sort((left, right) => {
@@ -428,7 +439,12 @@ export const layout: LayoutApi = (request) => {
 
   for (const candidate of downEdgeCandidates) {
     let downRowY = candidate.baseRowY;
-    while (true) {
+    if (candidate.targetCount > 1) {
+      const snappedBaseRowY = Math.ceil(candidate.baseRowY / UPWARD_REROUTE_SPACING) * UPWARD_REROUTE_SPACING;
+      const ordinalOffset = (candidate.targetCount - 1 - candidate.targetOrdinal) * UPWARD_REROUTE_SPACING;
+      downRowY = Math.max(candidate.sourceStub.y, snappedBaseRowY + ordinalOffset);
+    }
+    for (let attempts = 0; attempts < 10; attempts += 1) {
       const blockingRow = assignedDownwardRows.find((assigned) => {
         const horizontalTrackOverlap =
           Math.abs(assigned.rowY - downRowY) < UPWARD_REROUTE_SPACING &&
