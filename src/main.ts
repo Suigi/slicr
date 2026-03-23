@@ -2003,35 +2003,57 @@ function renderTestBrowser() {
           .join("")
       : `<p class="empty-state">No tests match the current filter.</p>`;
 
-  testBrowser.innerHTML = `
-    <div class="test-browser-backdrop" data-action="close-test-browser"></div>
-    <div class="test-browser-card" role="dialog" aria-modal="true" aria-labelledby="test-browser-title">
-      <div class="panel-head">
-        <div>
-          <p class="eyebrow">Local Tests</p>
-          <h2 id="test-browser-title">Import from current test cases</h2>
+  let searchInput = testBrowser.querySelector<HTMLInputElement>("#test-browser-search");
+  if (!searchInput) {
+    testBrowser.innerHTML = `
+      <div class="test-browser-backdrop" data-action="close-test-browser"></div>
+      <div class="test-browser-card" role="dialog" aria-modal="true" aria-labelledby="test-browser-title">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Local Tests</p>
+            <h2 id="test-browser-title">Import from current test cases</h2>
+          </div>
+          <button id="test-browser-close" class="mini-button" type="button">Close</button>
         </div>
-        <button id="test-browser-close" class="mini-button" type="button">Close</button>
+        <div class="form-row">
+          <label for="test-browser-search">Filter</label>
+          <input id="test-browser-search" placeholder="Search by file, suite, or test title" />
+        </div>
+        <div id="test-browser-error"></div>
+        <div class="test-case-list"></div>
+        <div class="test-browser-footer">
+          <button id="clipboard-import-button" type="button">Import from clipboard</button>
+        </div>
       </div>
-      <div class="form-row">
-        <label for="test-browser-search">Filter</label>
-        <input id="test-browser-search" value="${escapeHtml(state.testCaseQuery)}" placeholder="Search by file, suite, or test title" />
-      </div>
-      ${state.testBrowserError ? `<p class="error-line">${escapeHtml(state.testBrowserError)}</p>` : ""}
-      <div class="test-case-list">${body}</div>
-      <div class="test-browser-footer">
-        <button id="clipboard-import-button" type="button">Import from clipboard</button>
-      </div>
-    </div>
-  `;
+    `;
 
-  testBrowser.querySelector<HTMLButtonElement>("#test-browser-close")?.addEventListener("click", closeTestBrowser);
-  testBrowser.querySelector<HTMLDivElement>(".test-browser-backdrop")?.addEventListener("click", closeTestBrowser);
-  testBrowser.querySelector<HTMLInputElement>("#test-browser-search")?.addEventListener("input", (event) => {
-    state.testCaseQuery = (event.currentTarget as HTMLInputElement).value;
-    render();
-  });
-  testBrowser.querySelector<HTMLButtonElement>("#clipboard-import-button")?.addEventListener("click", () => void importTestFromClipboard());
+    testBrowser.querySelector<HTMLButtonElement>("#test-browser-close")?.addEventListener("click", closeTestBrowser);
+    testBrowser.querySelector<HTMLDivElement>(".test-browser-backdrop")?.addEventListener("click", closeTestBrowser);
+    testBrowser.querySelector<HTMLInputElement>("#test-browser-search")?.addEventListener("input", (event) => {
+      state.testCaseQuery = (event.currentTarget as HTMLInputElement).value;
+      renderTestBrowser();
+    });
+    testBrowser
+      .querySelector<HTMLButtonElement>("#clipboard-import-button")
+      ?.addEventListener("click", () => void importTestFromClipboard());
+    searchInput = testBrowser.querySelector<HTMLInputElement>("#test-browser-search");
+    searchInput?.focus();
+  }
+
+  if (searchInput && searchInput.value !== state.testCaseQuery) {
+    searchInput.value = state.testCaseQuery;
+  }
+
+  const errorLine = testBrowser.querySelector<HTMLDivElement>("#test-browser-error");
+  if (errorLine) {
+    errorLine.innerHTML = state.testBrowserError ? `<p class="error-line">${escapeHtml(state.testBrowserError)}</p>` : "";
+  }
+
+  const testCaseList = testBrowser.querySelector<HTMLDivElement>(".test-case-list");
+  if (testCaseList) {
+    testCaseList.innerHTML = body;
+  }
+
   testBrowser.querySelectorAll<HTMLButtonElement>("[data-action='import-test-case']").forEach((button) => {
     button.addEventListener("click", () => {
       const caseId = button.dataset.id;
