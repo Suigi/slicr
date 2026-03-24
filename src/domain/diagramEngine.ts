@@ -1,3 +1,4 @@
+import { layout, type EdgeLayout as LayoutLibEdgeLayout } from 'layout-lib';
 import { DiagramEdgeGeometry, middlePoint, routeElkEdges, routeForwardEdge, routePolyline } from './diagramRouting';
 import { buildElkLaneMeta, buildTopoOrder, computeElkLayout } from './elkLayout';
 import { applyOverviewPostLayoutPasses, buildBoundarySpecs } from './elkPostLayout';
@@ -6,6 +7,7 @@ import { projectNodeHeights } from './nodeSizing';
 import type { NodeDimensions } from './nodeSizing';
 import { buildOverviewBoundaryAnchorByKey, deriveOverviewCrossSliceLinks } from './overviewCrossSliceLinks';
 import type { ParsedSliceProjection } from './parsedSliceProjection';
+import { buildSliceLayoutLibRequest } from './sliceLayoutLibAdapter';
 import type { LayoutResult, Parsed, ParsedScenario, Position, VisualNode } from './types';
 
 export type DiagramEngineId = 'elk';
@@ -216,19 +218,19 @@ export async function computeDiagramLayout(
   options: DiagramLayoutOptions = {}
 ): Promise<DiagramEngineLayout> {
   const diagramParsed = toDiagramParsed(parsed);
-  const elk = await computeElkLayout(diagramParsed, options.nodeDimensions);
+  const sliceLayout = computeSliceLayout(diagramParsed, options.nodeDimensions);
   return {
     layout: {
-      pos: elk.pos,
-      w: elk.w,
-      h: elk.h,
+      pos: sliceLayout.pos,
+      w: sliceLayout.w,
+      h: sliceLayout.h,
       rowY: {},
       usedRows: [],
-      rowStreamLabels: elk.rowStreamLabels
+      rowStreamLabels: sliceLayout.rowStreamLabels
     },
-    laneByKey: elk.laneByKey,
-    rowStreamLabels: elk.rowStreamLabels,
-    precomputedEdges: elk.edges
+    laneByKey: sliceLayout.laneByKey,
+    rowStreamLabels: sliceLayout.rowStreamLabels,
+    precomputedEdges: sliceLayout.precomputedEdges
   };
 }
 
@@ -327,6 +329,77 @@ export function computeProvisionalDiagramLayout(parsed: Parsed, options: Diagram
     laneByKey: buildElkLaneMeta(diagramParsed).laneByKey,
     rowStreamLabels: buildElkLaneMeta(diagramParsed).rowStreamLabels
   };
+}
+
+function computeSliceLayout(
+  parsed: Parsed,
+  nodeDimensions?: Record<string, NodeDimensions>
+) {
+  const request = buildSliceLayoutLibRequest(parsed, nodeDimensions);
+  const result = layout(request.request);
+  if (!result.ok) {
+    throw new Error(`layout-lib ${result.error.type}: ${result.error.message}`);
+  }
+
+  const pos = Object.fromEntries(
+    result.result.nodes.map((node) => [
+      node.id,
+      { x: node.x, y: node.y, w: node.width, h: node.height }
+    ])
+  ) as Record<string, Position>;
+  const precomputedEdges = translateLayoutLibEdges(result.result.edges);
+  alignLayoutToLeftPadding(pos, precomputedEdges, 50);
+  const { w, h } = measureLayoutBounds(pos, precomputedEdges);
+
+  return {
+    pos,
+    w,
+    h,
+    laneByKey: request.laneByKey,
+    rowStreamLabels: request.rowStreamLabels,
+    precomputedEdges
+  };
+}
+
+function translateLayoutLibEdges(edges: LayoutLibEdgeLayout[]): Record<string, DiagramEdgeGeometry> {
+  return Object.fromEntries(edges.map((edge) => {
+    const label = middlePoint(edge.points);
+    return [edge.id, {
+      d: routePolyline(edge.points),
+      labelX: label.x,
+      labelY: label.y - 7,
+      points: edge.points
+    }];
+  }));
+}
+
+function alignLayoutToLeftPadding(
+  pos: Record<string, Position>,
+  precomputedEdges: Record<string, DiagramEdgeGeometry>,
+  leftPadding: number
+) {
+  const minX = Math.min(...Object.values(pos).map((node) => node.x));
+  if (!Number.isFinite(minX) || Math.abs(minX - leftPadding) < Number.EPSILON) {
+    return;
+  }
+  const shift = leftPadding - minX;
+  for (const node of Object.values(pos)) {
+    node.x += shift;
+  }
+  for (const geometry of Object.values(precomputedEdges)) {
+    const shiftedPoints = geometry.points?.map((point) => ({
+      x: point.x + shift,
+      y: point.y
+    }));
+    if (!shiftedPoints || shiftedPoints.length === 0) {
+      continue;
+    }
+    const label = middlePoint(shiftedPoints);
+    geometry.points = shiftedPoints;
+    geometry.d = routePolyline(shiftedPoints);
+    geometry.labelX = label.x;
+    geometry.labelY = label.y - 7;
+  }
 }
 
 export function routeDiagramEdge(

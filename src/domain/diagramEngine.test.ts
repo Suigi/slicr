@@ -1,9 +1,23 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildOverviewDiagramGraph, computeDiagramLayout, computeOverviewDiagramLayout } from './diagramEngine';
 import { deriveOverviewCrossSliceLinks } from './overviewCrossSliceLinks';
 import { parseDsl } from './parseDsl';
 import type { ParsedSliceProjection } from './parsedSliceProjection';
 import type { Parsed, Position, VisualNode } from './types';
+
+const { layoutLibLayoutMock, realLayoutLibLayoutRef } = vi.hoisted(() => ({
+  layoutLibLayoutMock: vi.fn(),
+  realLayoutLibLayoutRef: { current: null as null | typeof import('layout-lib').layout }
+}));
+
+vi.mock('layout-lib', async () => {
+  const actual = await vi.importActual<typeof import('layout-lib')>('layout-lib');
+  realLayoutLibLayoutRef.current = actual.layout;
+  return {
+    ...actual,
+    layout: (...args: Parameters<typeof actual.layout>) => layoutLibLayoutMock(...args)
+  };
+});
 
 function makeNode(key: string, name: string): VisualNode {
   return {
@@ -24,6 +38,17 @@ function makeProjection(id: string, parsed: Parsed): ParsedSliceProjection<Parse
     parsed
   };
 }
+
+beforeEach(() => {
+  layoutLibLayoutMock.mockReset();
+  layoutLibLayoutMock.mockImplementation((request) => realLayoutLibLayoutRef.current?.(request) ?? {
+    ok: false,
+    error: {
+      type: 'UnsatisfiableConstraints',
+      message: 'layout-lib mock was not initialized'
+    }
+  });
+});
 
 describe('diagramEngine dimensions plumbing', () => {
   it('returns an empty overview layout for zero slices', async () => {
@@ -818,6 +843,86 @@ rm:reservation-status <- evt:book-reserved`);
     expect(layout.layout.pos.after?.x).toBeGreaterThanOrEqual(
       (layout.layout.pos.anchor?.x ?? 0) + measuredAnchorWidth + 40 + 40
     );
+  });
+
+  it('translates layout-lib slice results into DiagramEngineLayout', async () => {
+    const parsed = parseDsl(`slice "Orders"
+
+ui:orders-page
+cmd:submit-order <- ui:orders-page`);
+
+    layoutLibLayoutMock.mockReturnValueOnce({
+      ok: true,
+      result: {
+        lanes: [
+          { id: 'lane-0', top: -24, bottom: 66 },
+          { id: 'lane-1', top: 110, bottom: 200 }
+        ],
+        nodes: [
+          { id: 'orders-page', x: 60, y: 0, width: 180, height: 42 },
+          { id: 'submit-order', x: 320, y: 134, width: 200, height: 58 }
+        ],
+        edges: [
+          {
+            id: 'orders-page->submit-order#0',
+            sourceId: 'orders-page',
+            targetId: 'submit-order',
+            sourceAnchor: { x: 240, y: 21, side: 'right', ordinal: 0 },
+            targetAnchor: { x: 320, y: 163, side: 'left', ordinal: 0 },
+            points: [
+              { x: 240, y: 21 },
+              { x: 280, y: 21 },
+              { x: 280, y: 163 },
+              { x: 320, y: 163 }
+            ]
+          }
+        ]
+      }
+    });
+
+    const layout = await computeDiagramLayout(parsed);
+
+    expect(layoutLibLayoutMock).toHaveBeenCalledTimes(1);
+    expect(layout.layout.pos).toEqual({
+      'orders-page': { x: 50, y: 0, w: 180, h: 42 },
+      'submit-order': { x: 310, y: 134, w: 200, h: 58 }
+    });
+    expect(layout.laneByKey).toEqual(new Map([
+      ['orders-page', 0],
+      ['submit-order', 1]
+    ]));
+    expect(layout.rowStreamLabels).toEqual({});
+    expect(layout.precomputedEdges).toEqual({
+      'orders-page->submit-order#0': {
+        d: 'M 230 21 L 270 21 L 270 163 L 310 163',
+        labelX: 270,
+        labelY: 14,
+        points: [
+          { x: 230, y: 21 },
+          { x: 270, y: 21 },
+          { x: 270, y: 163 },
+          { x: 310, y: 163 }
+        ]
+      }
+    });
+  });
+
+  it('keeps overview layout on the existing engine path', async () => {
+    const firstParsed = parseDsl(`slice "Alpha"
+
+cmd:first-command`);
+    const secondParsed = parseDsl(`slice "Beta"
+
+cmd:second-command`);
+
+    const layout = await computeOverviewDiagramLayout([
+      makeProjection('slice-1', firstParsed),
+      makeProjection('slice-2', secondParsed)
+    ]);
+
+    expect(layoutLibLayoutMock).not.toHaveBeenCalled();
+    expect(layout.layout.pos['slice-1::first-command']).toBeDefined();
+    expect(layout.layout.pos['slice-2::second-command']).toBeDefined();
   });
 
   it('does not let scenario-only nodes shift main diagram node columns', async () => {

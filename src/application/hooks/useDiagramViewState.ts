@@ -24,6 +24,7 @@ type OverviewDiagramEngineResult = Awaited<ReturnType<typeof computeOverviewDiag
 type ActiveLayout = DiagramEngineResult['layout'] | OverviewDiagramEngineResult['layout'];
 type RenderedEdge = ReturnType<typeof buildRenderedEdges>[number];
 const EMPTY_OVERVIEW_CROSS_SLICE_LINKS: OverviewCrossSliceLink[] = [];
+const EMPTY_PARSED_SLICE_PROJECTIONS: ParsedSliceProjection<Parsed>[] = [];
 
 export type UseDiagramViewStateArgs = {
   diagramMode: DiagramMode;
@@ -73,27 +74,30 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
   } = args;
 
   const initializedViewportKeyRef = useRef<string | null>(null);
+  const activeParsedSliceProjectionList = diagramMode === 'overview'
+    ? parsedSliceProjectionList
+    : EMPTY_PARSED_SLICE_PROJECTIONS;
   const overviewGraph = useMemo(
-    () => (diagramMode === 'overview' ? buildOverviewDiagramGraph(parsedSliceProjectionList) : null),
-    [diagramMode, parsedSliceProjectionList]
+    () => (diagramMode === 'overview' ? buildOverviewDiagramGraph(activeParsedSliceProjectionList) : null),
+    [activeParsedSliceProjectionList, diagramMode]
   );
   const overviewNodeMetadataByKey = overviewGraph?.nodeMetadataByKey;
   const overviewScenarioMetadataByScenario = overviewGraph?.scenarioMetadataByScenario;
   const overviewCrossSliceLinks = useMemo(
     () => (
       diagramMode === 'overview' && overviewNodeMetadataByKey
-        ? deriveOverviewCrossSliceLinks(parsedSliceProjectionList, overviewNodeMetadataByKey)
+        ? deriveOverviewCrossSliceLinks(activeParsedSliceProjectionList, overviewNodeMetadataByKey)
         : EMPTY_OVERVIEW_CROSS_SLICE_LINKS
     ),
-    [diagramMode, overviewNodeMetadataByKey, parsedSliceProjectionList]
+    [activeParsedSliceProjectionList, diagramMode, overviewNodeMetadataByKey]
   );
   const diagramParsed = diagramMode === 'overview' ? overviewGraph?.parsed ?? null : parsed;
   const layoutStateKey = useMemo(() => {
     if (diagramMode === 'overview') {
-      return `overview:${overviewNodeDataVisible ? 'data:on' : 'data:off'}:${parsedSliceProjectionList.map((slice) => `${slice.id}:${slice.dsl}`).join('|')}`;
+      return `overview:${overviewNodeDataVisible ? 'data:on' : 'data:off'}:${activeParsedSliceProjectionList.map((slice) => `${slice.id}:${slice.dsl}`).join('|')}`;
     }
     return `slice:${selectedSliceId}:${currentDsl}`;
-  }, [currentDsl, diagramMode, overviewNodeDataVisible, parsedSliceProjectionList, selectedSliceId]);
+  }, [activeParsedSliceProjectionList, currentDsl, diagramMode, overviewNodeDataVisible, selectedSliceId]);
   const [diagramEngineLayoutState, setDiagramEngineLayoutState] = useState<{
     key: string;
     layout: Awaited<ReturnType<typeof computeDiagramLayout>> | Awaited<ReturnType<typeof computeOverviewDiagramLayout>>;
@@ -141,7 +145,7 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
     }
     let active = true;
     const computeLayout = diagramMode === 'overview'
-      ? computeOverviewDiagramLayout(parsedSliceProjectionList, {
+      ? computeOverviewDiagramLayout(activeParsedSliceProjectionList, {
         nodeDimensions: measuredNodeDimensions,
         scenarioGroupWidths: measuredScenarioGroupWidths
       })
@@ -167,7 +171,7 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
     layoutStateKey,
     measuredNodeDimensions,
     measuredScenarioGroupWidths,
-    parsedSliceProjectionList
+    activeParsedSliceProjectionList
   ]);
 
   useLayoutEffect(() => {
@@ -302,7 +306,6 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
   const layoutReady = diagramMode === 'overview'
     ? currentAsyncLayoutReady && nodeMeasurementsReady && scenarioGroupMeasurementsReady
     : currentAsyncLayoutReady && nodeMeasurementsReady;
-
   useEffect(() => {
     if (
       diagramMode !== 'slice'
@@ -314,21 +317,13 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
     }
 
     queueMicrotask(() => {
-      setVisibleSliceSnapshotState((previous) => {
-        if (
-          previous?.key === layoutStateKey
-          && previous.sceneModel === rawSceneModel
-        ) {
-          return previous;
-        }
-        return {
-          key: layoutStateKey,
-          sliceId: selectedSliceId,
-          sceneModel: rawSceneModel,
-          activeLayout,
-          displayedPos,
-          renderedEdges
-        };
+      setVisibleSliceSnapshotState({
+        key: layoutStateKey,
+        sliceId: selectedSliceId,
+        sceneModel: rawSceneModel,
+        activeLayout,
+        displayedPos,
+        renderedEdges
       });
     });
   }, [

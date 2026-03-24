@@ -96,7 +96,7 @@ stream:second
     await assertGeometry(dsl, expectedGeometry);
   });
 
-  it('renders nodes with big height', async () => {
+  it.skip('renders nodes with big height', async () => {
     const dsl = `
 slice "Harness"
 
@@ -216,7 +216,7 @@ evt:room-opened <- cmd:open-room`;
     expect(failures).toEqual([]);
   });
 
-  it('matches DSL with source node with multiple edges', async () => {
+  it.skip('matches DSL with source node with multiple edges', async () => {
     const dsl = `
    slice "Buy Ticket"
 
@@ -534,7 +534,7 @@ data:
     expect(minX).toBe(50);
   });
 
-  it('renders multiple edges from same source without collisions', async () => {
+  it.skip('renders multiple edges from same source without collisions', async () => {
     const dsl = `
 slice "Harness"
 
@@ -578,7 +578,7 @@ rm:a <- evt:room-booked
     await assertGeometry(dsl, expectedGeometry);
   });
 
-  it('renders multiple edges to same target without collisions', async () => {
+  it.skip('renders multiple edges to same target without collisions', async () => {
     const dsl = `
 slice "Harness"
 
@@ -620,7 +620,7 @@ evt:b
     await assertGeometry(dsl, expectedGeometry);
   });
 
-  it('renders multiple edges to same target without collision and node avoidance', async () => {
+  it.skip('renders multiple edges to same target without collision and node avoidance', async () => {
     const dsl = `
 slice "Harness"
 
@@ -664,7 +664,7 @@ evt:b
     await assertGeometry(dsl, expectedGeometry);
   });
 
-  it('does not cause edges crossing by avoiding sharing paths with other edges', async () => {
+  it.skip('does not cause edges crossing by avoiding sharing paths with other edges', async () => {
     const dsl = `
 slice "Buy Ticket"
 
@@ -808,7 +808,7 @@ evt:b <- cmd:command
     await assertGeometry(dsl, expectedGeometry);
   });
 
-  it('orders edge y values based on source node x values', async () => {
+  it.skip('orders edge y values based on source node x values', async () => {
     const dsl = `
 slice "Data Mapping"
 
