@@ -358,7 +358,9 @@ export const layout: LayoutApi = (request) => {
     edgeIdsByBucket: sourceEdgesByKey,
     edges: request.edges,
     edgeIndexById,
+    nodeById,
     nodeLayoutById,
+    laneOrderById,
     sideAssignments,
     role: "source",
     ordinalByEdgeId: sourceOrdinalByEdgeId,
@@ -368,7 +370,9 @@ export const layout: LayoutApi = (request) => {
     edgeIdsByBucket: targetEdgesByKey,
     edges: request.edges,
     edgeIndexById,
+    nodeById,
     nodeLayoutById,
+    laneOrderById,
     sideAssignments,
     role: "target",
     ordinalByEdgeId: targetOrdinalByEdgeId,
@@ -842,13 +846,26 @@ function assignAnchorOrdinals(params: {
   edgeIdsByBucket: Map<string, string[]>;
   edges: EdgeInput[];
   edgeIndexById: Map<string, number>;
+  nodeById: Map<string, NodeInput>;
   nodeLayoutById: Map<string, NodeLayout>;
+  laneOrderById: Map<string, number>;
   sideAssignments: Map<string, EdgeSideAssignment>;
   role: AnchorRole;
   ordinalByEdgeId: Map<string, number>;
   countByEdgeId: Map<string, number>;
 }) {
-  const { edgeIdsByBucket, edges, edgeIndexById, nodeLayoutById, sideAssignments, role, ordinalByEdgeId, countByEdgeId } = params;
+  const {
+    edgeIdsByBucket,
+    edges,
+    edgeIndexById,
+    nodeById,
+    nodeLayoutById,
+    laneOrderById,
+    sideAssignments,
+    role,
+    ordinalByEdgeId,
+    countByEdgeId,
+  } = params;
   const edgeById = new Map(edges.map((edge) => [edge.id, edge]));
 
   for (const edgeIds of edgeIdsByBucket.values()) {
@@ -867,6 +884,14 @@ function assignAnchorOrdinals(params: {
       const rightOppositeNode = nodeLayoutById.get(role === "source" ? rightEdge.targetId : rightEdge.sourceId);
       if (!leftOppositeNode || !rightOppositeNode) {
         return (edgeIndexById.get(leftId) ?? 0) - (edgeIndexById.get(rightId) ?? 0);
+      }
+
+      if (role === "source" && side === "bottom") {
+        const leftLaneOrder = laneOrderById.get(nodeById.get(leftEdge.targetId)?.laneId ?? "") ?? 0;
+        const rightLaneOrder = laneOrderById.get(nodeById.get(rightEdge.targetId)?.laneId ?? "") ?? 0;
+        if (leftLaneOrder !== rightLaneOrder) {
+          return rightLaneOrder - leftLaneOrder;
+        }
       }
 
       const leftPosition = anchorOrderingPosition(side, leftOppositeNode);
@@ -1112,7 +1137,9 @@ function resolveDownwardBaseRow(
 ) {
   let rowY = sourceStub.y;
   while (true) {
-    const overlappingNodes = findDownwardSegmentObstacles(edge, sourceStub.x, targetAnchor.x, rowY, nodeLayouts);
+    const overlappingHorizontalNodes = findDownwardSegmentObstacles(edge, sourceStub.x, targetAnchor.x, rowY, nodeLayouts);
+    const overlappingVerticalNodes = findDownwardVerticalObstacles(edge, targetAnchor.x, rowY, targetAnchor.y, nodeLayouts);
+    const overlappingNodes = [...overlappingHorizontalNodes, ...overlappingVerticalNodes];
     if (overlappingNodes.length === 0) {
       return rowY;
     }
@@ -1165,6 +1192,26 @@ function findDownwardSegmentObstacles(
     }
     const overlapsX = maxX > node.x && minX < node.x + node.width;
     const overlapsY = rowY >= node.y && rowY <= node.y + node.height;
+    return overlapsX && overlapsY;
+  });
+}
+
+function findDownwardVerticalObstacles(
+  edge: EdgeInput,
+  targetX: number,
+  rowY: number,
+  targetY: number,
+  nodeLayouts: NodeLayout[],
+) {
+  const minY = Math.min(rowY, targetY);
+  const maxY = Math.max(rowY, targetY);
+
+  return nodeLayouts.filter((node) => {
+    if (node.id === edge.sourceId || node.id === edge.targetId) {
+      return false;
+    }
+    const overlapsX = targetX > node.x && targetX < node.x + node.width;
+    const overlapsY = maxY > node.y && minY < node.y + node.height;
     return overlapsX && overlapsY;
   });
 }

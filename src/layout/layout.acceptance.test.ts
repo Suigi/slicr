@@ -1266,4 +1266,71 @@ describe("down arrow collision avoidance", () => {
     ]);
   });
 
+  it("avoids collisions between down edges and nodes on an above lane", () => {
+    const request: LayoutRequest = {
+      nodes: [
+        { id: "source", laneId: "lane-0", height: 50 },
+        { id: "target-1", laneId: "lane-1" },
+        { id: "target-2", laneId: "lane-2" },
+      ],
+      edges: [
+        { id: "edge-2", sourceId: "source", targetId: "target-1" },
+        { id: "edge-3", sourceId: "source", targetId: "target-2" },
+      ],
+      lanes: [
+        { id: "lane-0", order: 0 },
+        { id: "lane-1", order: 1 },
+        { id: "lane-2", order: 2 },
+      ],
+      defaults: { nodeWidth: 120, nodeHeight: 48 },
+      spacing: { groupGap: 80, minNodeGap: 40, minTargetShift: 20 },
+    };
+
+    const result = layout(request);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.result.lanes).toEqual([
+      { id: "lane-0", top: -24, bottom: 74 },
+      { id: "lane-1", top: 118, bottom: 214 },
+      { id: "lane-2", top: 258, bottom: 354 },
+    ]);
+    expect(result.result.nodes).toEqual([
+      { id: "source", x: 0, y: 0, width: 120, height: 50 },
+      { id: "target-1", x: 100, y: 142, width: 120, height: 48 },
+      { id: "target-2", x: 100, y: 282, width: 120, height: 48 },
+    ]);
+    expect(result.result.edges).toEqual([
+      {
+        id: "edge-2",
+        sourceId: "source",
+        targetId: "target-1",
+        sourceAnchor: { x: 80, y: 50, side: "bottom", ordinal: 1 },
+        targetAnchor: { x: 150, y: 142, side: "top", ordinal: 0 },
+        points: [
+          { x: 80, y: 50 },
+          { x: 80, y: 70 },
+          { x: 150, y: 70 },
+          { x: 150, y: 142 },
+        ],
+      },
+      {
+        id: "edge-3",
+        sourceId: "source",
+        targetId: "target-2",
+        sourceAnchor: { x: 70, y: 50, side: "bottom", ordinal: 0 },
+        targetAnchor: { x: 150, y: 282, side: "top", ordinal: 0 },
+        points: [
+          { x: 70, y: 50 },
+          { x: 70, y: 200 },
+          { x: 150, y: 200 },
+          { x: 150, y: 282 },
+        ],
+      },
+    ]);
+  });
+
 });
