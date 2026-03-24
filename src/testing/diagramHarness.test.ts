@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { computeDiagramGeometry, matchDiagramGeometry } from './diagramHarness';
 import type { DiagramExpectation } from './diagramHarness';
+import type { GeometryHarnessOptions } from './diagramHarness';
 
-async function assertGeometry(dsl: string, expectedGeometry: DiagramExpectation) {
-  const actualGeometry = await computeDiagramGeometry(dsl);
+async function assertGeometry(dsl: string, expectedGeometry: DiagramExpectation, options?: GeometryHarnessOptions) {
+  const actualGeometry = await computeDiagramGeometry(dsl, options);
   const failures = matchDiagramGeometry(actualGeometry, expectedGeometry);
   expect(failures).toEqual([]);
 }
@@ -18,7 +19,7 @@ evt:simple-event
 `;
     const expectedGeometry = {
       "nodes": [
-        {"key":"simple-event","x":50,"y":52,"w":180,"h":42}
+        {"key":"simple-event","x":50,"y":0,"w":180,"h":42}
       ],
       "edges": [  ]
     };
@@ -40,13 +41,13 @@ ui:simple-ui
 `;
     const expectedGeometry = {
       "nodes": [
-        {"key":"simple-event","x":50,"y":296,"w":180,"h":42},
-        {"key":"simple-read-model","x":90,"y":174,"w":180,"h":42},
-        {"key":"simple-ui","x":130,"y":52,"w":180,"h":42}
+        {"key":"simple-event","x":50,"y":268,"w":180,"h":42},
+        {"key":"simple-read-model","x":150,"y":134,"w":180,"h":42},
+        {"key":"simple-ui","x":250,"y":0,"w":180,"h":42}
       ],
       "edges": [
-        {"key":"simple-event->simple-read-model#0","from":"simple-event","to":"simple-read-model","d":"M 160 296 L 160 282.7 L 160 282.7 L 160 216","points":[{"x":160,"y":296},{"x":160,"y":282.7},{"x":160,"y":282.7},{"x":160,"y":216}]},
-        {"key":"simple-read-model->simple-ui#1","from":"simple-read-model","to":"simple-ui","d":"M 200 174 L 200 160.7 L 200 160.7 L 200 94","points":[{"x":200,"y":174},{"x":200,"y":160.7},{"x":200,"y":160.7},{"x":200,"y":94}]}
+        {"key":"simple-event->simple-read-model#0","from":"simple-event","to":"simple-read-model","d":"M 150 268 L 150 248 L 150 150 L 150 150","points":[{"x":150,"y":268},{"x":150,"y":248},{"x":150,"y":150},{"x":150,"y":150}]},
+        {"key":"simple-read-model->simple-ui#1","from":"simple-read-model","to":"simple-ui","d":"M 250 134 L 250 114 L 250 16 L 250 16","points":[{"x":250,"y":134},{"x":250,"y":114},{"x":250,"y":16},{"x":250,"y":16}]}
       ]
     };
 
@@ -79,17 +80,17 @@ stream:second
 `;
     const expectedGeometry = {
       "nodes": [
-        {"key":"first-event","x":50,"y":296,"w":180,"h":42},
-        {"key":"second-event","x":790,"y":418,"w":180,"h":42},
-        {"key":"simple-command","x":530,"y":174,"w":180,"h":42},
-        {"key":"simple-read-model","x":310,"y":174,"w":180,"h":42},
-        {"key":"simple-ui","x":350,"y":52,"w":180,"h":42}
+        {"key":"first-event","x":50,"y":268,"w":180,"h":42},
+        {"key":"second-event","x":790,"y":402,"w":180,"h":42},
+        {"key":"simple-command","x":530,"y":134,"w":180,"h":42},
+        {"key":"simple-read-model","x":310,"y":134,"w":180,"h":42},
+        {"key":"simple-ui","x":410,"y":0,"w":180,"h":42}
       ],
       "edges": [
-        {"key":"first-event->simple-read-model#0","from":"first-event","to":"simple-read-model","d":"M 160 296 L 160 282.7 L 380 282.7 L 380 216","points":[{"x":160,"y":296},{"x":160,"y":282.7},{"x":380,"y":282.7},{"x":380,"y":216}]},
-        {"key":"simple-command->second-event#3","from":"simple-command","to":"second-event","d":"M 640 216 L 640 230.5 L 860 230.5 L 860 418","points":[{"x":640,"y":216},{"x":640,"y":230.5},{"x":860,"y":230.5},{"x":860,"y":418}]},
-        {"key":"simple-read-model->simple-ui#1","from":"simple-read-model","to":"simple-ui","d":"M 420 174 L 420 160.7 L 420 160.7 L 420 94","points":[{"x":420,"y":174},{"x":420,"y":160.7},{"x":420,"y":160.7},{"x":420,"y":94}]},
-        {"key":"simple-ui->simple-command#2","from":"simple-ui","to":"simple-command","d":"M 460 94 L 460 107.3 L 600 107.3 L 600 174","points":[{"x":460,"y":94},{"x":460,"y":107.3},{"x":600,"y":107.3},{"x":600,"y":174}]}
+        {"key":"first-event->simple-read-model#0","from":"first-event","to":"simple-read-model","d":"M 150 268 L 150 248 L 150 150 L 310 150","points":[{"x":150,"y":268},{"x":150,"y":248},{"x":150,"y":150},{"x":310,"y":150}]},
+        {"key":"simple-command->second-event#3","from":"simple-command","to":"second-event","d":"M 630 176 L 630 196 L 870 196 L 870 402","points":[{"x":630,"y":176},{"x":630,"y":196},{"x":870,"y":196},{"x":870,"y":402}]},
+        {"key":"simple-read-model->simple-ui#1","from":"simple-read-model","to":"simple-ui","d":"M 410 134 L 410 114 L 410 16 L 410 16","points":[{"x":410,"y":134},{"x":410,"y":114},{"x":410,"y":16},{"x":410,"y":16}]},
+        {"key":"simple-ui->simple-command#2","from":"simple-ui","to":"simple-command","d":"M 510 42 L 510 62 L 610 62 L 610 134","points":[{"x":510,"y":42},{"x":510,"y":62},{"x":610,"y":62},{"x":610,"y":134}]}
       ]
     };
 
@@ -179,17 +180,17 @@ stream:second
 `;
     const expectedGeometry = {
       "nodes": [
-        {"key":"first-event","x":50,"y":296,"w":180,"h":42},
-        {"key":"second-event","x":790,"y":418,"w":180,"h":42},
-        {"key":"simple-command","x":530,"y":174,"w":180,"h":42},
-        {"key":"simple-read-model","x":310,"y":174,"w":180,"h":42},
-        {"key":"simple-ui","x":350,"y":52,"w":180,"h":42}
+        {"key":"first-event","x":50,"y":268,"w":180,"h":42},
+        {"key":"second-event","x":790,"y":402,"w":180,"h":42},
+        {"key":"simple-command","x":530,"y":134,"w":180,"h":42},
+        {"key":"simple-read-model","x":310,"y":134,"w":180,"h":42},
+        {"key":"simple-ui","x":410,"y":0,"w":180,"h":42}
       ],
       "edges": [
-        {"key":"first-event->simple-read-model#0","from":"first-event","to":"simple-read-model","d":"M 160 296 L 160 282.7 L 380 282.7 L 380 216","points":[{"x":160,"y":296},{"x":160,"y":282.7},{"x":380,"y":282.7},{"x":380,"y":216}]},
-        {"key":"simple-command->second-event#3","from":"simple-command","to":"second-event","d":"M 640 216 L 640 230.5 L 860 230.5 L 860 418","points":[{"x":640,"y":216},{"x":640,"y":230.5},{"x":860,"y":230.5},{"x":860,"y":418}]},
-        {"key":"simple-read-model->simple-ui#1","from":"simple-read-model","to":"simple-ui","d":"M 420 174 L 420 160.7 L 420 160.7 L 420 94","points":[{"x":420,"y":174},{"x":420,"y":160.7},{"x":420,"y":160.7},{"x":420,"y":94}]},
-        {"key":"simple-ui->simple-command#2","from":"simple-ui","to":"simple-command","d":"M 460 94 L 460 107.3 L 600 107.3 L 600 174","points":[{"x":460,"y":94},{"x":460,"y":107.3},{"x":600,"y":107.3},{"x":600,"y":174}]}
+        {"key":"first-event->simple-read-model#0","from":"first-event","to":"simple-read-model","d":"M 150 268 L 150 248 L 150 150 L 310 150","points":[{"x":150,"y":268},{"x":150,"y":248},{"x":150,"y":150},{"x":310,"y":150}]},
+        {"key":"simple-command->second-event#3","from":"simple-command","to":"second-event","d":"M 630 176 L 630 196 L 870 196 L 870 402","points":[{"x":630,"y":176},{"x":630,"y":196},{"x":870,"y":196},{"x":870,"y":402}]},
+        {"key":"simple-read-model->simple-ui#1","from":"simple-read-model","to":"simple-ui","d":"M 410 134 L 410 114 L 410 16 L 410 16","points":[{"x":410,"y":134},{"x":410,"y":114},{"x":410,"y":16},{"x":410,"y":16}]},
+        {"key":"simple-ui->simple-command#2","from":"simple-ui","to":"simple-command","d":"M 510 42 L 510 62 L 610 62 L 610 134","points":[{"x":510,"y":42},{"x":510,"y":62},{"x":610,"y":62},{"x":610,"y":134}]}
       ]
     };
 
@@ -768,17 +769,17 @@ rm:wallet "Customer Wallet"
 `;
     const expectedGeometry = {
       "nodes": [
-        {"key":"avail@2","x":270,"y":52,"w":180,"h":42},
-        {"key":"buy","x":50,"y":52,"w":180,"h":42},
-        {"key":"sold","x":195,"y":170,"w":180,"h":42},
-        {"key":"tp","x":102,"y":296,"w":180,"h":42},
-        {"key":"wallet","x":490,"y":52,"w":180,"h":42}
+        {"key":"avail@2","x":370,"y":0,"w":180,"h":42},
+        {"key":"buy","x":50,"y":0,"w":180,"h":42},
+        {"key":"sold","x":180,"y":134,"w":180,"h":42},
+        {"key":"tp","x":180,"y":268,"w":180,"h":42},
+        {"key":"wallet","x":590,"y":0,"w":180,"h":42}
       ],
       "edges": [
-        {"key":"buy->sold#0","from":"buy","to":"sold","d":"M 165 94 L 165 110 L 265 110 L 265 170","points":[{"x":165,"y":94},{"x":165,"y":110},{"x":265,"y":110},{"x":265,"y":170}]},
-        {"key":"buy->tp#1","from":"buy","to":"tp","d":"M 155 94 L 155 120 L 172 120 L 172 296","points":[{"x":155,"y":94},{"x":155,"y":120},{"x":172,"y":120},{"x":172,"y":296}]},
-        {"key":"sold->avail@2#2","from":"sold","to":"avail@2","d":"M 305 170 L 305 156.94 L 340 156.94 L 340 94","points":[{"x":305,"y":170},{"x":305,"y":157},{"x":340,"y":157},{"x":340,"y":94}]},
-        {"key":"tp->wallet#3","from":"tp","to":"wallet","d":"M 212 296 L 212 281.5 L 560 281.5 L 560 94","points":[{"x":212,"y":296},{"x":212,"y":282},{"x":560,"y":282},{"x":560,"y":94}]}
+        {"key":"buy->sold#0","from":"buy","to":"sold","d":"M 150 42 L 150 72 L 260 72 L 260 134","points":[{"x":150,"y":42},{"x":150,"y":72},{"x":260,"y":72},{"x":260,"y":134}]},
+        {"key":"buy->tp#1","from":"buy","to":"tp","d":"M 160 42 L 160 62 L 260 62 L 260 268","points":[{"x":160,"y":42},{"x":160,"y":62},{"x":260,"y":62},{"x":260,"y":268}]},
+        {"key":"sold->avail@2#2","from":"sold","to":"avail@2","d":"M 280 134 L 280 114 L 280 16 L 370 16","points":[{"x":280,"y":134},{"x":280,"y":114},{"x":280,"y":16},{"x":370,"y":16}]},
+        {"key":"tp->wallet#3","from":"tp","to":"wallet","d":"M 280 268 L 280 246 L 280 52 L 570 52 L 570 16 L 590 16","points":[{"x":280,"y":268},{"x":280,"y":246},{"x":280,"y":52},{"x":570,"y":52},{"x":570,"y":16},{"x":590,"y":16}]}
       ]
     };
 
@@ -795,13 +796,13 @@ evt:b <- cmd:command
 `;
     const expectedGeometry = {
       "nodes": [
-        {"key":"a","x":102,"y":174,"w":180,"h":42},
-        {"key":"b","x":322,"y":174,"w":180,"h":42},
-        {"key":"command","x":50,"y":52,"w":180,"h":42}
+        {"key":"a","x":180,"y":134,"w":180,"h":42},
+        {"key":"b","x":400,"y":134,"w":180,"h":42},
+        {"key":"command","x":50,"y":0,"w":180,"h":42}
       ],
       "edges": [
-        {"key":"command->a#0","from":"command","to":"a","d":"M 155 94 L 155 120 L 172 120 L 172 174","points":[{"x":155,"y":94},{"x":155,"y":120},{"x":172,"y":120},{"x":172,"y":174}]},
-        {"key":"command->b#1","from":"command","to":"b","d":"M 165 94 L 165 110 L 392 110 L 392 174","points":[{"x":165,"y":94},{"x":165,"y":110},{"x":392,"y":110},{"x":392,"y":174}]}
+        {"key":"command->a#0","from":"command","to":"a","d":"M 150 42 L 150 72 L 260 72 L 260 134","points":[{"x":150,"y":42},{"x":150,"y":72},{"x":260,"y":72},{"x":260,"y":134}]},
+        {"key":"command->b#1","from":"command","to":"b","d":"M 160 42 L 160 62 L 480 62 L 480 134","points":[{"x":160,"y":42},{"x":160,"y":62},{"x":480,"y":62},{"x":480,"y":134}]}
       ]
     };
 
