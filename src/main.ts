@@ -11,6 +11,7 @@ import type {
   NodeLayout,
   Point,
 } from "./layout/types";
+import { createBaseEdgeOverride, type EdgeOverride } from "./playground/edgeOverrides";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 
@@ -32,12 +33,6 @@ type Selection =
   | { type: "group"; id: string }
   | { type: "edge"; id: string }
   | { type: "segment"; edgeId: string; segmentIndex: number };
-
-type EdgeOverride = {
-  sourceAnchor?: AnchorPoint;
-  targetAnchor?: AnchorPoint;
-  points?: Point[];
-};
 
 type Camera = {
   x: number;
@@ -1147,7 +1142,7 @@ function handlePointerMove(event: PointerEvent) {
   }
 
   const segmentDrag = dragState;
-  ensureEdgeOverrideExists(segmentDrag.edgeId, derived.editableLayout);
+  ensureEdgeOverrideExists(segmentDrag.edgeId, derived.editableLayout, derived.autoLayout);
   const override = state.edgeOverrides[segmentDrag.edgeId];
   const edge = derived.editableLayout.edges.find((candidate) => candidate.id === segmentDrag.edgeId);
   if (!override || !edge) {
@@ -1162,26 +1157,35 @@ function handlePointerMove(event: PointerEvent) {
       y: snap(worldPoint.y - segmentDrag.startWorld.y),
     },
   );
-  const sourceAnchorBase = override.sourceAnchor ?? edge.sourceAnchor;
-  const targetAnchorBase = override.targetAnchor ?? edge.targetAnchor;
+  let renderedSourceAnchor = { ...edge.sourceAnchor };
+  let renderedTargetAnchor = { ...edge.targetAnchor };
 
   if (segmentDrag.segmentIndex === 0 && nextPoints[0]) {
-    override.sourceAnchor = { ...sourceAnchorBase, x: nextPoints[0].x, y: nextPoints[0].y };
+    renderedSourceAnchor = { ...renderedSourceAnchor, x: nextPoints[0].x, y: nextPoints[0].y };
   }
   if (segmentDrag.segmentIndex === edge.points.length - 2 && nextPoints[nextPoints.length - 1]) {
-    override.targetAnchor = { ...targetAnchorBase, x: nextPoints[nextPoints.length - 1].x, y: nextPoints[nextPoints.length - 1].y };
+    renderedTargetAnchor = { ...renderedTargetAnchor, x: nextPoints[nextPoints.length - 1].x, y: nextPoints[nextPoints.length - 1].y };
   }
   if (nextPoints[0]) {
-    const pinnedSource = segmentDrag.segmentIndex === 0 ? (override.sourceAnchor ?? sourceAnchorBase) : sourceAnchorBase;
-    nextPoints[0] = { x: pinnedSource.x, y: pinnedSource.y };
+    nextPoints[0] = { x: renderedSourceAnchor.x, y: renderedSourceAnchor.y };
   }
   if (nextPoints[nextPoints.length - 1]) {
-    const pinnedTarget =
-      segmentDrag.segmentIndex === edge.points.length - 2 ? (override.targetAnchor ?? targetAnchorBase) : targetAnchorBase;
-    nextPoints[nextPoints.length - 1] = { x: pinnedTarget.x, y: pinnedTarget.y };
+    nextPoints[nextPoints.length - 1] = { x: renderedTargetAnchor.x, y: renderedTargetAnchor.y };
   }
 
-  override.points = nextPoints;
+  const { sourceDelta, targetDelta } = getEdgeEndpointDeltas(edge, derived.editableLayout, derived.autoLayout);
+  const baseOverride = createBaseEdgeOverride(
+    {
+      sourceAnchor: renderedSourceAnchor,
+      targetAnchor: renderedTargetAnchor,
+      points: nextPoints,
+    },
+    sourceDelta,
+    targetDelta,
+  );
+  override.sourceAnchor = baseOverride.sourceAnchor;
+  override.targetAnchor = baseOverride.targetAnchor;
+  override.points = baseOverride.points;
   state.status = `Adjusted geometry for ${segmentDrag.edgeId}.`;
   updateDerivedAndRender();
 }
@@ -1211,7 +1215,7 @@ function handleDoubleClick(event: MouseEvent) {
     return;
   }
 
-  ensureEdgeOverrideExists(edge.id, derived.editableLayout);
+  ensureEdgeOverrideExists(edge.id, derived.editableLayout, derived.autoLayout);
   const override = state.edgeOverrides[edge.id];
   if (!override) {
     return;
@@ -1229,7 +1233,19 @@ function handleDoubleClick(event: MouseEvent) {
     ? { x: snap(screenPoint.x), y: start.y }
     : { x: start.x, y: snap(screenPoint.y) };
   nextPoints.splice(insertionIndex, 0, inserted);
-  override.points = nextPoints;
+  const { sourceDelta, targetDelta } = getEdgeEndpointDeltas(edge, derived.editableLayout, derived.autoLayout);
+  const baseOverride = createBaseEdgeOverride(
+    {
+      sourceAnchor: edge.sourceAnchor,
+      targetAnchor: edge.targetAnchor,
+      points: nextPoints,
+    },
+    sourceDelta,
+    targetDelta,
+  );
+  override.sourceAnchor = baseOverride.sourceAnchor;
+  override.targetAnchor = baseOverride.targetAnchor;
+  override.points = baseOverride.points;
   state.selection = { type: "segment", edgeId: edge.id, segmentIndex: hit.segmentIndex };
   state.selectedNodeIds = [];
   state.status = `Added bend point to ${edge.id}.`;
@@ -1507,7 +1523,7 @@ function clearEdgeOverride(edgeId: string) {
   delete state.edgeOverrides[edgeId];
 }
 
-function ensureEdgeOverrideExists(edgeId: string, layoutResult: LayoutResult) {
+function ensureEdgeOverrideExists(edgeId: string, layoutResult: LayoutResult, autoLayout: LayoutResult | null) {
   if (state.edgeOverrides[edgeId]) {
     return;
   }
@@ -1515,10 +1531,29 @@ function ensureEdgeOverrideExists(edgeId: string, layoutResult: LayoutResult) {
   if (!edge) {
     return;
   }
-  state.edgeOverrides[edgeId] = {
-    sourceAnchor: { ...edge.sourceAnchor },
-    targetAnchor: { ...edge.targetAnchor },
-    points: edge.points.map((point) => ({ ...point })),
+  const autoEdge = autoLayout?.edges.find((candidate) => candidate.id === edgeId);
+  if (!autoEdge) {
+    state.edgeOverrides[edgeId] = {
+      sourceAnchor: { ...edge.sourceAnchor },
+      targetAnchor: { ...edge.targetAnchor },
+      points: edge.points.map((point) => ({ ...point })),
+    };
+    return;
+  }
+
+  const currentNodes = new Map(layoutResult.nodes.map((node) => [node.id, node]));
+  const autoNodes = new Map(autoLayout?.nodes.map((node) => [node.id, node]) ?? []);
+  const sourceDelta = getNodeDelta(edge.sourceId, autoNodes, currentNodes);
+  const targetDelta = getNodeDelta(edge.targetId, autoNodes, currentNodes);
+  state.edgeOverrides[edgeId] = createBaseEdgeOverride(edge, sourceDelta, targetDelta);
+}
+
+function getEdgeEndpointDeltas(edge: Pick<EdgeLayout, "sourceId" | "targetId">, currentLayout: LayoutResult, autoLayout: LayoutResult | null) {
+  const currentNodes = new Map(currentLayout.nodes.map((node) => [node.id, node]));
+  const autoNodes = new Map(autoLayout?.nodes.map((node) => [node.id, node]) ?? []);
+  return {
+    sourceDelta: getNodeDelta(edge.sourceId, autoNodes, currentNodes),
+    targetDelta: getNodeDelta(edge.targetId, autoNodes, currentNodes),
   };
 }
 
@@ -2140,17 +2175,10 @@ function buildImportedOverrides(request: LayoutRequest, assertedGeometry: Import
       const sourceDelta = nodeDeltaById.get(autoEdge.sourceId) ?? { x: 0, y: 0 };
       const targetDelta = nodeDeltaById.get(autoEdge.targetId) ?? { x: 0, y: 0 };
       const override: EdgeOverride = {};
-      const sourceAnchor = translatePoint(edge.sourceAnchor, { x: -sourceDelta.x, y: -sourceDelta.y });
-      const targetAnchor = translatePoint(edge.targetAnchor, { x: -targetDelta.x, y: -targetDelta.y });
-      const points = edge.points.map((point, index, allPoints) => {
-        if (index <= 1) {
-          return translatePoint(point, { x: -sourceDelta.x, y: -sourceDelta.y });
-        }
-        if (index >= allPoints.length - 2) {
-          return translatePoint(point, { x: -targetDelta.x, y: -targetDelta.y });
-        }
-        return { ...point };
-      });
+      const baseOverride = createBaseEdgeOverride(edge, sourceDelta, targetDelta);
+      const sourceAnchor = baseOverride.sourceAnchor;
+      const targetAnchor = baseOverride.targetAnchor;
+      const points = baseOverride.points;
 
       if (!anchorMatches(sourceAnchor, autoEdge.sourceAnchor)) {
         override.sourceAnchor = sourceAnchor;
