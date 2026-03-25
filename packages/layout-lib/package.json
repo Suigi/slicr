@@ -1,0 +1,26 @@
+{
+  "name": "layout-lib",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "watch": "vitest --reporter=default --reporter=src/vitest/cliReporter.ts --reporter=src/vitest/statusCliReporter.ts",
+    "test": "vitest run --reporter=vitest-llm-reporter"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3",
+    "vite": "^7.3.1",
+    "vitest": "^4.0.18",
+    "vitest-llm-reporter": "^1.2.2"
+  }
+}
