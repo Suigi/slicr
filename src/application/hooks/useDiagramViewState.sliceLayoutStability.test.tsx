@@ -6,6 +6,7 @@ import ReactDOM from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DiagramSceneModel } from '../../diagram/rendererContract';
 import type { DiagramPoint } from '../../domain/diagramRouting';
+import { routeRoundedPolyline } from '../../domain/diagramRouting';
 import { parseDsl } from '../../domain/parseDsl';
 import type { Parsed } from '../../domain/types';
 import { TYPE_LABEL, NODE_VERSION_SUFFIX } from '../appConstants';
@@ -48,12 +49,14 @@ function ViewStateHarness({
   parsed,
   focusRequestVersion,
   pendingFocusNodeKey,
+  dragAndDropEnabled,
   onSceneModel
 }: {
   dsl: string;
   parsed: Parsed | null;
   focusRequestVersion: number;
   pendingFocusNodeKey: string | null;
+  dragAndDropEnabled: boolean;
   onSceneModel: (sceneModel: DiagramSceneModel | null) => void;
 }) {
   const parsedValue = useMemo(() => parsed, [parsed]);
@@ -72,7 +75,7 @@ function ViewStateHarness({
     theme: 'light',
     diagramRendererId: 'dom-svg',
     selectedSliceId: 'slice-a',
-    dragAndDropEnabled: false,
+    dragAndDropEnabled,
     manualNodePositions,
     manualEdgePoints,
     setManualNodePositions,
@@ -115,7 +118,8 @@ function renderHarness(
   initialDsl: string,
   parsed: Parsed | null = parseDsl(initialDsl),
   focusRequestVersion = 0,
-  pendingFocusNodeKey: string | null = null
+  pendingFocusNodeKey: string | null = null,
+  dragAndDropEnabled = false
 ) {
   host = document.createElement('div');
   document.body.appendChild(host);
@@ -128,6 +132,7 @@ function renderHarness(
         parsed={args.parsed}
         focusRequestVersion={args.focusRequestVersion}
         pendingFocusNodeKey={args.pendingFocusNodeKey}
+        dragAndDropEnabled={dragAndDropEnabled}
         onSceneModel={(sceneModel) => {
           latestSceneModel = sceneModel;
         }}
@@ -156,6 +161,16 @@ async function flushWork() {
 async function waitForSceneModel(attempts = 20) {
   for (let index = 0; index < attempts; index += 1) {
     if (latestSceneModel) {
+      return latestSceneModel;
+    }
+    await flushWork();
+  }
+  return latestSceneModel;
+}
+
+async function waitForSettledSliceSceneModel(attempts = 20) {
+  for (let index = 0; index < attempts; index += 1) {
+    if (latestViewState?.layoutReady && latestSceneModel) {
       return latestSceneModel;
     }
     await flushWork();
@@ -299,5 +314,129 @@ describe('useDiagramViewState slice layout stability', () => {
     expect(latestViewState?.layoutReady).toBe(false);
     expect(panel?.scrollLeft).toBe(0);
     expect(panel?.scrollTop).toBe(0);
+  });
+
+  it('renders slice edges from engine precomputed geometry when async layout provides it', async () => {
+    const precomputedPoints = [
+      { x: 210, y: 180 },
+      { x: 250, y: 180 },
+      { x: 250, y: 101 },
+      { x: 120, y: 101 }
+    ];
+    computeDiagramLayoutMock.mockImplementation(async (parsed, options) => (
+      parsed.nodes.has('source') && parsed.nodes.has('target')
+        ? {
+            layout: {
+              pos: {
+                source: { x: 50, y: 160, w: 160, h: 42 },
+                target: { x: 40, y: 20, w: 160, h: 81 }
+              },
+              w: 340,
+              h: 260,
+              rowY: {},
+              usedRows: [],
+              rowStreamLabels: {}
+            },
+            laneByKey: new Map([
+              ['source', 1],
+              ['target', 0]
+            ]),
+            rowStreamLabels: {},
+            precomputedEdges: {
+              'source->target#0': {
+                d: 'M 210 180 L 250 180 L 250 101 L 120 101',
+                labelX: 250,
+                labelY: 94,
+                points: precomputedPoints
+              }
+            }
+          }
+        : realComputeDiagramLayoutRef.current!(parsed, options)
+    ));
+
+    renderHarness('slice "A"\n\ncmd:source\nui:target <- cmd:source');
+
+    const sceneModel = await waitForSettledSliceSceneModel();
+
+    expect(sceneModel?.edges).toHaveLength(1);
+    expect(sceneModel?.edges[0]?.points).toEqual(precomputedPoints);
+    expect(sceneModel?.edges[0]?.path).toBe(routeRoundedPolyline(precomputedPoints, 5));
+  });
+
+  it('keeps manual edge-point overrides ahead of engine precomputed geometry', async () => {
+    const precomputedPoints = [
+      { x: 210, y: 180 },
+      { x: 250, y: 180 },
+      { x: 250, y: 101 },
+      { x: 120, y: 101 }
+    ];
+    computeDiagramLayoutMock.mockImplementation(async (parsed, options) => (
+      parsed.nodes.has('source') && parsed.nodes.has('target')
+        ? {
+            layout: {
+              pos: {
+                source: { x: 50, y: 160, w: 160, h: 42 },
+                target: { x: 40, y: 20, w: 160, h: 81 }
+              },
+              w: 340,
+              h: 260,
+              rowY: {},
+              usedRows: [],
+              rowStreamLabels: {}
+            },
+            laneByKey: new Map([
+              ['source', 1],
+              ['target', 0]
+            ]),
+            rowStreamLabels: {},
+            precomputedEdges: {
+              'source->target#0': {
+                d: 'M 210 180 L 250 180 L 250 101 L 120 101',
+                labelX: 250,
+                labelY: 94,
+                points: precomputedPoints
+              }
+            }
+          }
+        : realComputeDiagramLayoutRef.current!(parsed, options)
+    ));
+
+    renderHarness('slice "A"\n\ncmd:source\nui:target <- cmd:source', undefined, 0, null, true);
+
+    await waitForSettledSliceSceneModel();
+
+    const overriddenPoints = [
+      { x: 210, y: 210 },
+      { x: 250, y: 210 },
+      { x: 250, y: 101 },
+      { x: 120, y: 101 }
+    ];
+
+    act(() => {
+      latestViewState?.beginEdgeSegmentDrag({
+        button: 0,
+        clientX: 10,
+        clientY: 10,
+        pointerId: 1,
+        preventDefault: () => undefined
+      } as never, 'source->target#0', 0, precomputedPoints);
+    });
+
+    act(() => {
+      window.dispatchEvent(new PointerEvent('pointermove', {
+        clientX: 10,
+        clientY: 40,
+        pointerId: 1
+      }));
+      window.dispatchEvent(new PointerEvent('pointerup', {
+        clientX: 10,
+        clientY: 40,
+        pointerId: 1
+      }));
+    });
+    await flushWork();
+
+    expect(latestSceneModel?.edges[0]?.points).toEqual(overriddenPoints);
+    expect(latestSceneModel?.edges[0]?.path).toBe(routeRoundedPolyline(overriddenPoints, 5));
   });
 });

@@ -42,12 +42,12 @@ ui:simple-ui
     const expectedGeometry = {
       "nodes": [
         {"key":"simple-event","x":50,"y":268,"w":180,"h":42},
-        {"key":"simple-read-model","x":150,"y":134,"w":180,"h":42},
-        {"key":"simple-ui","x":250,"y":0,"w":180,"h":42}
+        {"key":"simple-read-model","x":180,"y":134,"w":180,"h":42},
+        {"key":"simple-ui","x":310,"y":0,"w":180,"h":42}
       ],
       "edges": [
-        {"key":"simple-event->simple-read-model#0","from":"simple-event","to":"simple-read-model","d":"M 150 268 L 150 248 L 150 150 L 150 150","points":[{"x":150,"y":268},{"x":150,"y":248},{"x":150,"y":150},{"x":150,"y":150}]},
-        {"key":"simple-read-model->simple-ui#1","from":"simple-read-model","to":"simple-ui","d":"M 250 134 L 250 114 L 250 16 L 250 16","points":[{"x":250,"y":134},{"x":250,"y":114},{"x":250,"y":16},{"x":250,"y":16}]}
+        {"key":"simple-event->simple-read-model#0","from":"simple-event","to":"simple-read-model","d":"M 150 268 L 150 248 L 150 150 L 180 150","points":[{"x":150,"y":268},{"x":150,"y":248},{"x":150,"y":150},{"x":180,"y":150}]},
+        {"key":"simple-read-model->simple-ui#1","from":"simple-read-model","to":"simple-ui","d":"M 280 134 L 280 114 L 280 16 L 310 16","points":[{"x":280,"y":134},{"x":280,"y":114},{"x":280,"y":16},{"x":310,"y":16}]}
       ]
     };
 
@@ -81,16 +81,16 @@ stream:second
     const expectedGeometry = {
       "nodes": [
         {"key":"first-event","x":50,"y":268,"w":180,"h":42},
-        {"key":"second-event","x":790,"y":402,"w":180,"h":42},
-        {"key":"simple-command","x":530,"y":134,"w":180,"h":42},
+        {"key":"second-event","x":820,"y":402,"w":180,"h":42},
+        {"key":"simple-command","x":560,"y":134,"w":180,"h":42},
         {"key":"simple-read-model","x":310,"y":134,"w":180,"h":42},
-        {"key":"simple-ui","x":410,"y":0,"w":180,"h":42}
+        {"key":"simple-ui","x":440,"y":0,"w":180,"h":42}
       ],
       "edges": [
         {"key":"first-event->simple-read-model#0","from":"first-event","to":"simple-read-model","d":"M 150 268 L 150 248 L 150 150 L 310 150","points":[{"x":150,"y":268},{"x":150,"y":248},{"x":150,"y":150},{"x":310,"y":150}]},
-        {"key":"simple-command->second-event#3","from":"simple-command","to":"second-event","d":"M 630 176 L 630 196 L 870 196 L 870 402","points":[{"x":630,"y":176},{"x":630,"y":196},{"x":870,"y":196},{"x":870,"y":402}]},
-        {"key":"simple-read-model->simple-ui#1","from":"simple-read-model","to":"simple-ui","d":"M 410 134 L 410 114 L 410 16 L 410 16","points":[{"x":410,"y":134},{"x":410,"y":114},{"x":410,"y":16},{"x":410,"y":16}]},
-        {"key":"simple-ui->simple-command#2","from":"simple-ui","to":"simple-command","d":"M 510 42 L 510 62 L 610 62 L 610 134","points":[{"x":510,"y":42},{"x":510,"y":62},{"x":610,"y":62},{"x":610,"y":134}]}
+        {"key":"simple-command->second-event#3","from":"simple-command","to":"second-event","d":"M 660 176 L 660 196 L 900 196 L 900 402","points":[{"x":660,"y":176},{"x":660,"y":196},{"x":900,"y":196},{"x":900,"y":402}]},
+        {"key":"simple-read-model->simple-ui#1","from":"simple-read-model","to":"simple-ui","d":"M 410 134 L 410 114 L 410 16 L 440 16","points":[{"x":410,"y":134},{"x":410,"y":114},{"x":410,"y":16},{"x":440,"y":16}]},
+        {"key":"simple-ui->simple-command#2","from":"simple-ui","to":"simple-command","d":"M 540 42 L 540 62 L 640 62 L 640 134","points":[{"x":540,"y":42},{"x":540,"y":62},{"x":640,"y":62},{"x":640,"y":134}]}
       ]
     };
 
@@ -138,16 +138,16 @@ cmd:simple-command
     const expectedGeometry = {
       "nodes": [
         {"key":"first-event","x":50,"y":440,"w":180,"h":128},
-        {"key":"second-event","x":490,"y":660,"w":180,"h":42},
-        {"key":"simple-command","x":370,"y":220,"w":180,"h":42},
-        {"key":"simple-read-model","x":150,"y":220,"w":180,"h":128},
-        {"key":"simple-ui","x":250,"y":0,"w":180,"h":128}
+        {"key":"second-event","x":550,"y":660,"w":180,"h":42},
+        {"key":"simple-command","x":430,"y":220,"w":180,"h":42},
+        {"key":"simple-read-model","x":180,"y":220,"w":180,"h":128},
+        {"key":"simple-ui","x":310,"y":0,"w":180,"h":128}
       ],
       "edges": [
-        {"key":"first-event->simple-read-model#0","from":"first-event","to":"simple-read-model","d":"M 150 440 L 150 420 L 150 279 L 150 279","points":[{"x":150,"y":440},{"x":150,"y":420},{"x":150,"y":279},{"x":150,"y":279}]},
-        {"key":"simple-command->second-event#3","from":"simple-command","to":"second-event","d":"M 470 262 L 470 282 L 570 282 L 570 660","points":[{"x":470,"y":262},{"x":470,"y":282},{"x":570,"y":282},{"x":570,"y":660}]},
-        {"key":"simple-read-model->simple-ui#1","from":"simple-read-model","to":"simple-ui","d":"M 250 220 L 250 200 L 250 59 L 250 59","points":[{"x":250,"y":220},{"x":250,"y":200},{"x":250,"y":59},{"x":250,"y":59}]},
-        {"key":"simple-ui->simple-command#2","from":"simple-ui","to":"simple-command","d":"M 350 128 L 350 148 L 450 148 L 450 220","points":[{"x":350,"y":128},{"x":350,"y":148},{"x":450,"y":148},{"x":450,"y":220}]}
+        {"key":"first-event->simple-read-model#0","from":"first-event","to":"simple-read-model","d":"M 150 440 L 150 420 L 150 279 L 180 279","points":[{"x":150,"y":440},{"x":150,"y":420},{"x":150,"y":279},{"x":180,"y":279}]},
+        {"key":"simple-command->second-event#3","from":"simple-command","to":"second-event","d":"M 530 262 L 530 282 L 630 282 L 630 660","points":[{"x":530,"y":262},{"x":530,"y":282},{"x":630,"y":282},{"x":630,"y":660}]},
+        {"key":"simple-read-model->simple-ui#1","from":"simple-read-model","to":"simple-ui","d":"M 280 220 L 280 200 L 280 59 L 310 59","points":[{"x":280,"y":220},{"x":280,"y":200},{"x":280,"y":59},{"x":310,"y":59}]},
+        {"key":"simple-ui->simple-command#2","from":"simple-ui","to":"simple-command","d":"M 410 128 L 410 148 L 510 148 L 510 220","points":[{"x":410,"y":128},{"x":410,"y":148},{"x":510,"y":148},{"x":510,"y":220}]}
       ]
     };
 
@@ -189,16 +189,16 @@ stream:second
     const expectedGeometry = {
       "nodes": [
         {"key":"first-event","x":50,"y":268,"w":180,"h":42},
-        {"key":"second-event","x":790,"y":402,"w":180,"h":42},
-        {"key":"simple-command","x":530,"y":134,"w":180,"h":42},
+        {"key":"second-event","x":820,"y":402,"w":180,"h":42},
+        {"key":"simple-command","x":560,"y":134,"w":180,"h":42},
         {"key":"simple-read-model","x":310,"y":134,"w":180,"h":42},
-        {"key":"simple-ui","x":410,"y":0,"w":180,"h":42}
+        {"key":"simple-ui","x":440,"y":0,"w":180,"h":42}
       ],
       "edges": [
         {"key":"first-event->simple-read-model#0","from":"first-event","to":"simple-read-model","d":"M 150 268 L 150 248 L 150 150 L 310 150","points":[{"x":150,"y":268},{"x":150,"y":248},{"x":150,"y":150},{"x":310,"y":150}]},
-        {"key":"simple-command->second-event#3","from":"simple-command","to":"second-event","d":"M 630 176 L 630 196 L 870 196 L 870 402","points":[{"x":630,"y":176},{"x":630,"y":196},{"x":870,"y":196},{"x":870,"y":402}]},
-        {"key":"simple-read-model->simple-ui#1","from":"simple-read-model","to":"simple-ui","d":"M 410 134 L 410 114 L 410 16 L 410 16","points":[{"x":410,"y":134},{"x":410,"y":114},{"x":410,"y":16},{"x":410,"y":16}]},
-        {"key":"simple-ui->simple-command#2","from":"simple-ui","to":"simple-command","d":"M 510 42 L 510 62 L 610 62 L 610 134","points":[{"x":510,"y":42},{"x":510,"y":62},{"x":610,"y":62},{"x":610,"y":134}]}
+        {"key":"simple-command->second-event#3","from":"simple-command","to":"second-event","d":"M 660 176 L 660 196 L 900 196 L 900 402","points":[{"x":660,"y":176},{"x":660,"y":196},{"x":900,"y":196},{"x":900,"y":402}]},
+        {"key":"simple-read-model->simple-ui#1","from":"simple-read-model","to":"simple-ui","d":"M 410 134 L 410 114 L 410 16 L 440 16","points":[{"x":410,"y":134},{"x":410,"y":114},{"x":410,"y":16},{"x":440,"y":16}]},
+        {"key":"simple-ui->simple-command#2","from":"simple-ui","to":"simple-command","d":"M 540 42 L 540 62 L 640 62 L 640 134","points":[{"x":540,"y":42},{"x":540,"y":62},{"x":640,"y":62},{"x":640,"y":134}]}
       ]
     };
 
@@ -581,15 +581,15 @@ rm:a <- evt:room-booked
 `;
     const expectedGeometry = {
       "nodes": [
-        {"key":"a","x":630,"y":0,"w":180,"h":42},
-        {"key":"available-rooms@2","x":150,"y":0,"w":180,"h":96},
-        {"key":"pending-bookings","x":410,"y":0,"w":180,"h":96},
+        {"key":"a","x":660,"y":0,"w":180,"h":42},
+        {"key":"available-rooms@2","x":180,"y":0,"w":180,"h":96},
+        {"key":"pending-bookings","x":440,"y":0,"w":180,"h":96},
         {"key":"room-booked","x":50,"y":188,"w":180,"h":80}
       ],
       "edges": [
-        {"key":"room-booked->a#2","from":"room-booked","to":"a","d":"M 170 188 L 170 166 L 170 116 L 610 116 L 610 16 L 630 16","points":[{"x":170,"y":188},{"x":170,"y":166},{"x":170,"y":116},{"x":610,"y":116},{"x":610,"y":16},{"x":630,"y":16}]},
-        {"key":"room-booked->available-rooms@2#0","from":"room-booked","to":"available-rooms@2","d":"M 150 188 L 150 168 L 150 43 L 150 43","points":[{"x":150,"y":188},{"x":150,"y":168},{"x":150,"y":43},{"x":150,"y":43}]},
-        {"key":"room-booked->pending-bookings#1","from":"room-booked","to":"pending-bookings","d":"M 160 188 L 160 166 L 160 106 L 390 106 L 390 43 L 410 43","points":[{"x":160,"y":188},{"x":160,"y":166},{"x":160,"y":106},{"x":390,"y":106},{"x":390,"y":43},{"x":410,"y":43}]}
+        {"key":"room-booked->a#2","from":"room-booked","to":"a","d":"M 170 188 L 170 166 L 170 116 L 640 116 L 640 16 L 660 16","points":[{"x":170,"y":188},{"x":170,"y":166},{"x":170,"y":116},{"x":640,"y":116},{"x":640,"y":16},{"x":660,"y":16}]},
+        {"key":"room-booked->available-rooms@2#0","from":"room-booked","to":"available-rooms@2","d":"M 150 188 L 150 168 L 150 43 L 180 43","points":[{"x":150,"y":188},{"x":150,"y":168},{"x":150,"y":43},{"x":180,"y":43}]},
+        {"key":"room-booked->pending-bookings#1","from":"room-booked","to":"pending-bookings","d":"M 160 188 L 160 166 L 160 106 L 420 106 L 420 43 L 440 43","points":[{"x":160,"y":188},{"x":160,"y":166},{"x":160,"y":106},{"x":420,"y":106},{"x":420,"y":43},{"x":440,"y":43}]}
       ]
     };
 
@@ -627,18 +627,18 @@ evt:b
     const expectedGeometry = {
       "nodes": [
         {"key":"a","x":50,"y":268,"w":180,"h":42},
-        {"key":"available-rooms","x":370,"y":134,"w":180,"h":42},
+        {"key":"available-rooms","x":400,"y":134,"w":180,"h":42},
         {"key":"b","x":270,"y":268,"w":180,"h":42},
-        {"key":"book-room","x":910,"y":134,"w":180,"h":42},
-        {"key":"select-room","x":560,"y":0,"w":180,"h":42},
-        {"key":"session","x":780,"y":0,"w":180,"h":42}
+        {"key":"book-room","x":940,"y":134,"w":180,"h":42},
+        {"key":"select-room","x":590,"y":0,"w":180,"h":42},
+        {"key":"session","x":810,"y":0,"w":180,"h":42}
       ],
       "edges": [
-        {"key":"a->available-rooms#3","from":"a","to":"available-rooms","d":"M 150 268 L 150 248 L 150 150 L 370 150","points":[{"x":150,"y":268},{"x":150,"y":248},{"x":150,"y":150},{"x":370,"y":150}]},
-        {"key":"available-rooms->select-room#0","from":"available-rooms","to":"select-room","d":"M 470 134 L 470 114 L 470 16 L 560 16","points":[{"x":470,"y":134},{"x":470,"y":114},{"x":470,"y":16},{"x":560,"y":16}]},
-        {"key":"b->available-rooms#4","from":"b","to":"available-rooms","d":"M 370 268 L 370 248 L 370 160 L 370 160","points":[{"x":370,"y":268},{"x":370,"y":248},{"x":370,"y":160},{"x":370,"y":160}]},
-        {"key":"select-room->book-room#1","from":"select-room","to":"book-room","d":"M 660 42 L 660 80 L 990 80 L 990 134","points":[{"x":660,"y":42},{"x":660,"y":80},{"x":990,"y":80},{"x":990,"y":134}]},
-        {"key":"session->book-room#2","from":"session","to":"book-room","d":"M 880 42 L 880 70 L 1000 70 L 1000 134","points":[{"x":880,"y":42},{"x":880,"y":70},{"x":1000,"y":70},{"x":1000,"y":134}]}
+        {"key":"a->available-rooms#3","from":"a","to":"available-rooms","d":"M 150 268 L 150 248 L 150 150 L 400 150","points":[{"x":150,"y":268},{"x":150,"y":248},{"x":150,"y":150},{"x":400,"y":150}]},
+        {"key":"available-rooms->select-room#0","from":"available-rooms","to":"select-room","d":"M 500 134 L 500 114 L 500 16 L 590 16","points":[{"x":500,"y":134},{"x":500,"y":114},{"x":500,"y":16},{"x":590,"y":16}]},
+        {"key":"b->available-rooms#4","from":"b","to":"available-rooms","d":"M 370 268 L 370 248 L 370 160 L 400 160","points":[{"x":370,"y":268},{"x":370,"y":248},{"x":370,"y":160},{"x":400,"y":160}]},
+        {"key":"select-room->book-room#1","from":"select-room","to":"book-room","d":"M 690 42 L 690 80 L 1020 80 L 1020 134","points":[{"x":690,"y":42},{"x":690,"y":80},{"x":1020,"y":80},{"x":1020,"y":134}]},
+        {"key":"session->book-room#2","from":"session","to":"book-room","d":"M 910 42 L 910 70 L 1030 70 L 1030 134","points":[{"x":910,"y":42},{"x":910,"y":70},{"x":1030,"y":70},{"x":1030,"y":134}]}
       ]
     };
 
@@ -674,19 +674,19 @@ evt:b
 `;
     const expectedGeometry = {
       "nodes": [
-        {"key":"a","x":370,"y":156,"w":180,"h":42},
+        {"key":"a","x":400,"y":156,"w":180,"h":42},
         {"key":"b","x":270,"y":290,"w":180,"h":42},
-        {"key":"cmd:a","x":910,"y":156,"w":180,"h":42},
+        {"key":"cmd:a","x":940,"y":156,"w":180,"h":42},
         {"key":"evt:a","x":50,"y":290,"w":180,"h":42},
-        {"key":"generic","x":780,"y":0,"w":180,"h":64},
-        {"key":"ui:a","x":560,"y":0,"w":180,"h":42}
+        {"key":"generic","x":810,"y":0,"w":180,"h":64},
+        {"key":"ui:a","x":590,"y":0,"w":180,"h":42}
       ],
       "edges": [
-        {"key":"a->ui:a#0","from":"a","to":"ui:a","d":"M 470 156 L 470 136 L 470 16 L 560 16","points":[{"x":470,"y":156},{"x":470,"y":136},{"x":470,"y":16},{"x":560,"y":16}]},
-        {"key":"b->a#4","from":"b","to":"a","d":"M 370 290 L 370 270 L 370 182 L 370 182","points":[{"x":370,"y":290},{"x":370,"y":270},{"x":370,"y":182},{"x":370,"y":182}]},
-        {"key":"evt:a->a#3","from":"evt:a","to":"a","d":"M 150 290 L 150 270 L 150 172 L 370 172","points":[{"x":150,"y":290},{"x":150,"y":270},{"x":150,"y":172},{"x":370,"y":172}]},
-        {"key":"generic->cmd:a#2","from":"generic","to":"cmd:a","d":"M 880 64 L 880 90 L 1000 90 L 1000 156","points":[{"x":880,"y":64},{"x":880,"y":90},{"x":1000,"y":90},{"x":1000,"y":156}]},
-        {"key":"ui:a->cmd:a#1","from":"ui:a","to":"cmd:a","d":"M 660 42 L 660 100 L 990 100 L 990 156","points":[{"x":660,"y":42},{"x":660,"y":100},{"x":990,"y":100},{"x":990,"y":156}]}
+        {"key":"a->ui:a#0","from":"a","to":"ui:a","d":"M 500 156 L 500 136 L 500 16 L 590 16","points":[{"x":500,"y":156},{"x":500,"y":136},{"x":500,"y":16},{"x":590,"y":16}]},
+        {"key":"b->a#4","from":"b","to":"a","d":"M 370 290 L 370 270 L 370 182 L 400 182","points":[{"x":370,"y":290},{"x":370,"y":270},{"x":370,"y":182},{"x":400,"y":182}]},
+        {"key":"evt:a->a#3","from":"evt:a","to":"a","d":"M 150 290 L 150 270 L 150 172 L 400 172","points":[{"x":150,"y":290},{"x":150,"y":270},{"x":150,"y":172},{"x":400,"y":172}]},
+        {"key":"generic->cmd:a#2","from":"generic","to":"cmd:a","d":"M 910 64 L 910 90 L 1030 90 L 1030 156","points":[{"x":910,"y":64},{"x":910,"y":90},{"x":1030,"y":90},{"x":1030,"y":156}]},
+        {"key":"ui:a->cmd:a#1","from":"ui:a","to":"cmd:a","d":"M 690 42 L 690 100 L 1020 100 L 1020 156","points":[{"x":690,"y":42},{"x":690,"y":100},{"x":1020,"y":100},{"x":1020,"y":156}]}
       ]
     };
 
@@ -757,21 +757,21 @@ data:
     const expectedGeometry = {
       "nodes": [
         {"key":"available-concerts","x":310,"y":172,"w":180,"h":112},
-        {"key":"available-concerts@2","x":1140,"y":172,"w":180,"h":112},
-        {"key":"buy-ticket","x":760,"y":172,"w":180,"h":96},
-        {"key":"buy-ticket-form","x":410,"y":0,"w":180,"h":80},
+        {"key":"available-concerts@2","x":1170,"y":172,"w":180,"h":112},
+        {"key":"buy-ticket","x":790,"y":172,"w":180,"h":96},
+        {"key":"buy-ticket-form","x":440,"y":0,"w":180,"h":80},
         {"key":"ct-sched","x":50,"y":376,"w":180,"h":96},
-        {"key":"session","x":630,"y":0,"w":180,"h":64},
-        {"key":"ticket-sold","x":880,"y":376,"w":180,"h":96}
+        {"key":"session","x":660,"y":0,"w":180,"h":64},
+        {"key":"ticket-sold","x":910,"y":376,"w":180,"h":96}
       ],
       "edges": [
-        {"key":"available-concerts->buy-ticket-form#2","from":"available-concerts","to":"buy-ticket-form","d":"M 410 172 L 410 152 L 410 35 L 410 35","points":[{"x":410,"y":172},{"x":410,"y":152},{"x":410,"y":35},{"x":410,"y":35}]},
-        {"key":"buy-ticket->ticket-sold#5","from":"buy-ticket","to":"ticket-sold","d":"M 860 268 L 860 288 L 960 288 L 960 376","points":[{"x":860,"y":268},{"x":860,"y":288},{"x":960,"y":288},{"x":960,"y":376}]},
-        {"key":"buy-ticket-form->buy-ticket#3","from":"buy-ticket-form","to":"buy-ticket","d":"M 510 80 L 510 110 L 840 110 L 840 172","points":[{"x":510,"y":80},{"x":510,"y":110},{"x":840,"y":110},{"x":840,"y":172}]},
-        {"key":"ct-sched->available-concerts@2#1","from":"ct-sched","to":"available-concerts@2","d":"M 160 376 L 160 354 L 160 294 L 1120 294 L 1120 223 L 1140 223","points":[{"x":160,"y":376},{"x":160,"y":354},{"x":160,"y":294},{"x":1120,"y":294},{"x":1120,"y":223},{"x":1140,"y":223}]},
+        {"key":"available-concerts->buy-ticket-form#2","from":"available-concerts","to":"buy-ticket-form","d":"M 410 172 L 410 152 L 410 35 L 440 35","points":[{"x":410,"y":172},{"x":410,"y":152},{"x":410,"y":35},{"x":440,"y":35}]},
+        {"key":"buy-ticket->ticket-sold#5","from":"buy-ticket","to":"ticket-sold","d":"M 890 268 L 890 288 L 990 288 L 990 376","points":[{"x":890,"y":268},{"x":890,"y":288},{"x":990,"y":288},{"x":990,"y":376}]},
+        {"key":"buy-ticket-form->buy-ticket#3","from":"buy-ticket-form","to":"buy-ticket","d":"M 540 80 L 540 110 L 870 110 L 870 172","points":[{"x":540,"y":80},{"x":540,"y":110},{"x":870,"y":110},{"x":870,"y":172}]},
+        {"key":"ct-sched->available-concerts@2#1","from":"ct-sched","to":"available-concerts@2","d":"M 160 376 L 160 354 L 160 294 L 1150 294 L 1150 223 L 1170 223","points":[{"x":160,"y":376},{"x":160,"y":354},{"x":160,"y":294},{"x":1150,"y":294},{"x":1150,"y":223},{"x":1170,"y":223}]},
         {"key":"ct-sched->available-concerts#0","from":"ct-sched","to":"available-concerts","d":"M 150 376 L 150 356 L 150 223 L 310 223","points":[{"x":150,"y":376},{"x":150,"y":356},{"x":150,"y":223},{"x":310,"y":223}]},
-        {"key":"session->buy-ticket#4","from":"session","to":"buy-ticket","d":"M 730 64 L 730 90 L 850 90 L 850 172","points":[{"x":730,"y":64},{"x":730,"y":90},{"x":850,"y":90},{"x":850,"y":172}]},
-        {"key":"ticket-sold->available-concerts@2#6","from":"ticket-sold","to":"available-concerts@2","d":"M 980 376 L 980 356 L 980 233 L 1140 233","points":[{"x":980,"y":376},{"x":980,"y":356},{"x":980,"y":233},{"x":1140,"y":233}]}
+        {"key":"session->buy-ticket#4","from":"session","to":"buy-ticket","d":"M 760 64 L 760 90 L 880 90 L 880 172","points":[{"x":760,"y":64},{"x":760,"y":90},{"x":880,"y":90},{"x":880,"y":172}]},
+        {"key":"ticket-sold->available-concerts@2#6","from":"ticket-sold","to":"available-concerts@2","d":"M 1010 376 L 1010 356 L 1010 233 L 1170 233","points":[{"x":1010,"y":376},{"x":1010,"y":356},{"x":1010,"y":233},{"x":1170,"y":233}]}
       ]
     };
 
@@ -909,22 +909,22 @@ uses:
     const expectedGeometry = {
       "nodes": [
         {"key":"add","x":50,"y":172,"w":180,"h":80},
-        {"key":"my-cmd","x":880,"y":172,"w":180,"h":80},
-        {"key":"my-evt","x":1000,"y":392,"w":180,"h":80},
+        {"key":"my-cmd","x":910,"y":172,"w":180,"h":80},
+        {"key":"my-evt","x":1030,"y":392,"w":180,"h":80},
         {"key":"my-rm","x":660,"y":172,"w":180,"h":128},
-        {"key":"my-rm@2","x":1260,"y":172,"w":180,"h":128},
-        {"key":"my-ui","x":760,"y":0,"w":180,"h":80},
+        {"key":"my-rm@2","x":1290,"y":172,"w":180,"h":128},
+        {"key":"my-ui","x":790,"y":0,"w":180,"h":80},
         {"key":"thing-added@1","x":180,"y":392,"w":180,"h":80},
         {"key":"thing-added@2","x":400,"y":392,"w":180,"h":80}
       ],
       "edges": [
         {"key":"add->thing-added@1#0","from":"add","to":"thing-added@1","d":"M 150 252 L 150 272 L 260 272 L 260 392","points":[{"x":150,"y":252},{"x":150,"y":272},{"x":260,"y":272},{"x":260,"y":392}]},
-        {"key":"my-cmd->my-evt#5","from":"my-cmd","to":"my-evt","d":"M 980 252 L 980 272 L 1080 272 L 1080 392","points":[{"x":980,"y":252},{"x":980,"y":272},{"x":1080,"y":272},{"x":1080,"y":392}]},
-        {"key":"my-evt->my-rm@2#7","from":"my-evt","to":"my-rm@2","d":"M 1100 392 L 1100 372 L 1100 241 L 1260 241","points":[{"x":1100,"y":392},{"x":1100,"y":372},{"x":1100,"y":241},{"x":1260,"y":241}]},
-        {"key":"my-rm->my-ui#3","from":"my-rm","to":"my-ui","d":"M 760 172 L 760 152 L 760 35 L 760 35","points":[{"x":760,"y":172},{"x":760,"y":152},{"x":760,"y":35},{"x":760,"y":35}]},
-        {"key":"my-ui->my-cmd#4","from":"my-ui","to":"my-cmd","d":"M 860 80 L 860 100 L 960 100 L 960 172","points":[{"x":860,"y":80},{"x":860,"y":100},{"x":960,"y":100},{"x":960,"y":172}]},
+        {"key":"my-cmd->my-evt#5","from":"my-cmd","to":"my-evt","d":"M 1010 252 L 1010 272 L 1110 272 L 1110 392","points":[{"x":1010,"y":252},{"x":1010,"y":272},{"x":1110,"y":272},{"x":1110,"y":392}]},
+        {"key":"my-evt->my-rm@2#7","from":"my-evt","to":"my-rm@2","d":"M 1130 392 L 1130 372 L 1130 241 L 1290 241","points":[{"x":1130,"y":392},{"x":1130,"y":372},{"x":1130,"y":241},{"x":1290,"y":241}]},
+        {"key":"my-rm->my-ui#3","from":"my-rm","to":"my-ui","d":"M 760 172 L 760 152 L 760 35 L 790 35","points":[{"x":760,"y":172},{"x":760,"y":152},{"x":760,"y":35},{"x":790,"y":35}]},
+        {"key":"my-ui->my-cmd#4","from":"my-ui","to":"my-cmd","d":"M 890 80 L 890 100 L 990 100 L 990 172","points":[{"x":890,"y":80},{"x":890,"y":100},{"x":990,"y":100},{"x":990,"y":172}]},
         {"key":"thing-added@1->my-rm#1","from":"thing-added@1","to":"my-rm","d":"M 280 392 L 280 372 L 280 231 L 660 231","points":[{"x":280,"y":392},{"x":280,"y":372},{"x":280,"y":231},{"x":660,"y":231}]},
-        {"key":"thing-added@2->my-rm@2#6","from":"thing-added@2","to":"my-rm@2","d":"M 510 392 L 510 370 L 510 310 L 1240 310 L 1240 231 L 1260 231","points":[{"x":510,"y":392},{"x":510,"y":370},{"x":510,"y":310},{"x":1240,"y":310},{"x":1240,"y":231},{"x":1260,"y":231}]},
+        {"key":"thing-added@2->my-rm@2#6","from":"thing-added@2","to":"my-rm@2","d":"M 510 392 L 510 370 L 510 310 L 1270 310 L 1270 231 L 1290 231","points":[{"x":510,"y":392},{"x":510,"y":370},{"x":510,"y":310},{"x":1270,"y":310},{"x":1270,"y":231},{"x":1290,"y":231}]},
         {"key":"thing-added@2->my-rm#2","from":"thing-added@2","to":"my-rm","d":"M 500 392 L 500 372 L 500 241 L 660 241","points":[{"x":500,"y":392},{"x":500,"y":372},{"x":500,"y":241},{"x":660,"y":241}]}
       ]
     };

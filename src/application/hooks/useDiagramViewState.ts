@@ -234,8 +234,11 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
     if (!diagramParsed) {
       return [] as Array<{ key: string; edgeKey: string; edge: Parsed['edges'][number]; geometry: { d: string; labelX: number; labelY: number; points?: DiagramPoint[] } }>;
     }
-    return buildRenderedEdges(diagramParsed, displayedPos, manualEdgePoints);
-  }, [diagramParsed, displayedPos, manualEdgePoints]);
+    const slicePrecomputedEdges = diagramMode === 'slice'
+      ? engineLayout?.precomputedEdges
+      : undefined;
+    return buildRenderedEdges(diagramParsed, displayedPos, manualEdgePoints, slicePrecomputedEdges);
+  }, [diagramMode, diagramParsed, displayedPos, engineLayout, manualEdgePoints]);
   const activeNodeKeyFromEditor = useMemo(() => {
     if (!hoveredEditorRange || !diagramParsed) {
       return null;
@@ -306,6 +309,7 @@ export function useDiagramViewState(args: UseDiagramViewStateArgs) {
   const layoutReady = diagramMode === 'overview'
     ? currentAsyncLayoutReady && nodeMeasurementsReady && scenarioGroupMeasurementsReady
     : currentAsyncLayoutReady && nodeMeasurementsReady;
+
   useEffect(() => {
     if (
       diagramMode !== 'slice'

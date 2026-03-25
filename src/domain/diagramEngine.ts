@@ -417,7 +417,8 @@ export function supportsEditableEdgePoints(): boolean {
 export function buildRenderedEdges(
   parsed: Parsed,
   pos: Record<string, Position>,
-  overrides?: Record<string, Array<{ x: number; y: number }>>
+  overrides?: Record<string, Array<{ x: number; y: number }>>,
+  precomputedEdges?: Record<string, DiagramEdgeGeometry>
 ): RenderedDiagramEdge[] {
   const keyedEdges = parsed.edges.map((edge, index) => ({
     edge,
@@ -442,6 +443,7 @@ export function buildRenderedEdges(
         return null;
       }
       const base =
+        precomputedEdges?.[edgeKey] ??
         elkRouted?.[edgeKey] ??
         routeDiagramEdge(from, to, {
           sourceAttachmentCount: attachmentCounts.get(edge.from) ?? 1,
