@@ -652,37 +652,6 @@ function sideAssignmentForOrientation(orientation: EdgeOrientation): EdgeSideAss
   return { source: "bottom", target: "top" };
 }
 
-function nextOrdinal(
-  usage: Map<string, number>,
-  nodeId: string,
-  side: AnchorSide,
-  role: AnchorRole,
-) {
-  const key = `${nodeId}:${side}:${role}`;
-  const ordinal = usage.get(key) ?? 0;
-  usage.set(key, ordinal + 1);
-  return ordinal;
-}
-
-function incrementTotal(
-  totals: Map<string, number>,
-  nodeId: string,
-  side: AnchorSide,
-  role: AnchorRole,
-) {
-  const key = `${nodeId}:${side}:${role}`;
-  totals.set(key, (totals.get(key) ?? 0) + 1);
-}
-
-function getTotal(
-  totals: Map<string, number>,
-  nodeId: string,
-  side: AnchorSide,
-  role: AnchorRole,
-) {
-  return totals.get(`${nodeId}:${side}:${role}`) ?? 0;
-}
-
 function createAnchor(node: NodeLayout, side: AnchorSide, ordinal: number, role: AnchorRole): AnchorPoint {
   if (side === "top" || side === "bottom") {
     const bias = role === "source" ? VERTICAL_SOURCE_BIAS : VERTICAL_TARGET_BIAS;
