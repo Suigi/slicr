@@ -1,0 +1,7 @@
+# Single repo-level pointer to the active feature folder.
+# Update this file as the workflow advances.
+
+feature_dir = "tasks/005-measured-slice-rendering"
+phase = "task-breakdown"
+current_task = ""
+status = "active"

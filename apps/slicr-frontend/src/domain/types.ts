@@ -1,0 +1,74 @@
+export type NodeType = string;
+
+export type NodeData = Record<string, unknown> | null;
+
+export type VisualNode = {
+  type: NodeType;
+  name: string;
+  alias: string | null;
+  stream: string | null;
+  key: string;
+  data: NodeData;
+  mappedDataKeys?: Set<string>;
+  outboundMappedDataKeys?: Set<string>;
+  srcRange: { from: number; to: number };
+  dataKeyRanges?: Record<string, { from: number; to: number }>;
+};
+
+export type Edge = {
+  from: string;
+  to: string;
+  label: string | null;
+};
+
+export type ParseWarning = {
+  message: string;
+  range: { from: number; to: number };
+  level: 'warning' | 'error';
+};
+
+export type SliceBoundary = {
+  after: string;
+};
+
+export type ParsedScenarioEntry = {
+  key: string;
+  type: NodeType;
+  name: string;
+  alias: string | null;
+  srcRange: { from: number; to: number };
+};
+
+export type ParsedScenario = {
+  name: string;
+  srcRange: { from: number; to: number };
+  given: ParsedScenarioEntry[];
+  when: ParsedScenarioEntry | null;
+  then: ParsedScenarioEntry[];
+};
+
+export type Parsed = {
+  sliceName: string;
+  nodes: Map<string, VisualNode>;
+  edges: Edge[];
+  warnings: ParseWarning[];
+  boundaries: SliceBoundary[];
+  scenarios: ParsedScenario[];
+  scenarioOnlyNodeKeys: string[];
+};
+
+export type Position = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+};
+
+export type LayoutResult = {
+  pos: Record<string, Position>;
+  rowY: Record<number, number>;
+  usedRows: number[];
+  rowStreamLabels: Record<number, string>;
+  w: number;
+  h: number;
+};

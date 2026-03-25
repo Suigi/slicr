@@ -1,0 +1,1085 @@
+import { Dispatch, RefObject, SetStateAction, useEffect, useRef } from 'react';
+import { EditorSelection, EditorState, Prec, Range as CMRange, RangeSet, RangeSetBuilder, StateEffect, StateField } from '@codemirror/state';
+import { foldGutter, codeFolding, foldEffect, foldable, unfoldAll } from '@codemirror/language';
+import { EditorView, Decoration, DecorationSet, GutterMarker, gutterLineClass, keymap } from '@codemirror/view';
+import { acceptCompletion, completionStatus, currentCompletions, moveCompletionSelection, selectedCompletion, selectedCompletionIndex, setSelectedCompletion } from '@codemirror/autocomplete';
+import { history, undo, redo } from '@codemirror/commands';
+import { getDependencySuggestions } from './domain/dslAutocomplete';
+import { slicr } from './slicrLanguage';
+
+export type Range = { from: number; to: number };
+export type WarningLevel = 'warning' | 'error';
+export type EditorWarning = { range: Range; message: string; level?: WarningLevel };
+type LineWarningItem = { message: string; level: WarningLevel };
+type LineWarningInfo = { entries: LineWarningItem[]; level: WarningLevel };
+
+function acceptActiveCompletion(view: EditorView): boolean {
+  if (acceptCompletion(view)) {
+    return true;
+  }
+
+  const options = currentCompletions(view.state);
+  if (options.length === 0) {
+    return false;
+  }
+
+  if (selectedCompletionIndex(view.state) === null) {
+    if (!moveCompletionSelection(true)(view)) {
+      view.dispatch({ effects: setSelectedCompletion(0) });
+    }
+  }
+
+  return acceptCompletion(view);
+}
+
+function acceptCompletionFallback(view: EditorView): boolean {
+  const { state } = view;
+  const main = state.selection.main;
+  const doc = state.doc.toString();
+
+  let from = main.from;
+  while (from > 0 && /[\w:@#-]/.test(doc[from - 1])) {
+    from -= 1;
+  }
+
+  const picked = selectedCompletion(state);
+  const label = (typeof picked?.label === 'string' ? picked.label : null) ?? getDependencySuggestions(doc, main.from)[0];
+  if (!label) {
+    return false;
+  }
+
+  view.dispatch({
+    changes: { from, to: main.to, insert: label },
+    selection: { anchor: from + label.length }
+  });
+  return true;
+}
+
+export function getNewLineIndent(previousLineText: string): string {
+  const baseIndent = previousLineText.match(/^\s*/)?.[0] ?? '';
+  if (previousLineText.trimEnd().endsWith(':')) {
+    return `${baseIndent}  `;
+  }
+  return baseIndent;
+}
+
+export function insertNewLineWithIndent(view: EditorView): boolean {
+  const { state } = view;
+  const change = state.changeByRange((range) => {
+    const line = state.doc.lineAt(range.from);
+
+    if (line.text.trim().length === 0) {
+      return {
+        changes: { from: line.from, to: line.to, insert: '\n' },
+        range: EditorSelection.cursor(line.from + 1)
+      };
+    }
+
+    const linePrefix = line.text.slice(0, range.from - line.from);
+    const indent = getNewLineIndent(linePrefix);
+    const insert = `\n${indent}`;
+
+    return {
+      changes: { from: range.from, to: range.to, insert },
+      range: EditorSelection.cursor(range.from + insert.length)
+    };
+  });
+
+  view.dispatch(change);
+
+  return true;
+}
+
+const setHighlight = StateEffect.define<Range | null>();
+const setWarnings = StateEffect.define<EditorWarning[]>();
+
+function normalizeWarnings(warnings: EditorWarning[], docLength: number) {
+  return warnings
+    .filter((warning) => warning.range.from >= 0 && warning.range.from <= docLength)
+    .slice()
+    .sort((a, b) => {
+      if (a.range.from !== b.range.from) {
+        return a.range.from - b.range.from;
+      }
+      if (a.range.to !== b.range.to) {
+        return a.range.to - b.range.to;
+      }
+      return a.message.localeCompare(b.message);
+    });
+}
+
+const highlightField = StateField.define<DecorationSet>({
+  create() {
+    return Decoration.none;
+  },
+  update(highlights, tr) {
+    highlights = highlights.map(tr.changes);
+    for (const e of tr.effects) {
+      if (e.is(setHighlight)) {
+        if (e.value) {
+          const deco = [];
+          const lineFrom = tr.state.doc.lineAt(e.value.from).number;
+          const lineTo = tr.state.doc.lineAt(e.value.to).number;
+
+          for (let i = lineFrom; i <= lineTo; i++) {
+            const line = tr.state.doc.line(i);
+            deco.push(Decoration.line({ class: 'cm-node-highlight' }).range(line.from));
+          }
+          highlights = Decoration.set(deco);
+        } else {
+          highlights = Decoration.none;
+        }
+      }
+    }
+    return highlights;
+  },
+  provide: (f) => EditorView.decorations.from(f)
+});
+
+class WarningMarker extends GutterMarker {
+  readonly elementClass: string;
+
+  constructor(private readonly message: string, private readonly level: WarningLevel) {
+    super();
+    this.elementClass = `cm-warning-line cm-warning-line-${level}`;
+  }
+
+  eq(other: WarningMarker) {
+    return this.message === other.message && this.level === other.level;
+  }
+
+  toDOM() {
+    const marker = document.createElement('span');
+    marker.className = 'cm-warning-line-marker';
+    marker.setAttribute('aria-label', this.message);
+    return marker;
+  }
+
+}
+
+const warningGutterField = StateField.define<RangeSet<GutterMarker>>({
+  create() {
+    return RangeSet.empty;
+  },
+  update(markers, tr) {
+    markers = markers.map(tr.changes);
+    for (const effect of tr.effects) {
+      if (!effect.is(setWarnings)) {
+        continue;
+      }
+
+      const builder = new RangeSetBuilder<GutterMarker>();
+      const warningsByLine = new Map<number, { level: WarningLevel; messages: string[] }>();
+      const normalized = normalizeWarnings(effect.value, tr.state.doc.length);
+      for (const warning of normalized) {
+        const line = tr.state.doc.lineAt(warning.range.from);
+        const level = warning.level ?? 'error';
+        const previous = warningsByLine.get(line.from);
+        if (!previous) {
+          warningsByLine.set(line.from, { level, messages: [warning.message] });
+          continue;
+        }
+        warningsByLine.set(line.from, {
+          level: previous.level === 'error' || level === 'error' ? 'error' : 'warning',
+          messages: [...previous.messages, warning.message]
+        });
+      }
+
+      for (const [lineFrom, info] of warningsByLine) {
+        builder.add(lineFrom, lineFrom, new WarningMarker(info.messages.join('\n'), info.level));
+      }
+      markers = builder.finish();
+    }
+    return markers;
+  },
+  provide: (field) => gutterLineClass.from(field)
+});
+
+const warningMessagesField = StateField.define<Map<number, LineWarningInfo>>({
+  create() {
+    return new Map();
+  },
+  update(messages, tr) {
+    for (const effect of tr.effects) {
+      if (!effect.is(setWarnings)) {
+        continue;
+      }
+
+      const next = new Map<number, LineWarningInfo>();
+      const normalized = normalizeWarnings(effect.value, tr.state.doc.length);
+      for (const warning of normalized) {
+        const lineFrom = tr.state.doc.lineAt(warning.range.from).from;
+        const level = warning.level ?? 'error';
+        const previous = next.get(lineFrom);
+        if (!previous) {
+          next.set(lineFrom, { entries: [{ message: warning.message, level }], level });
+          continue;
+        }
+        next.set(lineFrom, {
+          entries: [...previous.entries, { message: warning.message, level }],
+          level: previous.level === 'error' || level === 'error' ? 'error' : 'warning'
+        });
+      }
+      return next;
+    }
+    return messages;
+  }
+});
+
+const warningLineDecorationsField = StateField.define<DecorationSet>({
+  create() {
+    return Decoration.none;
+  },
+  update(decorations, tr) {
+    decorations = decorations.map(tr.changes);
+    for (const effect of tr.effects) {
+      if (!effect.is(setWarnings)) {
+        continue;
+      }
+
+      const decos: CMRange<Decoration>[] = [];
+      const levelsByLine = new Map<number, WarningLevel>();
+      const normalized = normalizeWarnings(effect.value, tr.state.doc.length);
+      for (const warning of normalized) {
+        const line = tr.state.doc.lineAt(warning.range.from);
+        const level = warning.level ?? 'error';
+        const previous = levelsByLine.get(line.from);
+        if (!previous || previous === 'warning' && level === 'error') {
+          levelsByLine.set(line.from, level);
+        }
+      }
+
+      for (const [lineFrom, level] of levelsByLine) {
+        decos.push(Decoration.line({ class: `cm-warning-line-${level}` }).range(lineFrom));
+      }
+      decorations = Decoration.set(decos, true);
+    }
+    return decorations;
+  },
+  provide: (field) => EditorView.decorations.from(field)
+});
+
+export function indentCurrentLineByTwo(view: EditorView): boolean {
+  const state = view.state;
+  const lineStarts = collectSelectedLineStarts(state);
+
+  const changes = [...lineStarts].sort((a, b) => a - b).map((from) => ({
+    from,
+    insert: '  '
+  }));
+
+  if (changes.length === 0) {
+    return false;
+  }
+
+  const changeSet = state.changes(changes);
+  const mappedRanges = state.selection.ranges.map((range) =>
+    EditorSelection.range(changeSet.mapPos(range.anchor, 1), changeSet.mapPos(range.head, 1))
+  );
+  view.dispatch({
+    changes: changeSet,
+    selection: EditorSelection.create(mappedRanges, state.selection.mainIndex)
+  });
+  return true;
+}
+
+export function unindentCurrentLineByTwo(view: EditorView): boolean {
+  const state = view.state;
+  const lineStarts = collectSelectedLineStarts(state);
+
+  const changes: Array<{ from: number; to: number }> = [];
+  for (const lineStart of [...lineStarts].sort((a, b) => a - b)) {
+    const line = state.doc.lineAt(lineStart);
+    const lineText = line.text;
+    if (lineText.startsWith('  ')) {
+      changes.push({ from: line.from, to: line.from + 2 });
+    } else if (lineText.startsWith(' ')) {
+      changes.push({ from: line.from, to: line.from + 1 });
+    }
+  }
+
+  if (changes.length === 0) {
+    return true;
+  }
+
+  const changeSet = state.changes(changes);
+  const mappedRanges = state.selection.ranges.map((range) =>
+    EditorSelection.range(changeSet.mapPos(range.anchor, 1), changeSet.mapPos(range.head, 1))
+  );
+  view.dispatch({
+    changes: changeSet,
+    selection: EditorSelection.create(mappedRanges, state.selection.mainIndex)
+  });
+  return true;
+}
+
+function collectSelectedLineStarts(state: EditorState): Set<number> {
+  const starts = new Set<number>();
+
+  for (const range of state.selection.ranges) {
+    const from = Math.min(range.anchor, range.head);
+    const to = Math.max(range.anchor, range.head);
+
+    if (from === to) {
+      starts.add(state.doc.lineAt(from).from);
+      continue;
+    }
+
+    let effectiveTo = to;
+    const endLine = state.doc.lineAt(to);
+    if (to > from && endLine.from === to) {
+      effectiveTo = to - 1;
+    }
+
+    const firstLine = state.doc.lineAt(from).number;
+    const lastLine = state.doc.lineAt(effectiveTo).number;
+    for (let lineNumber = firstLine; lineNumber <= lastLine; lineNumber += 1) {
+      starts.add(state.doc.line(lineNumber).from);
+    }
+  }
+
+  return starts;
+}
+
+export type EditorViewStub = {
+  state: {
+    doc: {
+      toString: () => string;
+      length: number;
+    };
+  };
+  dispatch: (spec: { changes?: { from: number; to: number; insert: string }; effects?: unknown }) => void;
+  destroy: () => void;
+};
+
+export type EditorViewLike = EditorView | EditorViewStub;
+
+type CreateEditorView = (args: {
+  parent: HTMLDivElement;
+  doc: string;
+  onDocChanged: (nextDoc: string) => void;
+}) => EditorViewLike;
+
+function isEditorView(editorView: EditorViewLike | null): editorView is EditorView {
+  return editorView instanceof EditorView;
+}
+
+const createFoldMarker = (open: boolean) => {
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const marker = document.createElement('span');
+  marker.className = 'cm-fold-marker';
+
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', '0 0 12 12');
+  svg.setAttribute('width', '10');
+  svg.setAttribute('height', '10');
+  svg.setAttribute('aria-hidden', 'true');
+
+  const box = document.createElementNS(svgNS, 'rect');
+  box.setAttribute('x', '1.5');
+  box.setAttribute('y', '1.5');
+  box.setAttribute('width', '9');
+  box.setAttribute('height', '9');
+  box.setAttribute('rx', '1');
+  box.setAttribute('fill', 'none');
+  box.setAttribute('stroke', 'currentColor');
+  box.setAttribute('stroke-width', '1.2');
+
+  const horizontal = document.createElementNS(svgNS, 'path');
+  horizontal.setAttribute('fill', 'none');
+  horizontal.setAttribute('stroke', 'currentColor');
+  horizontal.setAttribute('stroke-width', '1.4');
+  horizontal.setAttribute('stroke-linecap', 'round');
+  horizontal.setAttribute('d', 'M4 6 L8 6');
+
+  svg.appendChild(box);
+  svg.appendChild(horizontal);
+  if (!open) {
+    const vertical = document.createElementNS(svgNS, 'path');
+    vertical.setAttribute('fill', 'none');
+    vertical.setAttribute('stroke', 'currentColor');
+    vertical.setAttribute('stroke-width', '1.4');
+    vertical.setAttribute('stroke-linecap', 'round');
+    vertical.setAttribute('d', 'M6 4 L6 8');
+    svg.appendChild(vertical);
+  }
+  marker.appendChild(svg);
+  return marker;
+};
+
+export const defaultCreateEditorView: CreateEditorView = ({ parent, doc, onDocChanged }) => {
+  let pinnedWarningLineFrom: number | null = null;
+
+  return (new EditorView({
+    state: EditorState.create({
+      doc,
+      extensions: [
+        slicr(),
+        history(),
+        highlightField,
+        warningGutterField,
+        warningMessagesField,
+        warningLineDecorationsField,
+        foldGutter({
+          markerDOM: (open) => createFoldMarker(open),
+          domEventHandlers: {
+            mousemove: (view, line, event) => {
+              const warning = view.state.field(warningMessagesField).get(line.from);
+              const tooltip = view.dom.querySelector('.cm-warning-tooltip') as HTMLDivElement | null;
+              if (pinnedWarningLineFrom !== null && line.from !== pinnedWarningLineFrom) {
+                return false;
+              }
+              if (!warning || !(event instanceof MouseEvent)) {
+                if (pinnedWarningLineFrom !== null) {
+                  return false;
+                }
+                tooltip?.remove();
+                return false;
+              }
+
+              const rootRect = view.dom.getBoundingClientRect();
+              const scroller = view.scrollDOM;
+              const scrollerRect = scroller.getBoundingClientRect();
+              const contentRect = view.contentDOM.getBoundingClientRect();
+              const horizontalInset = 20;
+              const textAreaLeft = Math.max(0, contentRect.left - rootRect.left);
+              const textAreaWidth = Math.max(0, scrollerRect.right - contentRect.left);
+              const left = textAreaLeft + horizontalInset;
+              const width = Math.max(160, textAreaWidth - (horizontalInset * 2));
+              const top = Math.max(8, event.clientY - rootRect.top - 8);
+
+              let nextTooltip = tooltip;
+              if (!nextTooltip) {
+                nextTooltip = document.createElement('div');
+                view.dom.appendChild(nextTooltip);
+              }
+              nextTooltip.className = `cm-warning-tooltip cm-warning-tooltip-${warning.level}`;
+              nextTooltip.replaceChildren();
+              for (const entry of warning.entries) {
+                if (entry.message.trim().length === 0) {
+                  continue;
+                }
+                const line = document.createElement('div');
+                line.className = `cm-warning-tooltip-line cm-warning-tooltip-line-${entry.level}`;
+                line.textContent = entry.message;
+                nextTooltip.appendChild(line);
+              }
+              nextTooltip.style.left = `${left}px`;
+              nextTooltip.style.width = `${width}px`;
+              nextTooltip.style.top = `${top}px`;
+              return false;
+            },
+            mousedown: (view, line, event) => {
+              const warning = view.state.field(warningMessagesField).get(line.from);
+              const tooltip = view.dom.querySelector('.cm-warning-tooltip') as HTMLDivElement | null;
+              if (!warning || !(event instanceof MouseEvent)) {
+                pinnedWarningLineFrom = null;
+                tooltip?.remove();
+                return false;
+              }
+
+              if (pinnedWarningLineFrom === line.from) {
+                pinnedWarningLineFrom = null;
+                tooltip?.remove();
+                return false;
+              }
+
+              pinnedWarningLineFrom = line.from;
+              const rootRect = view.dom.getBoundingClientRect();
+              const scroller = view.scrollDOM;
+              const scrollerRect = scroller.getBoundingClientRect();
+              const contentRect = view.contentDOM.getBoundingClientRect();
+              const horizontalInset = 20;
+              const textAreaLeft = Math.max(0, contentRect.left - rootRect.left);
+              const textAreaWidth = Math.max(0, scrollerRect.right - contentRect.left);
+              const left = textAreaLeft + horizontalInset;
+              const width = Math.max(160, textAreaWidth - (horizontalInset * 2));
+              const top = Math.max(8, event.clientY - rootRect.top - 8);
+
+              let nextTooltip = tooltip;
+              if (!nextTooltip) {
+                nextTooltip = document.createElement('div');
+                view.dom.appendChild(nextTooltip);
+              }
+              nextTooltip.className = `cm-warning-tooltip cm-warning-tooltip-${warning.level}`;
+              nextTooltip.replaceChildren();
+              for (const entry of warning.entries) {
+                if (entry.message.trim().length === 0) {
+                  continue;
+                }
+                const messageLine = document.createElement('div');
+                messageLine.className = `cm-warning-tooltip-line cm-warning-tooltip-line-${entry.level}`;
+                messageLine.textContent = entry.message;
+                nextTooltip.appendChild(messageLine);
+              }
+              nextTooltip.style.left = `${left}px`;
+              nextTooltip.style.width = `${width}px`;
+              nextTooltip.style.top = `${top}px`;
+              return false;
+            },
+            mouseleave: (view) => {
+              if (pinnedWarningLineFrom !== null) {
+                return false;
+              }
+              view.dom.querySelector('.cm-warning-tooltip')?.remove();
+              return false;
+            }
+          }
+        }),
+        codeFolding({
+          placeholderText: '...',
+        }),
+        Prec.highest(
+          keymap.of([
+            { key: 'Mod-z', run: undo, preventDefault: true },
+            { key: 'Mod-Shift-z', run: redo, preventDefault: true },
+            { key: 'Mod-y', run: redo, preventDefault: true }
+          ])
+        ),
+        EditorView.lineWrapping,
+        EditorView.theme({
+          '&': {
+            position: 'relative',
+            height: '100%',
+            backgroundColor: 'transparent'
+          },
+          '.cm-gutters': {
+            backgroundColor: 'transparent',
+            color: '#6b6b80',
+            border: 'none',
+            borderRight: '1px solid rgb(42 42 56 / 45%)'
+          },
+          '.cm-gutter': {
+            backgroundColor: 'transparent',
+            border: 'none'
+          },
+          '.cm-gutterElement': {
+            color: '#6b6b80'
+          },
+          '.cm-foldGutter .cm-gutterElement': {
+            color: '#8a8aa0'
+          },
+          '.cm-fold-marker': {
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '12px',
+            height: '12px'
+          },
+          '.cm-fold-marker svg': {
+            display: 'block'
+          },
+          '.cm-foldGutter .cm-gutterElement:hover': {
+            color: '#b8b8c7'
+          },
+          '.cm-foldGutter .cm-gutterElement.cm-warning-line-warning': {
+            backgroundColor: 'rgb(234 179 8 / 52%)',
+            boxSizing: 'border-box',
+            paddingTop: '1px',
+            paddingBottom: '1px',
+            backgroundClip: 'content-box'
+          },
+          '.cm-foldGutter .cm-gutterElement.cm-warning-line-error': {
+            backgroundColor: 'rgb(220 38 38 / 58%)',
+            boxSizing: 'border-box',
+            paddingTop: '1px',
+            paddingBottom: '1px',
+            backgroundClip: 'content-box'
+          },
+          '.cm-line.cm-warning-line-warning': {
+            backgroundColor: 'rgb(234 179 8 / 16%)'
+          },
+          '.cm-line.cm-warning-line-error': {
+            backgroundColor: 'rgb(220 38 38 / 14%)'
+          },
+          'span.cm-warning-line-marker' : {
+            padding: 0
+          },
+          '.cm-warning-tooltip': {
+            position: 'absolute',
+            zIndex: '1000',
+            boxSizing: 'border-box',
+            borderRadius: '8px',
+            overflow: 'hidden',
+            backgroundColor: 'var(--surface)',
+            color: 'var(--text)',
+            border: '1px solid var(--warning-tooltip-border)',
+            boxShadow: 'var(--warning-tooltip-shadow)',
+            fontSize: '13px',
+            lineHeight: '1.4',
+            pointerEvents: 'none'
+          },
+          '.cm-warning-tooltip-line': {
+            whiteSpace: 'pre-wrap',
+            padding: '8px 10px 8px 12px',
+            borderLeft: '3px solid transparent'
+          },
+          '.cm-warning-tooltip-line.cm-warning-tooltip-line-error': {
+            color: 'var(--exc)',
+            backgroundColor: 'rgb(var(--exc-rgb) / 18%)',
+            borderLeftColor: 'var(--exc)'
+          },
+          '.cm-warning-tooltip-line.cm-warning-tooltip-line-warning': {
+            color: '#b45309',
+            backgroundColor: 'rgb(245 158 11 / 24%)',
+            borderLeftColor: '#d97706'
+          },
+          '.cm-warning-tooltip-line + .cm-warning-tooltip-line': {
+            borderTop: '1px solid rgb(107 114 128 / 30%)'
+          },
+          '.cm-scroller': {
+            overflow: 'auto',
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: '13px',
+            lineHeight: '1.7',
+            padding: '6px'
+          },
+          '.cm-content': {
+            caretColor: '#f97316'
+          },
+          '.cm-cursor, .cm-dropCursor': {
+            borderLeftColor: '#f97316'
+          },
+          '.cm-selectionBackground, ::selection': {
+            backgroundColor: 'rgb(59 130 246 / 30%)'
+          },
+          '&.cm-focused': {
+            outline: 'none'
+          },
+          '.cm-activeLine': {
+            backgroundColor: 'rgb(255 255 255 / 2%)'
+          },
+          '.cm-foldPlaceholder': {
+            backgroundColor: 'transparent',
+            border: 'none',
+            color: '#8a8aa0',
+            fontWeight: '600'
+          },
+          '.cm-tooltip.cm-tooltip-autocomplete': {
+            backgroundColor: 'var(--surface)',
+            color: 'var(--text)',
+            border: '1px solid var(--border)',
+            borderRadius: '10px',
+            boxShadow: '0 14px 32px rgb(0 0 0 / 45%)',
+            overflow: 'hidden',
+            zIndex: '4000'
+          },
+          '.cm-tooltip.cm-tooltip-autocomplete > ul': {
+            fontFamily: "'JetBrains Mono', monospace",
+            maxHeight: '280px',
+            padding: '4px'
+          },
+          '.cm-tooltip.cm-tooltip-autocomplete > ul > li': {
+            color: 'var(--text)',
+            borderRadius: '6px',
+            padding: '4px 8px'
+          },
+          '.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected]': {
+            backgroundColor: 'rgb(249 115 22 / 22%)',
+            color: '#fff'
+          },
+          '.cm-completionIcon': {
+            color: '#9ca3af',
+            opacity: '0.9'
+          },
+          '.cm-completionLabel': {
+            color: 'var(--text)'
+          },
+          '.cm-completionIcon-evt': {
+            color: 'var(--evt)'
+          },
+          '.cm-completionIcon-cmd': {
+            color: 'var(--command-color)'
+          },
+          '.cm-completionIcon-rm': {
+            color: 'var(--rm)'
+          },
+          '.cm-completionIcon-ui': {
+            color: 'var(--ui-color)'
+          },
+          '.cm-completionIcon-exc': {
+            color: 'var(--editor-exc)'
+          },
+          '.cm-completionIcon-aut': {
+            color: 'var(--automation-color)'
+          },
+          '.cm-completionIcon-ext': {
+            color: 'var(--editor-ext)'
+          },
+          '.cm-completionIcon-evt + .cm-completionLabel': {
+            color: 'var(--evt)'
+          },
+          '.cm-completionIcon-cmd + .cm-completionLabel': {
+            color: 'var(--command-color)'
+          },
+          '.cm-completionIcon-rm + .cm-completionLabel': {
+            color: 'var(--rm)'
+          },
+          '.cm-completionIcon-ui + .cm-completionLabel': {
+            color: 'var(--ui-color)'
+          },
+          '.cm-completionIcon-exc + .cm-completionLabel': {
+            color: 'var(--editor-exc)'
+          },
+          '.cm-completionIcon-aut + .cm-completionLabel': {
+            color: 'var(--automation-color)'
+          },
+          '.cm-completionIcon-ext + .cm-completionLabel': {
+            color: 'var(--editor-ext)'
+          },
+          '.cm-completionDetail': {
+            color: 'var(--muted)',
+            fontStyle: 'normal'
+          },
+          '.cm-completionMatchedText': {
+            color: '#fb923c',
+            textDecoration: 'none',
+            fontWeight: '700'
+          }
+        }),
+        EditorView.updateListener.of((update) => {
+          if (!update.docChanged) {
+            return;
+          }
+
+          const nextDoc = update.state.doc.toString();
+          onDocChanged(nextDoc);
+        })
+      ]
+    }),
+    parent
+  }) as unknown as EditorViewLike);
+};
+
+export function useDslEditor({
+  dsl,
+  onDslChange,
+  onRangeHover,
+  editorMountRef,
+  highlightRange,
+  warnings = [],
+  createEditorView = defaultCreateEditorView
+}: {
+  dsl: string;
+  onDslChange: Dispatch<SetStateAction<string>>;
+  onRangeHover?: (range: Range | null) => void;
+  editorMountRef: RefObject<HTMLDivElement | null>;
+  highlightRange?: Range | null;
+  warnings?: EditorWarning[];
+  createEditorView?: CreateEditorView;
+}) {
+  const editorViewRef = useRef<EditorViewLike | null>(null);
+  const initialDslRef = useRef(dsl);
+  const onDocChangedRef = useRef(onDslChange);
+  const onRangeHoverRef = useRef(onRangeHover);
+  const warningsRef = useRef(warnings);
+
+  useEffect(() => {
+    onDocChangedRef.current = onDslChange;
+  }, [onDslChange]);
+
+  useEffect(() => {
+    onRangeHoverRef.current = onRangeHover;
+  }, [onRangeHover]);
+
+  useEffect(() => {
+    warningsRef.current = warnings;
+  }, [warnings]);
+
+  const collapseAllDataRegions = () => {
+    const editorView = editorViewRef.current as EditorView | null;
+    if (!editorView) {
+      return;
+    }
+
+    const effects: StateEffect<unknown>[] = [];
+    for (let lineNumber = 1; lineNumber <= editorView.state.doc.lines; lineNumber++) {
+      const line = editorView.state.doc.line(lineNumber);
+      if (!/^\s*(data|uses|maps):\s*$/.test(line.text)) {
+        continue;
+      }
+
+      const foldRange = foldable(editorView.state, line.from, line.to);
+      if (foldRange) {
+        effects.push(foldEffect.of(foldRange));
+      }
+    }
+
+    if (effects.length > 0) {
+      editorView.dispatch({ effects });
+    }
+  };
+
+  const collapseAllRegions = () => {
+    const editorView = editorViewRef.current as EditorView | null;
+    if (!editorView) {
+      return;
+    }
+
+    const effects: StateEffect<unknown>[] = [];
+    for (let lineNumber = 1; lineNumber <= editorView.state.doc.lines; lineNumber++) {
+      const line = editorView.state.doc.line(lineNumber);
+      const foldRange = foldable(editorView.state, line.from, line.to);
+      if (foldRange) {
+        effects.push(foldEffect.of(foldRange));
+      }
+    }
+
+    if (effects.length > 0) {
+      editorView.dispatch({ effects });
+    }
+  };
+
+  const expandAllRegions = () => {
+    const editorView = editorViewRef.current as EditorView | null;
+    if (!editorView) {
+      return;
+    }
+
+    unfoldAll(editorView);
+  };
+
+  const focusRange = (range: Range) => {
+    const editorView = editorViewRef.current;
+    if (!isEditorView(editorView)) {
+      return;
+    }
+    const docLength = editorView.state.doc.length;
+    const anchor = Math.max(0, Math.min(range.from, docLength));
+    editorView.dispatch({
+      selection: EditorSelection.cursor(anchor),
+      effects: EditorView.scrollIntoView(anchor, { y: 'center' })
+    });
+    editorView.focus();
+  };
+
+  const hasFocusedCursor = () => {
+    const editorView = editorViewRef.current;
+    return isEditorView(editorView) && editorView.hasFocus;
+  };
+
+  const insertAtCursorOrEnd = (block: string): Range => {
+    const editorView = editorViewRef.current;
+    const trimmed = block.trim();
+
+    if (!trimmed) {
+      return { from: 0, to: 0 };
+    }
+
+    if (!isEditorView(editorView)) {
+      onDocChangedRef.current((current) => {
+        if (!current.trim()) {
+          return trimmed;
+        }
+        if (current.endsWith('\n\n')) {
+          return `${current}${trimmed}`;
+        }
+        if (current.endsWith('\n')) {
+          return `${current}\n${trimmed}`;
+        }
+        return `${current}\n\n${trimmed}`;
+      });
+      return { from: 0, to: 0 };
+    }
+
+    if (editorView.hasFocus) {
+      const range = editorView.state.selection.main;
+      editorView.dispatch({
+        changes: { from: range.from, to: range.to, insert: trimmed },
+        selection: { anchor: range.from + trimmed.length }
+      });
+      return { from: range.from, to: range.from + trimmed.length };
+    }
+
+    const docLength = editorView.state.doc.length;
+    const current = editorView.state.doc.toString();
+    const separator = !current.trim()
+      ? ''
+      : current.endsWith('\n\n')
+        ? ''
+        : current.endsWith('\n')
+          ? '\n'
+          : '\n\n';
+    const insert = `${separator}${trimmed}`;
+    const from = docLength + separator.length;
+    editorView.dispatch({
+      changes: { from: docLength, to: docLength, insert },
+      selection: { anchor: from + trimmed.length }
+    });
+    return { from, to: from + trimmed.length };
+  };
+
+  useEffect(() => {
+    const editorView = editorViewRef.current;
+    if (!isEditorView(editorView)) {
+      return;
+    }
+
+    if (highlightRange) {
+      editorView.dispatch({
+        effects: setHighlight.of(highlightRange)
+      });
+    } else {
+      editorView.dispatch({
+        effects: setHighlight.of(null)
+      });
+    }
+  }, [highlightRange]);
+
+  useEffect(() => {
+    const editorView = editorViewRef.current;
+    if (!isEditorView(editorView)) {
+      return;
+    }
+
+    editorView.dispatch({
+      effects: setWarnings.of(warnings)
+    });
+  }, [warnings]);
+
+  useEffect(() => {
+    if (!editorMountRef.current || editorViewRef.current) {
+      return;
+    }
+
+    const editorView = createEditorView({
+      parent: editorMountRef.current,
+      doc: initialDslRef.current,
+      onDocChanged: (nextValue) => {
+        onDocChangedRef.current((current) => (current === nextValue ? current : nextValue));
+      }
+    });
+
+    if (onRangeHoverRef.current && isEditorView(editorView)) {
+      editorView.dom.addEventListener('mousemove', (event) => {
+        const pos = editorView.posAtCoords({ x: event.clientX, y: event.clientY });
+        if (pos !== null) {
+          onRangeHoverRef.current?.({ from: pos, to: pos });
+        } else {
+          onRangeHoverRef.current?.(null);
+        }
+      });
+      editorView.dom.addEventListener('mouseleave', () => {
+        onRangeHoverRef.current?.(null);
+      });
+    }
+
+    editorViewRef.current = editorView;
+
+    if (isEditorView(editorView)) {
+      const onTabKeyDown = (event: KeyboardEvent) => {
+        if (event.key !== 'Tab') {
+          return;
+        }
+        if (completionStatus(editorView.state) !== null) {
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation();
+          if (!acceptActiveCompletion(editorView) && !acceptCompletionFallback(editorView)) {
+            queueMicrotask(() => {
+              if (completionStatus(editorView.state) !== null) {
+                if (!acceptActiveCompletion(editorView)) {
+                  acceptCompletionFallback(editorView);
+                }
+              }
+            });
+          }
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        if (event.shiftKey) {
+          unindentCurrentLineByTwo(editorView);
+        } else {
+          indentCurrentLineByTwo(editorView);
+        }
+      };
+
+      const onEnterKeyDown = (event: KeyboardEvent) => {
+        if (event.key !== 'Enter') {
+          return;
+        }
+        if (completionStatus(editorView.state) !== null) {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+
+        insertNewLineWithIndent(editorView);
+      };
+
+      const onWindowKeyDown = (event: KeyboardEvent) => {
+        if (event.key !== 'Tab' && event.key !== 'Enter') {
+          return;
+        }
+        if (!editorView.hasFocus) {
+          return;
+        }
+        if (event.key === 'Tab') {
+          onTabKeyDown(event);
+        } else {
+          onEnterKeyDown(event);
+        }
+      };
+
+      const onDomKeyDown = (event: KeyboardEvent) => onTabKeyDown(event);
+      const onContentDomKeyDown = (event: KeyboardEvent) => onTabKeyDown(event);
+      const onDomEnterKeyDown = (event: KeyboardEvent) => onEnterKeyDown(event);
+      const onContentDomEnterKeyDown = (event: KeyboardEvent) => onEnterKeyDown(event);
+
+      editorView.dom.addEventListener('keydown', onDomKeyDown, { capture: true });
+      editorView.contentDOM.addEventListener('keydown', onContentDomKeyDown, { capture: true });
+      editorView.dom.addEventListener('keydown', onDomEnterKeyDown, { capture: true });
+      editorView.contentDOM.addEventListener('keydown', onContentDomEnterKeyDown, { capture: true });
+      window.addEventListener('keydown', onWindowKeyDown, { capture: true });
+      editorView.dispatch({
+        effects: setWarnings.of(warningsRef.current)
+      });
+
+      return () => {
+        editorView.dom.removeEventListener('keydown', onDomKeyDown, { capture: true });
+        editorView.contentDOM.removeEventListener('keydown', onContentDomKeyDown, { capture: true });
+        editorView.dom.removeEventListener('keydown', onDomEnterKeyDown, { capture: true });
+        editorView.contentDOM.removeEventListener('keydown', onContentDomEnterKeyDown, { capture: true });
+        window.removeEventListener('keydown', onWindowKeyDown, { capture: true });
+        editorView.dom.querySelector('.cm-warning-tooltip')?.remove();
+        editorView.destroy();
+        editorViewRef.current = null;
+      };
+    }
+
+    return () => {
+      editorView.destroy();
+      editorViewRef.current = null;
+    };
+  }, [createEditorView, editorMountRef]);
+
+  useEffect(() => {
+    const editorView = editorViewRef.current;
+    if (!editorView) {
+      return;
+    }
+
+    const current = editorView.state.doc.toString();
+    if (current === dsl) {
+      return;
+    }
+
+    editorView.dispatch({
+      changes: { from: 0, to: editorView.state.doc.length, insert: dsl }
+    });
+  }, [dsl]);
+
+  return {
+    collapseAllDataRegions,
+    collapseAllRegions,
+    expandAllRegions,
+    focusRange,
+    hasFocusedCursor,
+    insertAtCursorOrEnd
+  };
+}

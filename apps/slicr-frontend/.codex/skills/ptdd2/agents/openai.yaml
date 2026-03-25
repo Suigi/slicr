@@ -1,0 +1,4 @@
+interface:
+  display_name: "Predictive TDD 2"
+  short_description: "Implement features using Predictive Test-Driven Development"
+  default_prompt: "Implement the current task in small steps: write tests, predict outcome, implement, repeat"

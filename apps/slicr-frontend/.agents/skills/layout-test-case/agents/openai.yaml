@@ -1,0 +1,4 @@
+interface:
+  display_name: "Layout Test Case"
+  short_description: "Add harness layout tests with visual gating"
+  default_prompt: "Use $layout-test-case to add a diagramHarness layout/routing test, iterate with nix-shell test runs, and only update expected geometry after my visual approval."

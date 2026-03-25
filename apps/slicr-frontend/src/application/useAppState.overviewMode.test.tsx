@@ -1,0 +1,564 @@
+// @vitest-environment jsdom
+
+import { act, useEffect } from 'react';
+import ReactDOM from 'react-dom/client';
+import { afterEach, describe, expect, it } from 'vitest';
+import type { UseAppStateResult } from './appViewModel';
+import { useAppState } from './useAppState';
+import { SLICES_LAYOUT_STORAGE_KEY, SLICES_STORAGE_KEY } from '../sliceLibrary';
+import { NodeMeasureLayer } from '../ui/app-shell/NodeMeasureLayer';
+import { ScenarioGroupMeasureLayer } from '../ui/app-shell/ScenarioGroupMeasureLayer';
+
+let host: HTMLDivElement | null = null;
+let root: ReactDOM.Root | null = null;
+let latestState: UseAppStateResult | null = null;
+
+function Harness({ onState }: { onState: (state: UseAppStateResult) => void }) {
+  const state = useAppState();
+
+  useEffect(() => {
+    onState(state);
+  }, [onState, state]);
+
+  return (
+    <>
+      <NodeMeasureLayer diagram={state.diagram} constants={state.constants} />
+      <ScenarioGroupMeasureLayer
+        scenarioGroups={state.diagram.measurementScenarioGroups}
+        overviewNodeDataVisible={state.diagram.overviewNodeDataVisible}
+      />
+    </>
+  );
+}
+
+async function renderHarness() {
+  host = document.createElement('div');
+  document.body.appendChild(host);
+  root = ReactDOM.createRoot(host);
+
+  await act(async () => {
+    root?.render(<Harness onState={(state) => {
+      latestState = state;
+    }} />);
+    await flushState();
+  });
+}
+
+async function flushState() {
+  await Promise.resolve();
+  await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+  await new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => resolve());
+  });
+}
+
+async function runAction(action: () => void) {
+  await act(async () => {
+    action();
+    await flushState();
+  });
+}
+
+async function waitForOverviewMode(attempts = 20) {
+  for (let index = 0; index < attempts; index += 1) {
+    if (latestState?.diagram.diagramMode === 'overview') {
+      return latestState.diagram;
+    }
+    await act(async () => {
+      await flushState();
+    });
+  }
+  return latestState?.diagram.diagramMode === 'overview' ? latestState.diagram : null;
+}
+
+async function waitForOverviewScene(attempts = 20) {
+  for (let index = 0; index < attempts; index += 1) {
+    const sceneModel = latestState?.diagram.diagramMode === 'overview'
+      ? latestState.diagram.sceneModel
+      : null;
+    const isOverviewScene = sceneModel
+      ? sceneModel.sliceFrames.length > 0 || sceneModel.nodes.some((node) => node.key.includes('::'))
+      : false;
+    if (sceneModel && isOverviewScene) {
+      return sceneModel;
+    }
+    await act(async () => {
+      await flushState();
+    });
+  }
+  if (latestState?.diagram.diagramMode !== 'overview') {
+    return null;
+  }
+  const sceneModel = latestState.diagram.sceneModel;
+  if (!sceneModel) {
+    return null;
+  }
+  return sceneModel.sliceFrames.length > 0 || sceneModel.nodes.some((node) => node.key.includes('::'))
+    ? sceneModel
+    : null;
+}
+
+async function waitForSliceScene(attempts = 20) {
+  for (let index = 0; index < attempts; index += 1) {
+    const sceneModel = latestState?.diagram.diagramMode === 'slice'
+      ? latestState.diagram.sceneModel
+      : null;
+    if (sceneModel) {
+      return sceneModel;
+    }
+    await act(async () => {
+      await flushState();
+    });
+  }
+  return latestState?.diagram.diagramMode === 'slice'
+    ? (latestState.diagram.sceneModel ?? null)
+    : null;
+}
+
+afterEach(() => {
+  if (root) {
+    act(() => {
+      root?.unmount();
+    });
+  }
+
+  latestState = null;
+  root = null;
+  host?.remove();
+  host = null;
+  document.body.innerHTML = '';
+  delete document.documentElement.dataset.theme;
+  localStorage.clear();
+});
+
+describe('useAppState overview mode', () => {
+  it('defaults to slice mode and exposes overview enter and exit actions', async () => {
+    await renderHarness();
+
+    expect(latestState?.diagram.diagramMode).toBe('slice');
+    expect(latestState?.actions.onShowProjectOverview).toBeTypeOf('function');
+    expect(latestState?.actions.onHideProjectOverview).toBeTypeOf('function');
+  });
+
+  it('exposes a default-visible overview node data flag and toggle action on the app state contract', async () => {
+    await renderHarness();
+
+    expect(latestState?.diagram.overviewNodeDataVisible).toBe(true);
+    expect(latestState?.actions.onToggleOverviewNodeDataVisibility).toBeTypeOf('function');
+
+    await runAction(() => {
+      latestState?.actions.onToggleOverviewNodeDataVisibility();
+    });
+
+    expect(latestState?.diagram.overviewNodeDataVisible).toBe(false);
+  });
+
+  it('preserves the overview node data preference across leaving and re-entering overview in the same session', async () => {
+    await renderHarness();
+
+    await runAction(() => {
+      latestState?.actions.onShowProjectOverview();
+      latestState?.actions.onToggleOverviewNodeDataVisibility();
+    });
+
+    expect(latestState?.diagram.diagramMode).toBe('overview');
+    expect(latestState?.diagram.overviewNodeDataVisible).toBe(false);
+
+    await runAction(() => {
+      latestState?.actions.onHideProjectOverview();
+    });
+
+    expect(latestState?.diagram.diagramMode).toBe('slice');
+    expect(latestState?.diagram.overviewNodeDataVisible).toBe(false);
+
+    await runAction(() => {
+      latestState?.actions.onShowProjectOverview();
+    });
+
+    expect(latestState?.diagram.diagramMode).toBe('overview');
+    expect(latestState?.diagram.overviewNodeDataVisible).toBe(false);
+  });
+
+  it('enters overview mode by clearing the visible slice selection and closing the editor', async () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'slice-a',
+        slices: [{ id: 'slice-a', dsl: 'slice "Overview"\n\nevt:selected-node' }]
+      })
+    );
+
+    await renderHarness();
+    await waitForSliceScene();
+
+    await runAction(() => {
+      latestState?.actions.onNodeSelect('selected-node');
+      latestState?.actions.onToggleEditor();
+    });
+
+    expect(latestState?.analysisPanel.selectedNode?.key).toBe('selected-node');
+    expect(latestState?.editor.editorOpen).toBe(true);
+
+    await runAction(() => {
+      latestState?.actions.onShowProjectOverview();
+    });
+
+    expect(latestState?.diagram.diagramMode).toBe('overview');
+    expect(latestState?.analysisPanel.selectedNode).toBeNull();
+    expect(latestState?.editor.editorOpen).toBe(false);
+  });
+
+  it('exits overview mode by restoring the previous editor state and selected slice node', async () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'slice-a',
+        slices: [{ id: 'slice-a', dsl: 'slice "Overview"\n\nevt:selected-node' }]
+      })
+    );
+
+    await renderHarness();
+    await waitForSliceScene();
+
+    await runAction(() => {
+      latestState?.actions.onNodeSelect('selected-node');
+      latestState?.actions.onToggleEditor();
+      latestState?.actions.onShowProjectOverview();
+    });
+
+    expect(latestState?.diagram.diagramMode).toBe('overview');
+    expect(latestState?.analysisPanel.selectedNode).toBeNull();
+    expect(latestState?.editor.editorOpen).toBe(false);
+
+    await runAction(() => {
+      latestState?.actions.onHideProjectOverview();
+    });
+
+    expect(latestState?.diagram.diagramMode).toBe('slice');
+    expect(latestState?.analysisPanel.selectedNode?.key).toBe('selected-node');
+    expect(latestState?.editor.editorOpen).toBe(true);
+  });
+
+  it('clears overview-local selection when overview closes and reopens', async () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'slice-a',
+        slices: [{
+          id: 'slice-a',
+          dsl: 'slice "Overview"\n\nevt:slice-node\n\nevt:overview-node'
+        }]
+      })
+    );
+
+    await renderHarness();
+    await waitForSliceScene();
+
+    await runAction(() => {
+      latestState?.actions.onNodeSelect('slice-node');
+      latestState?.actions.onShowProjectOverview();
+    });
+
+    await waitForOverviewScene();
+
+    await runAction(() => {
+      latestState?.actions.onNodeSelect('slice-a::overview-node');
+    });
+
+    expect(latestState?.analysisPanel.selectedNode).toBeNull();
+    expect(latestState?.diagram.sceneModel?.nodes.find((node) => node.key === 'slice-a::overview-node')?.selected).toBe(true);
+
+    await runAction(() => {
+      latestState?.actions.onHideProjectOverview();
+    });
+
+    expect(latestState?.analysisPanel.selectedNode?.key).toBe('slice-node');
+    expect(latestState?.diagram.sceneModel?.nodes.find((node) => node.key === 'slice-a::overview-node')).toBeUndefined();
+
+    await runAction(() => {
+      latestState?.actions.onShowProjectOverview();
+    });
+
+    await waitForOverviewScene();
+
+    expect(latestState?.analysisPanel.selectedNode).toBeNull();
+    expect(latestState?.diagram.sceneModel?.nodes.find((node) => node.key === 'slice-a::overview-node')?.selected).toBe(false);
+  });
+
+  it('renders a merged overview scene with nodes from multiple slices', async () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'slice-a',
+        slices: [
+          { id: 'slice-a', dsl: 'slice "Alpha"\n\nevt:first-node' },
+          { id: 'slice-b', dsl: 'slice "Beta"\n\nevt:second-node' }
+        ]
+      })
+    );
+
+    await renderHarness();
+
+    await runAction(() => {
+      latestState?.actions.onShowProjectOverview();
+    });
+
+    const nodeKeys = (await waitForOverviewScene())?.nodes.map((node) => node.key) ?? [];
+    expect(nodeKeys).toContain('slice-a::first-node');
+    expect(nodeKeys).toContain('slice-b::second-node');
+  });
+
+  it('renders overview scenarios from the merged namespaced parsed graph', async () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'slice-a',
+        slices: [
+          {
+            id: 'slice-a',
+            dsl: [
+              'slice "Alpha"',
+              '',
+              'cmd:rename',
+              '',
+              'scenario "Rename"',
+              'given:',
+              '  evt:item-created',
+              '',
+              'when:',
+              '  cmd:rename',
+              '',
+              'then:',
+              '  evt:item-renamed'
+            ].join('\n')
+          }
+        ]
+      })
+    );
+
+    await renderHarness();
+
+    await runAction(() => {
+      latestState?.actions.onShowProjectOverview();
+    });
+
+    const scenario = (await waitForOverviewMode())?.parsed?.scenarios[0];
+    expect(scenario?.given[0]?.key.startsWith('slice-a::scn:')).toBe(true);
+    expect(scenario?.when?.key.startsWith('slice-a::scn:')).toBe(true);
+    expect(scenario?.then[0]?.key.startsWith('slice-a::scn:')).toBe(true);
+  });
+
+  it('ignores overview hover ranges that are outside the current slice editor document', async () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'slice-a',
+        slices: [
+          {
+            id: 'slice-a',
+            dsl: [
+              'slice "Alpha"',
+              '',
+              'cmd:rename',
+              '',
+              'scenario "Rename"',
+              'given:',
+              '  evt:item-created',
+              '',
+              'when:',
+              '  cmd:rename',
+              '',
+              'then:',
+              '  evt:item-renamed'
+            ].join('\n')
+          }
+        ]
+      })
+    );
+
+    await renderHarness();
+
+    await runAction(() => {
+      latestState?.actions.onShowProjectOverview();
+    });
+
+    await expect((async () => {
+      await runAction(() => {
+        latestState?.actions.onNodeHoverRange({ from: 640, to: 640 });
+      });
+    })()).resolves.toBeUndefined();
+    expect(latestState?.diagram.diagramMode).toBe('overview');
+  });
+
+  it('skips invalid slices when building the overview scene', async () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'slice-valid',
+        slices: [
+          { id: 'slice-valid', dsl: 'slice "Valid"\n\nevt:valid-node' },
+          { id: 'slice-invalid', dsl: 'slice "Broken"\n\nscenario "Missing when"\ngiven:\n  evt:broken-node' }
+        ]
+      })
+    );
+
+    await renderHarness();
+
+    await runAction(() => {
+      latestState?.actions.onShowProjectOverview();
+    });
+
+    const nodeKeys = (await waitForOverviewScene())?.nodes.map((node) => node.key) ?? [];
+    expect(nodeKeys).toContain('slice-valid::valid-node');
+    expect(nodeKeys.some((key) => key.startsWith('slice-invalid::'))).toBe(false);
+  });
+
+  it('renders a one-slice project through the overview pipeline with namespaced node keys', async () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'slice-a',
+        slices: [{ id: 'slice-a', dsl: 'slice "Solo"\n\nevt:solo-node' }]
+      })
+    );
+
+    await renderHarness();
+
+    await runAction(() => {
+      latestState?.actions.onShowProjectOverview();
+    });
+
+    const nodeKeys = (await waitForOverviewScene())?.nodes.map((node) => node.key) ?? [];
+    expect(nodeKeys).toEqual(['slice-a::solo-node']);
+  });
+
+  it('does not apply slice manual layout overrides to overview nodes', async () => {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'slice-a',
+        slices: [{ id: 'slice-a', dsl: 'slice "Solo"\n\nevt:solo-node' }]
+      })
+    );
+    localStorage.setItem(
+      SLICES_LAYOUT_STORAGE_KEY,
+      JSON.stringify({
+        'slice-a': {
+          nodes: { 'solo-node': { x: 315, y: 265 } },
+          edges: {}
+        }
+      })
+    );
+
+    await renderHarness();
+
+    const sliceNode = (await waitForSliceScene())?.nodes.find((node) => node.key === 'solo-node');
+    expect(sliceNode?.x).toBe(315);
+    expect(sliceNode?.y).toBe(265);
+
+    await runAction(() => {
+      latestState?.actions.onShowProjectOverview();
+    });
+
+    const overviewNode = (await waitForOverviewScene())?.nodes.find((node) => node.key === 'slice-a::solo-node');
+    expect(overviewNode).toBeDefined();
+    expect(overviewNode?.x).not.toBe(315);
+    expect(overviewNode?.y).not.toBe(265);
+  });
+
+  it('remeasures overview nodes and scenario groups without data rows when overview node data is hidden', async () => {
+    const originalGetBoundingClientRect = HTMLElement.prototype.getBoundingClientRect;
+    HTMLElement.prototype.getBoundingClientRect = function mockOverviewMeasurement() {
+      if (this.matches('.node-measure-box[data-node-key]')) {
+        const hasFields = this.querySelector('.node-fields') !== null;
+        return {
+          x: 0,
+          y: 0,
+          top: 0,
+          left: 0,
+          right: 240,
+          bottom: hasFields ? 120 : 64,
+          width: 240,
+          height: hasFields ? 120 : 64,
+          toJSON: () => ({})
+        } as DOMRect;
+      }
+
+      if (this.matches('.scenario-group-measure[data-scenario-group-key]')) {
+        return {
+          x: 0,
+          y: 0,
+          top: 0,
+          left: 0,
+          right: 320,
+          bottom: 180,
+          width: 320,
+          height: 180,
+          toJSON: () => ({})
+        } as DOMRect;
+      }
+
+      return originalGetBoundingClientRect.call(this);
+    };
+
+    try {
+    localStorage.setItem(
+      SLICES_STORAGE_KEY,
+      JSON.stringify({
+        selectedSliceId: 'slice-a',
+        slices: [{
+          id: 'slice-a',
+          dsl: [
+            'slice "Alpha"',
+            '',
+            'evt:item-created',
+            'data:',
+            '  title: Alpha',
+            '',
+            'cmd:rename',
+            'data:',
+            '  newName: Beta',
+            '',
+            'evt:item-renamed',
+            'data:',
+            '  title: Beta',
+            '',
+            'scenario "Rename"',
+            'given:',
+            '  evt:item-created',
+            '',
+            'when:',
+            '  cmd:rename',
+            '',
+            'then:',
+            '  evt:item-renamed'
+          ].join('\n')
+        }]
+      })
+    );
+
+    await renderHarness();
+
+    await runAction(() => {
+      latestState?.actions.onShowProjectOverview();
+    });
+
+    const visibleScene = await waitForOverviewScene();
+    const visibleRenameNode = visibleScene?.nodes.find((node) => node.key === 'slice-a::rename');
+    expect(visibleRenameNode).toBeDefined();
+    expect(document.querySelectorAll('.node-measure-layer .node-fields').length).toBeGreaterThan(0);
+
+    await runAction(() => {
+      latestState?.actions.onToggleOverviewNodeDataVisibility();
+    });
+
+    const hiddenScene = await waitForOverviewScene();
+    const hiddenRenameNode = hiddenScene?.nodes.find((node) => node.key === 'slice-a::rename');
+    expect(hiddenRenameNode).toBeDefined();
+    expect(hiddenRenameNode!.h).toBeLessThan(visibleRenameNode!.h);
+    expect(document.querySelectorAll('.node-measure-layer .node-fields')).toHaveLength(0);
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = originalGetBoundingClientRect;
+    }
+  });
+});

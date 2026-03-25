@@ -1,0 +1,4 @@
+interface:
+  display_name: "Validate"
+  short_description: "Run the slicr repo validation workflow"
+  default_prompt: "Validate the current slicr changes using the repo's required workflow, report each command outcome, and call out any pre-existing or unrelated failures separately."
