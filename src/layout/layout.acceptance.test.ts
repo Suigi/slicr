@@ -1333,4 +1333,154 @@ describe("down arrow collision avoidance", () => {
     ]);
   });
 
+  it("up edges from wide source nodes move target nodes according to minNodeGap", () => {
+    const request: LayoutRequest = {
+      nodes: [
+        { id: "node-1", laneId: "lane-1", width: 180, height: 50 },
+        { id: "node-2", laneId: "lane-0", height: 50 },
+      ],
+      edges: [
+        { id: "edge-1", sourceId: "node-1", targetId: "node-2" },
+      ],
+      lanes: [
+        { id: "lane-0", order: 0 },
+        { id: "lane-1", order: 1 },
+        { id: "lane-2", order: 2 },
+      ],
+      defaults: { nodeWidth: 120, nodeHeight: 48 },
+      spacing: { groupGap: 80, minNodeGap: 40, minTargetShift: 20 },
+    };
+
+    const result = layout(request);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.result.lanes).toEqual([
+      { id: "lane-0", top: -24, bottom: 74 },
+      { id: "lane-1", top: 118, bottom: 216 },
+      { id: "lane-2", top: 260, bottom: 356 },
+    ]);
+    expect(result.result.nodes).toEqual([
+      { id: "node-1", x: 0, y: 142, width: 180, height: 50 },
+      { id: "node-2", x: 130, y: 0, width: 120, height: 50 },
+    ]);
+    expect(result.result.edges).toEqual([
+      {
+        id: "edge-1",
+        sourceId: "node-1",
+        targetId: "node-2",
+        sourceAnchor: { x: 100, y: 142, side: "top", ordinal: 0 },
+        targetAnchor: { x: 130, y: 20, side: "left", ordinal: 0 },
+        points: [
+          { x: 100, y: 142 },
+          { x: 100, y: 122 },
+          { x: 100, y: 20 },
+          { x: 130, y: 20 },
+        ],
+      },
+    ]);
+  });
+
+  it("orders target anchor points of up edges according to source node x order", () => {
+    const request: LayoutRequest = {
+      nodes: [
+        { id: "node-1", laneId: "lane-1" },
+        { id: "node-2", laneId: "lane-1" },
+        { id: "node-3", laneId: "lane-0", height: 70 },
+        { id: "node-4", laneId: "lane-1" },
+        { id: "node-5", laneId: "lane-1" },
+      ],
+      edges: [
+        { id: "edge-1", sourceId: "node-2", targetId: "node-3" },
+        { id: "edge-2", sourceId: "node-1", targetId: "node-3" },
+        { id: "edge-3", sourceId: "node-4", targetId: "node-3" },
+        { id: "edge-4", sourceId: "node-5", targetId: "node-3" },
+      ],
+      lanes: [
+        { id: "lane-0", order: 0 },
+        { id: "lane-1", order: 1 },
+        { id: "lane-2", order: 2 },
+      ],
+      defaults: { nodeWidth: 120, nodeHeight: 48 },
+      spacing: { groupGap: 80, minNodeGap: 40, minTargetShift: 20 },
+    };
+
+    const result = layout(request);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.result.lanes).toEqual([
+      { id: "lane-0", top: -24, bottom: 94 },
+      { id: "lane-1", top: 138, bottom: 234 },
+      { id: "lane-2", top: 278, bottom: 374 },
+    ]);
+    expect(result.result.nodes).toEqual([
+      { id: "node-1", x: 0, y: 162, width: 120, height: 48 },
+      { id: "node-2", x: 160, y: 162, width: 120, height: 48 },
+      { id: "node-3", x: 580, y: 0, width: 120, height: 70 },
+      { id: "node-4", x: 320, y: 162, width: 120, height: 48 },
+      { id: "node-5", x: 480, y: 162, width: 120, height: 48 },
+    ]);
+    expect(result.result.edges).toEqual([
+      {
+        id: "edge-1",
+        sourceId: "node-2",
+        targetId: "node-3",
+        sourceAnchor: { x: 230, y: 162, side: "top", ordinal: 0 },
+        targetAnchor: { x: 580, y: 40, side: "left", ordinal: 0 },
+        points: [
+          { x: 230, y: 162 },
+          { x: 230, y: 142 },
+          { x: 230, y: 40 },
+          { x: 580, y: 40 },
+        ],
+      },
+      {
+        id: "edge-2",
+        sourceId: "node-1",
+        targetId: "node-3",
+        sourceAnchor: { x: 70, y: 162, side: "top", ordinal: 0 },
+        targetAnchor: { x: 580, y: 30, side: "left", ordinal: 1 },
+        points: [
+          { x: 70, y: 162 },
+          { x: 70, y: 142 },
+          { x: 70, y: 30 },
+          { x: 580, y: 30 },
+        ],
+      },
+      {
+        id: "edge-3",
+        sourceId: "node-4",
+        targetId: "node-3",
+        sourceAnchor: { x: 390, y: 162, side: "top", ordinal: 0 },
+        targetAnchor: { x: 580, y: 50, side: "left", ordinal: 2 },
+        points: [
+          { x: 390, y: 162 },
+          { x: 390, y: 142 },
+          { x: 390, y: 50 },
+          { x: 580, y: 50 },
+        ],
+      },
+      {
+        id: "edge-4",
+        sourceId: "node-5",
+        targetId: "node-3",
+        sourceAnchor: { x: 550, y: 162, side: "top", ordinal: 0 },
+        targetAnchor: { x: 580, y: 60, side: "left", ordinal: 3 },
+        points: [
+          { x: 550, y: 162 },
+          { x: 550, y: 142 },
+          { x: 550, y: 60 },
+          { x: 580, y: 60 },
+        ],
+      },
+    ]);
+  });
+
 });

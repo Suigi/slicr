@@ -348,11 +348,16 @@ export const layout: LayoutApi = (request) => {
     addEdgeToAnchorBucket(targetEdgesByKey, edge.targetId, sides.target, edge.id);
   }
 
-  for (const edgeIds of targetEdgesByKey.values()) {
-    edgeIds.forEach((edgeId, index) => {
-      targetRequestSlotByEdgeId.set(edgeId, index);
-    });
-  }
+  assignTargetAnchorSlots({
+    edgeIdsByBucket: targetEdgesByKey,
+    edges: request.edges,
+    edgeIndexById,
+    nodeLayoutById,
+    sideAssignments,
+    laneOrderById,
+    nodeById,
+    targetRequestSlotByEdgeId,
+  });
 
   assignAnchorOrdinals({
     edgeIdsByBucket: sourceEdgesByKey,
@@ -799,6 +804,73 @@ function resolveTargetAnchorBase(
   };
 }
 
+function assignTargetAnchorSlots(params: {
+  edgeIdsByBucket: Map<string, string[]>;
+  edges: EdgeInput[];
+  edgeIndexById: Map<string, number>;
+  nodeLayoutById: Map<string, NodeLayout>;
+  sideAssignments: Map<string, EdgeSideAssignment>;
+  laneOrderById: Map<string, number>;
+  nodeById: Map<string, NodeInput>;
+  targetRequestSlotByEdgeId: Map<string, number>;
+}) {
+  const {
+    edgeIdsByBucket,
+    edges,
+    edgeIndexById,
+    nodeLayoutById,
+    sideAssignments,
+    laneOrderById,
+    nodeById,
+    targetRequestSlotByEdgeId,
+  } = params;
+  const edgeById = new Map(edges.map((edge) => [edge.id, edge]));
+
+  for (const edgeIds of edgeIdsByBucket.values()) {
+    const sortedEdgeIds = [...edgeIds].sort((leftId, rightId) => {
+      const leftEdge = edgeById.get(leftId);
+      const rightEdge = edgeById.get(rightId);
+      if (!leftEdge || !rightEdge) {
+        return (edgeIndexById.get(leftId) ?? 0) - (edgeIndexById.get(rightId) ?? 0);
+      }
+
+      const leftSide = sideAssignments.get(leftId)?.target;
+      const rightSide = sideAssignments.get(rightId)?.target;
+      const leftOrientation = deriveOrientation(
+        laneOrderById.get(nodeById.get(leftEdge.sourceId)?.laneId ?? "") ?? 0,
+        laneOrderById.get(nodeById.get(leftEdge.targetId)?.laneId ?? "") ?? 0,
+      );
+      const rightOrientation = deriveOrientation(
+        laneOrderById.get(nodeById.get(rightEdge.sourceId)?.laneId ?? "") ?? 0,
+        laneOrderById.get(nodeById.get(rightEdge.targetId)?.laneId ?? "") ?? 0,
+      );
+
+      if (
+        leftOrientation === "up" &&
+        rightOrientation === "up" &&
+        (leftSide === "left" || leftSide === "right") &&
+        leftSide === rightSide
+      ) {
+        const leftSource = nodeLayoutById.get(leftEdge.sourceId);
+        const rightSource = nodeLayoutById.get(rightEdge.sourceId);
+        if (leftSource && rightSource) {
+          const leftPosition = leftSource.x + leftSource.width / 2;
+          const rightPosition = rightSource.x + rightSource.width / 2;
+          if (leftPosition !== rightPosition) {
+            return leftPosition - rightPosition;
+          }
+        }
+      }
+
+      return (edgeIndexById.get(leftId) ?? 0) - (edgeIndexById.get(rightId) ?? 0);
+    });
+
+    sortedEdgeIds.forEach((edgeId, index) => {
+      targetRequestSlotByEdgeId.set(edgeId, index);
+    });
+  }
+}
+
 function addEdgeToAnchorBucket(
   edgeIdsByBucket: Map<string, string[]>,
   nodeId: string,
@@ -969,7 +1041,11 @@ function computeEdgeConstraintX(params: {
   }
 
   if (orientation === "up") {
-    let nextX = sourceX + columnStep;
+    let nextX = computeUpwardConstraintX(
+      sourceX,
+      widthByNode.get(edge.sourceId) ?? 0,
+      minTargetShift,
+    );
     const sourceWasShifted = sourceX > (rawBaseXByNode.get(edge.sourceId) ?? 0);
     const sourceHasIncoming = (incomingCountByNode.get(edge.sourceId) ?? 0) > 0;
     const staysWithinExplicitGroup =
@@ -991,6 +1067,16 @@ function computeEdgeConstraintX(params: {
   }
 
   return sourceX + columnStep;
+}
+
+function computeUpwardConstraintX(
+  sourceX: number,
+  sourceWidth: number,
+  minTargetShift: number,
+) {
+  const sourceTopAnchorX = sourceX + sourceWidth / 2 + VERTICAL_SOURCE_BIAS;
+  const requiredHorizontalClearance = minTargetShift + EDGE_STUB / 2;
+  return sourceTopAnchorX + requiredHorizontalClearance;
 }
 
 function routeOrthogonalEdge(
