@@ -13,6 +13,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "typecheck": "tsc -p tsconfig.json",
     "preview": "vite preview",
     "watch": "vitest --reporter=default --reporter=src/vitest/cliReporter.ts --reporter=src/vitest/statusCliReporter.ts",
     "test": "vitest run --reporter=vitest-llm-reporter"
