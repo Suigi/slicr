@@ -512,7 +512,7 @@ export function buildSceneModel(input: BuildSceneModelInput): DiagramSceneModel 
     measuredScenarioGroupWidths
   );
   const title: DiagramTitle | null = sliceFrames.length === 0 && parsed.sliceName
-    ? { text: parsed.sliceName, top: 6, left: PAD_X }
+    ? { text: parsed.sliceName, top: -60, left: PAD_X }
     : null;
   const viewport = computeCanvasViewport(
     activeLayout,

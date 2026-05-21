@@ -49,7 +49,7 @@ export function buildSliceLayoutLibRequest(
         laneMargin: 24,
         laneGap: 44,
         groupGap: 80,
-        minTargetShift: 20,
+        minTargetShift: 10,
         minNodeGap: 40
       }
     },
