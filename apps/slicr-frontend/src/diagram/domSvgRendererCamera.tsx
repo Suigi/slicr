@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
+import { InfiniteCanvas } from '@slicr/react-ui';
+import type { InfiniteCanvasHandle } from '@slicr/react-ui';
 import { supportsEditableEdgePoints } from '../domain/diagramEngine';
 import { NodeCard } from '../NodeCard';
-import { toWorldClientPoint, zoomCameraAroundClientPoint } from './cameraUtils';
+import { toWorldClientPoint } from './cameraUtils';
 import type { DiagramRendererAdapterProps } from './domSvgRenderer';
 import type { DiagramScenario, DiagramScenarioNode } from './rendererContract';
 import { OverviewDashedConnectors } from './overviewDashedConnectors';
@@ -109,6 +111,7 @@ function renderScenarioBoxes(
 }
 
 const DEFAULT_CAMERA = { x: 0, y: 0, zoom: 1 } as const;
+const CAMERA_ZOOM_STEP = 1.5;
 
 export function DomSvgDiagramRendererCamera({
   diagramMode,
@@ -131,11 +134,11 @@ export function DomSvgDiagramRendererCamera({
   cameraControlsEnabled = true,
   initialCamera
 }: DiagramRendererAdapterProps) {
+  const canvasRef = useRef<InfiniteCanvasHandle | null>(null);
   const [camera, setCamera] = useState<{ x: number; y: number; zoom: number }>(
     () => initialCamera ?? DEFAULT_CAMERA
   );
   const [cameraControlled, setCameraControlled] = useState(Boolean(initialCamera));
-  const heldWheelZoomModifiersRef = useRef({ ctrl: false, meta: false });
   const effectiveCamera = !cameraControlled && initialCamera
     ? initialCamera
     : camera;
@@ -143,167 +146,10 @@ export function DomSvgDiagramRendererCamera({
   const showOverviewNodeDataToggle = diagramMode === 'overview' && cameraControlsEnabled;
   const hideOverviewNodeData = diagramMode === 'overview' && overviewNodeDataVisible === false;
 
-  const beginCameraPan = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!cameraControlsEnabled) {
-      return;
-    }
-    if (event.button !== 0) {
-      return;
-    }
-    const target = event.target;
-    if (
-      target instanceof Element &&
-      (target.closest('.node') || target.closest('.edge-segment-handle') || target.closest('.camera-zoom-toolbar'))
-    ) {
-      return;
-    }
-
-    event.preventDefault();
-    const pointerId = event.pointerId;
-    const startX = event.clientX;
-    const startY = event.clientY;
-    const startCameraX = effectiveCamera.x;
-    const startCameraY = effectiveCamera.y;
-
-    const onMove = (moveEvent: PointerEvent) => {
-      if ((moveEvent.buttons & 1) === 0) {
-        return;
-      }
-      const dx = moveEvent.clientX - startX;
-      const dy = moveEvent.clientY - startY;
-      setCameraControlled(true);
-      setCamera((current) => ({ ...current, x: startCameraX + dx, y: startCameraY + dy }));
-    };
-
-    const onUp = (upEvent: PointerEvent) => {
-      if (upEvent.pointerId !== pointerId) {
-        return;
-      }
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-    };
-
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
+  const handleCameraChange = (nextCamera: { x: number; y: number; zoom: number }) => {
+    setCameraControlled(true);
+    setCamera(nextCamera);
   };
-
-  type WheelLikeEvent = {
-    deltaX: number;
-    deltaY: number;
-    clientX: number;
-    clientY: number;
-    ctrlKey: boolean;
-    metaKey: boolean;
-  };
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Control') {
-        heldWheelZoomModifiersRef.current.ctrl = true;
-      }
-      if (event.key === 'Meta') {
-        heldWheelZoomModifiersRef.current.meta = true;
-      }
-    };
-
-    const onKeyUp = (event: KeyboardEvent) => {
-      if (event.key === 'Control') {
-        heldWheelZoomModifiersRef.current.ctrl = false;
-      }
-      if (event.key === 'Meta') {
-        heldWheelZoomModifiersRef.current.meta = false;
-      }
-    };
-
-    const resetHeldModifiers = () => {
-      heldWheelZoomModifiersRef.current.ctrl = false;
-      heldWheelZoomModifiersRef.current.meta = false;
-    };
-
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
-    window.addEventListener('blur', resetHeldModifiers);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
-      window.removeEventListener('blur', resetHeldModifiers);
-    };
-  }, []);
-
-  useEffect(() => {
-    const el = canvasPanelRef.current;
-    if (!el) return;
-
-    const handleWheelZoom = (event: WheelLikeEvent) => {
-      if (!cameraControlsEnabled) {
-        return;
-      }
-      if (!sceneModel?.viewport) {
-        return;
-      }
-
-      const modifierZoomActive = event.ctrlKey
-        || event.metaKey
-        || heldWheelZoomModifiersRef.current.ctrl
-        || heldWheelZoomModifiersRef.current.meta;
-
-      if (!modifierZoomActive) {
-        if (event.deltaX === 0 && event.deltaY === 0) {
-          return;
-        }
-        const baseCamera = cameraControlled || !initialCamera
-          ? null
-          : initialCamera;
-        setCameraControlled(true);
-        setCamera((current) => ({
-          ...(baseCamera ?? current),
-          x: (baseCamera?.x ?? current.x) - event.deltaX,
-          y: (baseCamera?.y ?? current.y) - event.deltaY
-        }));
-        return;
-      }
-
-      if (event.deltaY === 0) {
-        return;
-      }
-
-      const zoomFactor = Math.pow(1.1, -event.deltaY / 100);
-
-      const rect = canvasPanelRef.current?.getBoundingClientRect();
-      const scrollLeft = canvasPanelRef.current?.scrollLeft ?? 0;
-      const scrollTop = canvasPanelRef.current?.scrollTop ?? 0;
-      const localX = rect ? event.clientX - rect.left + scrollLeft : event.clientX;
-      const localY = rect ? event.clientY - rect.top + scrollTop : event.clientY;
-
-      setCamera((current) => {
-        const baseCamera = cameraControlled || !initialCamera
-          ? current
-          : initialCamera;
-        setCameraControlled(true);
-        return zoomCameraAroundClientPoint(
-          sceneModel,
-          baseCamera,
-          localX,
-          localY,
-          zoomFactor
-        );
-      });
-    };
-
-    const onWheel = (e: WheelEvent) => {
-      if (!cameraControlsEnabled || !sceneModel?.viewport) {
-        return;
-      }
-      // prevent the browser's default scroll/zoom when interacting with the canvas
-      e.preventDefault();
-      handleWheelZoom(e as unknown as WheelLikeEvent);
-    };
-
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => {
-      el.removeEventListener('wheel', onWheel);
-    };
-  }, [canvasPanelRef, cameraControlled, cameraControlsEnabled, initialCamera, sceneModel]);
 
   const toWorldPointerEvent = (event: ReactPointerEvent): ReactPointerEvent => {
     const rect = canvasPanelRef.current?.getBoundingClientRect();
@@ -323,64 +169,118 @@ export function DomSvgDiagramRendererCamera({
     if (!sceneModel?.viewport) {
       return;
     }
-    const panel = canvasPanelRef.current;
-    const rect = panel?.getBoundingClientRect();
-    const anchorX = panel
-      ? ((panel.clientWidth || rect?.width || 0) / 2) + (panel.scrollLeft ?? 0)
-      : ((sceneModel.viewport.width || 0) / 2);
-    const anchorY = panel
-      ? ((panel.clientHeight || rect?.height || 0) / 2) + (panel.scrollTop ?? 0)
-      : ((sceneModel.viewport.height || 0) / 2);
-
-    setCameraControlled(true);
-    setCamera((current) => (
-      zoomCameraAroundClientPoint(sceneModel, current, anchorX, anchorY, zoomFactor)
-    ));
+    if (zoomFactor > 1) {
+      canvasRef.current?.zoomIn();
+    } else {
+      canvasRef.current?.zoomOut();
+    }
   };
 
   const resetCamera = () => {
     setCameraControlled(true);
-    setCamera(initialCamera ?? DEFAULT_CAMERA);
+    canvasRef.current?.resetCamera();
   };
 
+
   return (
-    <div
-      ref={canvasPanelRef}
+    <InfiniteCanvas
+      ref={canvasRef}
+      viewportRef={canvasPanelRef}
+      id="canvas"
       className={`canvas-panel ${isPanning ? 'panning' : ''} ${docsOpen ? 'hidden' : ''}`}
-      onPointerDown={beginCameraPan}
       style={{ position: 'relative', overflow: 'hidden' }}
-      aria-hidden={docsOpen}
+      hidden={docsOpen}
       data-diagram-renderer={rendererId}
-    >
-      <div
-        id="canvas"
-        style={{
-          width: sceneModel?.viewport ? `${sceneModel.viewport.width}px` : undefined,
-          height: sceneModel?.viewport ? `${sceneModel.viewport.height}px` : undefined
-        }}
-      >
-        {dragTooltip && (
-          <div
-            className="drag-tooltip"
-            style={{
-              left: `${dragTooltip.clientX + 12}px`,
-              top: `${dragTooltip.clientY + 12}px`
-            }}
-          >
-            {dragTooltip.text}
+      bounds={sceneModel?.viewport ? {
+        width: sceneModel.viewport.width,
+        height: sceneModel.viewport.height,
+        offsetX: sceneModel.viewport.offsetX,
+        offsetY: sceneModel.viewport.offsetY
+      } : undefined}
+      camera={effectiveCamera}
+      defaultCamera={initialCamera ?? DEFAULT_CAMERA}
+      controls={{
+        pan: cameraControlsEnabled,
+        wheelPan: cameraControlsEnabled,
+        wheelZoom: cameraControlsEnabled,
+        toolbar: false,
+        minZoom: 0.4,
+        maxZoom: 2.5,
+        zoomStep: CAMERA_ZOOM_STEP
+      }}
+      onCameraChange={handleCameraChange}
+      ignorePanSelector=".node, .edge-segment-handle, .camera-zoom-toolbar"
+      worldClassName="canvas-camera-world"
+      overlay={(
+        <>
+          {dragTooltip && (
+            <div
+              className="drag-tooltip"
+              style={{
+                left: `${dragTooltip.clientX + 12}px`,
+                top: `${dragTooltip.clientY + 12}px`
+              }}
+            >
+              {dragTooltip.text}
+            </div>
+          )}
+          <div className="canvas-ui-overlay">
+            {cameraControlsEnabled && (
+              <div className="camera-zoom-toolbar" onPointerDown={(event) => event.stopPropagation()}>
+                {showOverviewNodeDataToggle && (
+                  <label className="camera-zoom-toggle">
+                    <input
+                      type="checkbox"
+                      aria-label="Show Node Data"
+                      checked={overviewNodeDataVisible}
+                      onChange={() => onToggleOverviewNodeDataVisibility?.()}
+                    />
+                    <span>Show Node Data</span>
+                  </label>
+                )}
+                <button
+                  type="button"
+                  className="camera-zoom-button"
+                  aria-label="Zoom out"
+                  title="Zoom out"
+                  onClick={() => zoomAroundPanelCenter(1 / 1.1)}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M6 12h12" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  className="camera-zoom-button"
+                  aria-label="Reset zoom"
+                  title="Reset zoom"
+                  onClick={resetCamera}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 12a8 8 0 1 0 2.34-5.66" />
+                    <path d="M4 4v4h4" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  className="camera-zoom-button"
+                  aria-label="Zoom in"
+                  title="Zoom in"
+                  onClick={() => zoomAroundPanelCenter(1.1)}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 6v12" />
+                    <path d="M6 12h12" />
+                  </svg>
+                </button>
+              </div>
+            )}
           </div>
-        )}
-        {sceneModel?.viewport && (
-          <div
-            className="canvas-camera-world"
-            data-camera-x={String(effectiveCamera.x)}
-            data-camera-y={String(effectiveCamera.y)}
-            data-camera-zoom={String(effectiveCamera.zoom)}
-            style={{
-              transform: `translate(${sceneModel.viewport.offsetX + effectiveCamera.x}px, ${sceneModel.viewport.offsetY + effectiveCamera.y}px) scale(${effectiveCamera.zoom})`,
-              transformOrigin: '0 0'
-            }}
-          >
+        </>
+      )}
+    >
+      {sceneModel?.viewport && (
+        <>
             {sceneModel.lanes.map((lane) => (
               <div key={lane.key}>
                 <div
@@ -570,61 +470,9 @@ export function DomSvgDiagramRendererCamera({
                 {renderScenarioBoxes(sceneModel.scenarios, hideOverviewNodeData, onNodeHoverRange, onNodeSelect, onNodeOpenInEditor)}
               </div>
             )}
-          </div>
-        )}
-      </div>
-      <div className="canvas-ui-overlay">
-        {cameraControlsEnabled && (
-          <div className="camera-zoom-toolbar" onPointerDown={(event) => event.stopPropagation()}>
-            {showOverviewNodeDataToggle && (
-              <label className="camera-zoom-toggle">
-                <input
-                  type="checkbox"
-                  aria-label="Show Node Data"
-                  checked={overviewNodeDataVisible}
-                  onChange={() => onToggleOverviewNodeDataVisibility?.()}
-                />
-                <span>Show Node Data</span>
-              </label>
-            )}
-            <button
-              type="button"
-              className="camera-zoom-button"
-              aria-label="Zoom out"
-              title="Zoom out"
-              onClick={() => zoomAroundPanelCenter(1 / 1.1)}
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M6 12h12" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              className="camera-zoom-button"
-              aria-label="Reset zoom"
-              title="Reset zoom"
-              onClick={resetCamera}
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 12a8 8 0 1 0 2.34-5.66" />
-                <path d="M4 4v4h4" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              className="camera-zoom-button"
-              aria-label="Zoom in"
-              title="Zoom in"
-              onClick={() => zoomAroundPanelCenter(1.1)}
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 6v12" />
-                <path d="M6 12h12" />
-              </svg>
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
+
+        </>
+      )}
+    </InfiniteCanvas>
   );
 }

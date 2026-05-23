@@ -4,8 +4,8 @@ import {
   useImperativeHandle,
   useRef,
   useState,
+  useEffect,
   type PointerEvent as ReactPointerEvent,
-  type WheelEvent as ReactWheelEvent,
 } from "react";
 import type {
   CanvasBounds,
@@ -23,7 +23,7 @@ const DEFAULT_CONTROLS: Required<InfiniteCanvasControls> = {
   toolbar: false,
   minZoom: 0.1,
   maxZoom: 4,
-  zoomStep: 1.2,
+  zoomStep: 2,
 };
 
 function clamp(value: number, min: number, max: number) {
@@ -48,17 +48,21 @@ function zoomAroundPoint(
   clientY: number,
   factor: number,
   controls: Required<InfiniteCanvasControls>,
+  bounds?: CanvasBounds,
 ) {
   const nextZoom = clamp(
     camera.zoom * factor,
     controls.minZoom,
     controls.maxZoom,
   );
-  const actualFactor = nextZoom / camera.zoom;
+  const tx = (bounds?.offsetX ?? 0) + camera.x;
+  const ty = (bounds?.offsetY ?? 0) + camera.y;
+  const worldX = (clientX - tx) / camera.zoom;
+  const worldY = (clientY - ty) / camera.zoom;
 
   return {
-    x: clientX - (clientX - camera.x) * actualFactor,
-    y: clientY - (clientY - camera.y) * actualFactor,
+    x: clientX - worldX * nextZoom - (bounds?.offsetX ?? 0),
+    y: clientY - worldY * nextZoom - (bounds?.offsetY ?? 0),
     zoom: nextZoom,
   };
 }
@@ -81,6 +85,7 @@ export const InfiniteCanvas = forwardRef<
 >(function InfiniteCanvas(
   {
     children,
+    overlay,
     camera: controlledCamera,
     defaultCamera = DEFAULT_CAMERA,
     bounds,
@@ -100,24 +105,29 @@ export const InfiniteCanvas = forwardRef<
 ) {
   const controls = { ...DEFAULT_CONTROLS, ...controlsOverride };
   const internalViewportRef = useRef<HTMLDivElement | null>(null);
+  const heldWheelZoomModifiersRef = useRef({ ctrl: false, meta: false });
   const [uncontrolledCamera, setUncontrolledCamera] = useState(defaultCamera);
   const isControlled = controlledCamera !== undefined;
   const camera = controlledCamera ?? uncontrolledCamera;
+  const cameraRef = useRef(camera);
+  cameraRef.current = camera;
 
   const updateCamera = useCallback(
     (nextCamera: CanvasCamera | ((current: CanvasCamera) => CanvasCamera)) => {
+      const baseCamera = cameraRef.current;
       const resolved =
-        typeof nextCamera === "function" ? nextCamera(camera) : nextCamera;
+        typeof nextCamera === "function" ? nextCamera(baseCamera) : nextCamera;
       const clamped = {
         ...resolved,
         zoom: clamp(resolved.zoom, controls.minZoom, controls.maxZoom),
       };
+      cameraRef.current = clamped;
       if (!isControlled) {
         setUncontrolledCamera(clamped);
       }
       onCameraChange?.(clamped);
     },
-    [camera, controls.maxZoom, controls.minZoom, isControlled, onCameraChange],
+    [controls.maxZoom, controls.minZoom, isControlled, onCameraChange],
   );
 
   const zoomBy = useCallback(
@@ -126,10 +136,10 @@ export const InfiniteCanvas = forwardRef<
       const width = viewport?.clientWidth ?? bounds?.width ?? 0;
       const height = viewport?.clientHeight ?? bounds?.height ?? 0;
       updateCamera((current) =>
-        zoomAroundPoint(current, width / 2, height / 2, factor, controls),
+        zoomAroundPoint(current, width / 2, height / 2, factor, controls, bounds),
       );
     },
-    [bounds?.height, bounds?.width, controls, updateCamera],
+    [bounds, controls, updateCamera],
   );
 
   const resetCamera = useCallback(
@@ -182,6 +192,38 @@ export const InfiniteCanvas = forwardRef<
     [camera, controls.zoomStep, fitBounds, resetCamera, updateCamera, zoomBy],
   );
 
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Control") {
+        heldWheelZoomModifiersRef.current.ctrl = true;
+      }
+      if (event.key === "Meta") {
+        heldWheelZoomModifiersRef.current.meta = true;
+      }
+    };
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.key === "Control") {
+        heldWheelZoomModifiersRef.current.ctrl = false;
+      }
+      if (event.key === "Meta") {
+        heldWheelZoomModifiersRef.current.meta = false;
+      }
+    };
+    const resetHeldModifiers = () => {
+      heldWheelZoomModifiersRef.current.ctrl = false;
+      heldWheelZoomModifiersRef.current.meta = false;
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", resetHeldModifiers);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", resetHeldModifiers);
+    };
+  }, []);
+
   const beginPan = (event: ReactPointerEvent<HTMLDivElement>) => {
     onCanvasPointerDown?.(event);
     if (event.defaultPrevented || !controls.pan || event.button !== 0) {
@@ -224,31 +266,51 @@ export const InfiniteCanvas = forwardRef<
     window.addEventListener("pointerup", onUp);
   };
 
-  const onWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
-    if (controls.wheelZoom && (event.ctrlKey || event.metaKey)) {
-      event.preventDefault();
-      const point = getViewportPoint(
-        internalViewportRef.current,
-        event.clientX,
-        event.clientY,
-      );
-      const factor =
-        event.deltaY < 0 ? controls.zoomStep : 1 / controls.zoomStep;
-      updateCamera((current) =>
-        zoomAroundPoint(current, point.x, point.y, factor, controls),
-      );
+  const onWheel = useCallback(
+    (event: WheelEvent) => {
+      const modifierZoomActive =
+        event.ctrlKey ||
+        event.metaKey ||
+        heldWheelZoomModifiersRef.current.ctrl ||
+        heldWheelZoomModifiersRef.current.meta;
+
+      if (controls.wheelZoom && modifierZoomActive) {
+        event.preventDefault();
+        const point = getViewportPoint(
+          internalViewportRef.current,
+          event.clientX,
+          event.clientY,
+        );
+        const factor = Math.pow(controls.zoomStep, -event.deltaY / 100);
+        updateCamera((current) =>
+          zoomAroundPoint(current, point.x, point.y, factor, controls, bounds),
+        );
+        return;
+      }
+
+      if (controls.wheelPan) {
+        event.preventDefault();
+        updateCamera((current) => ({
+          ...current,
+          x: current.x - event.deltaX,
+          y: current.y - event.deltaY,
+        }));
+      }
+    },
+    [bounds, controls, updateCamera],
+  );
+
+  useEffect(() => {
+    const element = internalViewportRef.current;
+    if (!element) {
       return;
     }
 
-    if (controls.wheelPan) {
-      event.preventDefault();
-      updateCamera((current) => ({
-        ...current,
-        x: current.x - event.deltaX,
-        y: current.y - event.deltaY,
-      }));
-    }
-  };
+    element.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      element.removeEventListener("wheel", onWheel);
+    };
+  }, [onWheel]);
 
   const worldTransform = `translate(${(bounds?.offsetX ?? 0) + camera.x}px, ${(bounds?.offsetY ?? 0) + camera.y}px) scale(${camera.zoom})`;
 
@@ -261,10 +323,10 @@ export const InfiniteCanvas = forwardRef<
         position: "relative",
         overflow: "hidden",
         touchAction: "none",
+        overscrollBehavior: "none",
         ...style,
       }}
       onPointerDown={beginPan}
-      onWheel={onWheel}
       aria-hidden={hidden || rest["aria-hidden"]}
       data-camera-x={camera.x}
       data-camera-y={camera.y}
@@ -279,6 +341,9 @@ export const InfiniteCanvas = forwardRef<
       >
         <div
           className={worldClassName}
+          data-camera-x={camera.x}
+          data-camera-y={camera.y}
+          data-camera-zoom={camera.zoom}
           style={{
             transform: worldTransform,
             transformOrigin: "0 0",
@@ -290,6 +355,8 @@ export const InfiniteCanvas = forwardRef<
           {children}
         </div>
       </div>
+
+      {overlay}
 
       {controls.toolbar && (
         <div

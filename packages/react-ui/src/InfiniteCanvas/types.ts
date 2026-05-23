@@ -34,6 +34,7 @@ export type InfiniteCanvasHandle = {
 
 export type InfiniteCanvasProps = Omit<HTMLAttributes<HTMLDivElement>, 'children' | 'onPointerDown'> & {
   children: ReactNode;
+  overlay?: ReactNode;
   camera?: CanvasCamera;
   defaultCamera?: CanvasCamera;
   bounds?: CanvasBounds;
