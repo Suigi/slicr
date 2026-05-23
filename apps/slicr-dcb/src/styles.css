@@ -64,4 +64,11 @@ body {
   box-shadow: 0 14px 40px rgba(23, 32, 51, 0.14);
   font-size: 20px;
   font-weight: 650;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.node-box:active {
+  cursor: grabbing;
 }

@@ -1,4 +1,5 @@
-import { InfiniteCanvas } from '@slicr/react-ui';
+import { useRef, useState, type PointerEvent } from 'react';
+import { InfiniteCanvas, type InfiniteCanvasHandle } from '@slicr/react-ui';
 import { routeEdges } from 'layout-lib';
 
 const NODE_X = 120;
@@ -10,7 +11,7 @@ const NODE_B_Y = NODE_A_Y + NODE_HEIGHT + NODE_GAP;
 const NODE_C_X = NODE_X + 40;
 const NODE_C_Y = NODE_B_Y + NODE_HEIGHT + NODE_GAP;
 
-const nodes = [
+const initialNodes = [
   {
     id: 'node-a',
     label: 'Node A',
@@ -40,16 +41,21 @@ const nodes = [
   },
 ];
 
-const edgeRoute = routeEdges({
-  nodes,
-  edges: [
-    { id: 'edge-a-b', sourceId: 'node-a', targetId: 'node-b' },
-    { id: 'edge-b-c', sourceId: 'node-b', targetId: 'node-c' },
-  ],
-  lanes: [{ id: 'main', order: 0 }],
-});
+const edgeInputs = [
+  { id: 'edge-a-b', sourceId: 'node-a', targetId: 'node-b' },
+  { id: 'edge-b-c', sourceId: 'node-b', targetId: 'node-c' },
+];
 
-const edges = edgeRoute.ok ? edgeRoute.result.edges : [];
+type Node = (typeof initialNodes)[number];
+
+type DragState = {
+  pointerId: number;
+  nodeId: string;
+  startClientX: number;
+  startClientY: number;
+  startNodeX: number;
+  startNodeY: number;
+};
 const ARROW_LENGTH = 18;
 const ARROW_WIDTH = 16;
 
@@ -142,14 +148,67 @@ function getArrowRenderPoints(points: Array<{ x: number; y: number }>) {
 }
 
 export function App() {
-  const arrowRenderPoints = edges
+  const canvasRef = useRef<InfiniteCanvasHandle>(null);
+  const dragRef = useRef<DragState | null>(null);
+  const [nodes, setNodes] = useState<Node[]>(initialNodes);
+
+  const edgeRoute = routeEdges({
+    nodes,
+    edges: edgeInputs,
+    lanes: [{ id: 'main', order: 0 }],
+  });
+  const routedEdges = edgeRoute.ok ? edgeRoute.result.edges : [];
+  const arrowRenderPoints = routedEdges
     .map((edge) => ({ id: edge.id, points: getArrowRenderPoints(edge.points) }))
     .filter((edge): edge is { id: string; points: NonNullable<ReturnType<typeof getArrowRenderPoints>> } =>
       Boolean(edge.points),
     );
 
+  const handleNodePointerDown = (event: PointerEvent<HTMLDivElement>, node: Node) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = {
+      pointerId: event.pointerId,
+      nodeId: node.id,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startNodeX: node.x,
+      startNodeY: node.y,
+    };
+  };
+
+  const handleNodePointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const zoom = canvasRef.current?.getCamera().zoom ?? 1;
+    const nextX = drag.startNodeX + (event.clientX - drag.startClientX) / zoom;
+    const nextY = drag.startNodeY + (event.clientY - drag.startClientY) / zoom;
+
+    setNodes((currentNodes) =>
+      currentNodes.map((node) =>
+        node.id === drag.nodeId ? { ...node, x: nextX, y: nextY } : node,
+      ),
+    );
+  };
+
+  const handleNodePointerUp = (event: PointerEvent<HTMLDivElement>) => {
+    if (dragRef.current?.pointerId === event.pointerId) {
+      dragRef.current = null;
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
   return (
-    <InfiniteCanvas className="canvas" controls={{ toolbar: true }}>
+    <InfiniteCanvas
+      ref={canvasRef}
+      className="canvas"
+      controls={{ toolbar: true }}
+      ignorePanSelector=".node-box"
+    >
       <svg className="edge-layer" aria-hidden="true">
         {arrowRenderPoints.map(({ id, points }) => (
           <g key={id}>
@@ -166,6 +225,10 @@ export function App() {
           key={node.id}
           className="node-box"
           style={{ left: node.x, top: node.y, width: node.width, height: node.height }}
+          onPointerDown={(event) => handleNodePointerDown(event, node)}
+          onPointerMove={handleNodePointerMove}
+          onPointerUp={handleNodePointerUp}
+          onPointerCancel={handleNodePointerUp}
         >
           {node.label}
         </div>
