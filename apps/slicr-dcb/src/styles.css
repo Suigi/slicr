@@ -26,11 +26,38 @@ body {
   background: #f0f0f0;
 }
 
-.hello-box {
+.edge-layer {
   position: absolute;
-  left: 120px;
-  top: 96px;
-  padding: 18px 24px;
+  left: 0;
+  top: 0;
+  width: 1000px;
+  height: 1000px;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.edge-line {
+  fill: none;
+  stroke: #52627a;
+  stroke-width: 2;
+  stroke-linecap: butt;
+}
+
+.edge-arrow {
+  fill: #52627a;
+}
+
+.node-column {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+}
+
+.node-box {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid rgba(23, 32, 51, 0.16);
   border-radius: 14px;
   background: #fff;

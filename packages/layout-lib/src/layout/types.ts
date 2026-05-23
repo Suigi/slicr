@@ -7,12 +7,29 @@ export interface LayoutRequest {
   spacing?: SpacingOptions;
 }
 
+export interface RouteEdgesRequest {
+  nodes: PositionedNodeInput[];
+  edges: EdgeInput[];
+  lanes?: LaneInput[];
+  spacing?: SpacingOptions;
+}
+
 export interface NodeInput {
   id: string;
   laneId: string;
   groupId?: string;
   width?: number;
   height?: number;
+}
+
+export interface PositionedNodeInput {
+  id: string;
+  laneId: string;
+  groupId?: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 export interface EdgeInput {
@@ -113,4 +130,14 @@ export type LayoutResponse =
   | { ok: true; result: LayoutResult }
   | { ok: false; error: LayoutFailure };
 
+export interface RouteEdgesResult {
+  edges: EdgeLayout[];
+}
+
+export type RouteEdgesResponse =
+  | { ok: true; result: RouteEdgesResult }
+  | { ok: false; error: LayoutFailure };
+
 export type LayoutApi = (request: LayoutRequest) => LayoutResponse;
+
+export type RouteEdgesApi = (request: RouteEdgesRequest) => RouteEdgesResponse;

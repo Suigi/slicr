@@ -1,4 +1,5 @@
 export { layout } from "./layout/layout";
+export { routeEdges } from "./layout/routeEdges";
 export type {
   AnchorPoint,
   AnchorSide,
@@ -18,5 +19,10 @@ export type {
   NodeInput,
   NodeLayout,
   Point,
+  PositionedNodeInput,
+  RouteEdgesApi,
+  RouteEdgesRequest,
+  RouteEdgesResponse,
+  RouteEdgesResult,
   SpacingOptions,
 } from "./layout/types";
