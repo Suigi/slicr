@@ -38,16 +38,22 @@ body {
   height: 100vh;
 }
 
-.new-slice-button {
+.overlay-actions {
   position: absolute;
   top: 16px;
   left: 16px;
   z-index: 30;
+  display: flex;
+  gap: 8px;
+}
+
+.new-slice-button,
+.overlay-action-button {
   border: 1px solid rgba(23, 32, 51, 0.16);
   border-radius: 999px;
-  background: #172033;
-  color: #fff;
-  box-shadow: 0 10px 28px rgba(23, 32, 51, 0.2);
+  background: #fff;
+  color: #172033;
+  box-shadow: 0 10px 28px rgba(23, 32, 51, 0.16);
   cursor: pointer;
   font: inherit;
   font-size: 14px;
@@ -55,14 +61,24 @@ body {
   padding: 10px 14px;
 }
 
+.new-slice-button {
+  background: #172033;
+  color: #fff;
+  box-shadow: 0 10px 28px rgba(23, 32, 51, 0.2);
+}
+
 .new-slice-button:hover {
   background: #24304a;
+}
+
+.overlay-action-button:hover {
+  background: #f6f7fb;
 }
 
 .connect-mode-status {
   position: absolute;
   top: 16px;
-  left: 150px;
+  left: 260px;
   z-index: 30;
   border: 1px solid rgba(37, 99, 235, 0.2);
   border-radius: 999px;
@@ -130,11 +146,9 @@ body {
   color: inherit;
   cursor: text;
   font: inherit;
-  font-weight: inherit;
   overflow: hidden;
   padding: 6px 8px;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .node-label-input {
@@ -143,7 +157,6 @@ body {
   border-radius: 8px;
   color: inherit;
   font: inherit;
-  font-weight: inherit;
   padding: 6px 8px;
   text-align: center;
 }
@@ -330,4 +343,27 @@ body {
   color: #9a1f1f;
   box-shadow: 0 8px 24px rgba(23, 32, 51, 0.14);
   font-weight: 600;
+}
+
+.layout-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.layout-error button {
+  border: 1px solid rgba(154, 31, 31, 0.25);
+  border-radius: 8px;
+  background: #fff;
+  color: #9a1f1f;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 8px 10px;
+}
+
+.layout-error button:hover {
+  background: #fff8f8;
 }

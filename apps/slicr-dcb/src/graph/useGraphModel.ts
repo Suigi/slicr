@@ -4,13 +4,14 @@ import { initialLane, laneIdForOrder, NODE_HEIGHT, NODE_WIDTH } from './constant
 import type { AddDirection, GraphNode, NodeType } from './types';
 import { ensureLane, getLaneOrder, getSuccessorNodeType } from './graphUtils';
 
-type StoredGraphModel = {
+export type StoredGraphModel = {
   nodes: GraphNode[];
   edges: EdgeInput[];
   lanes: LaneInput[];
 };
 
 const STORAGE_KEY = 'slicr-dcb.graphModel.v1';
+const LAST_OK_STORAGE_KEY = 'slicr-dcb.lastOkGraphModel.v1';
 
 const defaultGraphModel: StoredGraphModel = {
   nodes: [
@@ -27,13 +28,13 @@ const defaultGraphModel: StoredGraphModel = {
   lanes: [initialLane],
 };
 
-function readStoredGraphModel(): StoredGraphModel {
+function readStoredGraphModel(storageKey = STORAGE_KEY): StoredGraphModel {
   if (typeof window === 'undefined') {
     return defaultGraphModel;
   }
 
   try {
-    const rawModel = window.localStorage.getItem(STORAGE_KEY);
+    const rawModel = window.localStorage.getItem(storageKey);
     if (!rawModel) {
       return defaultGraphModel;
     }
@@ -49,16 +50,33 @@ function readStoredGraphModel(): StoredGraphModel {
   }
 }
 
-function isStoredGraphModel(model: Partial<StoredGraphModel>): model is StoredGraphModel {
+export function storeLastOkGraphModel(model: StoredGraphModel) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(LAST_OK_STORAGE_KEY, JSON.stringify(model));
+  } catch {
+    // Ignore storage errors so the editor remains usable in private browsing or full storage scenarios.
+  }
+}
+
+export function isStoredGraphModel(model: unknown): model is StoredGraphModel {
+  if (!model || typeof model !== 'object') {
+    return false;
+  }
+
+  const candidate = model as Partial<StoredGraphModel>;
   return (
-    Array.isArray(model.nodes) &&
-    model.nodes.length > 0 &&
-    model.nodes.every(isGraphNode) &&
-    Array.isArray(model.edges) &&
-    model.edges.every(isEdgeInput) &&
-    Array.isArray(model.lanes) &&
-    model.lanes.length > 0 &&
-    model.lanes.every(isLaneInput)
+    Array.isArray(candidate.nodes) &&
+    candidate.nodes.length > 0 &&
+    candidate.nodes.every(isGraphNode) &&
+    Array.isArray(candidate.edges) &&
+    candidate.edges.every(isEdgeInput) &&
+    Array.isArray(candidate.lanes) &&
+    candidate.lanes.length > 0 &&
+    candidate.lanes.every(isLaneInput)
   );
 }
 
@@ -151,6 +169,24 @@ export function useGraphModel() {
       // Ignore storage errors so the editor remains usable in private browsing or full storage scenarios.
     }
   }, [edges, lanes, nodes]);
+
+  const replaceGraphModel = useCallback((graphModel: StoredGraphModel) => {
+    setNodes(graphModel.nodes);
+    setEdges(graphModel.edges);
+    setLanes(graphModel.lanes);
+    setFocusedNodeId(graphModel.nodes[0]?.id ?? null);
+    setEditingNodeId(null);
+    setDraftLabel('');
+    setOriginalLabel('');
+    setOpenNodeMenuId(null);
+    setConnectingSourceNodeId(null);
+    skipBlurSaveRef.current = false;
+    cancelEditRef.current = false;
+  }, []);
+
+  const revertToLastOkGraphModel = useCallback(() => {
+    replaceGraphModel(readStoredGraphModel(LAST_OK_STORAGE_KEY));
+  }, [replaceGraphModel]);
 
   const addNewSlice = useCallback(() => {
     const newNodeNumber = Math.max(0, ...nodes.map((node) => Number(node.id.replace('node-', '')) || 0)) + 1;
@@ -377,6 +413,8 @@ export function useGraphModel() {
     setFocusedNodeId,
     setDraftLabel,
     setOpenNodeMenuId,
+    replaceGraphModel,
+    revertToLastOkGraphModel,
     addNewSlice,
     startConnectingFromNode,
     cancelConnecting,

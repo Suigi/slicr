@@ -9,7 +9,7 @@ import {
   getKeyboardSuccessorDirection,
   getKeyboardSuccessorNodeType,
 } from './graph/graphUtils';
-import { useGraphModel } from './graph/useGraphModel';
+import { isStoredGraphModel, storeLastOkGraphModel, useGraphModel } from './graph/useGraphModel';
 import type { RenderNode } from './graph/types';
 
 export function App() {
@@ -27,6 +27,8 @@ export function App() {
     setFocusedNodeId,
     setDraftLabel,
     setOpenNodeMenuId,
+    replaceGraphModel,
+    revertToLastOkGraphModel,
     addNewSlice,
     startConnectingFromNode,
     cancelConnecting,
@@ -93,6 +95,27 @@ export function App() {
   const connectingSourceNode = connectingSourceNodeId
     ? nodes.find((node) => node.id === connectingSourceNodeId)
     : undefined;
+
+  const copyCurrentGraphModel = async () => {
+    await navigator.clipboard.writeText(JSON.stringify({ nodes, edges, lanes }, null, 2));
+  };
+
+  const importGraphModelFromClipboard = async () => {
+    const clipboardText = await navigator.clipboard.readText();
+    const parsedModel = JSON.parse(clipboardText) as unknown;
+    if (!isStoredGraphModel(parsedModel)) {
+      window.alert('Clipboard does not contain a valid graph model.');
+      return;
+    }
+
+    replaceGraphModel(parsedModel);
+  };
+
+  useEffect(() => {
+    if (layoutResult.ok) {
+      storeLastOkGraphModel({ nodes, edges, lanes });
+    }
+  }, [edges, lanes, layoutResult.ok, nodes]);
 
   useEffect(() => {
     const positionCameraAtInitialMargin = () => {
@@ -189,9 +212,17 @@ export function App() {
 
   return (
     <div className="app-shell">
-      <button type="button" className="new-slice-button" onClick={addNewSlice}>
-        + New Slice
-      </button>
+      <div className="overlay-actions">
+        <button type="button" className="new-slice-button" onClick={addNewSlice}>
+          + New Slice
+        </button>
+        <button type="button" className="overlay-action-button" onClick={() => void copyCurrentGraphModel()}>
+          Export
+        </button>
+        <button type="button" className="overlay-action-button" onClick={() => void importGraphModelFromClipboard()}>
+          Import
+        </button>
+      </div>
       {connectingSourceNode ? (
         <div className="connect-mode-status">
           Select a target node to connect from “{connectingSourceNode.label}”. Esc to cancel.
@@ -252,7 +283,19 @@ export function App() {
             onLabelBlur={handleLabelBlur}
           />
         ))}
-        {!layoutResult.ok ? <div className="layout-error">{layoutResult.error.message}</div> : null}
+        {!layoutResult.ok ? (
+          <div className="layout-error">
+            <div>{layoutResult.error.message}</div>
+            <div className="layout-error-actions">
+              <button type="button" onClick={revertToLastOkGraphModel}>
+                Revert to last valid model
+              </button>
+              <button type="button" onClick={() => void copyCurrentGraphModel()}>
+                Copy current model
+              </button>
+            </div>
+          </div>
+        ) : null}
       </InfiniteCanvas>
     </div>
   );
