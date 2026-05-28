@@ -32,6 +32,48 @@ body {
   min-width: 320px;
 }
 
+.app-shell {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+}
+
+.new-slice-button {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 30;
+  border: 1px solid rgba(23, 32, 51, 0.16);
+  border-radius: 999px;
+  background: #172033;
+  color: #fff;
+  box-shadow: 0 10px 28px rgba(23, 32, 51, 0.2);
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 10px 14px;
+}
+
+.new-slice-button:hover {
+  background: #24304a;
+}
+
+.connect-mode-status {
+  position: absolute;
+  top: 16px;
+  left: 150px;
+  z-index: 30;
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  border-radius: 999px;
+  background: #e9f0ff;
+  color: #1d4ed8;
+  box-shadow: 0 10px 28px rgba(23, 32, 51, 0.12);
+  font-size: 14px;
+  font-weight: 700;
+  padding: 10px 14px;
+}
+
 .canvas {
   width: 100vw;
   height: 100vh;
@@ -50,12 +92,20 @@ body {
 
 .edge-line {
   fill: none;
-  stroke: #52627a;
+  stroke: #c7ced8;
   stroke-width: 2;
   stroke-linecap: butt;
 }
 
 .edge-arrow {
+  fill: #c7ced8;
+}
+
+.edge-connected-to-focused-node .edge-line {
+  stroke: #52627a;
+}
+
+.edge-connected-to-focused-node .edge-arrow {
   fill: #52627a;
 }
 
@@ -128,6 +178,10 @@ body {
 
 .node-focused {
   box-shadow: 0 0 0 3px rgba(23, 32, 51, 0.18), 0 14px 40px rgba(23, 32, 51, 0.18);
+}
+
+.node-connecting-source {
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.3), 0 14px 40px rgba(23, 32, 51, 0.18);
 }
 
 .node-add-button,
@@ -247,6 +301,18 @@ body {
 
 .node-menu button:hover {
   background: #f6f7fb;
+}
+
+.node-menu-separator {
+  height: 1px;
+  margin: 6px 4px;
+  background: rgba(23, 32, 51, 0.1);
+}
+
+.node-menu-shortcut {
+  float: right;
+  color: #52627a;
+  font-size: 12px;
 }
 
 .node-menu .node-menu-delete {
