@@ -607,5 +607,47 @@ describe("compactLayout acceptance", () => {
       },
     ]);
   });
+
+  it("rejects the disconnected security/sign-in/booking model because compact ordering does not converge", () => {
+    const request: LayoutRequest = {
+      nodes: [
+        { id: "node-1", laneId: "lane-0", width: 180, height: 86 },
+        { id: "node-2", laneId: "lane-1", width: 180, height: 86 },
+        { id: "node-3", laneId: "lane-2", width: 180, height: 86 },
+        { id: "node-4", laneId: "lane-0", width: 180, height: 86 },
+        { id: "node-5", laneId: "lane-1", width: 180, height: 86 },
+        { id: "node-6", laneId: "lane-2", width: 180, height: 86 },
+        { id: "node-7", laneId: "lane-1", width: 180, height: 86 },
+        { id: "node-8", laneId: "lane-0", width: 180, height: 86 },
+        { id: "node-9", laneId: "lane-1", width: 180, height: 86 },
+      ],
+      edges: [
+        { id: "edge-node-1-node-2", sourceId: "node-1", targetId: "node-2" },
+        { id: "edge-node-2-node-3", sourceId: "node-2", targetId: "node-3" },
+        { id: "edge-node-4-node-5", sourceId: "node-4", targetId: "node-5" },
+        { id: "edge-node-5-node-6", sourceId: "node-5", targetId: "node-6" },
+        { id: "edge-node-6-node-7", sourceId: "node-6", targetId: "node-7" },
+        { id: "edge-node-8-node-9", sourceId: "node-8", targetId: "node-9" },
+      ],
+      lanes: [
+        { id: "lane-0", order: 0 },
+        { id: "lane-1", order: 1 },
+        { id: "lane-2", order: 2 },
+      ],
+      defaults: { nodeWidth: 120, nodeHeight: 48 },
+      spacing: { groupGap: 80, minNodeGap: 40, minTargetShift: 20 },
+    };
+
+    const result = compactLayout(request);
+
+    expect(result).toEqual({
+      ok: false,
+      error: {
+        type: "UnsatisfiableConstraints",
+        message: "Compact layout did not converge.",
+        details: { iterations: 88 },
+      },
+    });
+  });
 });
 
