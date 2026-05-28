@@ -121,7 +121,7 @@ export function getSuccessorNodeType(sourceType: NodeType, direction: AddDirecti
   if (sourceType === 'evt' && direction === 'top') {
     return 'rm';
   }
-  if (sourceType === 'rm' && direction === 'top') {
+  if ((sourceType === 'rm' || sourceType === 'dm') && direction === 'top') {
     return 'ui';
   }
 
@@ -142,7 +142,7 @@ export function getKeyboardSuccessorNodeType(sourceType: NodeType): NodeType {
   if (sourceType === 'evt') {
     return 'rm';
   }
-  if (sourceType === 'rm') {
+  if (sourceType === 'rm' || sourceType === 'dm') {
     return 'ui';
   }
 

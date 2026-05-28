@@ -4,7 +4,7 @@ import { readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import ts from "typescript";
 import { defineConfig, type Plugin } from "vite";
-import { DEFAULT_STATUS_FILE, type VitestStatusSnapshot } from "./src/vitest/statusReporter";
+import { DEFAULT_STATUS_FILE, type VitestStatusSnapshot } from "./src/vitest";
 
 type LayoutMode = "standard" | "compact";
 

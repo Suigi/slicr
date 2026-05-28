@@ -4,9 +4,9 @@ import type {
   EdgeInput,
   EdgeLayout,
   GroupLayout,
+  LaneLayout,
   LayoutApi,
   LayoutFailure,
-  LaneLayout,
   NodeInput,
   NodeLayout,
   Point,
@@ -573,12 +573,10 @@ export const compactLayout: LayoutApi = (request) => {
           return true;
         }
 
-        const assignedTargetVerticalCrossesCandidateHorizontal =
-          downRowY >= assigned.rowY &&
-          downRowY <= assigned.targetY &&
-          assigned.targetX > candidate.minX &&
-          assigned.targetX < candidate.maxX;
-        return assignedTargetVerticalCrossesCandidateHorizontal;
+        return downRowY >= assigned.rowY &&
+            downRowY <= assigned.targetY &&
+            assigned.targetX > candidate.minX &&
+            assigned.targetX < candidate.maxX;
       });
       if (!blockingRow) {
         break;

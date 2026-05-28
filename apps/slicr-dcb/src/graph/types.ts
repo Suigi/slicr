@@ -1,6 +1,6 @@
 import type { NodeInput } from 'layout-lib';
 
-export type NodeType = 'ui' | 'cmd' | 'evt' | 'rm' | 'processor';
+export type NodeType = 'ui' | 'cmd' | 'evt' | 'rm' | 'dm' | 'processor';
 
 export type GraphNode = Required<Pick<NodeInput, 'width' | 'height'>> &
   Pick<NodeInput, 'id' | 'laneId'> & {

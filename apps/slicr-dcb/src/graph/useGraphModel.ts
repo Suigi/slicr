@@ -115,7 +115,7 @@ function isLaneInput(lane: unknown): lane is LaneInput {
 }
 
 function isNodeType(type: unknown): type is NodeType {
-  return type === 'ui' || type === 'cmd' || type === 'evt' || type === 'rm' || type === 'processor';
+  return type === 'ui' || type === 'cmd' || type === 'evt' || type === 'rm' || type === 'dm' || type === 'processor';
 }
 
 function wouldCreateCycle(edges: EdgeInput[], sourceNodeId: string, targetNodeId: string) {

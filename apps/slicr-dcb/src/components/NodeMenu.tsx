@@ -38,6 +38,9 @@ export function NodeMenu({
       <button type="button" role="menuitem" onClick={() => onSetType('rm')}>
         To <span className="node-menu-type-rm">Read Model</span>
       </button>
+      <button type="button" role="menuitem" onClick={() => onSetType('dm')}>
+        To <span className="node-menu-type-dm">Decision Model</span>
+      </button>
       <button type="button" role="menuitem" onClick={() => onSetType('processor')}>
         To <span className="node-menu-type-processor">Processor</span>
       </button>
