@@ -60,8 +60,6 @@ export function App() {
       return [];
     }
 
-    console.log('Rendered nodes: ', layoutResult.result.nodes)
-
     const inputNodeById = new Map(nodes.map((node) => [node.id, node]));
     return layoutResult.result.nodes.flatMap((nodeLayout) => {
       const node = inputNodeById.get(nodeLayout.id);
@@ -91,7 +89,7 @@ export function App() {
         )
     : [];
 
-  const nodeLabelById = useMemo(() => new Map(nodes.map((node) => [node.id, node.label])), [nodes]);
+  const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
   const connectingSourceNode = connectingSourceNodeId
     ? nodes.find((node) => node.id === connectingSourceNodeId)
     : undefined;
@@ -254,13 +252,16 @@ export function App() {
             draftLabel={draftLabel}
             connectionMenuItems={edges
               .filter((edge) => edge.sourceId === node.id || edge.targetId === node.id)
-              .map((edge) => ({
-                id: edge.id,
-                label:
-                  edge.sourceId === node.id
-                    ? `to ${nodeLabelById.get(edge.targetId) ?? edge.targetId}`
-                    : `from ${nodeLabelById.get(edge.sourceId) ?? edge.sourceId}`,
-              }))}
+              .map((edge) => {
+                const connectedNodeId = edge.sourceId === node.id ? edge.targetId : edge.sourceId;
+                const connectedNode = nodeById.get(connectedNodeId);
+                return {
+                  id: edge.id,
+                  directionLabel: edge.sourceId === node.id ? 'to' : 'from',
+                  nodeLabel: connectedNode?.label ?? connectedNodeId,
+                  nodeType: connectedNode?.type ?? 'ui',
+                };
+              })}
             onNodeClick={(clickedNode) => {
               if (connectingSourceNodeId) {
                 addConnection(connectingSourceNodeId, clickedNode.id);

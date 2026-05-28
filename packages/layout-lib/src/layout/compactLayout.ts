@@ -87,7 +87,8 @@ export const compactLayout: LayoutApi = (request) => {
     }
   }
 
-  const { topoOrder, hasCycle } = topologicalSort(request.nodes, request.edges);
+  const dependencyEdges = request.edges.filter((edge) => !isBackReferenceEdge(edge));
+  const { topoOrder, hasCycle } = topologicalSort(request.nodes, dependencyEdges);
   if (hasCycle) {
     return failure("CycleDetected", "Cycles are not supported.");
   }
@@ -126,11 +127,18 @@ export const compactLayout: LayoutApi = (request) => {
   );
 
   const predecessors = new Map<string, EdgeInput[]>();
-  request.nodes.forEach((node) => predecessors.set(node.id, []));
-  request.edges.forEach((edge) => predecessors.get(edge.targetId)?.push(edge));
+  const successors = new Map<string, EdgeInput[]>();
+  request.nodes.forEach((node) => {
+    predecessors.set(node.id, []);
+    successors.set(node.id, []);
+  });
+  dependencyEdges.forEach((edge) => {
+    predecessors.get(edge.targetId)?.push(edge);
+    successors.get(edge.sourceId)?.push(edge);
+  });
   const incomingCountByNode = new Map<string, number>();
   request.nodes.forEach((node) => incomingCountByNode.set(node.id, 0));
-  request.edges.forEach((edge) => {
+  dependencyEdges.forEach((edge) => {
     incomingCountByNode.set(edge.targetId, (incomingCountByNode.get(edge.targetId) ?? 0) + 1);
   });
 
@@ -155,7 +163,7 @@ export const compactLayout: LayoutApi = (request) => {
   }
   const laneIndexById = new Map(orderedLanes.map((lane, index) => [lane.id, index]));
   const adjacentNeighborsByNode = buildAdjacentNeighborsByNode(request.nodes, request.edges, nodeById, laneIndexById);
-  const sameLanePredecessorsByNode = buildSameLanePredecessorsByNode(request.nodes, request.edges, nodeById, topoOrder);
+  const sameLanePredecessorsByNode = buildSameLanePredecessorsByNode(request.nodes, dependencyEdges, nodeById, topoOrder);
 
   for (const nodeId of topoOrder) {
     let nextX = 0;
@@ -232,6 +240,33 @@ export const compactLayout: LayoutApi = (request) => {
       }
     }
 
+    for (let topoIndex = topoOrder.length - 1; topoIndex >= 0; topoIndex -= 1) {
+      const nodeId = topoOrder[topoIndex];
+      if (!nodeId) {
+        continue;
+      }
+      let nextX = xByNode.get(nodeId) ?? 0;
+      for (const edge of successors.get(nodeId) ?? []) {
+        const targetX = xByNode.get(edge.targetId) ?? 0;
+        nextX = Math.max(
+          nextX,
+          computeDownEdgeSourceConstraintX({
+            edge,
+            targetX,
+            laneOrderById,
+            nodeById,
+            widthByNode,
+            incomingCountByNode,
+            minTargetShift,
+          }),
+        );
+      }
+      if (nextX !== (xByNode.get(nodeId) ?? 0)) {
+        xByNode.set(nodeId, nextX);
+        changed = true;
+      }
+    }
+
     for (const laneNodes of nodesByLane.values()) {
       let cursor = 0;
       for (const node of laneNodes) {
@@ -263,7 +298,7 @@ export const compactLayout: LayoutApi = (request) => {
     }
 
     const groupFlow = new Map<string, Set<string>>();
-    for (const edge of request.edges) {
+    for (const edge of dependencyEdges) {
       const sourceGroupId = nodeById.get(edge.sourceId)?.groupId;
       const targetGroupId = nodeById.get(edge.targetId)?.groupId;
       if (!sourceGroupId || !targetGroupId || sourceGroupId === targetGroupId) {
@@ -414,10 +449,10 @@ export const compactLayout: LayoutApi = (request) => {
       laneOrderById.get(nodeById.get(edge.sourceId)?.laneId ?? "") ?? 0,
       laneOrderById.get(nodeById.get(edge.targetId)?.laneId ?? "") ?? 0,
     );
-    const sourceAnchor = createAnchor(nodeSource, sides.source, sourceOrdinalByEdgeId.get(edge.id) ?? 0, "source");
+    const sourceAnchor = createEdgeAnchor(edge, nodeSource, sides.source, sourceOrdinalByEdgeId.get(edge.id) ?? 0, "source");
     const targetAnchor = resolveTargetAnchorBase(
-      edge.id,
-      createAnchor(nodeTarget, sides.target, targetOrdinalByEdgeId.get(edge.id) ?? 0, "target"),
+      edge,
+      createEdgeAnchor(edge, nodeTarget, sides.target, targetOrdinalByEdgeId.get(edge.id) ?? 0, "target"),
       targetOrdinalByEdgeId,
       targetRequestSlotByEdgeId,
       orientation,
@@ -478,8 +513,8 @@ export const compactLayout: LayoutApi = (request) => {
         return null;
       }
 
-      const sourceAnchor = createAnchor(nodeSource, sides.source, sourceOrdinalByEdgeId.get(edge.id) ?? 0, "source");
-      const targetAnchor = createAnchor(nodeTarget, sides.target, targetOrdinalByEdgeId.get(edge.id) ?? 0, "target");
+      const sourceAnchor = createEdgeAnchor(edge, nodeSource, sides.source, sourceOrdinalByEdgeId.get(edge.id) ?? 0, "source");
+      const targetAnchor = createEdgeAnchor(edge, nodeTarget, sides.target, targetOrdinalByEdgeId.get(edge.id) ?? 0, "target");
       const orientation = deriveOrientation(
         laneOrderById.get(nodeById.get(edge.sourceId)?.laneId ?? "") ?? 0,
         laneOrderById.get(nodeById.get(edge.targetId)?.laneId ?? "") ?? 0,
@@ -569,10 +604,10 @@ export const compactLayout: LayoutApi = (request) => {
       throw new Error(`Incomplete edge state for ${edge.id}.`);
     }
 
-    const sourceAnchor = createAnchor(nodeSource, sides.source, sourceOrdinalByEdgeId.get(edge.id) ?? 0, "source");
+    const sourceAnchor = createEdgeAnchor(edge, nodeSource, sides.source, sourceOrdinalByEdgeId.get(edge.id) ?? 0, "source");
     const targetAnchorBase = resolveTargetAnchorBase(
-      edge.id,
-      createAnchor(nodeTarget, sides.target, targetOrdinalByEdgeId.get(edge.id) ?? 0, "target"),
+      edge,
+      createEdgeAnchor(edge, nodeTarget, sides.target, targetOrdinalByEdgeId.get(edge.id) ?? 0, "target"),
       targetOrdinalByEdgeId,
       targetRequestSlotByEdgeId,
       deriveOrientation(
@@ -646,6 +681,10 @@ function failure(type: LayoutFailure["type"], message: string, details?: unknown
   };
 }
 
+function isBackReferenceEdge(edge: EdgeInput) {
+  return edge.role === "back-reference";
+}
+
 function topologicalSort(nodes: NodeInput[], edges: EdgeInput[]) {
   const indegree = new Map(nodes.map((node) => [node.id, 0]));
   const outgoing = new Map(nodes.map((node) => [node.id, [] as string[]]));
@@ -691,6 +730,20 @@ function sideAssignmentForOrientation(orientation: EdgeOrientation): EdgeSideAss
     return { source: "top", target: "bottom" };
   }
   return { source: "bottom", target: "top" };
+}
+
+function createEdgeAnchor(edge: EdgeInput, node: NodeLayout, side: AnchorSide, ordinal: number, role: AnchorRole): AnchorPoint {
+  if (isBackReferenceEdge(edge) && (side === "top" || side === "bottom")) {
+    const bias = role === "source" ? VERTICAL_TARGET_BIAS - VERTICAL_ANCHOR_SPACING : VERTICAL_SOURCE_BIAS;
+    return {
+      x: node.x + node.width / 2 + bias + ordinal * VERTICAL_ANCHOR_SPACING,
+      y: side === "top" ? node.y : node.y + node.height,
+      side,
+      ordinal,
+    };
+  }
+
+  return createAnchor(node, side, ordinal, role);
 }
 
 function createAnchor(node: NodeLayout, side: AnchorSide, ordinal: number, role: AnchorRole): AnchorPoint {
@@ -888,7 +941,7 @@ function reorderLaneByBarycenter(
 }
 
 function resolveTargetAnchorBase(
-  edgeId: string,
+  edge: EdgeInput,
   targetAnchor: AnchorPoint,
   targetOrdinalByEdgeId: Map<string, number>,
   targetRequestSlotByEdgeId: Map<string, number>,
@@ -897,9 +950,12 @@ function resolveTargetAnchorBase(
   if (orientation !== "up") {
     return targetAnchor;
   }
+  if (isBackReferenceEdge(edge) && (targetAnchor.side === "top" || targetAnchor.side === "bottom")) {
+    return targetAnchor;
+  }
 
-  const semanticOrdinal = targetOrdinalByEdgeId.get(edgeId) ?? targetAnchor.ordinal;
-  const requestSlot = targetRequestSlotByEdgeId.get(edgeId) ?? semanticOrdinal;
+  const semanticOrdinal = targetOrdinalByEdgeId.get(edge.id) ?? targetAnchor.ordinal;
+  const requestSlot = targetRequestSlotByEdgeId.get(edge.id) ?? semanticOrdinal;
   if (targetAnchor.side === "top" || targetAnchor.side === "bottom") {
     return {
       ...targetAnchor,
@@ -1206,6 +1262,36 @@ function computeEdgeConstraintX(params: {
   }
 
   return sourceX + (widthByNode.get(edge.sourceId) ?? 0) + minNodeGap + EDGE_STUB;
+}
+
+function computeDownEdgeSourceConstraintX(params: {
+  edge: EdgeInput;
+  targetX: number;
+  laneOrderById: Map<string, number>;
+  nodeById: Map<string, NodeInput>;
+  widthByNode: Map<string, number>;
+  incomingCountByNode: Map<string, number>;
+  minTargetShift: number;
+}) {
+  const { edge, targetX, laneOrderById, nodeById, widthByNode, incomingCountByNode, minTargetShift } = params;
+  const sourceNode = nodeById.get(edge.sourceId);
+  const targetNode = nodeById.get(edge.targetId);
+  if (!sourceNode || !targetNode) {
+    return Number.NEGATIVE_INFINITY;
+  }
+
+  const orientation = deriveOrientation(
+    laneOrderById.get(sourceNode.laneId) ?? 0,
+    laneOrderById.get(targetNode.laneId) ?? 0,
+  );
+  if (orientation !== "down" || (incomingCountByNode.get(edge.sourceId) ?? 0) > 0) {
+    return Number.NEGATIVE_INFINITY;
+  }
+
+  const sourceWidth = widthByNode.get(edge.sourceId) ?? 0;
+  const targetWidth = widthByNode.get(edge.targetId) ?? 0;
+  const targetShift = Math.max(minTargetShift, (sourceWidth - targetWidth) / 2 + minTargetShift);
+  return targetX - targetShift;
 }
 
 function compactNodeGap(minNodeGap: number) {

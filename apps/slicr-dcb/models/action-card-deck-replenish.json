@@ -1,0 +1,123 @@
+{
+  "nodes": [
+    {
+      "id": "node-1",
+      "label": "<Player Clicks Action Card Deck>",
+      "type": "ui",
+      "laneId": "lane-0",
+      "width": 180,
+      "height": 86
+    },
+    {
+      "id": "node-2",
+      "label": "Draw Action Card",
+      "type": "cmd",
+      "laneId": "lane-1",
+      "width": 180,
+      "height": 86
+    },
+    {
+      "id": "node-3",
+      "label": "Action Card Deck Replenished",
+      "type": "evt",
+      "laneId": "lane-2",
+      "width": 180,
+      "height": 86
+    },
+    {
+      "id": "node-4",
+      "label": "Game Initialization",
+      "type": "processor",
+      "laneId": "lane-0",
+      "width": 180,
+      "height": 86
+    },
+    {
+      "id": "node-5",
+      "label": "Initialize Game",
+      "type": "cmd",
+      "laneId": "lane-1",
+      "width": 180,
+      "height": 86
+    },
+    {
+      "id": "node-6",
+      "label": "Game Started",
+      "type": "evt",
+      "laneId": "lane-2",
+      "width": 180,
+      "height": 86
+    },
+    {
+      "id": "node-7",
+      "label": "Action Card Draw Pile Size",
+      "type": "rm",
+      "laneId": "lane-1",
+      "width": 180,
+      "height": 86
+    },
+    {
+      "id": "node-8",
+      "label": "Player Drew Action Card",
+      "type": "evt",
+      "laneId": "lane-2",
+      "width": 180,
+      "height": 86
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-node-1-node-2",
+      "sourceId": "node-1",
+      "targetId": "node-2"
+    },
+    {
+      "id": "edge-node-2-node-3",
+      "sourceId": "node-2",
+      "targetId": "node-3"
+    },
+    {
+      "id": "edge-node-4-node-5",
+      "sourceId": "node-4",
+      "targetId": "node-5"
+    },
+    {
+      "id": "edge-node-5-node-6",
+      "sourceId": "node-5",
+      "targetId": "node-6"
+    },
+    {
+      "id": "edge-node-7-node-2",
+      "sourceId": "node-7",
+      "targetId": "node-2"
+    },
+    {
+      "id": "edge-node-6-node-7",
+      "sourceId": "node-6",
+      "targetId": "node-7"
+    },
+    {
+      "id": "edge-node-2-node-8",
+      "sourceId": "node-2",
+      "targetId": "node-8"
+    }
+  ],
+  "lanes": [
+    {
+      "id": "lane-0",
+      "order": 0
+    },
+    {
+      "id": "lane-1",
+      "order": 1
+    },
+    {
+      "id": "lane-2",
+      "order": 2
+    },
+    {
+      "id": "lane--1",
+      "order": -1
+    }
+  ]
+}

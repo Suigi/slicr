@@ -115,7 +115,7 @@ function isLaneInput(lane: unknown): lane is LaneInput {
 }
 
 function isNodeType(type: unknown): type is NodeType {
-  return type === 'ui' || type === 'cmd' || type === 'evt' || type === 'rm';
+  return type === 'ui' || type === 'cmd' || type === 'evt' || type === 'rm' || type === 'processor';
 }
 
 function wouldCreateCycle(edges: EdgeInput[], sourceNodeId: string, targetNodeId: string) {
@@ -235,9 +235,7 @@ export function useGraphModel() {
         setFocusedNodeId(targetNodeId);
         return;
       }
-      if (wouldCreateCycle(edges, sourceNodeId, targetNodeId)) {
-        return;
-      }
+      const role = wouldCreateCycle(edges, sourceNodeId, targetNodeId) ? 'back-reference' : undefined;
 
       const edgeIdBase = `edge-${sourceNodeId}-${targetNodeId}`;
       const existingEdgeIds = new Set(edges.map((edge) => edge.id));
@@ -248,7 +246,7 @@ export function useGraphModel() {
         suffix += 1;
       }
 
-      setEdges((currentEdges) => [...currentEdges, { id: edgeId, sourceId: sourceNodeId, targetId: targetNodeId }]);
+      setEdges((currentEdges) => [...currentEdges, { id: edgeId, sourceId: sourceNodeId, targetId: targetNodeId, role }]);
       setConnectingSourceNodeId(null);
       setFocusedNodeId(targetNodeId);
       setOpenNodeMenuId(null);

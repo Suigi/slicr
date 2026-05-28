@@ -1,142 +1,143 @@
 export interface LayoutRequest {
-  nodes: NodeInput[];
-  edges: EdgeInput[];
-  lanes: LaneInput[];
-  groups?: GroupInput[];
-  defaults: DefaultSizeOptions;
-  spacing?: SpacingOptions;
+    nodes: NodeInput[];
+    edges: EdgeInput[];
+    lanes: LaneInput[];
+    groups?: GroupInput[];
+    defaults: DefaultSizeOptions;
+    spacing?: SpacingOptions;
 }
 
 export interface RouteEdgesRequest {
-  nodes: PositionedNodeInput[];
-  edges: EdgeInput[];
-  lanes?: LaneInput[];
-  spacing?: SpacingOptions;
+    nodes: PositionedNodeInput[];
+    edges: EdgeInput[];
+    lanes?: LaneInput[];
+    spacing?: SpacingOptions;
 }
 
 export interface NodeInput {
-  id: string;
-  laneId: string;
-  groupId?: string;
-  width?: number;
-  height?: number;
+    id: string;
+    laneId: string;
+    groupId?: string;
+    width?: number;
+    height?: number;
 }
 
 export interface PositionedNodeInput {
-  id: string;
-  laneId: string;
-  groupId?: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+    id: string;
+    laneId: string;
+    groupId?: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
 }
 
 export interface EdgeInput {
-  id: string;
-  sourceId: string;
-  targetId: string;
+    id: string;
+    sourceId: string;
+    targetId: string;
+    role?: "flow" | "back-reference";
 }
 
 export interface LaneInput {
-  id: string;
-  order: number;
+    id: string;
+    order: number;
 }
 
 export interface GroupInput {
-  id: string;
-  order: number;
-  footprintWidth?: number;
+    id: string;
+    order: number;
+    footprintWidth?: number;
 }
 
 export interface DefaultSizeOptions {
-  nodeWidth: number;
-  nodeHeight: number;
+    nodeWidth: number;
+    nodeHeight: number;
 }
 
 export interface SpacingOptions {
-  laneMargin?: number;
-  laneGap?: number;
-  groupGap?: number;
-  minTargetShift?: number;
-  minNodeGap?: number;
+    laneMargin?: number;
+    laneGap?: number;
+    groupGap?: number;
+    minTargetShift?: number;
+    minNodeGap?: number;
 }
 
 export interface LayoutResult {
-  nodes: NodeLayout[];
-  lanes: LaneLayout[];
-  groups?: GroupLayout[];
-  edges: EdgeLayout[];
+    nodes: NodeLayout[];
+    lanes: LaneLayout[];
+    groups?: GroupLayout[];
+    edges: EdgeLayout[];
 }
 
 export interface NodeLayout {
-  id: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+    id: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
 }
 
 export interface LaneLayout {
-  id: string;
-  top: number;
-  bottom: number;
+    id: string;
+    top: number;
+    bottom: number;
 }
 
 export interface GroupLayout {
-  id: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+    id: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
 }
 
 export interface EdgeLayout {
-  id: string;
-  sourceId: string;
-  targetId: string;
-  sourceAnchor: AnchorPoint;
-  targetAnchor: AnchorPoint;
-  points: Point[];
+    id: string;
+    sourceId: string;
+    targetId: string;
+    sourceAnchor: AnchorPoint;
+    targetAnchor: AnchorPoint;
+    points: Point[];
 }
 
 export interface Point {
-  x: number;
-  y: number;
+    x: number;
+    y: number;
 }
 
 export type AnchorSide = "top" | "right" | "bottom" | "left";
 
 export interface AnchorPoint extends Point {
-  side: AnchorSide;
-  ordinal: number;
+    side: AnchorSide;
+    ordinal: number;
 }
 
 export type LayoutFailureType =
-  | "InvalidReference"
-  | "MissingGroupAssignment"
-  | "CycleDetected"
-  | "BackEdgeDetected"
-  | "BidirectionalGroupFlow"
-  | "UnsatisfiableConstraints";
+    | "InvalidReference"
+    | "MissingGroupAssignment"
+    | "CycleDetected"
+    | "BackEdgeDetected"
+    | "BidirectionalGroupFlow"
+    | "UnsatisfiableConstraints";
 
 export interface LayoutFailure {
-  type: LayoutFailureType;
-  message: string;
-  details?: unknown;
+    type: LayoutFailureType;
+    message: string;
+    details?: unknown;
 }
 
 export type LayoutResponse =
-  | { ok: true; result: LayoutResult }
-  | { ok: false; error: LayoutFailure };
+    | { ok: true; result: LayoutResult }
+    | { ok: false; error: LayoutFailure };
 
 export interface RouteEdgesResult {
-  edges: EdgeLayout[];
+    edges: EdgeLayout[];
 }
 
 export type RouteEdgesResponse =
-  | { ok: true; result: RouteEdgesResult }
-  | { ok: false; error: LayoutFailure };
+    | { ok: true; result: RouteEdgesResult }
+    | { ok: false; error: LayoutFailure };
 
 export type LayoutApi = (request: LayoutRequest) => LayoutResponse;
 

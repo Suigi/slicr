@@ -112,7 +112,7 @@ export function ensureLane(lanes: LaneInput[], order: number) {
 }
 
 export function getSuccessorNodeType(sourceType: NodeType, direction: AddDirection): NodeType {
-  if (sourceType === 'ui' && direction === 'bottom') {
+  if ((sourceType === 'ui' || sourceType === 'processor') && direction === 'bottom') {
     return 'cmd';
   }
   if (sourceType === 'cmd' && direction === 'bottom') {
@@ -129,7 +129,7 @@ export function getSuccessorNodeType(sourceType: NodeType, direction: AddDirecti
 }
 
 export function getKeyboardSuccessorDirection(sourceType: NodeType): AddDirection {
-  return sourceType === 'ui' || sourceType === 'cmd' ? 'bottom' : 'top';
+  return sourceType === 'ui' || sourceType === 'cmd' || sourceType === 'processor' ? 'bottom' : 'top';
 }
 
 export function getKeyboardSuccessorNodeType(sourceType: NodeType): NodeType {
@@ -142,6 +142,9 @@ export function getKeyboardSuccessorNodeType(sourceType: NodeType): NodeType {
   if (sourceType === 'evt') {
     return 'rm';
   }
+  if (sourceType === 'rm') {
+    return 'ui';
+  }
 
-  return 'ui';
+  return 'cmd';
 }
