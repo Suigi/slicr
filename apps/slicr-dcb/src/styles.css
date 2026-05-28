@@ -2,6 +2,18 @@
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: #172033;
   background: #f6f7fb;
+  --rm: #15803d;
+  --rm-bg: #e8f5ec;
+  --rm-border: #8dcfa5;
+  --cmd: #2563eb;
+  --cmd-bg: #e9f0ff;
+  --cmd-border: #9cb9f9;
+  --evt: #c2410c;
+  --evt-bg: #fff1e8;
+  --evt-border: #f5b896;
+  --ui-color: #374151;
+  --ui-bg: #ffffff;
+  --ui-border: #111827;
 }
 
 * {
@@ -47,12 +59,6 @@ body {
   fill: #52627a;
 }
 
-.node-column {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-}
-
 .node-box {
   position: absolute;
   display: flex;
@@ -62,13 +68,200 @@ body {
   border-radius: 14px;
   background: #fff;
   box-shadow: 0 14px 40px rgba(23, 32, 51, 0.14);
-  font-size: 20px;
-  font-weight: 650;
-  cursor: grab;
+  font-size: 15px;
+  font-weight: 600;
   user-select: none;
-  touch-action: none;
 }
 
-.node-box:active {
-  cursor: grabbing;
+.node-label-button {
+  max-width: calc(100% - 24px);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: text;
+  font: inherit;
+  font-weight: inherit;
+  overflow: hidden;
+  padding: 6px 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-label-input {
+  width: calc(100% - 24px);
+  border: 1px solid rgba(23, 32, 51, 0.22);
+  border-radius: 8px;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  padding: 6px 8px;
+  text-align: center;
+}
+
+.node-label-input:focus {
+  outline: 2px solid rgba(82, 98, 122, 0.3);
+}
+
+.node-type-ui {
+  background: var(--ui-bg);
+  border-color: var(--ui-border);
+  color: var(--ui-color);
+}
+
+.node-type-cmd {
+  background: var(--cmd-bg);
+  border-color: var(--cmd-border);
+  color: var(--cmd);
+}
+
+.node-type-evt {
+  background: var(--evt-bg);
+  border-color: var(--evt-border);
+  color: var(--evt);
+}
+
+.node-type-rm {
+  background: var(--rm-bg);
+  border-color: var(--rm-border);
+  color: var(--rm);
+}
+
+.node-focused {
+  box-shadow: 0 0 0 3px rgba(23, 32, 51, 0.18), 0 14px 40px rgba(23, 32, 51, 0.18);
+}
+
+.node-add-button,
+.node-menu-button {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(23, 32, 51, 0.18);
+  border-radius: 999px;
+  background: #fff;
+  color: #172033;
+  box-shadow: 0 8px 20px rgba(23, 32, 51, 0.16);
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.node-add-button:hover,
+.node-menu-button:hover {
+  background: #f6f7fb;
+}
+
+.node-add-button-ui {
+  border-color: var(--ui-border);
+  background: var(--ui-bg);
+  color: var(--ui-color);
+}
+
+.node-add-button-cmd {
+  border-color: var(--cmd-border);
+  background: var(--cmd-bg);
+  color: var(--cmd);
+}
+
+.node-add-button-evt {
+  border-color: var(--evt-border);
+  background: var(--evt-bg);
+  color: var(--evt);
+}
+
+.node-add-button-rm {
+  border-color: var(--rm-border);
+  background: var(--rm-bg);
+  color: var(--rm);
+}
+
+.node-add-button-ui:hover {
+  background: var(--ui-bg);
+}
+
+.node-add-button-cmd:hover {
+  background: var(--cmd-bg);
+}
+
+.node-add-button-evt:hover {
+  background: var(--evt-bg);
+}
+
+.node-add-button-rm:hover {
+  background: var(--rm-bg);
+}
+
+.node-add-button-top {
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.node-add-button-right {
+  top: 50%;
+  right: 0;
+  transform: translate(50%, -50%);
+}
+
+.node-add-button-bottom {
+  bottom: 0;
+  left: 50%;
+  transform: translate(-50%, 50%);
+}
+
+.node-menu-button {
+  top: 0;
+  right: 0;
+  transform: translate(50%, -50%);
+  font-size: 14px;
+}
+
+.node-menu {
+  position: absolute;
+  top: 34px;
+  right: -14px;
+  z-index: 20;
+  min-width: 160px;
+  overflow: hidden;
+  border: 1px solid rgba(23, 32, 51, 0.14);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 14px 40px rgba(23, 32, 51, 0.18);
+  padding: 6px;
+}
+
+.node-menu button {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #172033;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.node-menu button:hover {
+  background: #f6f7fb;
+}
+
+.node-menu .node-menu-delete {
+  color: #9a1f1f;
+}
+
+.layout-error {
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  max-width: 520px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #fff1f1;
+  color: #9a1f1f;
+  box-shadow: 0 8px 24px rgba(23, 32, 51, 0.14);
+  font-weight: 600;
 }

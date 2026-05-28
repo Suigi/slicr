@@ -1,63 +1,31 @@
-import { useRef, useState, type PointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { InfiniteCanvas, type InfiniteCanvasHandle } from '@slicr/react-ui';
-import { routeEdges } from 'layout-lib';
+import { layout, type EdgeInput, type LaneInput, type NodeInput } from 'layout-lib';
 
-const NODE_X = 120;
-const NODE_A_Y = 96;
-const NODE_WIDTH = 140;
-const NODE_HEIGHT = 62;
-const NODE_GAP = 100;
-const NODE_B_Y = NODE_A_Y + NODE_HEIGHT + NODE_GAP;
-const NODE_C_X = NODE_X + 40;
-const NODE_C_Y = NODE_B_Y + NODE_HEIGHT + NODE_GAP;
+const NODE_WIDTH = 180;
+const NODE_HEIGHT = 86;
 
-const initialNodes = [
-  {
-    id: 'node-a',
-    label: 'Node A',
-    laneId: 'main',
-    x: NODE_X,
-    y: NODE_A_Y,
-    width: NODE_WIDTH,
-    height: NODE_HEIGHT,
-  },
-  {
-    id: 'node-b',
-    label: 'Node B',
-    laneId: 'main',
-    x: NODE_X,
-    y: NODE_B_Y,
-    width: NODE_WIDTH,
-    height: NODE_HEIGHT,
-  },
-  {
-    id: 'node-c',
-    label: 'Node C',
-    laneId: 'main',
-    x: NODE_C_X,
-    y: NODE_C_Y,
-    width: NODE_WIDTH,
-    height: NODE_HEIGHT,
-  },
-];
-
-const edgeInputs = [
-  { id: 'edge-a-b', sourceId: 'node-a', targetId: 'node-b' },
-  { id: 'edge-b-c', sourceId: 'node-b', targetId: 'node-c' },
-];
-
-type Node = (typeof initialNodes)[number];
-
-type DragState = {
-  pointerId: number;
-  nodeId: string;
-  startClientX: number;
-  startClientY: number;
-  startNodeX: number;
-  startNodeY: number;
-};
 const ARROW_LENGTH = 18;
 const ARROW_WIDTH = 16;
+
+const laneIdForOrder = (order: number) => `lane-${order}`;
+
+const initialLane: LaneInput = { id: laneIdForOrder(0), order: 0 };
+
+type NodeType = 'ui' | 'cmd' | 'evt' | 'rm';
+
+type GraphNode = Required<Pick<NodeInput, 'width' | 'height'>> &
+  Pick<NodeInput, 'id' | 'laneId'> & {
+    label: string;
+    type: NodeType;
+  };
+
+type RenderNode = GraphNode & {
+  x: number;
+  y: number;
+};
+
+type AddDirection = 'top' | 'right' | 'bottom';
 
 function getRoundedPath(points: Array<{ x: number; y: number }>, radius = 6) {
   const first = points[0];
@@ -147,67 +115,307 @@ function getArrowRenderPoints(points: Array<{ x: number; y: number }>) {
   };
 }
 
+function getLaneOrder(lanes: LaneInput[], laneId: string) {
+  return lanes.find((lane) => lane.id === laneId)?.order ?? 0;
+}
+
+function ensureLane(lanes: LaneInput[], order: number) {
+  if (lanes.some((lane) => lane.order === order)) {
+    return lanes;
+  }
+
+  return [...lanes, { id: laneIdForOrder(order), order }];
+}
+
+function getSuccessorNodeType(sourceType: NodeType, direction: AddDirection): NodeType {
+  if (sourceType === 'ui' && direction === 'bottom') {
+    return 'cmd';
+  }
+  if (sourceType === 'cmd' && direction === 'bottom') {
+    return 'evt';
+  }
+  if (sourceType === 'evt' && direction === 'top') {
+    return 'rm';
+  }
+  if (sourceType === 'rm' && direction === 'top') {
+    return 'ui';
+  }
+
+  return sourceType;
+}
+
+function getKeyboardSuccessorDirection(sourceType: NodeType): AddDirection {
+  return sourceType === 'ui' || sourceType === 'cmd' ? 'bottom' : 'top';
+}
+
+function getKeyboardSuccessorNodeType(sourceType: NodeType): NodeType {
+  if (sourceType === 'ui') {
+    return 'cmd';
+  }
+  if (sourceType === 'cmd') {
+    return 'evt';
+  }
+  if (sourceType === 'evt') {
+    return 'rm';
+  }
+
+  return 'ui';
+}
+
 export function App() {
   const canvasRef = useRef<InfiniteCanvasHandle>(null);
-  const dragRef = useRef<DragState | null>(null);
-  const [nodes, setNodes] = useState<Node[]>(initialNodes);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const skipBlurSaveRef = useRef(false);
+  const cancelEditRef = useRef(false);
+  const [nodes, setNodes] = useState<GraphNode[]>([
+    {
+      id: 'node-1',
+      label: 'Node 1',
+      type: 'ui',
+      laneId: initialLane.id,
+      width: NODE_WIDTH,
+      height: NODE_HEIGHT,
+    },
+  ]);
+  const [edges, setEdges] = useState<EdgeInput[]>([]);
+  const [lanes, setLanes] = useState<LaneInput[]>([initialLane]);
+  const [focusedNodeId, setFocusedNodeId] = useState<string | null>('node-1');
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
+  const [draftLabel, setDraftLabel] = useState('');
+  const [originalLabel, setOriginalLabel] = useState('');
+  const [openNodeMenuId, setOpenNodeMenuId] = useState<string | null>(null);
 
-  const edgeRoute = routeEdges({
-    nodes,
-    edges: edgeInputs,
-    lanes: [{ id: 'main', order: 0 }],
-  });
-  const routedEdges = edgeRoute.ok ? edgeRoute.result.edges : [];
-  const arrowRenderPoints = routedEdges
-    .map((edge) => ({ id: edge.id, points: getArrowRenderPoints(edge.points) }))
-    .filter((edge): edge is { id: string; points: NonNullable<ReturnType<typeof getArrowRenderPoints>> } =>
-      Boolean(edge.points),
-    );
+  const layoutResult = useMemo(
+    () =>
+      layout({
+        nodes,
+        edges,
+        lanes,
+        defaults: { nodeWidth: NODE_WIDTH, nodeHeight: NODE_HEIGHT },
+        spacing: { laneMargin: 0, laneGap: 100, minTargetShift: 15, minNodeGap: 10 },
+      }),
+    [edges, lanes, nodes],
+  );
 
-  const handleNodePointerDown = (event: PointerEvent<HTMLDivElement>, node: Node) => {
-    event.preventDefault();
-    event.stopPropagation();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    dragRef.current = {
-      pointerId: event.pointerId,
-      nodeId: node.id,
-      startClientX: event.clientX,
-      startClientY: event.clientY,
-      startNodeX: node.x,
-      startNodeY: node.y,
+  const renderedNodes: RenderNode[] = useMemo(() => {
+    if (!layoutResult.ok) {
+      return [];
+    }
+
+    const inputNodeById = new Map(nodes.map((node) => [node.id, node]));
+    return layoutResult.result.nodes.flatMap((nodeLayout) => {
+      const node = inputNodeById.get(nodeLayout.id);
+      if (!node) {
+        return [];
+      }
+
+      return [{ ...node, ...nodeLayout }];
+    });
+  }, [layoutResult, nodes]);
+
+  const arrowRenderPoints = layoutResult.ok
+    ? layoutResult.result.edges
+        .map((edge) => ({ id: edge.id, points: getArrowRenderPoints(edge.points) }))
+        .filter((edge): edge is { id: string; points: NonNullable<ReturnType<typeof getArrowRenderPoints>> } =>
+          Boolean(edge.points),
+        )
+    : [];
+
+  useEffect(() => {
+    const positionCameraAtInitialMargin = () => {
+      canvasRef.current?.setCamera({
+        x: 100,
+        y: 100,
+        zoom: 1,
+      });
     };
+
+    positionCameraAtInitialMargin();
+  }, []);
+
+  const addConnectedNode = (sourceNode: GraphNode, direction: AddDirection, typeOverride?: NodeType) => {
+    const sourceLaneOrder = getLaneOrder(lanes, sourceNode.laneId);
+    const targetLaneOrder =
+      direction === 'top' ? sourceLaneOrder - 1 : direction === 'bottom' ? sourceLaneOrder + 1 : sourceLaneOrder;
+    const targetLaneId = laneIdForOrder(targetLaneOrder);
+    const targetType = typeOverride ?? getSuccessorNodeType(sourceNode.type, direction);
+    const newNodeNumber = Math.max(0, ...nodes.map((node) => Number(node.id.replace('node-', '')) || 0)) + 1;
+    const newNodeId = `node-${newNodeNumber}`;
+
+    setLanes((currentLanes) => ensureLane(currentLanes, targetLaneOrder));
+    setNodes((currentNodes) => [
+      ...currentNodes,
+      {
+        id: newNodeId,
+        label: `Node ${newNodeNumber}`,
+        type: targetType,
+        laneId: targetLaneId,
+        width: NODE_WIDTH,
+        height: NODE_HEIGHT,
+      },
+    ]);
+    setEdges((currentEdges) => [
+      ...currentEdges,
+      { id: `edge-${sourceNode.id}-${newNodeId}`, sourceId: sourceNode.id, targetId: newNodeId },
+    ]);
+    setFocusedNodeId(newNodeId);
+    skipBlurSaveRef.current = false;
+    cancelEditRef.current = false;
+    setEditingNodeId(newNodeId);
+    setDraftLabel(`Node ${newNodeNumber}`);
+    setOriginalLabel(`Node ${newNodeNumber}`);
   };
 
-  const handleNodePointerMove = (event: PointerEvent<HTMLDivElement>) => {
-    const drag = dragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) {
+  const deleteNode = (nodeId: string) => {
+    const predecessorNodeId = edges.find((edge) => edge.targetId === nodeId)?.sourceId ?? null;
+
+    setNodes((currentNodes) => currentNodes.filter((node) => node.id !== nodeId));
+    setEdges((currentEdges) =>
+      currentEdges.filter((edge) => edge.sourceId !== nodeId && edge.targetId !== nodeId),
+    );
+    if (editingNodeId === nodeId) {
+      setEditingNodeId(null);
+      setDraftLabel('');
+      setOriginalLabel('');
+    }
+    if (openNodeMenuId === nodeId) {
+      setOpenNodeMenuId(null);
+    }
+    if (focusedNodeId === nodeId) {
+      setFocusedNodeId(predecessorNodeId);
+    }
+  };
+
+  const setNodeType = (nodeId: string, type: NodeType) => {
+    setNodes((currentNodes) =>
+      currentNodes.map((node) => (node.id === nodeId ? { ...node, type } : node)),
+    );
+    setOpenNodeMenuId(null);
+  };
+
+  const startEditingNode = (node: GraphNode) => {
+    skipBlurSaveRef.current = false;
+    cancelEditRef.current = false;
+    setFocusedNodeId(node.id);
+    setEditingNodeId(node.id);
+    setDraftLabel(node.label);
+    setOriginalLabel(node.label);
+  };
+
+  const saveEditingNode = () => {
+    if (!editingNodeId || cancelEditRef.current) {
       return;
     }
 
-    const zoom = canvasRef.current?.getCamera().zoom ?? 1;
-    const nextX = drag.startNodeX + (event.clientX - drag.startClientX) / zoom;
-    const nextY = drag.startNodeY + (event.clientY - drag.startClientY) / zoom;
-
+    const nextLabel = draftLabel.trim() || 'Untitled';
     setNodes((currentNodes) =>
-      currentNodes.map((node) =>
-        node.id === drag.nodeId ? { ...node, x: nextX, y: nextY } : node,
-      ),
+      currentNodes.map((node) => (node.id === editingNodeId ? { ...node, label: nextLabel } : node)),
     );
+    cancelEditRef.current = false;
+    setEditingNodeId(null);
+    setDraftLabel('');
+    setOriginalLabel('');
   };
 
-  const handleNodePointerUp = (event: PointerEvent<HTMLDivElement>) => {
-    if (dragRef.current?.pointerId === event.pointerId) {
-      dragRef.current = null;
-      event.currentTarget.releasePointerCapture(event.pointerId);
+  const cancelEditingNode = () => {
+    cancelEditRef.current = true;
+    if (editingNodeId) {
+      setNodes((currentNodes) =>
+        currentNodes.map((node) => (node.id === editingNodeId ? { ...node, label: originalLabel } : node)),
+      );
     }
+    setEditingNodeId(null);
+    setDraftLabel('');
+    setOriginalLabel('');
   };
+
+  useEffect(() => {
+    if (!editingNodeId) {
+      return;
+    }
+
+    const saveWhenClickingOutsideTextBox = (event: PointerEvent) => {
+      if (event.target instanceof Element && event.target.closest('.node-label-input')) {
+        return;
+      }
+
+      skipBlurSaveRef.current = true;
+      saveEditingNode();
+    };
+
+    document.addEventListener('pointerdown', saveWhenClickingOutsideTextBox, { capture: true });
+    return () => document.removeEventListener('pointerdown', saveWhenClickingOutsideTextBox, { capture: true });
+  }, [draftLabel, editingNodeId]);
+
+  useEffect(() => {
+    const navigateFocusedNode = (event: KeyboardEvent) => {
+      if (event.target instanceof Element && event.target.closest('.node-label-input')) {
+        return;
+      }
+      if (!focusedNodeId) {
+        return;
+      }
+
+      if (event.key === 'Enter') {
+        const focusedNode = nodes.find((node) => node.id === focusedNodeId);
+        if (focusedNode) {
+          event.preventDefault();
+          setOpenNodeMenuId(null);
+          if (event.ctrlKey || event.metaKey) {
+            addConnectedNode(
+              focusedNode,
+              getKeyboardSuccessorDirection(focusedNode.type),
+              getKeyboardSuccessorNodeType(focusedNode.type),
+            );
+          } else {
+            startEditingNode(focusedNode);
+          }
+        }
+        return;
+      }
+
+      if (event.key === 'Backspace' && event.metaKey) {
+        event.preventDefault();
+        deleteNode(focusedNodeId);
+        return;
+      }
+
+      if (event.key === 'ArrowLeft') {
+        const predecessorEdge = edges.find((edge) => edge.targetId === focusedNodeId);
+        if (predecessorEdge) {
+          event.preventDefault();
+          setFocusedNodeId(predecessorEdge.sourceId);
+          setOpenNodeMenuId(null);
+        }
+      }
+
+      if (event.key === 'ArrowRight') {
+        const successorEdge = edges.find((edge) => edge.sourceId === focusedNodeId);
+        if (successorEdge) {
+          event.preventDefault();
+          setFocusedNodeId(successorEdge.targetId);
+          setOpenNodeMenuId(null);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', navigateFocusedNode);
+    return () => window.removeEventListener('keydown', navigateFocusedNode);
+  }, [edges, focusedNodeId, lanes, nodes]);
 
   return (
     <InfiniteCanvas
       ref={canvasRef}
       className="canvas"
       controls={{ toolbar: true }}
-      ignorePanSelector=".node-box"
+      viewportRef={viewportRef}
+      ignorePanSelector=".node-box, .node-add-button, .node-menu-button, .node-menu, .node-label-input"
+      onCanvasPointerDown={(event) => {
+        if (event.target instanceof Element && !event.target.closest('.node-box')) {
+          setFocusedNodeId(null);
+          setOpenNodeMenuId(null);
+        }
+      }}
     >
       <svg className="edge-layer" aria-hidden="true">
         {arrowRenderPoints.map(({ id, points }) => (
@@ -220,19 +428,151 @@ export function App() {
           </g>
         ))}
       </svg>
-      {nodes.map((node) => (
+      {renderedNodes.map((node) => {
+        const isFocused = focusedNodeId === node.id;
+
+        return (
         <div
           key={node.id}
-          className="node-box"
+          className={`node-box node-type-${node.type}${isFocused ? ' node-focused' : ''}`}
           style={{ left: node.x, top: node.y, width: node.width, height: node.height }}
-          onPointerDown={(event) => handleNodePointerDown(event, node)}
-          onPointerMove={handleNodePointerMove}
-          onPointerUp={handleNodePointerUp}
-          onPointerCancel={handleNodePointerUp}
+          onClick={() => {
+            setFocusedNodeId(node.id);
+            if (openNodeMenuId !== node.id) {
+              setOpenNodeMenuId(null);
+            }
+          }}
         >
-          {node.label}
+          {isFocused ? (
+            <button
+              type="button"
+              className={`node-add-button node-add-button-top node-add-button-${getSuccessorNodeType(node.type, 'top')}`}
+              aria-label={`Add node above ${node.label}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                addConnectedNode(node, 'top');
+              }}
+            >
+              +
+            </button>
+          ) : null}
+          {editingNodeId === node.id ? (
+            <input
+              className="node-label-input"
+              value={draftLabel}
+              autoFocus
+              aria-label={`Edit ${node.label} label`}
+              onChange={(event) => setDraftLabel(event.target.value)}
+              onFocus={(event) => event.currentTarget.select()}
+              onBlur={() => {
+                if (skipBlurSaveRef.current) {
+                  skipBlurSaveRef.current = false;
+                  cancelEditRef.current = false;
+                  return;
+                }
+
+                if (document.activeElement === document.body) {
+                  cancelEditingNode();
+                  return;
+                }
+
+                saveEditingNode();
+              }}
+              onClick={(event) => event.stopPropagation()}
+              onDoubleClick={(event) => event.stopPropagation()}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  saveEditingNode();
+                }
+                if (event.key === 'Escape') {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  skipBlurSaveRef.current = true;
+                  cancelEditingNode();
+                }
+              }}
+            />
+          ) : (
+            <button
+              type="button"
+              className="node-label-button"
+              title="Double-click to edit"
+              onDoubleClick={(event) => {
+                event.stopPropagation();
+                startEditingNode(node);
+              }}
+            >
+              {node.label}
+            </button>
+          )}
+          {isFocused ? (
+            <button
+              type="button"
+              className="node-menu-button"
+              aria-label={`Open ${node.label} options`}
+              aria-expanded={openNodeMenuId === node.id}
+              onClick={(event) => {
+                event.stopPropagation();
+                setOpenNodeMenuId((currentId) => (currentId === node.id ? null : node.id));
+              }}
+            >
+              ⚙️
+            </button>
+          ) : null}
+          {isFocused && openNodeMenuId === node.id ? (
+            <div className="node-menu" role="menu" aria-label={`${node.label} options`}>
+              <button type="button" role="menuitem" onClick={() => setNodeType(node.id, 'ui')}>
+                To UI
+              </button>
+              <button type="button" role="menuitem" onClick={() => setNodeType(node.id, 'cmd')}>
+                To Command
+              </button>
+              <button type="button" role="menuitem" onClick={() => setNodeType(node.id, 'evt')}>
+                To Event
+              </button>
+              <button type="button" role="menuitem" onClick={() => setNodeType(node.id, 'rm')}>
+                To Read Model
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="node-menu-delete"
+                onClick={() => deleteNode(node.id)}
+              >
+                🗑️ Delete
+              </button>
+            </div>
+          ) : null}
+          {isFocused ? (
+            <button
+              type="button"
+              className={`node-add-button node-add-button-right node-add-button-${getSuccessorNodeType(node.type, 'right')}`}
+              aria-label={`Add node to the right of ${node.label}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                addConnectedNode(node, 'right');
+              }}
+            >
+              +
+            </button>
+          ) : null}
+          {isFocused ? (
+            <button
+              type="button"
+              className={`node-add-button node-add-button-bottom node-add-button-${getSuccessorNodeType(node.type, 'bottom')}`}
+              aria-label={`Add node below ${node.label}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                addConnectedNode(node, 'bottom');
+              }}
+            >
+              +
+            </button>
+          ) : null}
         </div>
-      ))}
+        );
+      })}
+      {!layoutResult.ok ? <div className="layout-error">{layoutResult.error.message}</div> : null}
     </InfiniteCanvas>
   );
 }
