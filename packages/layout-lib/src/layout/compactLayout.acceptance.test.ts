@@ -608,7 +608,7 @@ describe("compactLayout acceptance", () => {
     ]);
   });
 
-  it("rejects the disconnected security/sign-in/booking model because compact ordering does not converge", () => {
+  it("lays out the disconnected security/sign-in/booking model after freezing compact ordering", () => {
     const request: LayoutRequest = {
       nodes: [
         { id: "node-1", laneId: "lane-0", width: 180, height: 86 },
@@ -640,14 +640,107 @@ describe("compactLayout acceptance", () => {
 
     const result = compactLayout(request);
 
-    expect(result).toEqual({
-      ok: false,
-      error: {
-        type: "UnsatisfiableConstraints",
-        message: "Compact layout did not converge.",
-        details: { iterations: 88 },
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.result.lanes).toEqual([
+      { id: "lane-0", top: -24, bottom: 110 },
+      { id: "lane-1", top: 154, bottom: 288 },
+      { id: "lane-2", top: 332, bottom: 466 },
+    ]);
+    expect(result.result.nodes).toEqual([
+      { id: "node-1", x: 0, y: 0, width: 180, height: 86 },
+      { id: "node-2", x: 20, y: 178, width: 180, height: 86 },
+      { id: "node-3", x: 40, y: 356, width: 180, height: 86 },
+      { id: "node-4", x: 210, y: 0, width: 180, height: 86 },
+      { id: "node-5", x: 230, y: 178, width: 180, height: 86 },
+      { id: "node-6", x: 250, y: 356, width: 180, height: 86 },
+      { id: "node-7", x: 650, y: 178, width: 180, height: 86 },
+      { id: "node-8", x: 420, y: 0, width: 180, height: 86 },
+      { id: "node-9", x: 440, y: 178, width: 180, height: 86 },
+    ]);
+    expect(result.result.edges).toEqual([
+      {
+        id: "edge-node-1-node-2",
+        sourceId: "node-1",
+        targetId: "node-2",
+        sourceAnchor: { x: 100, y: 86, side: "bottom", ordinal: 0 },
+        targetAnchor: { x: 100, y: 178, side: "top", ordinal: 0 },
+        points: [
+          { x: 100, y: 86 },
+          { x: 100, y: 106 },
+          { x: 100, y: 106 },
+          { x: 100, y: 178 },
+        ],
       },
-    });
+      {
+        id: "edge-node-2-node-3",
+        sourceId: "node-2",
+        targetId: "node-3",
+        sourceAnchor: { x: 120, y: 264, side: "bottom", ordinal: 0 },
+        targetAnchor: { x: 120, y: 356, side: "top", ordinal: 0 },
+        points: [
+          { x: 120, y: 264 },
+          { x: 120, y: 284 },
+          { x: 120, y: 284 },
+          { x: 120, y: 356 },
+        ],
+      },
+      {
+        id: "edge-node-4-node-5",
+        sourceId: "node-4",
+        targetId: "node-5",
+        sourceAnchor: { x: 310, y: 86, side: "bottom", ordinal: 0 },
+        targetAnchor: { x: 310, y: 178, side: "top", ordinal: 0 },
+        points: [
+          { x: 310, y: 86 },
+          { x: 310, y: 106 },
+          { x: 310, y: 106 },
+          { x: 310, y: 178 },
+        ],
+      },
+      {
+        id: "edge-node-5-node-6",
+        sourceId: "node-5",
+        targetId: "node-6",
+        sourceAnchor: { x: 330, y: 264, side: "bottom", ordinal: 0 },
+        targetAnchor: { x: 330, y: 356, side: "top", ordinal: 0 },
+        points: [
+          { x: 330, y: 264 },
+          { x: 330, y: 284 },
+          { x: 330, y: 284 },
+          { x: 330, y: 356 },
+        ],
+      },
+      {
+        id: "edge-node-6-node-7",
+        sourceId: "node-6",
+        targetId: "node-7",
+        sourceAnchor: { x: 350, y: 356, side: "top", ordinal: 0 },
+        targetAnchor: { x: 730, y: 264, side: "bottom", ordinal: 0 },
+        points: [
+          { x: 350, y: 356 },
+          { x: 350, y: 306 },
+          { x: 730, y: 306 },
+          { x: 730, y: 264 },
+        ],
+      },
+      {
+        id: "edge-node-8-node-9",
+        sourceId: "node-8",
+        targetId: "node-9",
+        sourceAnchor: { x: 520, y: 86, side: "bottom", ordinal: 0 },
+        targetAnchor: { x: 520, y: 178, side: "top", ordinal: 0 },
+        points: [
+          { x: 520, y: 86 },
+          { x: 520, y: 106 },
+          { x: 520, y: 106 },
+          { x: 520, y: 178 },
+        ],
+      },
+    ]);
   });
 });
 

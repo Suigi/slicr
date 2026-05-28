@@ -166,34 +166,43 @@ export const compactLayout: LayoutApi = (request) => {
     rawBaseXByNode.set(nodeId, nextX);
   }
 
-  let changed = true;
-  let iterations = 0;
-  const maxIterations = request.nodes.length * request.nodes.length + request.edges.length + 1;
-  while (changed && iterations < maxIterations) {
-    changed = false;
-    iterations += 1;
+  const maxReorderIterations = request.nodes.length * request.nodes.length + request.edges.length + 1;
+  for (let iterations = 0; iterations < maxReorderIterations; iterations += 1) {
+    let reordered = false;
 
     for (let laneIndex = orderedLanes.length - 2; laneIndex >= 0; laneIndex -= 1) {
-      changed =
+      reordered =
         reorderLaneByBarycenter(
           nodesByLane.get(orderedLanes[laneIndex]?.id ?? ""),
           orderedLanes[laneIndex + 1]?.id ?? "",
           buildLanePositions(nodesByLane),
           adjacentNeighborsByNode,
           sameLanePredecessorsByNode,
-        ) || changed;
+        ) || reordered;
     }
 
     for (let laneIndex = 1; laneIndex < orderedLanes.length; laneIndex += 1) {
-      changed =
+      reordered =
         reorderLaneByBarycenter(
           nodesByLane.get(orderedLanes[laneIndex]?.id ?? ""),
           orderedLanes[laneIndex - 1]?.id ?? "",
           buildLanePositions(nodesByLane),
           adjacentNeighborsByNode,
           sameLanePredecessorsByNode,
-        ) || changed;
+        ) || reordered;
     }
+
+    if (!reordered) {
+      break;
+    }
+  }
+
+  let changed = true;
+  let iterations = 0;
+  const maxIterations = request.nodes.length * request.nodes.length + request.edges.length + 1;
+  while (changed && iterations < maxIterations) {
+    changed = false;
+    iterations += 1;
 
     for (const nodeId of topoOrder) {
       let nextX = xByNode.get(nodeId) ?? 0;
