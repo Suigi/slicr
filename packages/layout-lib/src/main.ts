@@ -1,4 +1,5 @@
 import "./style.css";
+import { compactLayout as computeCompactLayout } from "./layout/compactLayout";
 import { layout as computeLayout } from "./layout/layout";
 import type {
   AnchorPoint,
@@ -27,6 +28,8 @@ const HANDLE_RADIUS = 5;
 const EPSILON = 0.5;
 const EDGE_STUB = 20;
 const STORAGE_KEY = "layout-lib.playground.v1";
+
+type LayoutMode = "standard" | "compact";
 
 type Selection =
   | { type: "node"; id: string }
@@ -81,6 +84,13 @@ type EdgeCreateState = {
   previewWorld: Point | null;
 };
 
+type EdgeRedrawState = {
+  edgeId: string;
+  points: Point[];
+  sourceAnchor: AnchorPoint | null;
+  previewWorld: Point | null;
+};
+
 type PlaygroundState = {
   request: LayoutRequest;
   camera: Camera;
@@ -100,8 +110,10 @@ type PlaygroundState = {
   importingTestCaseId: string | null;
   savingImportedTest: boolean;
   edgeCreate: EdgeCreateState | null;
+  edgeRedraw: EdgeRedrawState | null;
   status: string;
   error: string | null;
+  layoutMode: LayoutMode;
 };
 
 type ImportedTestCaseSummary = {
@@ -110,6 +122,7 @@ type ImportedTestCaseSummary = {
   describe: string;
   title: string;
   status: "pass" | "fail" | "skip" | "todo" | "unknown";
+  layoutMode?: LayoutMode;
 };
 
 type ImportedAssertedGeometry = {
@@ -147,6 +160,7 @@ type PersistedPlaygroundState = {
   showOverlay: boolean;
   showCoordinates: boolean;
   showTestBrowser: boolean;
+  layoutMode?: LayoutMode;
 };
 
 type HitTarget =
@@ -205,11 +219,11 @@ const state: PlaygroundState = {
   importingTestCaseId: null,
   savingImportedTest: false,
   edgeCreate: null,
+  edgeRedraw: null,
   status: "Ready. Left-drag marquee-selects. Right-drag pans. G groups. Shift+G ungroups.",
   error: null,
+  layoutMode: persistedState?.layoutMode ?? "standard",
 };
-
-const layout: LayoutApi = computeLayout;
 
 app.innerHTML = `
   <div class="playground-shell">
@@ -222,6 +236,19 @@ app.innerHTML = `
           and export a Vitest acceptance test.
         </p>
       </div>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Layout</h2>
+        </div>
+        <label class="form-row">
+          <span>Algorithm</span>
+          <select id="layout-mode-select">
+            <option value="standard">Standard</option>
+            <option value="compact">Compact</option>
+          </select>
+        </label>
+      </section>
 
       <section class="panel">
         <div class="panel-head">
@@ -285,6 +312,7 @@ app.innerHTML = `
             <li><kbd>?</kbd> show or hide this popup</li>
             <li><kbd>N</kbd> add node in the lane nearest the cursor and connect from the selected node</li>
             <li><kbd>E</kbd> start edge mode, then click source and target</li>
+            <li><kbd>Shift</kbd>+<kbd>E</kbd> redraw the selected edge: click source anchor, bends, then target anchor</li>
             <li><kbd>O</kbd> toggle computed-layout overlay</li>
             <li><kbd>G</kbd> group selected nodes, <kbd>Shift</kbd> + <kbd>G</kbd> ungroup</li>
             <li><kbd>Backspace</kbd> delete the selected node or edge</li>
@@ -321,6 +349,7 @@ const importButton = requireElement<HTMLButtonElement>("#import-button");
 const saveButton = requireElement<HTMLButtonElement>("#save-button");
 const exportButton = requireElement<HTMLButtonElement>("#export-button");
 const resetOverridesButton = requireElement<HTMLButtonElement>("#layout-button");
+const layoutModeSelect = requireElement<HTMLSelectElement>("#layout-mode-select");
 const zoomInButton = requireElement<HTMLButtonElement>("#zoom-in");
 const zoomOutButton = requireElement<HTMLButtonElement>("#zoom-out");
 const zoomResetButton = requireElement<HTMLButtonElement>("#zoom-reset");
@@ -377,6 +406,15 @@ function attachEventListeners() {
     state.status = state.showCoordinates ? "Coordinate labels enabled." : "Coordinate labels hidden.";
     render();
   });
+  layoutModeSelect.addEventListener("change", () => {
+    const nextMode = parseLayoutMode(layoutModeSelect.value);
+    if (nextMode === state.layoutMode) {
+      return;
+    }
+    state.layoutMode = nextMode;
+    state.status = `${layoutModeLabel(nextMode)} layout selected.`;
+    updateDerivedAndRender({ pruneOverrides: false });
+  });
 
   zoomInButton.addEventListener("click", () => zoomAtScreenPoint(viewportCenterScreen(), CAMERA_ZOOM_STEP));
   zoomOutButton.addEventListener("click", () => zoomAtScreenPoint(viewportCenterScreen(), 1 / CAMERA_ZOOM_STEP));
@@ -385,12 +423,14 @@ function attachEventListeners() {
   shortcutsCloseButton.addEventListener("click", toggleShortcutsPopup);
 }
 
-function computeDerivedState(playgroundState: PlaygroundState): DerivedState {
-  const autoResponse = layout(playgroundState.request);
+function computeDerivedState(playgroundState: PlaygroundState, options: { pruneOverrides?: boolean } = {}): DerivedState {
+  const autoResponse = selectedLayoutApi(playgroundState.layoutMode)(playgroundState.request);
   if (!autoResponse.ok) {
     return { autoResponse, autoLayout: null, editableLayout: null, hasLocalPositioningModifications: false };
   }
-  pruneRedundantOverrides(playgroundState, autoResponse.result);
+  if (options.pruneOverrides ?? true) {
+    pruneRedundantOverrides(playgroundState, autoResponse.result);
+  }
   const editableLayout = applyOverrides(playgroundState.request, autoResponse.result, playgroundState);
   return {
     autoResponse,
@@ -401,8 +441,8 @@ function computeDerivedState(playgroundState: PlaygroundState): DerivedState {
   };
 }
 
-function updateDerivedAndRender() {
-  derived = computeDerivedState(state);
+function updateDerivedAndRender(options: { pruneOverrides?: boolean } = {}) {
+  derived = computeDerivedState(state, options);
   persistPlaygroundState();
   render();
 }
@@ -432,6 +472,7 @@ function render() {
   errorLine.textContent = derived.autoResponse.ok ? "" : derived.autoResponse.error.message;
   overlayButton.setAttribute("aria-pressed", String(state.showOverlay));
   coordinatesButton.setAttribute("aria-pressed", String(state.showCoordinates));
+  layoutModeSelect.value = state.layoutMode;
   resetOverridesButton.classList.toggle("has-local-modifications", derived.hasLocalPositioningModifications);
   saveButton.disabled = !state.activeImportedTestCase || state.savingImportedTest || !derived.editableLayout;
   saveButton.textContent = state.savingImportedTest ? "Saving…" : "Save";
@@ -441,6 +482,22 @@ function render() {
   renderTestBrowser();
   renderInspector();
   renderGraphLists();
+}
+
+function selectedLayoutApi(layoutMode: LayoutMode): LayoutApi {
+  return layoutMode === "compact" ? computeCompactLayout : computeLayout;
+}
+
+function parseLayoutMode(value: string): LayoutMode {
+  return value === "compact" ? "compact" : "standard";
+}
+
+function layoutModeLabel(layoutMode: LayoutMode) {
+  return layoutMode === "compact" ? "Compact" : "Standard";
+}
+
+function layoutFunctionName(layoutMode: LayoutMode) {
+  return layoutMode === "compact" ? "compactLayout" : "layout";
 }
 
 function updateSceneTransform() {
@@ -518,7 +575,11 @@ function renderNodes(layoutResult: LayoutResult) {
 function renderEdges(layoutResult: LayoutResult) {
   const selectedEdgeId = state.selection?.type === "edge" ? state.selection.id : state.selection?.type === "segment" ? state.selection.edgeId : null;
   const anchorMarkers = getSelectedAnchorMarkers(layoutResult);
-  const preview = state.edgeCreate?.previewWorld ? buildEdgePreviewMarkup(state.edgeCreate.previewWorld, layoutResult) : "";
+  const preview = state.edgeCreate?.previewWorld
+    ? buildEdgePreviewMarkup(state.edgeCreate.previewWorld, layoutResult)
+    : state.edgeRedraw?.previewWorld
+      ? buildEdgeRedrawPreviewMarkup(state.edgeRedraw.previewWorld)
+      : "";
 
   edgeLayer.innerHTML = `
     ${layoutResult.lanes.map((lane) => buildLaneMarkup(lane)).join("")}
@@ -674,8 +735,33 @@ function buildEdgePreviewMarkup(target: Point, layoutResult: LayoutResult) {
   return `<line class="edge-preview" x1="${sourceAnchor.x}" y1="${sourceAnchor.y}" x2="${target.x}" y2="${target.y}"></line>`;
 }
 
+function buildEdgeRedrawPreviewMarkup(target: Point) {
+  if (!state.edgeRedraw || state.edgeRedraw.points.length === 0) {
+    return "";
+  }
+  const points = [...state.edgeRedraw.points, target]
+    .map((point) => `${point.x},${point.y}`)
+    .join(" ");
+  return `<polyline class="edge-preview" points="${points}"></polyline>`;
+}
+
 function renderInspector() {
   const inspectorError = derived.autoResponse.ok ? null : escapeHtml(derived.autoResponse.error.message);
+
+  if (state.edgeRedraw) {
+    const edgeInput = state.request.edges.find((edge) => edge.id === state.edgeRedraw?.edgeId);
+    inspector.innerHTML = `
+      ${inspectorError ? `<p class="helper-text">${inspectorError}</p>` : ""}
+      <p class="helper-text"><strong>Redrawing ${escapeHtml(state.edgeRedraw.edgeId)}</strong></p>
+      <ol class="helper-text">
+        <li>${state.edgeRedraw.sourceAnchor ? "Source anchor selected." : `Click the source node${edgeInput ? ` (${escapeHtml(edgeInput.sourceId)})` : ""} where the edge should start.`}</li>
+        <li>Click any bend points in the canvas.</li>
+        <li>Click the target node${edgeInput ? ` (${escapeHtml(edgeInput.targetId)})` : ""} where the edge should end.</li>
+      </ol>
+      <p class="helper-text">Press Escape to cancel.</p>
+    `;
+    return;
+  }
 
   if (!state.selection && state.selectedNodeIds.length > 1) {
     const groupIds = [...new Set(state.selectedNodeIds.map((nodeId) => state.request.nodes.find((node) => node.id === nodeId)?.groupId).filter(Boolean))];
@@ -1001,6 +1087,11 @@ function handlePointerDown(event: PointerEvent) {
     return;
   }
 
+  if (state.edgeRedraw) {
+    handleEdgeRedrawClick(worldPoint, hit);
+    return;
+  }
+
   if (hit?.type === "resize-node") {
     selectSingleNode(hit.id);
     const node = derived.editableLayout.nodes.find((candidate) => candidate.id === hit.id);
@@ -1089,6 +1180,11 @@ function handlePointerMove(event: PointerEvent) {
 
   if (state.edgeCreate) {
     state.edgeCreate.previewWorld = worldPoint;
+    render();
+  }
+
+  if (state.edgeRedraw) {
+    state.edgeRedraw.previewWorld = snapPoint(worldPoint);
     render();
   }
 
@@ -1290,6 +1386,11 @@ function handleKeyDown(event: KeyboardEvent) {
     addNodeAtViewportCenter();
     return;
   }
+  if ((event.key === "e" || event.key === "E") && event.shiftKey) {
+    event.preventDefault();
+    startEdgeRedrawMode();
+    return;
+  }
   if (event.key === "e" || event.key === "E") {
     event.preventDefault();
     startEdgeMode();
@@ -1304,6 +1405,12 @@ function handleKeyDown(event: KeyboardEvent) {
   if (event.key === "Escape" && state.edgeCreate) {
     state.edgeCreate = null;
     state.status = "Edge creation canceled.";
+    render();
+    return;
+  }
+  if (event.key === "Escape" && state.edgeRedraw) {
+    state.edgeRedraw = null;
+    state.status = "Edge redraw canceled.";
     render();
     return;
   }
@@ -1421,6 +1528,110 @@ function completeEdgeCreation(targetId: string) {
   state.selectedNodeIds = [];
   state.edgeCreate = null;
   state.status = `Created ${nextId}: ${sourceId} -> ${targetId}.`;
+  updateDerivedAndRender();
+}
+
+function startEdgeRedrawMode() {
+  const edgeId = state.selection?.type === "edge" ? state.selection.id : state.selection?.type === "segment" ? state.selection.edgeId : null;
+  if (!edgeId) {
+    state.status = "Select an edge before redrawing it.";
+    render();
+    return;
+  }
+  const edgeInput = state.request.edges.find((candidate) => candidate.id === edgeId);
+  if (!edgeInput) {
+    state.status = "Selected edge no longer exists.";
+    render();
+    return;
+  }
+  state.edgeCreate = null;
+  state.edgeRedraw = { edgeId, points: [], sourceAnchor: null, previewWorld: null };
+  state.selection = { type: "edge", id: edgeId };
+  state.selectedNodeIds = [];
+  state.status = `Redraw ${edgeId}: click a source anchor point on ${edgeInput.sourceId}.`;
+  render();
+}
+
+function handleEdgeRedrawClick(worldPoint: Point, hit: HitTarget) {
+  if (!state.edgeRedraw || !derived.editableLayout || !derived.autoLayout) {
+    return;
+  }
+  const edgeInput = state.request.edges.find((candidate) => candidate.id === state.edgeRedraw?.edgeId);
+  if (!edgeInput) {
+    state.edgeRedraw = null;
+    state.status = "Selected edge no longer exists.";
+    render();
+    return;
+  }
+  const sourceNode = derived.editableLayout.nodes.find((node) => node.id === edgeInput.sourceId);
+  const targetNode = derived.editableLayout.nodes.find((node) => node.id === edgeInput.targetId);
+  if (!sourceNode || !targetNode) {
+    state.edgeRedraw = null;
+    state.status = "Selected edge endpoint no longer exists.";
+    render();
+    return;
+  }
+
+  if (!state.edgeRedraw.sourceAnchor) {
+    if (hit?.type !== "node" || hit.id !== edgeInput.sourceId) {
+      state.status = `Click ${edgeInput.sourceId} to choose the source anchor point.`;
+      render();
+      return;
+    }
+    const sourceAnchor = createAnchorFromNodePoint(sourceNode, worldPoint, 0);
+    state.edgeRedraw.sourceAnchor = sourceAnchor;
+    state.edgeRedraw.points = [{ x: sourceAnchor.x, y: sourceAnchor.y }];
+    state.edgeRedraw.previewWorld = { x: sourceAnchor.x, y: sourceAnchor.y };
+    state.status = `Source anchor set. Click bend points, then click ${edgeInput.targetId} to finish.`;
+    render();
+    return;
+  }
+
+  if (hit?.type === "node" && hit.id === edgeInput.targetId) {
+    completeEdgeRedraw(createAnchorFromNodePoint(targetNode, worldPoint, 0));
+    return;
+  }
+
+  const bendPoint = snapPoint(worldPoint);
+  state.edgeRedraw.points.push(bendPoint);
+  state.edgeRedraw.previewWorld = bendPoint;
+  state.status = `Added bend point. Click more bends, or click ${edgeInput.targetId} to finish.`;
+  render();
+}
+
+function completeEdgeRedraw(targetAnchor: AnchorPoint) {
+  if (!state.edgeRedraw || !derived.editableLayout || !derived.autoLayout) {
+    return;
+  }
+  const edge = derived.editableLayout.edges.find((candidate) => candidate.id === state.edgeRedraw?.edgeId);
+  if (!edge || !state.edgeRedraw.sourceAnchor) {
+    return;
+  }
+
+  ensureEdgeOverrideExists(edge.id, derived.editableLayout, derived.autoLayout);
+  const override = state.edgeOverrides[edge.id];
+  if (!override) {
+    return;
+  }
+
+  const points = [...state.edgeRedraw.points, { x: targetAnchor.x, y: targetAnchor.y }];
+  const { sourceDelta, targetDelta } = getEdgeEndpointDeltas(edge, derived.editableLayout, derived.autoLayout);
+  const baseOverride = createBaseEdgeOverride(
+    {
+      sourceAnchor: state.edgeRedraw.sourceAnchor,
+      targetAnchor,
+      points,
+    },
+    sourceDelta,
+    targetDelta,
+  );
+  override.sourceAnchor = baseOverride.sourceAnchor;
+  override.targetAnchor = baseOverride.targetAnchor;
+  override.points = baseOverride.points;
+  state.selection = { type: "edge", id: edge.id };
+  state.selectedNodeIds = [];
+  state.edgeRedraw = null;
+  state.status = `Redrew ${edge.id}.`;
   updateDerivedAndRender();
 }
 
@@ -1854,7 +2065,7 @@ async function exportTest() {
     render();
     return;
   }
-  const content = buildVitestExport(state.request, derived.editableLayout);
+  const content = buildVitestExport(state.request, derived.editableLayout, undefined, state.layoutMode);
   try {
     await navigator.clipboard.writeText(content);
     state.status = "Acceptance test copied to the clipboard.";
@@ -1877,7 +2088,8 @@ async function importTestFromClipboard() {
 
   try {
     const nextRequest = parseVitestRequestFromClipboard(content);
-    applyImportedRequest(nextRequest, "Imported request from clipboard.");
+    const layoutMode = parseVitestLayoutModeFromClipboard(content);
+    applyImportedRequest(nextRequest, "Imported request from clipboard.", null, null, layoutMode);
   } catch (error) {
     state.status = error instanceof Error ? error.message : "Clipboard import failed.";
     render();
@@ -1952,6 +2164,7 @@ async function importTestCase(caseId: string) {
         describe: payload.describe,
         title: payload.title,
         status: payload.status,
+        layoutMode: payload.layoutMode,
       },
       payload.assertedGeometry,
     );
@@ -1979,7 +2192,7 @@ async function saveImportedTest() {
   render();
 
   try {
-    const content = buildVitestExport(state.request, derived.editableLayout, state.activeImportedTestCase.title);
+    const content = buildVitestExport(state.request, derived.editableLayout, state.activeImportedTestCase.title, state.layoutMode);
     const response = await fetch(`/__test-import/cases/${encodeURIComponent(state.activeImportedTestCase.id)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -2104,8 +2317,12 @@ function applyImportedRequest(
   status: string,
   importedTestCase: ImportedTestCaseSummary | null = null,
   assertedGeometry: ImportedAssertedGeometry | null = null,
+  layoutMode: LayoutMode | null = importedTestCase?.layoutMode ?? null,
 ) {
   state.request = nextRequest;
+  if (layoutMode) {
+    state.layoutMode = layoutMode;
+  }
   const importedOverrides =
     importedTestCase?.status === "fail" ? buildImportedOverrides(nextRequest, assertedGeometry) : null;
   state.nodeOverrides = importedOverrides?.nodeOverrides ?? {};
@@ -2127,7 +2344,7 @@ function buildImportedOverrides(request: LayoutRequest, assertedGeometry: Import
     return null;
   }
 
-  const autoResponse = layout(request);
+  const autoResponse = selectedLayoutApi(state.layoutMode)(request);
   if (!autoResponse.ok) {
     return null;
   }
@@ -2271,6 +2488,7 @@ function isImportedTestCaseSummary(value: unknown): value is ImportedTestCaseSum
       "describe" in value &&
       "title" in value &&
       "status" in value &&
+      (!("layoutMode" in value) || value.layoutMode === "standard" || value.layoutMode === "compact") &&
       typeof value.id === "string" &&
       typeof value.file === "string" &&
       typeof value.describe === "string" &&
@@ -2301,7 +2519,7 @@ function isStatusUpdatePayload(
 
 function isImportedTestCasePayload(
   value: unknown,
-): value is ImportedTestCaseSummary & { request: LayoutRequest; assertedGeometry: ImportedAssertedGeometry | null } {
+): value is ImportedTestCaseSummary & { request: LayoutRequest; assertedGeometry: ImportedAssertedGeometry | null; layoutMode?: LayoutMode } {
   return (
     isImportedTestCaseSummary(value) &&
     "request" in value &&
@@ -2383,6 +2601,7 @@ function persistPlaygroundState() {
     showOverlay: state.showOverlay,
     showCoordinates: state.showCoordinates,
     showTestBrowser: state.showTestBrowser,
+    layoutMode: state.layoutMode,
   };
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
@@ -2411,14 +2630,25 @@ function loadPersistedState(): PersistedPlaygroundState | null {
       showOverlay: parsed.showOverlay ?? false,
       showCoordinates: parsed.showCoordinates ?? true,
       showTestBrowser: parsed.showTestBrowser ?? false,
+      layoutMode: parseLayoutMode(parsed.layoutMode ?? "standard"),
     };
   } catch {
     return null;
   }
 }
 
-function buildVitestExport(request: LayoutRequest, result: LayoutResult, caseTitle = `lays out ${request.nodes.length} nodes across ${request.lanes.map((lane) => lane.id).join(", ")}`) {
-  return `it(${JSON.stringify(caseTitle)}, () => {\n    const request: LayoutRequest = ${indentBlock(formatRequestValue(request), 4).trimStart()};\n\n    const result = layout(request);\n\n    expect(result.ok).toBe(true);\n    if (!result.ok) {\n      return;\n    }\n\n    expect(result.result.lanes).toEqual(${formatInlineObjectArray(result.lanes, 4)});\n    expect(result.result.nodes).toEqual(${formatInlineObjectArray(result.nodes, 4)});\n    expect(result.result.edges).toEqual(${formatExpandedEdgeArray(result.edges, 4)});\n  })`;
+function buildVitestExport(
+  request: LayoutRequest,
+  result: LayoutResult,
+  caseTitle = `lays out ${request.nodes.length} nodes across ${request.lanes.map((lane) => lane.id).join(", ")}`,
+  layoutMode: LayoutMode = "standard",
+) {
+  const functionName = layoutFunctionName(layoutMode);
+  return `it(${JSON.stringify(caseTitle)}, () => {\n    const request: LayoutRequest = ${indentBlock(formatRequestValue(request), 4).trimStart()};\n\n    const result = ${functionName}(request);\n\n    expect(result.ok).toBe(true);\n    if (!result.ok) {\n      return;\n    }\n\n    expect(result.result.lanes).toEqual(${formatInlineObjectArray(result.lanes, 4)});\n    expect(result.result.nodes).toEqual(${formatInlineObjectArray(result.nodes, 4)});\n    expect(result.result.edges).toEqual(${formatExpandedEdgeArray(result.edges, 4)});\n  })`;
+}
+
+function parseVitestLayoutModeFromClipboard(content: string): LayoutMode {
+  return /const\s+result\s*=\s*compactLayout\s*\(/.test(content) ? "compact" : "standard";
 }
 
 function parseVitestRequestFromClipboard(content: string): LayoutRequest {
@@ -2727,6 +2957,26 @@ function createAnchor(node: NodeLayout, side: AnchorSide, ordinal: number): Anch
     return { x: node.x + node.width / 2, y: node.y + node.height, side, ordinal };
   }
   return { x: node.x, y: node.y + node.height / 2, side, ordinal };
+}
+
+function createAnchorFromNodePoint(node: NodeLayout, point: Point, ordinal: number): AnchorPoint {
+  const distances = [
+    { side: "top" as const, distance: Math.abs(point.y - node.y) },
+    { side: "right" as const, distance: Math.abs(point.x - (node.x + node.width)) },
+    { side: "bottom" as const, distance: Math.abs(point.y - (node.y + node.height)) },
+    { side: "left" as const, distance: Math.abs(point.x - node.x) },
+  ];
+  const nearest = distances.sort((left, right) => left.distance - right.distance)[0]?.side ?? "right";
+  if (nearest === "top") {
+    return { x: snap(clamp(point.x, node.x, node.x + node.width)), y: node.y, side: nearest, ordinal };
+  }
+  if (nearest === "right") {
+    return { x: node.x + node.width, y: snap(clamp(point.y, node.y, node.y + node.height)), side: nearest, ordinal };
+  }
+  if (nearest === "bottom") {
+    return { x: snap(clamp(point.x, node.x, node.x + node.width)), y: node.y + node.height, side: nearest, ordinal };
+  }
+  return { x: node.x, y: snap(clamp(point.y, node.y, node.y + node.height)), side: nearest, ordinal };
 }
 
 function routeOrthogonalEdge(sourceAnchor: AnchorPoint, targetAnchor: AnchorPoint) {
@@ -3078,6 +3328,10 @@ function buildRoundedOrthogonalPath(points: Point[], radius: number) {
 
 function snap(value: number) {
   return Math.round(value / 10) * 10;
+}
+
+function snapPoint(point: Point): Point {
+  return { x: snap(point.x), y: snap(point.y) };
 }
 
 function clamp(value: number, min: number, max: number) {

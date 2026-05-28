@@ -15,8 +15,11 @@
     "build": "tsc && vite build",
     "typecheck": "tsc -p tsconfig.json",
     "preview": "vite preview",
-    "watch": "vitest --reporter=default --reporter=src/vitest/cliReporter.ts --reporter=src/vitest/statusCliReporter.ts",
+    "watch": "vitest --reporter=default --reporter=vitest-lib/cliReporter --reporter=src/vitest/statusCliReporter.ts",
     "test": "vitest run --reporter=vitest-llm-reporter"
+  },
+  "dependencies": {
+    "vitest-lib": "0.0.0"
   },
   "devDependencies": {
     "typescript": "~5.9.3",

@@ -5,7 +5,7 @@ export {
   createChimeWav,
   vitestChimeReporter,
   type VitestChimeReporterOptions,
-} from "./chimeReporter";
+} from "vitest-lib";
 export {
   DEFAULT_STATUS_FILE,
   createStatusEntry,

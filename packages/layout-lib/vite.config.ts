@@ -6,6 +6,8 @@ import ts from "typescript";
 import { defineConfig, type Plugin } from "vite";
 import { DEFAULT_STATUS_FILE, type VitestStatusSnapshot } from "./src/vitest/statusReporter";
 
+type LayoutMode = "standard" | "compact";
+
 type ImportedTestCase = {
   id: string;
   file: string;
@@ -14,6 +16,7 @@ type ImportedTestCase = {
   status: "pass" | "fail" | "skip" | "todo" | "unknown";
   request: unknown;
   assertedGeometry: ImportedAssertedGeometry | null;
+  layoutMode: LayoutMode;
   start: number;
   end: number;
 };
@@ -165,6 +168,7 @@ export async function parseImportableCases(root: string, filePath: string): Prom
               status: "unknown",
               request: requestObject,
               assertedGeometry,
+              layoutMode: readLayoutMode(callback.body, sourceFile),
               start: node.getStart(sourceFile),
               end: node.getEnd(),
             });
@@ -202,6 +206,30 @@ function readInlineRequest(body: ts.ConciseBody, sourceFile: ts.SourceFile) {
   }
 
   return null;
+}
+
+function readLayoutMode(body: ts.ConciseBody, sourceFile: ts.SourceFile): LayoutMode {
+  if (!ts.isBlock(body)) {
+    return "standard";
+  }
+
+  for (const statement of body.statements) {
+    if (!ts.isVariableStatement(statement) || !hasConstModifier(statement)) {
+      continue;
+    }
+    for (const declaration of statement.declarationList.declarations) {
+      if (!ts.isIdentifier(declaration.name) || declaration.name.text !== "result") {
+        continue;
+      }
+      if (!declaration.initializer || !ts.isCallExpression(declaration.initializer)) {
+        continue;
+      }
+      const callee = getCallName(declaration.initializer.expression);
+      return callee === "compactLayout" ? "compact" : "standard";
+    }
+  }
+
+  return "standard";
 }
 
 function readAssertedGeometry(body: ts.ConciseBody, sourceFile: ts.SourceFile): ImportedAssertedGeometry | null {

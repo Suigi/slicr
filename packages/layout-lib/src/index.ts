@@ -1,4 +1,5 @@
 export { layout } from "./layout/layout";
+export { compactLayout } from "./layout/compactLayout";
 export { routeEdges } from "./layout/routeEdges";
 export type {
   AnchorPoint,
