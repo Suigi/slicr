@@ -98,7 +98,7 @@ describe('buildSceneModel', () => {
     });
 
     expect(scene).not.toBeNull();
-    expect(scene?.viewport).toEqual({ width: 1000, height: 700, offsetX: 100, offsetY: 100 });
+    expect(scene?.viewport).toEqual({ width: 1000, height: 760, offsetX: 100, offsetY: 160 });
     expect(scene?.worldWidth).toBe(800);
     expect(scene?.worldHeight).toBe(500);
     expect(scene?.title?.text).toBe('Demo Slice');

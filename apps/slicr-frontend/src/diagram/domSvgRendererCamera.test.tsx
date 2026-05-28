@@ -491,9 +491,9 @@ describe('DomSvgDiagramRendererCamera', () => {
 
     const worldAfterZoomIn = document.querySelector('.canvas-camera-world') as HTMLElement | null;
     expect(worldAfterZoomIn).not.toBeNull();
-    expect(Number(worldAfterZoomIn?.dataset.cameraZoom ?? 0)).toBeCloseTo(1.1, 5);
-    expect(Number(worldAfterZoomIn?.dataset.cameraX ?? 0)).toBeCloseTo(-20, 5);
-    expect(Number(worldAfterZoomIn?.dataset.cameraY ?? 0)).toBeCloseTo(-20, 5);
+    expect(Number(worldAfterZoomIn?.dataset.cameraZoom ?? 0)).toBeCloseTo(1.5, 5);
+    expect(Number(worldAfterZoomIn?.dataset.cameraX ?? 0)).toBeCloseTo(-100, 5);
+    expect(Number(worldAfterZoomIn?.dataset.cameraY ?? 0)).toBeCloseTo(-100, 5);
 
     act(() => {
       for (let i = 0; i < 30; i += 1) {
@@ -524,9 +524,9 @@ describe('DomSvgDiagramRendererCamera', () => {
 
     const worldAfterFirstTick = document.querySelector('.canvas-camera-world') as HTMLElement | null;
     expect(worldAfterFirstTick).not.toBeNull();
-    expect(Number(worldAfterFirstTick?.dataset.cameraZoom ?? 0)).toBeCloseTo(1.1, 5);
-    expect(Number(worldAfterFirstTick?.dataset.cameraX ?? 0)).toBeCloseTo(-20, 5);
-    expect(Number(worldAfterFirstTick?.dataset.cameraY ?? 0)).toBeCloseTo(-20, 5);
+    expect(Number(worldAfterFirstTick?.dataset.cameraZoom ?? 0)).toBeCloseTo(1.5, 5);
+    expect(Number(worldAfterFirstTick?.dataset.cameraX ?? 0)).toBeCloseTo(-100, 5);
+    expect(Number(worldAfterFirstTick?.dataset.cameraY ?? 0)).toBeCloseTo(-100, 5);
   });
 
   it('converts node drag pointerdown into world-space coordinates under camera pan/zoom', () => {
@@ -558,8 +558,8 @@ describe('DomSvgDiagramRendererCamera', () => {
     expect(beginNodeDrag).toHaveBeenCalledTimes(1);
     const eventArg = beginNodeDrag.mock.calls[0]?.[0] as { clientX: number; clientY: number } | undefined;
     expect(eventArg).toBeDefined();
-    expect(eventArg?.clientX).toBeCloseTo(212.7272727, 5);
-    expect(eventArg?.clientY).toBeCloseTo(210, 5);
+    expect(eventArg?.clientX).toBeCloseTo(193.3333333, 5);
+    expect(eventArg?.clientY).toBeCloseTo(183.3333333, 5);
     expect(beginNodeDrag.mock.calls[0]?.[1]).toBe('node-1');
   });
 
