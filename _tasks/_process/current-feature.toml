@@ -1,7 +1,7 @@
 # Single repo-level pointer to the active feature folder.
 # Update this file as the workflow advances.
 
-feature_dir = "tasks/005-measured-slice-rendering"
+feature_dir = "_tasks/003-event-sourcing-app-migration"
 phase = "task-breakdown"
 current_task = ""
 status = "active"
