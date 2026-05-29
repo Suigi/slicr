@@ -5,4 +5,4 @@ export {
   createChimeWav,
   vitestChimeReporter,
   type VitestChimeReporterOptions,
-} from "./chimeReporter";
+} from "./chimeReporter.ts";
