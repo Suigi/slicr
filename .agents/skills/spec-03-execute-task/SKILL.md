@@ -1,24 +1,24 @@
 ---
 name: spec-03-execute-task
-description: Use this skill when a feature already has a `tasks/<three-digit-id>-<slug>/` folder with `02-plan.md` and `03-tasks.md`, and the next step is to implement exactly one task using PTDD, validate it, update `05-learnings.md`, and decide whether to loop or close.
+description: Use this skill when a feature already has a `_tasks/<three-digit-id>-<slug>/` folder with `02-plan.md` and `03-tasks.md`, and the next step is to implement exactly one task using PTDD, validate it, update `05-learnings.md`, and decide whether to loop or close.
 ---
 
 # Spec 03 Execute Task
 
-Use this skill when a feature folder already exists and the next step is to execute one planned task.
+Use this skill when a feature folder already exists under the global `_tasks/` directory and the next step is to execute one planned task.
 
 This skill covers phases 4 to 6 only. It should complete at most one task per run.
 
 ## Workflow
 
-1. Read [tasks/_process/README.md](tasks/_process/README.md).
-2. Follow [tasks/_process/00-current-feature-rules.md](tasks/_process/00-current-feature-rules.md).
-3. Follow [tasks/_process/00-response-prefix-rules.md](tasks/_process/00-response-prefix-rules.md).
-4. Resolve the feature folder from `tasks/_process/current-feature.toml` unless the user explicitly names a different folder.
+1. Read [_tasks/_process/README.md](_tasks/_process/README.md).
+2. Follow [_tasks/_process/00-current-feature-rules.md](_tasks/_process/00-current-feature-rules.md).
+3. Follow [_tasks/_process/00-response-prefix-rules.md](_tasks/_process/00-response-prefix-rules.md).
+4. Resolve the `_tasks/<three-digit-id>-<slug>/` feature folder from `_tasks/_process/current-feature.toml` unless the user explicitly names a different folder.
 5. Read the feature folder's `02-plan.md` and `03-tasks.md`.
-6. Run Phase 4 from [tasks/_process/04-implement-one-task-with-ptdd.md](tasks/_process/04-implement-one-task-with-ptdd.md).
-7. Run Phase 5 from [tasks/_process/05-validate-and-capture-learnings.md](tasks/_process/05-validate-and-capture-learnings.md).
-8. Run Phase 6 from [tasks/_process/06-repeat-or-close.md](tasks/_process/06-repeat-or-close.md).
+6. Run Phase 4 from [_tasks/_process/04-implement-one-task-with-ptdd.md](_tasks/_process/04-implement-one-task-with-ptdd.md).
+7. Run Phase 5 from [_tasks/_process/05-validate-and-capture-learnings.md](_tasks/_process/05-validate-and-capture-learnings.md).
+8. Run Phase 6 from [_tasks/_process/06-repeat-or-close.md](_tasks/_process/06-repeat-or-close.md).
 
 ## Execution Rules
 

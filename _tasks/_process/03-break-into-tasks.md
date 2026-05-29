@@ -12,9 +12,9 @@ Turn the design note into an ordered implementation queue with narrow, testable 
 
 ## What To Do
 
-1. Re-use the folder created in Phase 2 from `tasks/_process/current-feature.toml`, unless the user explicitly names a different folder.
+1. Re-use the folder created in Phase 2 from `../_process/current-feature.toml`, unless the user explicitly names a different folder.
 2. Confirm the pointer is valid by checking that the folder exists and already contains `02-plan.md`.
-3. Update `tasks/_process/current-feature.toml` to keep the same `feature_dir`, set `phase = "task-breakdown"`, clear `current_task`, and keep `status = "active"`.
+3. Update `../_process/current-feature.toml` to keep the same `feature_dir`, set `phase = "task-breakdown"`, clear `current_task`, and keep `status = "active"`.
 4. Create a `03-tasks.md` file in that folder and make it follow [03-tasks_template.md](tasks/_process/03-tasks_template.md).
 5. Decompose the feature into sequential tasks that each change one layer or behavior at a time.
 6. Order tasks so later tasks depend on earlier scaffolding rather than mixing concerns.
@@ -53,9 +53,9 @@ Do not add separate tasks for process steps such as full validation, learnings c
 
 Create or update:
 
-- `tasks/<three-digit-id>-<slug>/03-tasks.md`
-- `tasks/<three-digit-id>-<slug>/05-learnings.md` when applicable
-- `tasks/_process/current-feature.toml`
+- `../<three-digit-id>-<slug>/03-tasks.md`
+- `../<three-digit-id>-<slug>/05-learnings.md` when applicable
+- `../_process/current-feature.toml`
 
 ## Guardrails
 

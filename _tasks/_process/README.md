@@ -16,7 +16,7 @@ Use the files in this directory to design and implement a new feature in the sam
 
 For each new feature, create one folder:
 
-`tasks/<three-digit-id>-<slug>/`
+`../<three-digit-id>-<slug>/`
 
 That folder should normally contain:
 
@@ -32,9 +32,9 @@ Follow [00-folder-id-and-slug-rules.md](tasks/_process/00-folder-id-and-slug-rul
 
 Follow [00-current-feature-rules.md](tasks/_process/00-current-feature-rules.md).
 
-`tasks/_process/current-feature.toml` is the single repo-level pointer to the active feature.
+`../_process/current-feature.toml` is the single repo-level pointer to the active feature.
 Workflow phases and spec skills should resolve the feature folder from that file unless the user explicitly names a different folder.
-If the pointer is missing, empty, or stale, stop and ask instead of scanning `tasks/`.
+If the pointer is missing, empty, or stale, stop and ask instead of scanning `../`.
 
 ## Response Prefix Rules
 

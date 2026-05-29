@@ -19,8 +19,8 @@ If that approval is missing, do not create the feature folder or write `02-plan.
 
 1. Suggest a short slug for the feature.
 2. Follow [00-folder-id-and-slug-rules.md](tasks/_process/00-folder-id-and-slug-rules.md) to choose the folder name.
-3. Choose the next available three-digit id and create a feature folder named `tasks/<three-digit-id>-<slug>`.
-4. Update `tasks/_process/current-feature.toml` so `feature_dir` points to that folder, `phase = "design-note"`, `current_task = ""`, and `status = "active"`.
+3. Choose the next available three-digit id and create a feature folder named `../<three-digit-id>-<slug>`.
+4. Update `../_process/current-feature.toml` so `feature_dir` points to that folder, `phase = "design-note"`, `current_task = ""`, and `status = "active"`.
 5. Create a `02-plan.md` file inside that folder.
 6. Write the design note around observable behavior and architectural shape.
 7. Include the decisions that came out of Phase 1.
@@ -49,8 +49,8 @@ If that approval is missing, do not create the feature folder or write `02-plan.
 
 ## Output
 
-Create or update `tasks/<three-digit-id>-<slug>/02-plan.md` with enough detail that task decomposition becomes mechanical.
-Also update `tasks/_process/current-feature.toml` to point at that folder.
+Create or update `../<three-digit-id>-<slug>/02-plan.md` with enough detail that task decomposition becomes mechanical.
+Also update `../_process/current-feature.toml` to point at that folder.
 
 ## Guardrails
 

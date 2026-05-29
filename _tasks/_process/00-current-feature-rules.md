@@ -1,6 +1,6 @@
 # Current Feature Pointer Rules
 
-Use `tasks/_process/current-feature.toml` as the single repo-level pointer to the active feature folder.
+Use `../_process/current-feature.toml` as the single repo-level pointer to the active feature folder.
 
 ## File Shape
 
@@ -18,8 +18,8 @@ status = "active"
 When a workflow phase or skill needs a feature folder:
 
 1. If the user explicitly names a feature folder in the current conversation, use that folder.
-2. Otherwise, read `tasks/_process/current-feature.toml`.
-3. If the pointer is missing, empty, or stale, stop and ask the human instead of scanning `tasks/`.
+2. Otherwise, read `../_process/current-feature.toml`.
+3. If the pointer is missing, empty, or stale, stop and ask the human instead of scanning `../`.
 
 ## Update Rules
 

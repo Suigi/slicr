@@ -12,11 +12,11 @@ Either start the next task in the queue or close the feature when the task list 
 
 ## What To Do
 
-1. Resolve the feature folder from `tasks/_process/current-feature.toml`, unless the user explicitly names a different folder.
-2. Re-open `tasks/<three-digit-id>-<slug>/03-tasks.md`.
-3. If any task remains `[created]`, update `tasks/_process/current-feature.toml` to keep the same `feature_dir`, set `phase = "implementation"`, clear `current_task`, keep `status = "active"`, and return to Phase 4.
+1. Resolve the feature folder from `../_process/current-feature.toml`, unless the user explicitly names a different folder.
+2. Re-open `../<three-digit-id>-<slug>/03-tasks.md`.
+3. If any task remains `[created]`, update `../_process/current-feature.toml` to keep the same `feature_dir`, set `phase = "implementation"`, clear `current_task`, keep `status = "active"`, and return to Phase 4.
 4. If all tasks are `[done]`, review whether `02-plan.md` and `05-learnings.md` in the same folder still match the implemented result.
-5. If all tasks are `[done]`, update `tasks/_process/current-feature.toml` to keep the same `feature_dir`, set `phase = "complete"`, clear `current_task`, and set `status = "done"`.
+5. If all tasks are `[done]`, update `../_process/current-feature.toml` to keep the same `feature_dir`, set `phase = "complete"`, clear `current_task`, and set `status = "done"`.
 6. Summarize the feature status in terms of:
    - completed task sequence
    - final validation state

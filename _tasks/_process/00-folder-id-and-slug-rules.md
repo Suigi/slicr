@@ -1,12 +1,12 @@
 # Folder Id And Slug Rules
 
-Use these rules before creating `tasks/<three-digit-id>-<slug>/`.
+Use these rules before creating `../<three-digit-id>-<slug>/`.
 
 ## Three-Digit Id
 
-- Scan the existing immediate subfolders under `tasks`.
+- Scan the existing immediate subfolders under `_tasks`.
 - Use the next available numeric id greater than every existing three-digit prefix.
-- Treat ids as global within `tasks`.
+- Treat ids as global within `_tasks`.
 - Do not reuse gaps unless the user explicitly asks for that behavior.
 - Always zero-pad to three digits.
 

@@ -1,11 +1,11 @@
 ---
 name: spec-02-review-docs
-description: Use this skill after a feature folder already has `02-plan.md` and `03-tasks.md`, but before implementation starts, when the goal is to review those documents, identify ambiguities or weak assumptions, ask clarifying questions, and incorporate the user's answers back into the documents.
+description: Use this skill after a feature folder under `_tasks/` already has `02-plan.md` and `03-tasks.md`, but before implementation starts, when the goal is to review those documents, identify ambiguities or weak assumptions, ask clarifying questions, and incorporate the user's answers back into the documents.
 ---
 
 # Spec 02 Review Docs
 
-Use this skill when a feature already has a process folder and you want to repeat the review-and-refine session pattern before coding starts.
+Use this skill when a feature already has a folder under the global `_tasks/` directory and you want to repeat the review-and-refine session pattern before coding starts.
 
 This skill is for document refinement only. It does not implement feature code or execute tasks.
 
@@ -20,17 +20,17 @@ Use this skill when:
 
 ## Workflow
 
-1. Read [tasks/_process/README.md](tasks/_process/README.md).
-2. Follow [tasks/_process/00-current-feature-rules.md](tasks/_process/00-current-feature-rules.md).
-3. Follow [tasks/_process/00-response-prefix-rules.md](tasks/_process/00-response-prefix-rules.md).
-4. Resolve the target feature folder from `tasks/_process/current-feature.toml` unless the user explicitly names a different folder.
-5. Read the target feature folder's `02-plan.md` and `03-tasks.md`.
+1. Read [_tasks/_process/README.md](_tasks/_process/README.md).
+2. Follow [_tasks/_process/00-current-feature-rules.md](_tasks/_process/00-current-feature-rules.md).
+3. Follow [_tasks/_process/00-response-prefix-rules.md](_tasks/_process/00-response-prefix-rules.md).
+4. Resolve the target feature folder from `_tasks/_process/current-feature.toml` unless the user explicitly names a different folder.
+5. Read the target `_tasks/<three-digit-id>-<slug>/` feature folder's `02-plan.md` and `03-tasks.md`.
 6. Review them for ambiguity, missing decisions, weak wording, and task-plan misalignment.
-7. Ask as many clarifying questions as needed, following the spirit of [tasks/_process/01-clarify-feature.md](tasks/_process/01-clarify-feature.md).
+7. Ask as many clarifying questions as needed, following the spirit of [_tasks/_process/01-clarify-feature.md](_tasks/_process/01-clarify-feature.md).
 8. Do not make unresolved product or design decisions on your own.
 9. After the user answers, update `02-plan.md` and `03-tasks.md` directly to capture the decisions.
 10. If the answers reveal a durable lesson about planning or task shaping, update `05-learnings.md` too.
-11. Keep `tasks/_process/current-feature.toml` pointed at that folder with `status = "active"`.
+11. Keep `_tasks/_process/current-feature.toml` pointed at that folder with `status = "active"`.
 
 ## Review Focus
 
