@@ -51,7 +51,7 @@
     {
       "id": "node-7",
       "label": "Action Card Draw Pile Size",
-      "type": "rm",
+      "type": "dm",
       "laneId": "lane-1",
       "width": 180,
       "height": 86
@@ -100,6 +100,18 @@
       "id": "edge-node-2-node-8",
       "sourceId": "node-2",
       "targetId": "node-8"
+    },
+    {
+      "id": "edge-node-3-node-7",
+      "sourceId": "node-3",
+      "targetId": "node-7",
+      "role": "back-reference"
+    },
+    {
+      "id": "edge-node-8-node-7",
+      "sourceId": "node-8",
+      "targetId": "node-7",
+      "role": "back-reference"
     }
   ],
   "lanes": [
