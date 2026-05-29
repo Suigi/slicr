@@ -1,5 +1,5 @@
 ---
-name: ptdd
+name: ptdd2
 description: "Implement software features using Predictive Test-Driven Development (PTDD): predict behavior, write failing tests first, implement the minimum code, and refactor safely. Use when a user asks for PTDD or predictive TDD explicitly, including prompts like 'Implement the discussed feature using PTDD' or 'Let's work on a new feature using PTDD.'"
 ---
 

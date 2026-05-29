@@ -2,6 +2,6 @@
 # Update this file as the workflow advances.
 
 feature_dir = "_tasks/003-event-sourcing-app-migration"
-phase = "task-breakdown"
+phase = "implementation"
 current_task = ""
 status = "active"
