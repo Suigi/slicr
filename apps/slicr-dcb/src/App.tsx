@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { InfiniteCanvas, type InfiniteCanvasHandle } from '@slicr/react-ui';
 import { compactLayout } from 'layout-lib';
+import { AppShell } from './components/AppShell';
+import { ChapterSidebar, type Chapter } from './components/ChapterSidebar';
 import { EdgeLayer } from './components/EdgeLayer';
 import { GraphNodeView } from './components/GraphNodeView';
+import { ProjectSwitcher } from './components/ProjectSwitcher';
 import { NODE_HEIGHT, NODE_WIDTH } from './graph/constants';
 import {
   getArrowRenderPoints,
@@ -12,9 +15,18 @@ import {
 import { isStoredGraphModel, storeLastOkGraphModel, useGraphModel } from './graph/useGraphModel';
 import type { RenderNode } from './graph/types';
 
+const dummyChapters: Chapter[] = [
+  { id: 'overview', title: 'Overview' },
+  { id: 'cart-events', title: 'Cart Events' },
+  { id: 'payment-flow', title: 'Payment Flow' },
+  { id: 'fulfillment', title: 'Fulfillment' },
+];
+
 export function App() {
   const canvasRef = useRef<InfiniteCanvasHandle>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const [activeChapterId, setActiveChapterId] = useState('cart-events');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const {
     nodes,
     edges,
@@ -209,8 +221,21 @@ export function App() {
   ]);
 
   return (
-    <div className="app-shell">
-      <div className="overlay-actions">
+    <AppShell
+      projectSwitcher={<ProjectSwitcher projectName="Checkout System" />}
+      isSidebarOpen={isSidebarOpen}
+      onExpandSidebar={() => setIsSidebarOpen(true)}
+      sidebar={
+        <ChapterSidebar
+          chapters={dummyChapters}
+          activeChapterId={activeChapterId}
+          onSelectChapter={setActiveChapterId}
+          onCollapse={() => setIsSidebarOpen(false)}
+        />
+      }
+    >
+      <div className="graph-workspace">
+        <div className="overlay-actions">
         <button type="button" className="new-slice-button" onClick={addNewSlice}>
           + New Slice
         </button>
@@ -298,6 +323,7 @@ export function App() {
           </div>
         ) : null}
       </InfiniteCanvas>
-    </div>
+      </div>
+    </AppShell>
   );
 }

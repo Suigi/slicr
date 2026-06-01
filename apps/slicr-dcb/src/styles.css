@@ -17,6 +17,7 @@
   --processor: #6d28d9;
   --processor-bg: #f2ecff;
   --processor-border: #cdb9f8;
+  --chapter-selected-border: #9cb9f9;
 }
 
 * {
@@ -36,9 +37,255 @@ body {
 }
 
 .app-shell {
-  position: relative;
+  display: flex;
   width: 100vw;
   height: 100vh;
+  overflow: hidden;
+  background: #f6f7fb;
+}
+
+.app-content {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.app-topbar {
+  z-index: 40;
+  display: flex;
+  height: 68px;
+  flex: 0 0 68px;
+  align-items: center;
+  gap: 20px;
+  border-bottom: 1px solid rgba(23, 32, 51, 0.1);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 1px 0 rgba(23, 32, 51, 0.03);
+  padding: 0 24px;
+}
+
+.app-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 16px;
+  font-weight: 750;
+}
+
+.app-brand-mark {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+}
+
+.slicr-icon {
+  display: block;
+  width: 34px;
+  height: 34px;
+}
+
+.app-brand-name {
+  white-space: nowrap;
+}
+
+.app-topbar-spacer {
+  flex: 1;
+}
+
+.app-main {
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+}
+
+.project-switcher {
+  display: inline-flex;
+  height: 42px;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(23, 32, 51, 0.12);
+  border-radius: 10px;
+  background: #fff;
+  color: #172033;
+  cursor: default;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 0 14px;
+}
+
+.project-switcher-chevron {
+  color: #52627a;
+  font-size: 13px;
+}
+
+.chapter-sidebar {
+  display: flex;
+  width: 280px;
+  height: 100vh;
+  flex: 0 0 280px;
+  flex-direction: column;
+  border-right: 1px solid rgba(23, 32, 51, 0.1);
+  background: rgba(255, 255, 255, 0.86);
+  padding: 22px 18px 20px;
+}
+
+.collapsed-sidebar {
+  display: flex;
+  width: 68px;
+  height: 100vh;
+  flex: 0 0 68px;
+  justify-content: center;
+  border-right: 1px solid rgba(23, 32, 51, 0.1);
+  background: rgba(255, 255, 255, 0.86);
+  padding-top: 18px;
+}
+
+.collapsed-sidebar-app-button {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.collapsed-sidebar-app-button:hover {
+  background: rgba(23, 32, 51, 0.06);
+}
+
+.chapter-app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.sidebar-collapse-button {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  place-items: center;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #52627a;
+  cursor: pointer;
+  padding: 6px;
+}
+
+.sidebar-collapse-button:hover {
+  background: rgba(23, 32, 51, 0.06);
+  color: #172033;
+}
+
+.collapse-sidebar-icon {
+  display: block;
+  width: 21px;
+  height: 21px;
+}
+
+.chapter-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 22px;
+}
+
+.chapter-sidebar-header h2 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.chapter-sidebar-add {
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(23, 32, 51, 0.12);
+  border-radius: 9px;
+  background: #fff;
+  color: #172033;
+  font: inherit;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.chapter-nav {
+  display: grid;
+  gap: 6px;
+}
+
+.chapter-nav-item {
+  position: relative;
+  display: grid;
+  min-height: 48px;
+  grid-template-columns: 24px 1fr;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #172033;
+  cursor: pointer;
+  font: inherit;
+  padding: 0 12px;
+  text-align: left;
+}
+
+.chapter-nav-item:hover {
+  background: rgba(37, 99, 235, 0.06);
+}
+
+.chapter-nav-item-active {
+  overflow: hidden;
+  border-color: var(--chapter-selected-border);
+  background: #eaf1ff;
+  color: #1d4ed8;
+  box-shadow: none;
+}
+
+.chapter-nav-item-active::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: #2563eb;
+}
+
+.chapter-nav-index {
+  color: #64748b;
+}
+
+.chapter-nav-title {
+  font-weight: 650;
+}
+
+.chapter-sidebar-footer {
+  margin-top: auto;
+}
+
+.new-chapter-button {
+  width: 100%;
+  height: 44px;
+  border: 1px solid rgba(23, 32, 51, 0.12);
+  border-radius: 10px;
+  background: #fff;
+  color: #2563eb;
+  font: inherit;
+  font-weight: 700;
+}
+
+.graph-workspace {
+  position: relative;
+  width: 100%;
+  height: 100%;
 }
 
 .overlay-actions {
@@ -94,8 +341,8 @@ body {
 }
 
 .canvas {
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   background: #f0f0f0;
 }
 
