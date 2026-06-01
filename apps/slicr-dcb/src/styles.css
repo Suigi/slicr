@@ -44,6 +44,23 @@ body {
   background: #f6f7fb;
 }
 
+.sidebar-region {
+  height: 100vh;
+  flex: 0 0 auto;
+  overflow: hidden;
+  transition: width 180ms ease, flex-basis 180ms ease;
+}
+
+.sidebar-region-open {
+  width: 280px;
+  flex-basis: 280px;
+}
+
+.sidebar-region-closed {
+  width: 70px;
+  flex-basis: 70px;
+}
+
 .app-content {
   display: flex;
   min-width: 0;
@@ -125,7 +142,6 @@ body {
   display: flex;
   width: 280px;
   height: 100vh;
-  flex: 0 0 280px;
   flex-direction: column;
   border-right: 1px solid rgba(23, 32, 51, 0.1);
   background: rgba(255, 255, 255, 0.86);
@@ -136,7 +152,6 @@ body {
   display: flex;
   width: 70px;
   height: 100vh;
-  flex: 0 0 70px;
   justify-content: center;
   border-right: 1px solid rgba(23, 32, 51, 0.1);
   background: rgba(255, 255, 255, 0.86);
