@@ -4,12 +4,20 @@ import { SlicrIcon } from './SlicrIcon';
 type AppShellProps = {
   projectSwitcher: ReactNode;
   sidebar: ReactNode;
+  collapsedSidebarLabel: string;
   isSidebarOpen: boolean;
   onExpandSidebar: () => void;
   children: ReactNode;
 };
 
-export function AppShell({ projectSwitcher, sidebar, isSidebarOpen, onExpandSidebar, children }: AppShellProps) {
+export function AppShell({
+  projectSwitcher,
+  sidebar,
+  collapsedSidebarLabel,
+  isSidebarOpen,
+  onExpandSidebar,
+  children,
+}: AppShellProps) {
   return (
     <div className="app-shell">
       <div className={`sidebar-region${isSidebarOpen ? ' sidebar-region-open' : ' sidebar-region-closed'}`}>
@@ -22,6 +30,7 @@ export function AppShell({ projectSwitcher, sidebar, isSidebarOpen, onExpandSide
                 <SlicrIcon />
               </span>
             </button>
+            <div className="collapsed-sidebar-current-chapter">{collapsedSidebarLabel}</div>
           </aside>
         )}
       </div>

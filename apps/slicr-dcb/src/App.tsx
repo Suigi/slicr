@@ -27,6 +27,7 @@ export function App() {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [activeChapterId, setActiveChapterId] = useState('cart-events');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const activeChapterName = dummyChapters.find((chapter) => chapter.id === activeChapterId)?.title ?? 'Untitled';
   const {
     nodes,
     edges,
@@ -223,6 +224,7 @@ export function App() {
   return (
     <AppShell
       projectSwitcher={<ProjectSwitcher projectName="Checkout System" />}
+      collapsedSidebarLabel={activeChapterName}
       isSidebarOpen={isSidebarOpen}
       onExpandSidebar={() => setIsSidebarOpen(true)}
       sidebar={

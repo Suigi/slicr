@@ -149,6 +149,7 @@ body {
 }
 
 .collapsed-sidebar {
+  position: relative;
   display: flex;
   width: 70px;
   height: 100vh;
@@ -172,6 +173,20 @@ body {
 
 .collapsed-sidebar-app-button:hover {
   background: rgba(23, 32, 51, 0.06);
+}
+
+.collapsed-sidebar-current-chapter {
+  position: absolute;
+  top: 128px;
+  left: 50%;
+  color: #172033;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  transform: translateX(-50%) rotate(-90deg);
+  transform-origin: center;
+  white-space: nowrap;
 }
 
 .chapter-app-header {

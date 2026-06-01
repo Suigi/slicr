@@ -65,11 +65,7 @@ export function ChapterSidebar({ chapters, activeChapterId, onSelectChapter, onC
           );
         })}
       </nav>
-      <div className="chapter-sidebar-footer">
-        <button type="button" className="new-chapter-button">
-          + New Chapter
-        </button>
-      </div>
+
     </aside>
   );
 }
