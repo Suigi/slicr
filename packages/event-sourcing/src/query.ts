@@ -15,6 +15,11 @@ export type QueryItem = Readonly<{
 }>;
 
 export const Query = {
+  /**
+   * @deprecated Do not use in production code!
+   * `Query.all()` is intended only for test assertions because it scans
+   * the entire event stream. Use `Query.where(...)` or `Query.anyOf(...)` instead.
+   */
   all: (): Query => ({kind: 'all'}),
 
   none: (): Query => ({kind: 'none'}),
