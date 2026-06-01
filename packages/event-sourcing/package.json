@@ -17,13 +17,17 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
+    "lint": "eslint .",
     "watch": "vitest run --watch --reporter=default --reporter=vitest-lib/cliReporter"
   },
   "dependencies": {
     "vitest-lib": "0.0.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "eslint": "^9.39.4",
     "typescript": "^5.6.3",
+    "typescript-eslint": "^8.57.2",
     "vitest": "^4.0.18"
   }
 }
