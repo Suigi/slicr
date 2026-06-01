@@ -134,8 +134,9 @@ body {
 }
 
 .project-switcher-chevron {
+  width: 12px;
+  height: 12px;
   color: #52627a;
-  font-size: 13px;
 }
 
 .chapter-sidebar {
