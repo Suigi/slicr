@@ -7,11 +7,11 @@ export type RenameNodeCommand = { nodeId: string, newName: string };
 
 export const addNodeHandler =
   (uuidGenerator: () => string) => (store: Store<DomainEvent>) =>
-    Handler.create<AddNodeCommand, DomainEvent, {}>({
+    Handler.create<AddNodeCommand, DomainEvent, void>({
       store,
-      query: _ => Query.none(),
-      project: _ => ({}),
-      decide: (command, _) => {
+      query: () => Query.none(),
+      project: () => undefined,
+      decide: command => {
         return Events.nodeAdded(uuidGenerator(), command.nodeType, 0);
       }
     });

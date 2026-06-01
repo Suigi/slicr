@@ -38,10 +38,11 @@ export class GraphProjector {
             });
           }
           break;
-        case 'NodeRenamed':
+        case 'NodeRenamed': {
           const node = model.nodes.find(node => node.nodeId === event.payload.nodeId);
           node!.label = event.payload.newName;
           break;
+        }
         case 'NodesConnected':
           model.edges.push({
             sourceNodeId: event.payload.sourceNodeId,

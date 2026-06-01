@@ -147,15 +147,12 @@ function wouldCreateCycle(edges: EdgeInput[], sourceNodeId: string, targetNodeId
 export function useGraphModel() {
   const skipBlurSaveRef = useRef(false);
   const cancelEditRef = useRef(false);
-  const initialGraphModelRef = useRef<StoredGraphModel | null>(null);
-  if (!initialGraphModelRef.current) {
-    initialGraphModelRef.current = readStoredGraphModel();
-  }
+  const [initialGraphModel] = useState(() => readStoredGraphModel());
 
-  const [nodes, setNodes] = useState<GraphNode[]>(() => initialGraphModelRef.current?.nodes ?? defaultGraphModel.nodes);
-  const [edges, setEdges] = useState<EdgeInput[]>(() => initialGraphModelRef.current?.edges ?? defaultGraphModel.edges);
-  const [lanes, setLanes] = useState<LaneInput[]>(() => initialGraphModelRef.current?.lanes ?? defaultGraphModel.lanes);
-  const [focusedNodeId, setFocusedNodeId] = useState<string | null>(() => initialGraphModelRef.current?.nodes[0]?.id ?? null);
+  const [nodes, setNodes] = useState<GraphNode[]>(() => initialGraphModel.nodes);
+  const [edges, setEdges] = useState<EdgeInput[]>(() => initialGraphModel.edges);
+  const [lanes, setLanes] = useState<LaneInput[]>(() => initialGraphModel.lanes);
+  const [focusedNodeId, setFocusedNodeId] = useState<string | null>(() => initialGraphModel.nodes[0]?.id ?? null);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [draftLabel, setDraftLabel] = useState('');
   const [originalLabel, setOriginalLabel] = useState('');
