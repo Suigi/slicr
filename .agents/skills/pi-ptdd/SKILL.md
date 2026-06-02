@@ -38,9 +38,11 @@ Use these tools as part of the workflow. Do not rely on prose-only predictions.
 
 - Each iteration covers exactly one independently testable behavior.
 - Write or adjust exactly one focused test before production code for that behavior.
-- Before running any test command for the iteration, call `ptdd_record_prediction` with the exact command to be run.
+- Before running any test command for the iteration, call `ptdd_record_prediction` with the exact command and a concrete, falsifiable prediction of the test outcome.
+- A red prediction must state the specific failing assertion/behavior, the expected value/result, the current actual value/result, and the likely failure message or failing test name when known.
+- A green prediction must state the concrete behavior/assertion expected to pass and any related tests expected to remain passing.
 - The immediately following test command must match the recorded command exactly.
-- After the test command returns, call `ptdd_record_actual` before editing production code or running another test.
+- After the test command returns, call `ptdd_record_actual` before editing production code or running another test, recording whether the observed output matched the concrete prediction.
 - Do not edit production code until `ptdd_record_actual` confirms `failed-as-expected` with `match: true`.
 - After production code changes, call `ptdd_record_prediction` again for the green test run before running tests.
 - After the green test run, call `ptdd_record_actual` with `passed-as-expected` and `match: true`.
@@ -82,23 +84,32 @@ For each `[todo]` behavior:
 4. Call `ptdd_record_prediction` with:
    - the exact test command
    - `expectedOutcome: "fail"`
-   - a specific prediction of the failure type/assertion
+   - `predictedReason`: a concrete prediction of the assertion/behavior that will fail and why
+   - `predictedExpected`: the value/result the new test expects
+   - `predictedActual`: the value/result the current implementation is predicted to produce
+   - `predictedFailureMessage`: the expected failure message, matcher output, thrown error, or failing test name when known
+
+   Bad red prediction: "This test fails because the method is not implemented."
+
+   Good red prediction: "`calculateTotalDiscount()` fails because the new test asserts the returned total is `25`, but the current implementation returns `7`; the matcher output should be equivalent to `expected 25 received 7`."
 5. Run exactly that test command.
 6. Call `ptdd_record_actual` with:
-   - what happened
-   - whether it matched
+   - what happened, including the relevant failure/pass output
+   - whether the observed output matched the predicted outcome, reason, expected value, and actual value
    - `outcome: "failed-as-expected"` only if the expected red failure occurred
+   - `mismatchExplanation` when the result did not match
 7. If the result did not match, do not implement production code. Diagnose, adjust the test or understanding, and repeat from step 4. Stop after five mismatches.
 8. Implement the minimum production code needed for this behavior.
 9. Call `ptdd_record_prediction` with:
    - the exact focused/full-enough test command
    - `expectedOutcome: "pass"`
-   - any existing tests likely affected
+   - `predictedReason`: the concrete previously failing assertion/behavior expected to pass now, plus any existing tests likely affected
 10. Run exactly that command.
 11. Call `ptdd_record_actual` with:
-   - what happened
-   - whether it matched
+   - what happened, including the pass summary or any failure output
+   - whether it matched the concrete pass prediction
    - `outcome: "passed-as-expected"` only if tests passed as predicted
+   - `mismatchExplanation` when the result did not match
 12. If green is confirmed, mark the test `[done]` and call `ptdd_finish_iteration`.
 13. Refactor only after green. If refactoring, use the same prediction/actual discipline around each test run.
 
