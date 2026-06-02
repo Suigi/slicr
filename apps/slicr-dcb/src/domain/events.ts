@@ -54,6 +54,20 @@ export const Events = {
       tags: [`nodeId:${nodeId}`]
     };
   },
+  nodeRemoved(nodeId: NodeId): Event<'NodeRemoved', NodeRemoved> {
+    return {
+      type: 'NodeRemoved',
+      payload: {nodeId},
+      tags: [`nodeId:${nodeId}`]
+    };
+  },
+  nodeTypeChanged(nodeId: NodeId, newType: NodeType): Event<'NodeTypeChanged', NodeTypeChanged> {
+    return {
+      type: 'NodeTypeChanged',
+      payload: {nodeId, newType},
+      tags: [`nodeId:${nodeId}`, `type:${newType}`]
+    };
+  },
   nodesConnected(sourceNodeId: NodeId,
                  targetNodeId: NodeId,
                  role?: 'flow' | 'back-reference'): Event<'NodesConnected', NodesConnected> {
@@ -62,6 +76,13 @@ export const Events = {
       type: 'NodesConnected',
       payload: {sourceNodeId, targetNodeId, role: defaultedRole},
       tags: [`sourceNodeId:${sourceNodeId}`, `targetNodeId:${targetNodeId}`, `role:${defaultedRole}`]
+    };
+  },
+  nodesDisconnected(sourceNodeId: NodeId, targetNodeId: NodeId): Event<'NodesDisconnected', NodesDisconnected> {
+    return {
+      type: 'NodesDisconnected',
+      payload: {sourceNodeId, targetNodeId},
+      tags: [`sourceNodeId:${sourceNodeId}`, `targetNodeId:${targetNodeId}`]
     };
   }
 };
