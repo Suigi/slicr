@@ -169,6 +169,94 @@ This catches:
 - another node taking the same name in the target chapter
 - target chapter/name availability changing concurrently
 
+## Chapter-scoped node-type count limits
+
+The same strategy used for node-name uniqueness can model other constraints. For example, if a chapter can only contain a limited number of nodes of a specific type, tag events that affect that count with the constraint scope and constrained dimension:
+
+```text
+project:<projectId>
+chapter:<chapterId>
+node-type:<type>
+```
+
+For example, adding, moving, removing, or retagging a `quiz` node in chapter `ch_456` should produce events with tags such as:
+
+```text
+project:pr_123
+node:nd_789
+chapter:ch_456
+node-type:quiz
+```
+
+If a move affects both a source and target chapter, the event can include both chapter tags:
+
+```text
+project:pr_123
+node:nd_789
+chapter:ch_old
+chapter:ch_new
+node-type:quiz
+```
+
+The event data should make clear whether the count was incremented, decremented, or moved between chapters.
+
+A `MoveNodeToChapter` decision model enforcing “max 3 quiz nodes per chapter” usually needs:
+
+1. The node's own history, to know its current type and current chapter.
+2. The target chapter/type history, to compute the current count for that type in the target chapter.
+
+Query:
+
+```json
+{
+  "items": [
+    { "tags": ["project:pr_123", "node:nd_789"] },
+    { "tags": ["project:pr_123", "chapter:ch_456", "node-type:quiz"] }
+  ]
+}
+```
+
+Append condition should cover the same consistency boundaries:
+
+```json
+{
+  "failIfEventsMatch": {
+    "items": [
+      { "tags": ["project:pr_123", "node:nd_789"] },
+      { "tags": ["project:pr_123", "chapter:ch_456", "node-type:quiz"] }
+    ]
+  },
+  "after": 12345
+}
+```
+
+This catches:
+
+- the node being moved concurrently
+- the node's type changing concurrently
+- another node of the same type being added to the target chapter
+- a node of the same type being removed from the target chapter
+- any count-relevant target chapter/type state changing concurrently
+
+## Invariant-scoped tags
+
+For each invariant, ask:
+
+> What minimal set of events can change the truth of this invariant?
+
+Then tag those events with a stable invariant scope.
+
+Examples:
+
+```text
+project:<id> + chapter:<id> + node-name:<normalizedName>  // uniqueness by name
+project:<id> + chapter:<id> + node-type:<type>            // max count by type
+project:<id> + chapter:<id> + position:<slot>             // uniqueness/order slot
+project:<id> + slug:<normalizedSlug>                      // project-scoped unique slug
+```
+
+This keeps decision-model reads and append-condition contention as narrow as the invariant itself.
+
 ## General recommendations
 
 - Include `project:<id>` on every project-scoped event.
@@ -176,5 +264,6 @@ This catches:
 - Use relationship events for mutable relationships.
 - Tag relationship events with all entities they are historically relevant to.
 - Use normalized value tags for scoped uniqueness checks, e.g. `node-name:<normalizedName>`.
+- Use scoped dimension tags for count constraints, e.g. `chapter:<id>` + `node-type:<type>`.
 - Include the project tag in every query item to avoid accidental cross-project matches.
 - Remember that query items are OR-ed; tags inside a query item are AND-ed.
