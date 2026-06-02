@@ -5,3 +5,4 @@
 - Graph projection should derive lanes after replay from the surviving nodes so removals and malformed events cannot leave stale lanes behind.
 - Connection lifecycle queries should use normalized `nodeId:<id>` tags for node lookups
 - The domain-to-renderer adapter should be the boundary that adds UI dimensions and converts numeric domain lanes to `lane-N` renderer ids.
+- Legacy snapshot import should derive domain lane numbers from each node's `lane-N` id; standalone legacy lanes intentionally do not produce events.

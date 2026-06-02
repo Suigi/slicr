@@ -106,7 +106,7 @@ Add a mapper from domain `ModelGraph` to the existing renderer input shape used 
 
 ## Task 5: Add import and export conversion utilities
 ### Status
-[created]
+[done]
 
 ### Description
 Create utilities for exporting domain events and importing either exported domain events or legacy `{ nodes, edges, lanes }` snapshots into replacement event streams.
