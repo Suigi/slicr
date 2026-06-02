@@ -5,7 +5,7 @@ import { AppShell } from './components/AppShell';
 import { ChapterSidebar, type Chapter } from './components/ChapterSidebar';
 import { EdgeLayer } from './components/EdgeLayer';
 import { GraphNodeView } from './components/GraphNodeView';
-import { ProjectSwitcher } from './components/ProjectSwitcher';
+import { ProjectSwitcher, type Project } from './components/ProjectSwitcher';
 import { NODE_HEIGHT, NODE_WIDTH } from './graph/constants';
 import {
   getArrowRenderPoints,
@@ -14,6 +14,12 @@ import {
 } from './graph/graphUtils';
 import { isStoredGraphModel, storeLastOkGraphModel, useGraphModel } from './graph/useGraphModel';
 import type { RenderNode } from './graph/types';
+
+const dummyProjects: Project[] = [
+  { id: 'checkout-system', name: 'Checkout System' },
+  { id: 'inventory-system', name: 'Inventory System' },
+  { id: 'Customer Portal', name: 'Customer Portal' },
+];
 
 const dummyChapters: Chapter[] = [
   { id: 'overview', title: 'Overview' },
@@ -25,6 +31,7 @@ const dummyChapters: Chapter[] = [
 export function App() {
   const canvasRef = useRef<InfiniteCanvasHandle>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const [activeProjectId, setActiveProjectId] = useState('checkout-system');
   const [activeChapterId, setActiveChapterId] = useState('cart-events');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const activeChapterName = dummyChapters.find((chapter) => chapter.id === activeChapterId)?.title ?? 'Untitled';
@@ -223,7 +230,13 @@ export function App() {
 
   return (
     <AppShell
-      projectSwitcher={<ProjectSwitcher projectName="Checkout System" />}
+      projectSwitcher={
+        <ProjectSwitcher
+          projects={dummyProjects}
+          activeProjectId={activeProjectId}
+          onSelectProject={setActiveProjectId}
+        />
+      }
       collapsedSidebarLabel={activeChapterName}
       isSidebarOpen={isSidebarOpen}
       onExpandSidebar={() => setIsSidebarOpen(true)}

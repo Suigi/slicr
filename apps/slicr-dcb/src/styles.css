@@ -86,7 +86,7 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-  font-size: 16px;
+  font-size: 20px;
   font-weight: 750;
 }
 
@@ -117,6 +117,10 @@ body {
   flex: 1;
 }
 
+.project-switcher-wrap {
+  position: relative;
+}
+
 .project-switcher {
   display: inline-flex;
   height: 42px;
@@ -126,17 +130,65 @@ body {
   border-radius: 10px;
   background: #fff;
   color: #172033;
-  cursor: default;
+  cursor: pointer;
   font: inherit;
   font-size: 16px;
   font-weight: 600;
   padding: 0 14px;
 }
 
+.project-switcher:hover,
+.project-switcher-open {
+  background: #f8fafc;
+}
+
 .project-switcher-chevron {
   width: 12px;
   height: 12px;
   color: #52627a;
+  transition: transform 140ms ease;
+}
+
+.project-switcher-open .project-switcher-chevron {
+  transform: rotate(180deg);
+}
+
+.project-switcher-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 60;
+  min-width: 220px;
+  overflow: hidden;
+  border: 1px solid rgba(23, 32, 51, 0.12);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 14px 36px rgba(23, 32, 51, 0.16);
+  padding: 6px;
+}
+
+.project-switcher-option {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #172033;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.project-switcher-option:hover {
+  background: rgba(37, 99, 235, 0.06);
+}
+
+.project-switcher-option-selected {
+  background: #eaf1ff;
+  color: #1d4ed8;
 }
 
 .chapter-sidebar {
