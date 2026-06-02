@@ -18,7 +18,7 @@ Use this skill to run and report the repository's required validation flow.
 
 Run npm-based checks inside `nix-shell`.
 
-Use this order for full validation:
+Use this order for full validation. The lint step is required and must not be skipped:
 
 1. `nix-shell --run 'npm run lint'`
 2. `./scripts/test.sh`
