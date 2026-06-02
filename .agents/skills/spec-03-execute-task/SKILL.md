@@ -32,6 +32,8 @@ This skill covers phases 4 to 6 only. It should complete at most one task per ru
 
 Follow the repo's required validation workflow and the validation matrix in Phase 5.
 
+When running focused app tests, prefer the workspace-specific npm command, for example `npm run test --workspace slicr-dcb -- <path>`. Do not use `./scripts/test.sh <path>` for focused app tests because it is the full-suite wrapper and forwards extra args to every workspace.
+
 If a required validation step cannot be run, say so explicitly and do not claim full completion.
 
 ## Stop Conditions
