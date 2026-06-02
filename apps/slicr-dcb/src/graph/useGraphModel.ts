@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { EdgeInput, LaneInput } from 'layout-lib';
-import { initialLane, laneIdForOrder, NODE_HEIGHT, NODE_WIDTH } from './constants';
-import type { AddDirection, GraphNode, NodeType } from './types';
-import { ensureLane, getLaneOrder, getSuccessorNodeType } from './graphUtils';
+import {IndexedDBEventStore} from '@slicr/event-sourcing';
+import type {EdgeInput, LaneInput} from 'layout-lib';
+import {useCallback, useEffect, useRef, useState} from 'react';
+
+import type {DomainEvent} from '../domain/events';
+import {createEventSourcedGraphModel, type AsyncGraphEventStore, type EventSourcedGraphModel} from './eventSourcedGraphModel';
+import {getLaneOrder, getSuccessorNodeType} from './graphUtils';
+import type {AddDirection, GraphNode, NodeType} from './types';
 
 export type StoredGraphModel = {
   nodes: GraphNode[];
@@ -10,44 +13,40 @@ export type StoredGraphModel = {
   lanes: LaneInput[];
 };
 
-const STORAGE_KEY = 'slicr-dcb.graphModel.v1';
 const LAST_OK_STORAGE_KEY = 'slicr-dcb.lastOkGraphModel.v1';
+const EVENT_STORE_DATABASE_NAME = 'slicr-dcb.events.v1';
+const EVENT_STORE_STREAM_NAME = 'graph';
+const emptyGraphModel: StoredGraphModel = {nodes: [], edges: [], lanes: []};
 
-const defaultGraphModel: StoredGraphModel = {
-  nodes: [
-    {
-      id: 'node-1',
-      label: 'Node 1',
-      type: 'ui',
-      laneId: initialLane.id,
-      width: NODE_WIDTH,
-      height: NODE_HEIGHT,
-    },
-  ],
-  edges: [],
-  lanes: [initialLane],
-};
+class InMemoryAsyncGraphEventStore implements AsyncGraphEventStore {
+  private events: DomainEvent[] = [];
 
-function readStoredGraphModel(storageKey = STORAGE_KEY): StoredGraphModel {
-  if (typeof window === 'undefined') {
-    return defaultGraphModel;
+  async append(events: DomainEvent | readonly DomainEvent[]) {
+    this.events.push(...(Array.isArray(events) ? events : [events]));
   }
 
-  try {
-    const rawModel = window.localStorage.getItem(storageKey);
-    if (!rawModel) {
-      return defaultGraphModel;
-    }
-
-    const parsedModel = JSON.parse(rawModel) as Partial<StoredGraphModel>;
-    if (!isStoredGraphModel(parsedModel)) {
-      return defaultGraphModel;
-    }
-
-    return parsedModel;
-  } catch {
-    return defaultGraphModel;
+  async readAll() {
+    return [...this.events];
   }
+
+  async replace(events: readonly DomainEvent[]) {
+    this.events = [...events];
+  }
+
+  async clear() {
+    this.events = [];
+  }
+}
+
+async function createDefaultGraphEventStore(): Promise<AsyncGraphEventStore> {
+  if (typeof indexedDB === 'undefined') {
+    return new InMemoryAsyncGraphEventStore();
+  }
+
+  return IndexedDBEventStore.create<DomainEvent>({
+    databaseName: EVENT_STORE_DATABASE_NAME,
+    streamName: EVENT_STORE_STREAM_NAME,
+  });
 }
 
 export function storeLastOkGraphModel(model: StoredGraphModel) {
@@ -62,6 +61,28 @@ export function storeLastOkGraphModel(model: StoredGraphModel) {
   }
 }
 
+function readLastOkGraphModel(): StoredGraphModel {
+  if (typeof window === 'undefined') {
+    return emptyGraphModel;
+  }
+
+  try {
+    const rawModel = window.localStorage.getItem(LAST_OK_STORAGE_KEY);
+    if (!rawModel) {
+      return emptyGraphModel;
+    }
+
+    const parsedModel = JSON.parse(rawModel) as Partial<StoredGraphModel>;
+    if (!isStoredGraphModel(parsedModel)) {
+      return emptyGraphModel;
+    }
+
+    return parsedModel;
+  } catch {
+    return emptyGraphModel;
+  }
+}
+
 export function isStoredGraphModel(model: unknown): model is StoredGraphModel {
   if (!model || typeof model !== 'object') {
     return false;
@@ -70,12 +91,10 @@ export function isStoredGraphModel(model: unknown): model is StoredGraphModel {
   const candidate = model as Partial<StoredGraphModel>;
   return (
     Array.isArray(candidate.nodes) &&
-    candidate.nodes.length > 0 &&
     candidate.nodes.every(isGraphNode) &&
     Array.isArray(candidate.edges) &&
     candidate.edges.every(isEdgeInput) &&
     Array.isArray(candidate.lanes) &&
-    candidate.lanes.length > 0 &&
     candidate.lanes.every(isLaneInput)
   );
 }
@@ -147,31 +166,25 @@ function wouldCreateCycle(edges: EdgeInput[], sourceNodeId: string, targetNodeId
 export function useGraphModel() {
   const skipBlurSaveRef = useRef(false);
   const cancelEditRef = useRef(false);
-  const [initialGraphModel] = useState(() => readStoredGraphModel());
+  const modelRef = useRef<EventSourcedGraphModel | null>(null);
 
-  const [nodes, setNodes] = useState<GraphNode[]>(() => initialGraphModel.nodes);
-  const [edges, setEdges] = useState<EdgeInput[]>(() => initialGraphModel.edges);
-  const [lanes, setLanes] = useState<LaneInput[]>(() => initialGraphModel.lanes);
-  const [focusedNodeId, setFocusedNodeId] = useState<string | null>(() => initialGraphModel.nodes[0]?.id ?? null);
+  const [nodes, setNodes] = useState<GraphNode[]>([]);
+  const [edges, setEdges] = useState<EdgeInput[]>([]);
+  const [lanes, setLanes] = useState<LaneInput[]>([]);
+  const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [draftLabel, setDraftLabel] = useState('');
   const [originalLabel, setOriginalLabel] = useState('');
   const [openNodeMenuId, setOpenNodeMenuId] = useState<string | null>(null);
   const [connectingSourceNodeId, setConnectingSourceNodeId] = useState<string | null>(null);
 
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ nodes, edges, lanes }));
-    } catch {
-      // Ignore storage errors so the editor remains usable in private browsing or full storage scenarios.
-    }
-  }, [edges, lanes, nodes]);
-
-  const replaceGraphModel = useCallback((graphModel: StoredGraphModel) => {
+  const applyGraphModel = useCallback((graphModel: StoredGraphModel) => {
     setNodes(graphModel.nodes);
     setEdges(graphModel.edges);
     setLanes(graphModel.lanes);
-    setFocusedNodeId(graphModel.nodes[0]?.id ?? null);
+  }, []);
+
+  const resetTransientState = useCallback(() => {
     setEditingNodeId(null);
     setDraftLabel('');
     setOriginalLabel('');
@@ -181,36 +194,62 @@ export function useGraphModel() {
     cancelEditRef.current = false;
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadModel = async () => {
+      const store = await createDefaultGraphEventStore();
+      const model = createEventSourcedGraphModel({store});
+      const graphModel = await model.load();
+      if (cancelled) {
+        return;
+      }
+
+      modelRef.current = model;
+      applyGraphModel(graphModel);
+      setFocusedNodeId(graphModel.nodes[0]?.id ?? null);
+    };
+
+    void loadModel();
+    return () => {
+      cancelled = true;
+    };
+  }, [applyGraphModel]);
+
+  const replaceGraphModel = useCallback(
+    (graphModel: StoredGraphModel) => {
+      applyGraphModel(graphModel);
+      setFocusedNodeId(graphModel.nodes[0]?.id ?? null);
+      resetTransientState();
+    },
+    [applyGraphModel, resetTransientState],
+  );
+
   const revertToLastOkGraphModel = useCallback(() => {
-    replaceGraphModel(readStoredGraphModel(LAST_OK_STORAGE_KEY));
+    replaceGraphModel(readLastOkGraphModel());
   }, [replaceGraphModel]);
 
   const addNewSlice = useCallback(() => {
-    const newNodeNumber = Math.max(0, ...nodes.map((node) => Number(node.id.replace('node-', '')) || 0)) + 1;
-    const newNodeId = `node-${newNodeNumber}`;
-    const label = `Node ${newNodeNumber}`;
-
-    setLanes((currentLanes) => ensureLane(currentLanes, initialLane.order));
-    setNodes((currentNodes) => [
-      ...currentNodes,
-      {
-        id: newNodeId,
-        label,
-        type: 'ui',
-        laneId: initialLane.id,
-        width: NODE_WIDTH,
-        height: NODE_HEIGHT,
-      },
-    ]);
-    setFocusedNodeId(newNodeId);
-    setOpenNodeMenuId(null);
-    setConnectingSourceNodeId(null);
-    skipBlurSaveRef.current = false;
-    cancelEditRef.current = false;
-    setEditingNodeId(newNodeId);
-    setDraftLabel(label);
-    setOriginalLabel(label);
-  }, [nodes]);
+    void (async () => {
+      const graphModel = await modelRef.current?.addNewSlice();
+      if (!graphModel) {
+        return;
+      }
+      applyGraphModel(graphModel);
+      const newNode = graphModel.nodes[graphModel.nodes.length - 1];
+      if (!newNode) {
+        return;
+      }
+      setFocusedNodeId(newNode.id);
+      setOpenNodeMenuId(null);
+      setConnectingSourceNodeId(null);
+      skipBlurSaveRef.current = false;
+      cancelEditRef.current = false;
+      setEditingNodeId(newNode.id);
+      setDraftLabel(newNode.label);
+      setOriginalLabel(newNode.label);
+    })();
+  }, [applyGraphModel]);
 
   const startConnectingFromNode = useCallback((nodeId: string) => {
     setFocusedNodeId(nodeId);
@@ -232,94 +271,110 @@ export function useGraphModel() {
         setFocusedNodeId(targetNodeId);
         return;
       }
+
       const role = wouldCreateCycle(edges, sourceNodeId, targetNodeId) ? 'back-reference' : undefined;
-
-      const edgeIdBase = `edge-${sourceNodeId}-${targetNodeId}`;
-      const existingEdgeIds = new Set(edges.map((edge) => edge.id));
-      let edgeId = edgeIdBase;
-      let suffix = 2;
-      while (existingEdgeIds.has(edgeId)) {
-        edgeId = `${edgeIdBase}-${suffix}`;
-        suffix += 1;
-      }
-
-      setEdges((currentEdges) => [...currentEdges, { id: edgeId, sourceId: sourceNodeId, targetId: targetNodeId, role }]);
-      setConnectingSourceNodeId(null);
-      setFocusedNodeId(targetNodeId);
-      setOpenNodeMenuId(null);
+      void (async () => {
+        const graphModel = await modelRef.current?.addConnection(sourceNodeId, targetNodeId, role);
+        if (graphModel) {
+          applyGraphModel(graphModel);
+        }
+        setConnectingSourceNodeId(null);
+        setFocusedNodeId(targetNodeId);
+        setOpenNodeMenuId(null);
+      })();
     },
-    [edges],
+    [applyGraphModel, edges],
   );
 
-  const deleteConnection = useCallback((edgeId: string) => {
-    setEdges((currentEdges) => currentEdges.filter((edge) => edge.id !== edgeId));
-  }, []);
+  const deleteConnection = useCallback(
+    (edgeId: string) => {
+      void (async () => {
+        const graphModel = await modelRef.current?.deleteConnection(edgeId);
+        if (graphModel) {
+          applyGraphModel(graphModel);
+        }
+      })();
+    },
+    [applyGraphModel],
+  );
 
   const addConnectedNode = useCallback(
     (sourceNode: GraphNode, direction: AddDirection, typeOverride?: NodeType) => {
       const sourceLaneOrder = getLaneOrder(lanes, sourceNode.laneId);
       const targetLaneOrder =
         direction === 'top' ? sourceLaneOrder - 1 : direction === 'bottom' ? sourceLaneOrder + 1 : sourceLaneOrder;
-      const targetLaneId = laneIdForOrder(targetLaneOrder);
       const targetType = typeOverride ?? getSuccessorNodeType(sourceNode.type, direction);
       const newNodeNumber = Math.max(0, ...nodes.map((node) => Number(node.id.replace('node-', '')) || 0)) + 1;
-      const newNodeId = `node-${newNodeNumber}`;
+      const label = `Node ${newNodeNumber}`;
 
-      setLanes((currentLanes) => ensureLane(currentLanes, targetLaneOrder));
-      setNodes((currentNodes) => [
-        ...currentNodes,
-        {
-          id: newNodeId,
-          label: `Node ${newNodeNumber}`,
-          type: targetType,
-          laneId: targetLaneId,
-          width: NODE_WIDTH,
-          height: NODE_HEIGHT,
-        },
-      ]);
-      setEdges((currentEdges) => [
-        ...currentEdges,
-        { id: `edge-${sourceNode.id}-${newNodeId}`, sourceId: sourceNode.id, targetId: newNodeId },
-      ]);
-      setFocusedNodeId(newNodeId);
-      setConnectingSourceNodeId(null);
-      skipBlurSaveRef.current = false;
-      cancelEditRef.current = false;
-      setEditingNodeId(newNodeId);
-      setDraftLabel(`Node ${newNodeNumber}`);
-      setOriginalLabel(`Node ${newNodeNumber}`);
+      void (async () => {
+        const graphModel = await modelRef.current?.addConnectedNode({
+          sourceNodeId: sourceNode.id,
+          nodeType: targetType,
+          laneId: targetLaneOrder,
+          label,
+        });
+        if (!graphModel) {
+          return;
+        }
+
+        applyGraphModel(graphModel);
+        const newNode = graphModel.nodes.find((node) => node.label === label) ?? graphModel.nodes[graphModel.nodes.length - 1];
+        if (!newNode) {
+          return;
+        }
+        setFocusedNodeId(newNode.id);
+        setConnectingSourceNodeId(null);
+        skipBlurSaveRef.current = false;
+        cancelEditRef.current = false;
+        setEditingNodeId(newNode.id);
+        setDraftLabel(newNode.label);
+        setOriginalLabel(newNode.label);
+      })();
     },
-    [lanes, nodes],
+    [applyGraphModel, lanes, nodes],
   );
 
   const deleteNode = useCallback(
     (nodeId: string) => {
       const predecessorNodeId = edges.find((edge) => edge.targetId === nodeId)?.sourceId ?? null;
 
-      setNodes((currentNodes) => currentNodes.filter((node) => node.id !== nodeId));
-      setEdges((currentEdges) => currentEdges.filter((edge) => edge.sourceId !== nodeId && edge.targetId !== nodeId));
-      if (editingNodeId === nodeId) {
-        setEditingNodeId(null);
-        setDraftLabel('');
-        setOriginalLabel('');
-      }
-      if (openNodeMenuId === nodeId) {
-        setOpenNodeMenuId(null);
-      }
-      if (connectingSourceNodeId === nodeId) {
-        setConnectingSourceNodeId(null);
-      }
-      if (focusedNodeId === nodeId) {
-        setFocusedNodeId(predecessorNodeId);
-      }
+      void (async () => {
+        const graphModel = await modelRef.current?.deleteNode(nodeId);
+        if (graphModel) {
+          applyGraphModel(graphModel);
+        }
+        if (editingNodeId === nodeId) {
+          setEditingNodeId(null);
+          setDraftLabel('');
+          setOriginalLabel('');
+        }
+        if (openNodeMenuId === nodeId) {
+          setOpenNodeMenuId(null);
+        }
+        if (connectingSourceNodeId === nodeId) {
+          setConnectingSourceNodeId(null);
+        }
+        if (focusedNodeId === nodeId) {
+          setFocusedNodeId(predecessorNodeId);
+        }
+      })();
     },
-    [connectingSourceNodeId, edges, editingNodeId, focusedNodeId, openNodeMenuId],
+    [applyGraphModel, connectingSourceNodeId, edges, editingNodeId, focusedNodeId, openNodeMenuId],
   );
 
-  const setNodeType = useCallback((nodeId: string, type: NodeType) => {
-    setNodes((currentNodes) => currentNodes.map((node) => (node.id === nodeId ? { ...node, type } : node)));
-    setOpenNodeMenuId(null);
-  }, []);
+  const setNodeType = useCallback(
+    (nodeId: string, type: NodeType) => {
+      void (async () => {
+        const graphModel = await modelRef.current?.setNodeType(nodeId, type);
+        if (graphModel) {
+          applyGraphModel(graphModel);
+        }
+        setOpenNodeMenuId(null);
+      })();
+    },
+    [applyGraphModel],
+  );
 
   const startEditingNode = useCallback((node: GraphNode) => {
     skipBlurSaveRef.current = false;
@@ -336,21 +391,25 @@ export function useGraphModel() {
       return;
     }
 
+    const nodeId = editingNodeId;
     const nextLabel = draftLabel.trim() || 'Untitled';
-    setNodes((currentNodes) =>
-      currentNodes.map((node) => (node.id === editingNodeId ? { ...node, label: nextLabel } : node)),
-    );
-    cancelEditRef.current = false;
-    setEditingNodeId(null);
-    setDraftLabel('');
-    setOriginalLabel('');
-  }, [draftLabel, editingNodeId]);
+    void (async () => {
+      const graphModel = await modelRef.current?.renameNode(nodeId, nextLabel);
+      if (graphModel) {
+        applyGraphModel(graphModel);
+      }
+      cancelEditRef.current = false;
+      setEditingNodeId(null);
+      setDraftLabel('');
+      setOriginalLabel('');
+    })();
+  }, [applyGraphModel, draftLabel, editingNodeId]);
 
   const cancelEditingNode = useCallback(() => {
     cancelEditRef.current = true;
     if (editingNodeId) {
       setNodes((currentNodes) =>
-        currentNodes.map((node) => (node.id === editingNodeId ? { ...node, label: originalLabel } : node)),
+        currentNodes.map((node) => (node.id === editingNodeId ? {...node, label: originalLabel} : node)),
       );
     }
     setEditingNodeId(null);
@@ -365,7 +424,7 @@ export function useGraphModel() {
       return;
     }
 
-    if (document.activeElement === document.body) {
+    if (typeof document !== 'undefined' && document.activeElement === document.body) {
       cancelEditingNode();
       return;
     }
@@ -379,7 +438,7 @@ export function useGraphModel() {
   }, [cancelEditingNode]);
 
   useEffect(() => {
-    if (!editingNodeId) {
+    if (!editingNodeId || typeof document === 'undefined') {
       return;
     }
 
@@ -392,8 +451,8 @@ export function useGraphModel() {
       saveEditingNode();
     };
 
-    document.addEventListener('pointerdown', saveWhenClickingOutsideTextBox, { capture: true });
-    return () => document.removeEventListener('pointerdown', saveWhenClickingOutsideTextBox, { capture: true });
+    document.addEventListener('pointerdown', saveWhenClickingOutsideTextBox, {capture: true});
+    return () => document.removeEventListener('pointerdown', saveWhenClickingOutsideTextBox, {capture: true});
   }, [editingNodeId, saveEditingNode]);
 
   return {

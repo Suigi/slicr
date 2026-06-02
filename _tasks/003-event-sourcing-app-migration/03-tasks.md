@@ -149,7 +149,7 @@ Add an IndexedDB-backed store implementation to `packages/event-sourcing` that s
 
 ## Task 7: Replace slicr-dcb persistent state with event-sourced hook
 ### Status
-[created]
+[done]
 
 ### Description
 Replace snapshot/localStorage persistence in `useGraphModel` with an event-sourced hook/service that appends domain events, re-projects the store, adapts to renderer inputs, and preserves the existing interaction API where practical.

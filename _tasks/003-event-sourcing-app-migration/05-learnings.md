@@ -8,3 +8,4 @@
 - Legacy snapshot import should derive domain lane numbers from each node's `lane-N` id; standalone legacy lanes intentionally do not produce events.
 - IndexedDB store tests should run in Vitest browser mode with `@vitest/browser-playwright`'s provider factory; keep `*.browser.test.ts` out of the default Node Vitest run.
 - Package production source should avoid `.ts` import suffixes because downstream workspace typechecks may not enable `allowImportingTsExtensions`.
+- The event-sourced hook should leave `slicr-dcb.lastOkGraphModel.v1` as a diagnostic/recovery helper only; normal graph mutations must persist domain events and must not write the legacy snapshot key.
