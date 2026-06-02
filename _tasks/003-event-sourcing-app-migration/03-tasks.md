@@ -87,7 +87,7 @@ Update all slicr-dcb domain event tags that mention node ids so they consistentl
 
 ## Task 4: Add domain-to-renderer graph adapter
 ### Status
-[created]
+[done]
 
 ### Description
 Add a mapper from domain `ModelGraph` to the existing renderer input shape used by `App.tsx` and layout-lib.
