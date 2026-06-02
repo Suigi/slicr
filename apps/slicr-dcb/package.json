@@ -9,6 +9,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "preview": "vite preview",
     "test": "vitest run",
+    "watch": "vitest run --watch --reporter=default --reporter=vitest-lib/cliReporter",
     "test:watch": "vitest",
     "lint": "eslint ."
   },
