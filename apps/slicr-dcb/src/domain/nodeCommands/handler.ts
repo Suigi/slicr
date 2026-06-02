@@ -1,6 +1,6 @@
-import {Handler, Query, Store} from '@slicr/event-sourcing';
+import {Handler, Query, Store, type Event} from '@slicr/event-sourcing';
 import {NodeType} from '../../graph/types';
-import {DomainEvent, Events} from '../events';
+import {DomainEvent, Events, NodesConnected, NodesDisconnected} from '../events';
 
 export type AddNodeCommand = { nodeType: NodeType, laneId: number, label: string };
 export type RenameNodeCommand = { nodeId: string, newName: string };
@@ -24,19 +24,6 @@ type ConnectionDecisionModel = {
 
 function nodeExists(events: readonly DomainEvent[]) {
   return events.some(event => event.type === 'NodeAdded') && !events.some(event => event.type === 'NodeRemoved');
-}
-
-function connectionExists(events: readonly DomainEvent[]) {
-  let connected = false;
-  for (const event of events) {
-    if (event.type === 'NodesConnected') {
-      connected = true;
-    }
-    if (event.type === 'NodesDisconnected') {
-      connected = false;
-    }
-  }
-  return connected;
 }
 
 function assertNodeExists(nodeId: string, exists: boolean) {
@@ -108,6 +95,29 @@ export const removeNodeHandler =
       }
     });
 
+function connectionExists(events: readonly DomainEvent[], sourceNodeId: string, targetNodeId: string) {
+  const isMatch = (event: (Event<'NodesConnected', NodesConnected>|Event<'NodesDisconnected', NodesDisconnected>)) => {
+    return event.payload.sourceNodeId === sourceNodeId && event.payload.targetNodeId === targetNodeId;
+  };
+
+  let connected = false;
+  for (const event of events) {
+    switch (event.type) {
+      case 'NodesConnected':
+        if (isMatch(event)) {
+          connected = true;
+        }
+        break;
+      case 'NodesDisconnected':
+        if (isMatch(event)) {
+          connected = false;
+        }
+        break;
+    }
+  }
+  return connected;
+}
+
 export const connectNodesHandler =
   (store: Store<DomainEvent>) =>
     Handler.create<ConnectNodesCommand, DomainEvent, ConnectionDecisionModel>({
@@ -115,15 +125,11 @@ export const connectNodesHandler =
       query: command => Query.anyOf(
         {tags: [`nodeId:${command.sourceNodeId}`]},
         {tags: [`nodeId:${command.targetNodeId}`]},
-        {tags: [`sourceNodeId:${command.sourceNodeId}`, `targetNodeId:${command.targetNodeId}`]},
       ),
       project: (events, command) => ({
         sourceExists: nodeExists(events.filter(event => event.tags.includes(`nodeId:${command.sourceNodeId}`))),
         targetExists: nodeExists(events.filter(event => event.tags.includes(`nodeId:${command.targetNodeId}`))),
-        connectionExists: connectionExists(events.filter(event =>
-          event.tags.includes(`sourceNodeId:${command.sourceNodeId}`) &&
-          event.tags.includes(`targetNodeId:${command.targetNodeId}`),
-        )),
+        connectionExists: connectionExists(events, command.sourceNodeId, command.targetNodeId),
       }),
       decide: (command, model) => {
         assertNodeExists(command.sourceNodeId, model.sourceExists);
@@ -142,15 +148,12 @@ export const disconnectNodesHandler =
       query: command => Query.anyOf(
         {tags: [`nodeId:${command.sourceNodeId}`]},
         {tags: [`nodeId:${command.targetNodeId}`]},
-        {tags: [`sourceNodeId:${command.sourceNodeId}`, `targetNodeId:${command.targetNodeId}`]},
+        {tags: [`connection:${command.sourceNodeId}->${command.targetNodeId}`]},
       ),
       project: (events, command) => ({
         sourceExists: nodeExists(events.filter(event => event.tags.includes(`nodeId:${command.sourceNodeId}`))),
         targetExists: nodeExists(events.filter(event => event.tags.includes(`nodeId:${command.targetNodeId}`))),
-        connectionExists: connectionExists(events.filter(event =>
-          event.tags.includes(`sourceNodeId:${command.sourceNodeId}`) &&
-          event.tags.includes(`targetNodeId:${command.targetNodeId}`),
-        )),
+        connectionExists: connectionExists(events, command.sourceNodeId, command.targetNodeId),
       }),
       decide: (command, model) => {
         assertNodeExists(command.sourceNodeId, model.sourceExists);

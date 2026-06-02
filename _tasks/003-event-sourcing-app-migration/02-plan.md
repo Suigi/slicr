@@ -50,7 +50,7 @@ The existing `DomainEvent` union remains the app-level event contract and should
 - `NodesConnected`: `{ sourceNodeId, targetNodeId, role }`
 - `NodesDisconnected`: `{ sourceNodeId, targetNodeId }`
 
-Event factory helpers should exist for all event types. Tags should support the command queries needed by the handlers, including node ids and connection endpoints.
+Event factory helpers should exist for all event types. Tags should support the command queries needed by the handlers, including node ids and connection endpoints. Any tag that identifies a node must use the exact `nodeId:<id>` pattern; for example, `NodesConnected` should tag both `nodeId:<sourceNodeId>` and `nodeId:<targetNodeId>`.
 
 ### Domain graph projection
 

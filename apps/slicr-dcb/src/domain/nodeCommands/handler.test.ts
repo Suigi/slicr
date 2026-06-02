@@ -171,7 +171,7 @@ describe('commands project state', () => {
       .thenEmits();
   });
 
-  it('duplicate active connections emit no event', () => {
+  it('duplicate active connections found through normalized node tags emit no event', () => {
     const sourceNodeId = uuid();
     const targetNodeId = uuid();
 

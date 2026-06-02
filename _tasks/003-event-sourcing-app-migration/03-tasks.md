@@ -22,7 +22,7 @@ Add project-wide learnings to the documents in `./knowledge` if applicable.
 
 ## Task 1: Complete graph domain events and commands
 ### Status
-[created]
+[done]
 
 ### Description
 Complete the slicr-dcb event factories and command handlers for all persistent graph mutations currently supported by `useGraphModel`.
@@ -44,7 +44,7 @@ Complete the slicr-dcb event factories and command handlers for all persistent g
 
 ## Task 2: Complete graph projection
 ### Status
-[created]
+[done]
 
 ### Description
 Update `GraphProjector` so replaying the full domain event stream produces a complete, deterministic `ModelGraph` for all event types.
@@ -64,7 +64,28 @@ Update `GraphProjector` so replaying the full domain event stream produces a com
 * Do not add UI-only fields such as dimensions to `ModelGraph`.
 * Prefer projector tests that replay realistic event sequences instead of mutating projection internals.
 
-## Task 3: Add domain-to-renderer graph adapter
+## Task 3: Normalize node id event tags and queries
+### Status
+[done]
+
+### Description
+Update all slicr-dcb domain event tags that mention node ids so they consistently use the `nodeId:<id>` naming pattern, and update every command/query that depends on those tags.
+
+### Acceptance Criteria
+* Every domain event tag that identifies a node uses the exact `nodeId:<id>` pattern.
+* `NodesConnected` includes both `nodeId:<sourceNodeId>` and `nodeId:<targetNodeId>` tags.
+* `NodesDisconnected` and all single-node events use `nodeId:<id>` tags for their node references.
+* Command handlers and store queries that look up events by node id use the normalized tag names.
+* Tests cover the updated tag names and at least one query path that relies on the normalized node id tags.
+
+### Dependencies
+* Task 1
+
+### Notes
+* Keep any non-node tags, such as connection-role or connection-endpoint tags, unchanged unless they also encode a node id and need this normalization.
+* This task intentionally updates naming only; it should not change command validation or projection semantics.
+
+## Task 4: Add domain-to-renderer graph adapter
 ### Status
 [created]
 
@@ -83,7 +104,7 @@ Add a mapper from domain `ModelGraph` to the existing renderer input shape used 
 ### Notes
 * Keep the existing renderer/layout components unchanged unless a type mismatch requires a minimal adjustment.
 
-## Task 4: Add import and export conversion utilities
+## Task 5: Add import and export conversion utilities
 ### Status
 [created]
 
@@ -100,11 +121,12 @@ Create utilities for exporting domain events and importing either exported domai
 ### Dependencies
 * Task 1
 * Task 3
+* Task 4
 
 ### Notes
 * Keep conversion logic independent from clipboard APIs so it can be unit tested.
 
-## Task 5: Add IndexedDB event store
+## Task 6: Add IndexedDB event store
 ### Status
 [created]
 
@@ -125,7 +147,7 @@ Add an IndexedDB-backed store implementation to `packages/event-sourcing` that s
 * Keep the existing synchronous `Store<E>` contract intact where possible; if IndexedDB forces async APIs, introduce a small explicit async store contract rather than weakening types silently.
 * Tests may use an injectable IndexedDB-like dependency if Vitest does not provide native IndexedDB.
 
-## Task 6: Replace slicr-dcb persistent state with event-sourced hook
+## Task 7: Replace slicr-dcb persistent state with event-sourced hook
 ### Status
 [created]
 
@@ -143,13 +165,14 @@ Replace snapshot/localStorage persistence in `useGraphModel` with an event-sourc
 * Task 1
 * Task 2
 * Task 3
-* Task 5
+* Task 4
+* Task 6
 
 ### Notes
 * If async store loading requires a loading state, keep it minimal and local to the hook/app boundary.
 * Preserve current user interactions unless they conflict with the event-sourced model.
 
-## Task 7: Wire event-based import and export in the app
+## Task 8: Wire event-based import and export in the app
 ### Status
 [created]
 
@@ -164,13 +187,13 @@ Update `App.tsx` clipboard actions so export writes events and import clears/rep
 * Failed import leaves the current graph/event store unchanged and shows the existing alert-style feedback or an equivalent clear error.
 
 ### Dependencies
-* Task 4
-* Task 6
+* Task 5
+* Task 7
 
 ### Notes
 * Do not implement automatic migration from localStorage snapshots in this task.
 
-## Task 8: Add migration regression coverage
+## Task 9: Add migration regression coverage
 ### Status
 [created]
 
@@ -185,8 +208,8 @@ Add final regression coverage across the app boundary for the event-sourced migr
 * Existing graph utility tests still pass.
 
 ### Dependencies
-* Task 6
 * Task 7
+* Task 8
 
 ### Notes
 * Keep regression tests focused on behavior that could break during the migration rather than duplicating every domain unit test.

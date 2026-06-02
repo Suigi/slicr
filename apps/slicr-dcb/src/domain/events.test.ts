@@ -26,12 +26,12 @@ describe('Events', () => {
     expect(Events.nodesConnected('node-1', 'node-2', 'back-reference')).toEqual({
       type: 'NodesConnected',
       payload: { sourceNodeId: 'node-1', targetNodeId: 'node-2', role: 'back-reference' },
-      tags: ['sourceNodeId:node-1', 'targetNodeId:node-2', 'role:back-reference'],
+      tags: ['nodeId:node-1', 'nodeId:node-2', 'role:back-reference'],
     });
     expect(Events.nodesDisconnected('node-1', 'node-2')).toEqual({
       type: 'NodesDisconnected',
       payload: { sourceNodeId: 'node-1', targetNodeId: 'node-2' },
-      tags: ['sourceNodeId:node-1', 'targetNodeId:node-2'],
+      tags: ['nodeId:node-1', 'nodeId:node-2', 'connection:node-1->node-2'],
     });
   });
 });

@@ -75,14 +75,14 @@ export const Events = {
     return {
       type: 'NodesConnected',
       payload: {sourceNodeId, targetNodeId, role: defaultedRole},
-      tags: [`sourceNodeId:${sourceNodeId}`, `targetNodeId:${targetNodeId}`, `role:${defaultedRole}`]
+      tags: [`nodeId:${sourceNodeId}`, `nodeId:${targetNodeId}`, `role:${defaultedRole}`]
     };
   },
   nodesDisconnected(sourceNodeId: NodeId, targetNodeId: NodeId): Event<'NodesDisconnected', NodesDisconnected> {
     return {
       type: 'NodesDisconnected',
       payload: {sourceNodeId, targetNodeId},
-      tags: [`sourceNodeId:${sourceNodeId}`, `targetNodeId:${targetNodeId}`]
+      tags: [`nodeId:${sourceNodeId}`, `nodeId:${targetNodeId}`, `connection:${sourceNodeId}->${targetNodeId}`]
     };
   }
 };
