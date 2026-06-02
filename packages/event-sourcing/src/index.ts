@@ -1,4 +1,5 @@
 export * from './handler'
+export * from './indexedDBEventStore'
 export * from './memoryStore/memoryStore'
 export * from './query'
 export * from './types'

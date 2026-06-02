@@ -128,7 +128,7 @@ Create utilities for exporting domain events and importing either exported domai
 
 ## Task 6: Add IndexedDB event store
 ### Status
-[created]
+[done]
 
 ### Description
 Add an IndexedDB-backed store implementation to `packages/event-sourcing` that supports the existing `Store<E>` query/append behavior plus the clear/read-all/replace operations needed by slicr-dcb import/export.
