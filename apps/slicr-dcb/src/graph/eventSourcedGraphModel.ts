@@ -15,6 +15,7 @@ export type AsyncGraphEventStore = {
 export type EventSourcedGraphModel = {
   load(): Promise<RendererGraph>;
   getSnapshot(): RendererGraph;
+  readEvents(): Promise<DomainEvent[]>;
   addNewSlice(): Promise<RendererGraph>;
   addConnection(sourceNodeId: string, targetNodeId: string, role?: 'flow' | 'back-reference'): Promise<RendererGraph>;
   deleteConnection(edgeId: string): Promise<RendererGraph>;
@@ -50,6 +51,9 @@ export function createEventSourcedGraphModel(config: {store: AsyncGraphEventStor
     },
     getSnapshot() {
       return snapshot;
+    },
+    async readEvents() {
+      return config.store.readAll();
     },
     async addNewSlice() {
       const newNodeNumber = Math.max(0, ...snapshot.nodes.map((node) => Number(node.id.replace('node-', '')) || 0)) + 1;

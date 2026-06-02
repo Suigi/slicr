@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import {describe, expect, it} from 'vitest';
 
-import { App } from './App';
-import { getKeyboardSuccessorNodeType, getSuccessorNodeType } from './graph/graphUtils';
-import { isStoredGraphModel } from './graph/useGraphModel';
+import {App} from './App';
+import {getKeyboardSuccessorNodeType, getSuccessorNodeType} from './graph/graphUtils';
+import {isStoredGraphModel} from './graph/useGraphModel';
 
 describe('App', () => {
   it('is defined', () => {

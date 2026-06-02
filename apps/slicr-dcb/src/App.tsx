@@ -12,7 +12,8 @@ import {
   getKeyboardSuccessorDirection,
   getKeyboardSuccessorNodeType,
 } from './graph/graphUtils';
-import { isStoredGraphModel, storeLastOkGraphModel, useGraphModel } from './graph/useGraphModel';
+import {parseImportEvents, serializeDomainEvents} from './graph/importExport';
+import { storeLastOkGraphModel, useGraphModel } from './graph/useGraphModel';
 import type { RenderNode } from './graph/types';
 
 const dummyProjects: Project[] = [
@@ -47,7 +48,8 @@ export function App() {
     setFocusedNodeId,
     setDraftLabel,
     setOpenNodeMenuId,
-    replaceGraphModel,
+    readGraphEvents,
+    replaceGraphEvents,
     revertToLastOkGraphModel,
     addNewSlice,
     startConnectingFromNode,
@@ -115,18 +117,18 @@ export function App() {
     : undefined;
 
   const copyCurrentGraphModel = async () => {
-    await navigator.clipboard.writeText(JSON.stringify({ nodes, edges, lanes }, null, 2));
+    await navigator.clipboard.writeText(serializeDomainEvents(await readGraphEvents()));
   };
 
   const importGraphModelFromClipboard = async () => {
     const clipboardText = await navigator.clipboard.readText();
-    const parsedModel = JSON.parse(clipboardText) as unknown;
-    if (!isStoredGraphModel(parsedModel)) {
-      window.alert('Clipboard does not contain a valid graph model.');
+    const importResult = parseImportEvents(clipboardText);
+    if (!importResult.ok) {
+      window.alert(importResult.error);
       return;
     }
 
-    replaceGraphModel(parsedModel);
+    await replaceGraphEvents(importResult.events);
   };
 
   useEffect(() => {

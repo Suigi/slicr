@@ -225,6 +225,22 @@ export function useGraphModel() {
     [applyGraphModel, resetTransientState],
   );
 
+  const readGraphEvents = useCallback(async () => modelRef.current?.readEvents() ?? [], []);
+
+  const replaceGraphEvents = useCallback(
+    async (events: readonly DomainEvent[]) => {
+      const graphModel = await modelRef.current?.replace(events);
+      if (!graphModel) {
+        return;
+      }
+
+      applyGraphModel(graphModel);
+      setFocusedNodeId(graphModel.nodes[0]?.id ?? null);
+      resetTransientState();
+    },
+    [applyGraphModel, resetTransientState],
+  );
+
   const revertToLastOkGraphModel = useCallback(() => {
     replaceGraphModel(readLastOkGraphModel());
   }, [replaceGraphModel]);
@@ -468,6 +484,8 @@ export function useGraphModel() {
     setDraftLabel,
     setOpenNodeMenuId,
     replaceGraphModel,
+    readGraphEvents,
+    replaceGraphEvents,
     revertToLastOkGraphModel,
     addNewSlice,
     startConnectingFromNode,

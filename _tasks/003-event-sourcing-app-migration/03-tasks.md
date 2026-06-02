@@ -174,7 +174,7 @@ Replace snapshot/localStorage persistence in `useGraphModel` with an event-sourc
 
 ## Task 8: Wire event-based import and export in the app
 ### Status
-[created]
+[done]
 
 ### Description
 Update `App.tsx` clipboard actions so export writes events and import clears/replaces IndexedDB events from either exported events or legacy snapshots.
