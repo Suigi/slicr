@@ -20,7 +20,91 @@ Agents must update the task file as they work: set a task to `[started]` immedia
 Add feature learnings to [05-learnings.md](./05-learnings.md).
 Add project-wide learnings to the documents in `./knowledge` if applicable.
 
-## Task 1: Add IndexedDB event store
+## Task 1: Complete graph domain events and commands
+### Status
+[created]
+
+### Description
+Complete the slicr-dcb event factories and command handlers for all persistent graph mutations currently supported by `useGraphModel`.
+
+### Acceptance Criteria
+* Event factories exist for `NodeRemoved`, `NodeTypeChanged`, and `NodesDisconnected` in addition to the existing factories.
+* Every event factory method in `apps/slicr-dcb/src/domain/events.ts` has direct test coverage.
+* Command handlers cover add node, add connected node, rename node, change node type, connect nodes, disconnect nodes, and remove node.
+* Command tests verify unknown-node validation for commands that require existing nodes.
+* Command tests verify self-connections and duplicate connections do not produce invalid persistent events.
+* Add-connected-node emits both `NodeAdded` and `NodesConnected` with the expected lane, type, label, and role.
+
+### Dependencies
+* None
+
+### Notes
+* Preserve transient UI concerns outside the domain command layer.
+* It is acceptable for command handler names and command shapes to change if tests document the intended public contract.
+
+## Task 2: Complete graph projection
+### Status
+[created]
+
+### Description
+Update `GraphProjector` so replaying the full domain event stream produces a complete, deterministic `ModelGraph` for all event types.
+
+### Acceptance Criteria
+* `NodeRemoved` removes the node and all connected edges from the projected graph.
+* `NodeTypeChanged` updates the projected node type.
+* `NodesDisconnected` removes the matching projected edge.
+* Lanes are derived from remaining node lane ids and sorted deterministically.
+* Projecting an empty store returns empty nodes, edges, and lanes.
+* Malformed events that reference missing nodes do not crash projection.
+
+### Dependencies
+* Task 1
+
+### Notes
+* Do not add UI-only fields such as dimensions to `ModelGraph`.
+* Prefer projector tests that replay realistic event sequences instead of mutating projection internals.
+
+## Task 3: Add domain-to-renderer graph adapter
+### Status
+[created]
+
+### Description
+Add a mapper from domain `ModelGraph` to the existing renderer input shape used by `App.tsx` and layout-lib.
+
+### Acceptance Criteria
+* Domain nodes map to `GraphNode` with stable ids, labels, node types, string lane ids, and default dimensions.
+* Domain edges map to `EdgeInput` with deterministic ids and preserved roles.
+* Domain lanes map to `LaneInput` without changing renderer expectations.
+* Adapter tests cover empty graph, multiple lanes, and back-reference edges.
+
+### Dependencies
+* Task 2
+
+### Notes
+* Keep the existing renderer/layout components unchanged unless a type mismatch requires a minimal adjustment.
+
+## Task 4: Add import and export conversion utilities
+### Status
+[created]
+
+### Description
+Create utilities for exporting domain events and importing either exported domain events or legacy `{ nodes, edges, lanes }` snapshots into replacement event streams.
+
+### Acceptance Criteria
+* Export serialization returns an ordered JSON array of domain events.
+* Import recognizes and validates an exported domain event array.
+* Import recognizes a legacy snapshot and converts nodes and edges into equivalent domain events.
+* Legacy standalone lanes with no nodes are intentionally ignored.
+* Invalid import input produces a clear failure result without mutating the store.
+
+### Dependencies
+* Task 1
+* Task 3
+
+### Notes
+* Keep conversion logic independent from clipboard APIs so it can be unit tested.
+
+## Task 5: Add IndexedDB event store
 ### Status
 [created]
 
@@ -41,89 +125,6 @@ Add an IndexedDB-backed store implementation to `packages/event-sourcing` that s
 * Keep the existing synchronous `Store<E>` contract intact where possible; if IndexedDB forces async APIs, introduce a small explicit async store contract rather than weakening types silently.
 * Tests may use an injectable IndexedDB-like dependency if Vitest does not provide native IndexedDB.
 
-## Task 2: Complete graph domain events and commands
-### Status
-[created]
-
-### Description
-Complete the slicr-dcb event factories and command handlers for all persistent graph mutations currently supported by `useGraphModel`.
-
-### Acceptance Criteria
-* Event factories exist for `NodeRemoved`, `NodeTypeChanged`, and `NodesDisconnected` in addition to the existing factories.
-* Command handlers cover add node, add connected node, rename node, change node type, connect nodes, disconnect nodes, and remove node.
-* Command tests verify unknown-node validation for commands that require existing nodes.
-* Command tests verify self-connections and duplicate connections do not produce invalid persistent events.
-* Add-connected-node emits both `NodeAdded` and `NodesConnected` with the expected lane, type, label, and role.
-
-### Dependencies
-* None
-
-### Notes
-* Preserve transient UI concerns outside the domain command layer.
-* It is acceptable for command handler names and command shapes to change if tests document the intended public contract.
-
-## Task 3: Complete graph projection
-### Status
-[created]
-
-### Description
-Update `GraphProjector` so replaying the full domain event stream produces a complete, deterministic `ModelGraph` for all event types.
-
-### Acceptance Criteria
-* `NodeRemoved` removes the node and all connected edges from the projected graph.
-* `NodeTypeChanged` updates the projected node type.
-* `NodesDisconnected` removes the matching projected edge.
-* Lanes are derived from remaining node lane ids and sorted deterministically.
-* Projecting an empty store returns empty nodes, edges, and lanes.
-* Malformed events that reference missing nodes do not crash projection.
-
-### Dependencies
-* Task 2
-
-### Notes
-* Do not add UI-only fields such as dimensions to `ModelGraph`.
-* Prefer projector tests that replay realistic event sequences instead of mutating projection internals.
-
-## Task 4: Add domain-to-renderer graph adapter
-### Status
-[created]
-
-### Description
-Add a mapper from domain `ModelGraph` to the existing renderer input shape used by `App.tsx` and layout-lib.
-
-### Acceptance Criteria
-* Domain nodes map to `GraphNode` with stable ids, labels, node types, string lane ids, and default dimensions.
-* Domain edges map to `EdgeInput` with deterministic ids and preserved roles.
-* Domain lanes map to `LaneInput` without changing renderer expectations.
-* Adapter tests cover empty graph, multiple lanes, and back-reference edges.
-
-### Dependencies
-* Task 3
-
-### Notes
-* Keep the existing renderer/layout components unchanged unless a type mismatch requires a minimal adjustment.
-
-## Task 5: Add import and export conversion utilities
-### Status
-[created]
-
-### Description
-Create utilities for exporting domain events and importing either exported domain events or legacy `{ nodes, edges, lanes }` snapshots into replacement event streams.
-
-### Acceptance Criteria
-* Export serialization returns an ordered JSON array of domain events.
-* Import recognizes and validates an exported domain event array.
-* Import recognizes a legacy snapshot and converts nodes and edges into equivalent domain events.
-* Legacy standalone lanes with no nodes are intentionally ignored.
-* Invalid import input produces a clear failure result without mutating the store.
-
-### Dependencies
-* Task 2
-* Task 4
-
-### Notes
-* Keep conversion logic independent from clipboard APIs so it can be unit tested.
-
 ## Task 6: Replace slicr-dcb persistent state with event-sourced hook
 ### Status
 [created]
@@ -142,7 +143,7 @@ Replace snapshot/localStorage persistence in `useGraphModel` with an event-sourc
 * Task 1
 * Task 2
 * Task 3
-* Task 4
+* Task 5
 
 ### Notes
 * If async store loading requires a loading state, keep it minimal and local to the hook/app boundary.
@@ -163,7 +164,7 @@ Update `App.tsx` clipboard actions so export writes events and import clears/rep
 * Failed import leaves the current graph/event store unchanged and shows the existing alert-style feedback or an equivalent clear error.
 
 ### Dependencies
-* Task 5
+* Task 4
 * Task 6
 
 ### Notes
