@@ -99,6 +99,7 @@ export function App() {
     ? layoutResult.result.edges
         .map((edge) => ({
           id: edge.id,
+          role: edge.role,
           points: getArrowRenderPoints(edge.points),
           isConnectedToFocusedNode: edge.sourceId === focusedNodeId || edge.targetId === focusedNodeId,
         }))
@@ -107,6 +108,7 @@ export function App() {
             edge,
           ): edge is {
             id: string;
+            role: 'flow' | 'back-reference' | undefined;
             points: NonNullable<ReturnType<typeof getArrowRenderPoints>>;
             isConnectedToFocusedNode: boolean;
           } => Boolean(edge.points),

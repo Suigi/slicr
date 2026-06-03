@@ -3,6 +3,35 @@ import {compactLayout} from './compactLayout';
 import type {LayoutRequest} from './types';
 
 describe('compactLayout acceptance', () => {
+  it('preserves edge roles on layout result edges', () => {
+    const request: LayoutRequest = {
+      nodes: [
+        {id: 'command', laneId: 'lane-0', width: 120, height: 70},
+        {id: 'event', laneId: 'lane-1', width: 120, height: 70},
+      ],
+      edges: [
+        {id: 'edge-command-event', sourceId: 'command', targetId: 'event', role: 'back-reference'},
+      ],
+      lanes: [
+        {id: 'lane-0', order: 0},
+        {id: 'lane-1', order: 1},
+      ],
+      defaults: {nodeWidth: 120, nodeHeight: 48},
+    };
+
+    const result = compactLayout(request);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+
+    expect(result.result.edges[0]).toMatchObject({
+      id: 'edge-command-event',
+      role: 'back-reference',
+    });
+  });
+
   it('lays out 8 nodes across lane-0, lane-1, lane-2 (original)', () => {
     const request: LayoutRequest = {
       nodes: [
@@ -832,6 +861,7 @@ describe('compactLayout acceptance', () => {
         id: 'edge-4',
         sourceId: 'node-4',
         targetId: 'node-2',
+        role: 'back-reference',
         sourceAnchor: {x: 260, y: 280, side: 'top', ordinal: 0},
         targetAnchor: {x: 90, y: 188, side: 'bottom', ordinal: 0},
         points: [
@@ -858,6 +888,7 @@ describe('compactLayout acceptance', () => {
         id: 'edge-6',
         sourceId: 'node-5',
         targetId: 'node-2',
+        role: 'back-reference',
         sourceAnchor: {x: 410, y: 280, side: 'top', ordinal: 0},
         targetAnchor: {x: 100, y: 188, side: 'bottom', ordinal: 0},
         points: [
@@ -1074,6 +1105,7 @@ describe('compactLayout acceptance', () => {
         id: 'edge-node-3-node-7',
         sourceId: 'node-3',
         targetId: 'node-7',
+        role: 'back-reference',
         sourceAnchor: {x: 330, y: 372, side: 'top', ordinal: 0},
         targetAnchor: {x: 100, y: 272, side: 'bottom', ordinal: 0},
         points: [
@@ -1087,6 +1119,7 @@ describe('compactLayout acceptance', () => {
         id: 'edge-node-8-node-7',
         sourceId: 'node-8',
         targetId: 'node-7',
+        role: 'back-reference',
         sourceAnchor: {x: 540, y: 372, side: 'top', ordinal: 0},
         targetAnchor: {x: 110, y: 272, side: 'bottom', ordinal: 0},
         points: [
@@ -1265,6 +1298,7 @@ describe('compactLayout acceptance', () => {
         id: "edge-node-3-node-7",
         sourceId: "node-3",
         targetId: "node-7",
+        role: "back-reference",
         sourceAnchor: { x: 560, y: 372, side: "top", ordinal: 0 },
         targetAnchor: { x: 340, y: 272, side: "bottom", ordinal: 0 },
         points: [
@@ -1278,6 +1312,7 @@ describe('compactLayout acceptance', () => {
         id: "edge-node-8-node-7",
         sourceId: "node-8",
         targetId: "node-7",
+        role: "back-reference",
         sourceAnchor: { x: 770, y: 372, side: "top", ordinal: 0 },
         targetAnchor: { x: 350, y: 272, side: "bottom", ordinal: 0 },
         points: [

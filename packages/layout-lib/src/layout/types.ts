@@ -96,6 +96,7 @@ export interface EdgeLayout {
     id: string;
     sourceId: string;
     targetId: string;
+    role?: EdgeInput["role"];
     sourceAnchor: AnchorPoint;
     targetAnchor: AnchorPoint;
     points: Point[];

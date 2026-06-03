@@ -671,6 +671,7 @@ export const compactLayout: LayoutApi = (request) => {
       id: edge.id,
         sourceId: edge.sourceId,
         targetId: edge.targetId,
+        ...(edge.role === "back-reference" ? { role: edge.role } : {}),
         sourceAnchor: normalizeCompactAnchorOrdinal(sourceAnchor),
         targetAnchor: normalizeCompactAnchorOrdinal(targetAnchor),
         points,

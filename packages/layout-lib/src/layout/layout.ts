@@ -573,6 +573,7 @@ export const layout: LayoutApi = (request) => {
       id: edge.id,
         sourceId: edge.sourceId,
         targetId: edge.targetId,
+        ...(edge.role === "back-reference" ? { role: edge.role } : {}),
         sourceAnchor,
         targetAnchor,
         points: routeOrthogonalEdge(
