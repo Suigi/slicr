@@ -1,0 +1,10 @@
+root = true
+
+[*]
+indent_style = space
+indent_size = 2
+tab_width = 2
+
+[*.{js,jsx,ts,tsx}]
+ij_javascript_use_trailing_comma = true
+ij_typescript_use_trailing_comma = true

@@ -4,3 +4,5 @@ coverage/
 *.tsbuildinfo
 test-list.md
 /.direnv
+.stryker-tmp/
+**/reports/mutation/

@@ -17,6 +17,8 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
+    "test:mutation": "stryker run",
+    "test:mutation:vitest": "vitest run --config vitest.config.ts && vitest run --config vitest.browser.config.ts",
     "test:browser": "vitest run --config vitest.browser.config.ts",
     "lint": "eslint .",
     "watch": "vitest run --watch --reporter=default --reporter=vitest-lib/cliReporter"

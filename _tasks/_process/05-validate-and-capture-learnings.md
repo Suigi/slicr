@@ -25,6 +25,7 @@ Prove the completed task is stable, then record what future work should remember
 - Before closing the task, run the repo's required full validation flow for behavior changes.
 - Use `./scripts/test.sh` for both focused and full test runs.
 - Include lint, full tests, typecheck, and build whenever local repo instructions require them.
+- Run stryker mutation testing on the files affected by the task if stryker is available in the package.
 - If one command is intentionally skipped, say so explicitly in the closeout summary.
 
 ## Learning Examples
