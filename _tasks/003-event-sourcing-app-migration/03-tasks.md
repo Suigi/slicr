@@ -192,24 +192,3 @@ Update `App.tsx` clipboard actions so export writes events and import clears/rep
 
 ### Notes
 * Do not implement automatic migration from localStorage snapshots in this task.
-
-## Task 9: Add migration regression coverage
-### Status
-[created]
-
-### Description
-Add final regression coverage across the app boundary for the event-sourced migration path.
-
-### Acceptance Criteria
-* Tests cover the empty-canvas initial state.
-* Tests cover at least one full mutation path from UI/hook action to persisted event to projected rendered graph state.
-* Tests cover event export followed by import into an empty/replaced store.
-* Tests cover legacy snapshot import into the event-sourced store.
-* Existing graph utility tests still pass.
-
-### Dependencies
-* Task 7
-* Task 8
-
-### Notes
-* Keep regression tests focused on behavior that could break during the migration rather than duplicating every domain unit test.
