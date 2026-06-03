@@ -105,7 +105,7 @@ export const compactLayout: LayoutApi = (request) => {
       ),
     ]),
   );
-  let laneCursor = -laneMargin;
+  let laneCursor = laneMargin === 0 ? 0 : -laneMargin;
   const laneLayouts: LaneLayout[] = orderedLanes.map((lane) => {
     const laneHeight = (laneNodeHeightById.get(lane.id) ?? request.defaults.nodeHeight) + laneMargin * 2;
     const laneLayout = {
@@ -381,6 +381,7 @@ export const compactLayout: LayoutApi = (request) => {
   const upwardDetourPlanByEdgeId = new Map<string, UpwardDetourPlan>();
   const edgeIndexById = new Map(request.edges.map((edge, index) => [edge.id, index]));
   const sourceEdgesByKey = new Map<string, string[]>();
+  const sourceEdgeCountsByKey = new Map<string, string[]>();
   const targetEdgesByKey = new Map<string, string[]>();
 
   for (const edge of request.edges) {
@@ -395,7 +396,10 @@ export const compactLayout: LayoutApi = (request) => {
     );
     const sides = sideAssignmentForOrientation(orientation);
     sideAssignments.set(edge.id, sides);
-    addEdgeToAnchorBucket(sourceEdgesByKey, edge.sourceId, sides.source, edge.id);
+    addEdgeToAnchorBucket(sourceEdgeCountsByKey, edge.sourceId, sides.source, edge.id);
+    if (!isBackReferenceEdge(edge) || (sides.source !== "top" && sides.source !== "bottom")) {
+      addEdgeToAnchorBucket(sourceEdgesByKey, edge.sourceId, sides.source, edge.id);
+    }
     addEdgeToAnchorBucket(targetEdgesByKey, edge.targetId, sides.target, edge.id);
   }
 
@@ -434,6 +438,7 @@ export const compactLayout: LayoutApi = (request) => {
     ordinalByEdgeId: targetOrdinalByEdgeId,
     countByEdgeId: targetCountByEdgeId,
   });
+  assignSourceAnchorCounts(sourceEdgeCountsByKey, sourceCountByEdgeId);
 
   const assignedUpwardRows: Array<{ rowY: number; minX: number; maxX: number }> = [];
   const assignedDownwardRows: Array<{ rowY: number; minX: number; maxX: number; targetX: number; targetY: number }> = [];
@@ -594,6 +599,18 @@ export const compactLayout: LayoutApi = (request) => {
     });
   }
 
+  const upwardBackReferenceRows = resolveUpwardBackReferenceRows({
+    edges: request.edges,
+    sideAssignments,
+    sourceOrdinalByEdgeId,
+    targetOrdinalByEdgeId,
+    sourceCountByEdgeId,
+    targetRequestSlotByEdgeId,
+    nodeLayoutById,
+    laneOrderById,
+    nodeById,
+  });
+
   const edges: EdgeLayout[] = request.edges.map((edge) => {
     const nodeSource = nodeLayoutById.get(edge.sourceId);
     const nodeTarget = nodeLayoutById.get(edge.targetId);
@@ -620,12 +637,15 @@ export const compactLayout: LayoutApi = (request) => {
     const targetRequestSlot = targetRequestSlotByEdgeId.get(edge.id) ?? 0;
     const upwardPlan = {
       ...upwardDetourPlanByEdgeId.get(edge.id),
-      ...(orientation === "up" && sourceAnchor.side === "top" && targetAnchorBase.side === "bottom" && targetRequestSlot > 0
+      ...(upwardBackReferenceRows.has(edge.id) ? { upRowY: upwardBackReferenceRows.get(edge.id) } : {}),
+      ...(orientation === "up" && sourceAnchor.side === "top" && targetAnchorBase.side === "bottom" && targetRequestSlot > 0 && !upwardBackReferenceRows.has(edge.id)
         ? {
             upRowY:
-              sourceAnchor.y -
-              getCompactTopStubDistance(sourceAnchor, sourceCountByEdgeId.get(edge.id) ?? 1, nodeSource.height) -
-              targetRequestSlot * UPWARD_REROUTE_SPACING,
+              isBackReferenceEdge(edge) && nodeSource.height > 56
+                ? targetAnchorBase.y + EDGE_STUB + targetRequestSlot * (UPWARD_REROUTE_SPACING * 2 - UPWARD_REROUTE_ENTRY_OFFSET)
+                : sourceAnchor.y -
+                  getCompactTopStubDistance(sourceAnchor, sourceCountByEdgeId.get(edge.id) ?? 1, nodeSource.height) -
+                  targetRequestSlot * UPWARD_REROUTE_SPACING,
           }
         : {}),
     };
@@ -667,6 +687,89 @@ export const compactLayout: LayoutApi = (request) => {
     },
   };
 };
+
+function resolveUpwardBackReferenceRows(params: {
+  edges: EdgeInput[];
+  sideAssignments: Map<string, EdgeSideAssignment>;
+  sourceOrdinalByEdgeId: Map<string, number>;
+  targetOrdinalByEdgeId: Map<string, number>;
+  sourceCountByEdgeId: Map<string, number>;
+  targetRequestSlotByEdgeId: Map<string, number>;
+  nodeLayoutById: Map<string, NodeLayout>;
+  laneOrderById: Map<string, number>;
+  nodeById: Map<string, NodeInput>;
+}) {
+  const {
+    edges,
+    sideAssignments,
+    sourceOrdinalByEdgeId,
+    targetOrdinalByEdgeId,
+    sourceCountByEdgeId,
+    targetRequestSlotByEdgeId,
+    nodeLayoutById,
+    laneOrderById,
+    nodeById,
+  } = params;
+  const rowsByEdgeId = new Map<string, number>();
+  const candidatesByTarget = new Map<string, Array<{ edge: EdgeInput; sourceAnchor: AnchorPoint; rowY: number }>>();
+  const hasFlowUpEdgeByTarget = new Set<string>();
+
+  for (const edge of edges) {
+    const sourceNode = nodeById.get(edge.sourceId);
+    const targetNode = nodeById.get(edge.targetId);
+    const nodeSource = nodeLayoutById.get(edge.sourceId);
+    const nodeTarget = nodeLayoutById.get(edge.targetId);
+    const sides = sideAssignments.get(edge.id);
+    if (!sourceNode || !targetNode || !nodeSource || !nodeTarget || !sides) {
+      continue;
+    }
+
+    const orientation = deriveOrientation(
+      laneOrderById.get(sourceNode.laneId) ?? 0,
+      laneOrderById.get(targetNode.laneId) ?? 0,
+    );
+    if (orientation !== "up" || sides.source !== "top" || sides.target !== "bottom") {
+      continue;
+    }
+
+    const targetKey = `${edge.targetId}:bottom`;
+    if (!isBackReferenceEdge(edge)) {
+      hasFlowUpEdgeByTarget.add(targetKey);
+      continue;
+    }
+
+    const sourceAnchor = createEdgeAnchor(edge, nodeSource, sides.source, sourceOrdinalByEdgeId.get(edge.id) ?? 0, "source");
+    const targetAnchorBase = resolveTargetAnchorBase(
+      edge,
+      createEdgeAnchor(edge, nodeTarget, sides.target, targetOrdinalByEdgeId.get(edge.id) ?? 0, "target"),
+      targetOrdinalByEdgeId,
+      targetRequestSlotByEdgeId,
+      orientation,
+    );
+    const targetRequestSlot = targetRequestSlotByEdgeId.get(edge.id) ?? 0;
+    const rowY = targetRequestSlot > 0 && nodeSource.height > 56
+      ? targetAnchorBase.y + EDGE_STUB + targetRequestSlot * (UPWARD_REROUTE_SPACING * 2 - UPWARD_REROUTE_ENTRY_OFFSET)
+      : sourceAnchor.y - getCompactTopStubDistance(sourceAnchor, sourceCountByEdgeId.get(edge.id) ?? 1, nodeSource.height);
+    const candidates = candidatesByTarget.get(targetKey) ?? [];
+    candidates.push({ edge, sourceAnchor, rowY });
+    candidatesByTarget.set(targetKey, candidates);
+  }
+
+  for (const [targetKey, candidates] of candidatesByTarget.entries()) {
+    if (candidates.length < 2 || !hasFlowUpEdgeByTarget.has(targetKey)) {
+      continue;
+    }
+
+    const firstRow = Math.floor(Math.max(...candidates.map((candidate) => candidate.rowY)) / UPWARD_REROUTE_SPACING) * UPWARD_REROUTE_SPACING;
+    [...candidates]
+      .sort((left, right) => right.sourceAnchor.x - left.sourceAnchor.x)
+      .forEach((candidate, index) => {
+        rowsByEdgeId.set(candidate.edge.id, firstRow + index * UPWARD_REROUTE_SPACING);
+      });
+  }
+
+  return rowsByEdgeId;
+}
 
 function failure(type: LayoutFailure["type"], message: string, details?: unknown) {
   return {
@@ -1052,6 +1155,17 @@ function addEdgeToAnchorBucket(
   edgeIdsByBucket.set(bucketKey, bucket);
 }
 
+function assignSourceAnchorCounts(
+  edgeIdsByBucket: Map<string, string[]>,
+  countByEdgeId: Map<string, number>,
+) {
+  for (const edgeIds of edgeIdsByBucket.values()) {
+    for (const edgeId of edgeIds) {
+      countByEdgeId.set(edgeId, edgeIds.length);
+    }
+  }
+}
+
 function assignAnchorOrdinals(params: {
   edgeIdsByBucket: Map<string, string[]>;
   edges: EdgeInput[];
@@ -1318,7 +1432,7 @@ function routeOrthogonalEdge(
   if (sourceAnchor.side === "top" && targetAnchor.side === "bottom") {
     const sourceNode = nodeLayouts.find((node) => node.id === edge.sourceId);
     const rowY = upwardDetourPlan?.upRowY ?? (sourceAnchor.x === targetAnchor.x
-      ? Math.max(90, targetAnchor.y + EDGE_STUB)
+      ? Math.max(90, targetAnchor.y + EDGE_STUB + (sourceSideCount - 1) * EDGE_STUB)
       : sourceAnchor.y - getCompactTopStubDistance(sourceAnchor, sourceSideCount, sourceNode?.height ?? 48));
     return [
       { x: sourceAnchor.x, y: sourceAnchor.y },
