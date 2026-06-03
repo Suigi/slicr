@@ -314,6 +314,7 @@ export function App() {
       <InfiniteCanvas
         ref={canvasRef}
         className="canvas"
+        defaultCamera={{ x: 100, y: 100, zoom: 1 }}
         controls={{ toolbar: true }}
         viewportRef={viewportRef}
         ignorePanSelector=".node-box, .node-add-button, .node-menu-button, .node-menu, .node-label-input, .export-menu"
