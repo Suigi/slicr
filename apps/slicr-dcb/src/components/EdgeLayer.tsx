@@ -16,9 +16,14 @@ export function EdgeLayer({ edges }: EdgeLayerProps) {
           <path
             className="edge-line"
             d={getRoundedPath(points.linePoints)}
-            strokeDasharray={role === 'back-reference' ? '10,5' : undefined}
+            strokeDasharray={role === 'back-reference' ? '2,3' : undefined}
           />
-          <polygon className="edge-arrow" points={points.arrowPoints.map((point) => `${point.x},${point.y}`).join(' ')} />
+          <polyline
+            className="edge-arrow"
+            points={[points.arrowPoints[1], points.arrowPoints[0], points.arrowPoints[2]]
+              .map((point) => `${point.x},${point.y}`)
+              .join(' ')}
+          />
         </g>
       ))}
     </svg>

@@ -484,7 +484,12 @@ body {
 }
 
 .edge-arrow {
-  fill: #c7ced8;
+  fill: none;
+  stroke: #c7ced8;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.65;
 }
 
 .edge-connected-to-focused-node .edge-line {
@@ -492,7 +497,7 @@ body {
 }
 
 .edge-connected-to-focused-node .edge-arrow {
-  fill: #52627a;
+  stroke: #52627a;
 }
 
 .node-box {
@@ -588,7 +593,7 @@ body {
 }
 
 .node-type-dm::before {
-  inset: 0;
+  inset: -1px;
   background: var(--rm-border);
 }
 

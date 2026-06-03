@@ -84,7 +84,7 @@ export function getArrowRenderPoints(points: Point[]) {
   const halfWidth = ARROW_WIDTH / 2;
 
   return {
-    linePoints: [...normalizedPoints.slice(0, -1), base],
+    linePoints: normalizedPoints,
     arrowPoints: [
       tip,
       {

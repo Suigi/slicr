@@ -3,8 +3,8 @@ import type { LaneInput } from 'layout-lib';
 export const NODE_WIDTH = 180;
 export const NODE_HEIGHT = 86;
 
-export const ARROW_LENGTH = 18;
-export const ARROW_WIDTH = 16;
+export const ARROW_LENGTH = 14;
+export const ARROW_WIDTH = 12;
 
 export const laneIdForOrder = (order: number) => `lane-${order}`;
 
