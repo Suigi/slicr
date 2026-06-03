@@ -6,6 +6,7 @@ import { ChapterSidebar, type Chapter } from './components/ChapterSidebar';
 import { EdgeLayer } from './components/EdgeLayer';
 import { GraphNodeView } from './components/GraphNodeView';
 import { ProjectSwitcher, type Project } from './components/ProjectSwitcher';
+import { ThingyPropertyGrid } from './components/ThingyPropertyGrid';
 import { NODE_HEIGHT, NODE_WIDTH } from './graph/constants';
 import {
   getArrowRenderPoints,
@@ -29,6 +30,71 @@ const dummyChapters: Chapter[] = [
   { id: 'payment-flow', title: 'Payment Flow' },
   { id: 'fulfillment', title: 'Fulfillment' },
 ];
+
+const propertyGridCardMockups = [
+  {
+    title: 'Event card with a property grid',
+    variant: 'event-property-grid',
+    note: 'Event styling wrapped around the compact property grid.',
+    nodeClassName: 'mockup-event-node',
+    nodeTitleLines: ['NodeAdded'],
+    properties: ['nodeId', 'label', 'laneId'],
+    tables: [
+      {
+        name: 'tags',
+        columns: ['key', 'value'],
+        rows: [
+          ['nodeId', 'node-42'],
+          ['type', 'evt'],
+        ],
+      },
+    ],
+  },
+  {
+    title: 'Read Model card with a property grid',
+    variant: 'read-model-property-grid',
+    note: 'Read-model styling wrapped around the compact property grid.',
+    nodeClassName: 'mockup-read-model-node',
+    nodeTitleLines: ['Slice', 'Overview'],
+    properties: ['chapterId', 'projectionName'],
+    tables: [
+      {
+        name: 'columns',
+        columns: ['field', 'type'],
+        rows: [
+          ['title', 'string'],
+          ['status', 'string'],
+        ],
+      },
+      {
+        name: 'sorts',
+        columns: ['field', 'direction'],
+        rows: [
+          ['updatedAt', 'desc'],
+          ['title', 'asc'],
+        ],
+      },
+    ],
+  },
+  {
+    title: 'Command card with a property grid',
+    variant: 'command-property-grid',
+    note: 'Command styling wrapped around the compact property grid.',
+    nodeClassName: 'mockup-command-node',
+    nodeTitleLines: ['CreateNode'],
+    properties: ['commandId', 'requestedBy', 'targetLane'],
+    tables: [
+      {
+        name: 'payload',
+        columns: ['name', 'type'],
+        rows: [
+          ['label', 'string'],
+          ['nodeType', 'NodeType'],
+        ],
+      },
+    ],
+  },
+] as const;
 
 export function App() {
   const canvasRef = useRef<InfiniteCanvasHandle>(null);
@@ -317,7 +383,7 @@ export function App() {
         defaultCamera={{ x: 100, y: 100, zoom: 1 }}
         controls={{ toolbar: true }}
         viewportRef={viewportRef}
-        ignorePanSelector=".node-box, .node-add-button, .node-menu-button, .node-menu, .node-label-input, .export-menu"
+        ignorePanSelector=".node-box, .node-add-button, .node-menu-button, .node-menu, .node-label-input, .export-menu, .node-layout-mockups"
         onCanvasPointerDown={(event) => {
           if (event.target instanceof Element && !event.target.closest('.node-box')) {
             setFocusedNodeId(null);
@@ -370,6 +436,32 @@ export function App() {
             onLabelBlur={handleLabelBlur}
           />
         ))}
+        <section className="node-layout-mockups" aria-label="Node content layout mockups">
+          <div className="mockups-heading">
+            <p className="mockups-eyebrow">Node content layout experiments</p>
+            <h2>Properties, tags, and read-model table preview</h2>
+          </div>
+          <div className="mockup-grid">
+            {propertyGridCardMockups.map((mockup) => (
+              <article key={mockup.variant} className={`mockup-card mockup-${mockup.variant} mockup-property-grid-card`}>
+                <div className="mockup-card-heading">
+                  <h3>{mockup.title}</h3>
+                  <p>{mockup.note}</p>
+                </div>
+                <div className={`mockup-node ${mockup.nodeClassName} mockup-thingy-node`}>
+                  <div className="mockup-node-title-row">
+                    <strong className="mockup-node-title-text">
+                      {mockup.nodeTitleLines.map((line) => (
+                        <span key={line}>{line}</span>
+                      ))}
+                    </strong>
+                  </div>
+                  <ThingyPropertyGrid properties={mockup.properties} tables={mockup.tables} />
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
         {!layoutResult.ok ? (
           <div className="layout-error">
             <div>{layoutResult.error.message}</div>
