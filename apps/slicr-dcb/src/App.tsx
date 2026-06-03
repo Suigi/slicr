@@ -14,6 +14,7 @@ import {
 } from './graph/graphUtils';
 import {parseImportEvents, serializeDomainEvents} from './graph/importExport';
 import { storeLastOkGraphModel, useGraphModel } from './graph/useGraphModel';
+import {serializeVisualGraphAcceptanceTest} from './graph/visualGraphExport';
 import type { RenderNode } from './graph/types';
 
 const dummyProjects: Project[] = [
@@ -35,6 +36,7 @@ export function App() {
   const [activeProjectId, setActiveProjectId] = useState('checkout-system');
   const [activeChapterId, setActiveChapterId] = useState('cart-events');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const activeChapterName = dummyChapters.find((chapter) => chapter.id === activeChapterId)?.title ?? 'Untitled';
   const {
     nodes,
@@ -116,8 +118,29 @@ export function App() {
     ? nodes.find((node) => node.id === connectingSourceNodeId)
     : undefined;
 
-  const copyCurrentGraphModel = async () => {
+  const exportCurrentEvents = async () => {
     await navigator.clipboard.writeText(serializeDomainEvents(await readGraphEvents()));
+    setIsExportMenuOpen(false);
+  };
+
+  const exportCurrentVisualGraph = async () => {
+    if (!layoutResult.ok) {
+      window.alert('Cannot export a visual graph while layout is invalid.');
+      setIsExportMenuOpen(false);
+      return;
+    }
+
+    await navigator.clipboard.writeText(
+      serializeVisualGraphAcceptanceTest({
+        nodes,
+        edges,
+        lanes,
+        defaults: {nodeWidth: NODE_WIDTH, nodeHeight: NODE_HEIGHT},
+        spacing: {laneMargin: 0, laneGap: 100, minTargetShift: 20, minNodeGap: 40},
+        result: layoutResult.result,
+      }),
+    );
+    setIsExportMenuOpen(false);
   };
 
   const importGraphModelFromClipboard = async () => {
@@ -256,9 +279,27 @@ export function App() {
         <button type="button" className="new-slice-button" onClick={addNewSlice}>
           + New Slice
         </button>
-        <button type="button" className="overlay-action-button" onClick={() => void copyCurrentGraphModel()}>
-          Export
-        </button>
+        <div className="export-menu-container">
+          <button
+            type="button"
+            className="overlay-action-button"
+            aria-haspopup="menu"
+            aria-expanded={isExportMenuOpen}
+            onClick={() => setIsExportMenuOpen((isOpen) => !isOpen)}
+          >
+            Export ▾
+          </button>
+          {isExportMenuOpen ? (
+            <div className="export-menu" role="menu">
+              <button type="button" role="menuitem" onClick={() => void exportCurrentEvents()}>
+                Export events
+              </button>
+              <button type="button" role="menuitem" onClick={() => void exportCurrentVisualGraph()}>
+                Export layout-lib vitest case
+              </button>
+            </div>
+          ) : null}
+        </div>
         <button type="button" className="overlay-action-button" onClick={() => void importGraphModelFromClipboard()}>
           Import
         </button>
@@ -273,7 +314,7 @@ export function App() {
         className="canvas"
         controls={{ toolbar: true }}
         viewportRef={viewportRef}
-        ignorePanSelector=".node-box, .node-add-button, .node-menu-button, .node-menu, .node-label-input"
+        ignorePanSelector=".node-box, .node-add-button, .node-menu-button, .node-menu, .node-label-input, .export-menu"
         onCanvasPointerDown={(event) => {
           if (event.target instanceof Element && !event.target.closest('.node-box')) {
             setFocusedNodeId(null);
@@ -333,7 +374,7 @@ export function App() {
               <button type="button" onClick={revertToLastOkGraphModel}>
                 Revert to last valid model
               </button>
-              <button type="button" onClick={() => void copyCurrentGraphModel()}>
+              <button type="button" onClick={() => void exportCurrentEvents()}>
                 Copy current model
               </button>
             </div>
