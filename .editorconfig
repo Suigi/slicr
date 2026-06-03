@@ -6,5 +6,7 @@ indent_size = 2
 tab_width = 2
 
 [*.{js,jsx,ts,tsx}]
+# noinspection EditorConfigKeyCorrectness
 ij_javascript_use_trailing_comma = true
+# noinspection EditorConfigKeyCorrectness
 ij_typescript_use_trailing_comma = true
