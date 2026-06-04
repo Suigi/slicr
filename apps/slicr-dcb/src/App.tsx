@@ -6,7 +6,6 @@ import { ChapterSidebar, type Chapter } from './components/ChapterSidebar';
 import { EdgeLayer } from './components/EdgeLayer';
 import { GraphNodeView } from './components/GraphNodeView';
 import { ProjectSwitcher, type Project } from './components/ProjectSwitcher';
-import { ThingyPropertyGrid } from './components/ThingyPropertyGrid';
 import { NODE_HEIGHT, NODE_WIDTH } from './graph/constants';
 import {
   getArrowRenderPoints,
@@ -479,27 +478,6 @@ export function App() {
             <h2>Properties, tags, and read-model table preview</h2>
           </div>
           <div className="mockup-grid">
-            {propertyGridCardMockups.map((mockup) => (
-              <article key={mockup.variant} className={`mockup-card mockup-${mockup.variant} mockup-property-grid-card`}>
-                <div className="mockup-card-heading">
-                  <h3>{mockup.title}</h3>
-                  <p>{mockup.note}</p>
-                </div>
-                <div className={`mockup-node ${mockup.nodeClassName} mockup-thingy-node`}>
-                  <div className="mockup-node-title-row">
-                    <strong className="mockup-node-title-text">
-                      {mockup.nodeTitleLines.map((line) => (
-                        <span key={line}>{line}</span>
-                      ))}
-                    </strong>
-                  </div>
-                  <ThingyPropertyGrid properties={mockup.properties} />
-                  {'pointyTags' in mockup ? (
-                    <PointyCardTags className="mockup-pointy-card-tags" tags={mockup.pointyTags} ariaLabel="Event card tags" />
-                  ) : null}
-                </div>
-              </article>
-            ))}
             {propertyGridCardMockups.map((mockup) => (
               <article
                 key={`property-grid-${mockup.variant}`}
