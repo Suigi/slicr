@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { InfiniteCanvas, PointyCardTags, type InfiniteCanvasHandle } from '@slicr/react-ui';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { InfiniteCanvas, PointyCardTags, PropertyGrid, type InfiniteCanvasHandle } from '@slicr/react-ui';
 import { compactLayout } from 'layout-lib';
 import { AppShell } from './components/AppShell';
 import { ChapterSidebar, type Chapter } from './components/ChapterSidebar';
@@ -30,6 +30,15 @@ const dummyChapters: Chapter[] = [
   { id: 'payment-flow', title: 'Payment Flow' },
   { id: 'fulfillment', title: 'Fulfillment' },
 ];
+
+const propertyGridColorScheme = {
+  '--property-grid-line': 'var(--mockup-grid-line)',
+  '--property-grid-table-header-bg': 'var(--mockup-node-bg)',
+  '--property-grid-table-header-text': 'var(--mockup-node-accent)',
+  '--property-grid-muted-text': '#64748b',
+  '--property-grid-text': '#172033',
+  '--property-grid-value-text': '#172033',
+} as CSSProperties;
 
 const propertyGridCardMockups = [
   {
@@ -485,6 +494,30 @@ export function App() {
                     </strong>
                   </div>
                   <ThingyPropertyGrid properties={mockup.properties} />
+                  {'pointyTags' in mockup ? (
+                    <PointyCardTags className="mockup-pointy-card-tags" tags={mockup.pointyTags} ariaLabel="Event card tags" />
+                  ) : null}
+                </div>
+              </article>
+            ))}
+            {propertyGridCardMockups.map((mockup) => (
+              <article
+                key={`property-grid-${mockup.variant}`}
+                className={`mockup-card mockup-${mockup.variant} mockup-property-grid-card`}
+              >
+                <div className="mockup-card-heading">
+                  <h3>{mockup.title}</h3>
+                  <p>{mockup.note}</p>
+                </div>
+                <div className={`mockup-node ${mockup.nodeClassName} mockup-thingy-node`}>
+                  <div className="mockup-node-title-row">
+                    <strong className="mockup-node-title-text">
+                      {mockup.nodeTitleLines.map((line) => (
+                        <span key={line}>{line}</span>
+                      ))}
+                    </strong>
+                  </div>
+                  <PropertyGrid properties={mockup.properties} style={propertyGridColorScheme} />
                   {'pointyTags' in mockup ? (
                     <PointyCardTags className="mockup-pointy-card-tags" tags={mockup.pointyTags} ariaLabel="Event card tags" />
                   ) : null}
