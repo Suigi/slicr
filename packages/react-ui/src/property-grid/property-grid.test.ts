@@ -1,0 +1,131 @@
+// @vitest-environment jsdom
+
+import { afterEach, describe, expect, it } from 'vitest';
+
+import './property-grid.js';
+
+type PropertyGridTestElement = HTMLElement & {
+  properties: Record<string, unknown>;
+};
+
+function createPropertyGrid(properties: Record<string, unknown>, ariaLabel?: string) {
+  const element = document.createElement('property-grid') as PropertyGridTestElement;
+
+  if (ariaLabel) {
+    element.setAttribute('aria-label', ariaLabel);
+  }
+
+  document.body.append(element);
+  element.properties = properties;
+
+  return element;
+}
+
+afterEach(() => {
+  document.body.replaceChildren();
+});
+
+describe('property-grid custom element', () => {
+  it('defines the property-grid custom element', () => {
+    expect(customElements.get('property-grid')).toBeDefined();
+  });
+
+  it('renders scalar property types and scalar values', () => {
+    const element = createPropertyGrid({
+      nodeId: { type: 'string' },
+      enabled: { type: 'boolean', value: true },
+      attempts: { type: 'number', value: 3 },
+      empty: { type: 'string', value: null },
+      missing: { type: 'string', value: undefined },
+    });
+
+    const text = element.shadowRoot?.textContent ?? '';
+
+    expect(text).toContain('nodeId');
+    expect(text).toContain('string');
+    expect(text).toContain('enabled');
+    expect(text).toContain('true');
+    expect(text).toContain('attempts');
+    expect(text).toContain('3');
+    expect(text).toContain('empty');
+    expect(text).toContain('null');
+    expect(text).toContain('missing');
+    expect(text).toContain('undefined');
+  });
+
+  it('renders nested object properties', () => {
+    const element = createPropertyGrid({
+      address: {
+        kind: 'object',
+        type: 'Address',
+        properties: {
+          street: { type: 'string', value: 'Fake Street 123' },
+          city: { type: 'string', value: 'Springfield' },
+        },
+      },
+    });
+
+    const shadow = element.shadowRoot;
+    const nestedGrid = shadow?.querySelector('.nested-property-grid');
+    const nestedRows = shadow?.querySelectorAll('.nested-property-row');
+    const text = shadow?.textContent ?? '';
+
+    expect(nestedGrid?.getAttribute('aria-label')).toBe('address properties');
+    expect(nestedRows).toHaveLength(2);
+    expect(text).toContain('address');
+    expect(text).toContain('Address');
+    expect(text).toContain('street');
+    expect(text).toContain('Fake Street 123');
+    expect(text).toContain('city');
+    expect(text).toContain('Springfield');
+  });
+
+  it('renders table properties with headers and rows', () => {
+    const element = createPropertyGrid({
+      tags: {
+        kind: 'table',
+        columns: [{ key: 'key' }, { key: 'value', label: 'Value Label' }],
+        rows: [
+          { key: 'nodeId', value: 'node-42' },
+          { key: 'active', value: false },
+        ],
+      },
+    });
+
+    const shadow = element.shadowRoot;
+    const table = shadow?.querySelector<HTMLTableElement>('.table');
+    const headers = [...(shadow?.querySelectorAll('.table-header th') ?? [])].map((header) => header.textContent);
+    const cells = [...(shadow?.querySelectorAll('.table tbody td') ?? [])].map((cell) => cell.textContent);
+
+    expect(table?.getAttribute('aria-label')).toBe('tags property');
+    expect(table?.style.getPropertyValue('--property-grid-table-column-count')).toBe('2');
+    expect(headers).toEqual(['key', 'Value Label']);
+    expect(cells).toEqual(['nodeId', 'node-42', 'active', 'false']);
+  });
+
+  it('updates rendered rows when the properties DOM property changes', () => {
+    const element = createPropertyGrid({
+      before: { type: 'string' },
+    });
+
+    element.properties = {
+      after: { type: 'number', value: 7 },
+    };
+
+    const text = element.shadowRoot?.textContent ?? '';
+
+    expect(text).not.toContain('before');
+    expect(text).toContain('after');
+    expect(text).toContain('7');
+  });
+
+  it('uses the aria-label attribute on the internal table', () => {
+    const element = createPropertyGrid({ nodeId: { type: 'string' } }, 'Node properties');
+
+    expect(element.shadowRoot?.querySelector('.property-grid')?.getAttribute('aria-label')).toBe('Node properties');
+
+    element.setAttribute('aria-label', 'Updated node properties');
+
+    expect(element.shadowRoot?.querySelector('.property-grid')?.getAttribute('aria-label')).toBe('Updated node properties');
+  });
+});
