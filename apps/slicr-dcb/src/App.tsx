@@ -65,18 +65,18 @@ const propertyGridCardMockups = [
     tables: [
       {
         name: 'columns',
-        columns: ['field', 'type'],
+        columns: ['field', 'type', 'source'],
         rows: [
-          ['title', 'string'],
-          ['status', 'string'],
+          ['title', 'string', 'event'],
+          ['status', 'string', 'event'],
         ],
       },
       {
         name: 'sorts',
-        columns: ['field', 'direction'],
+        columns: ['field', 'direction', 'priority', 'nulls'],
         rows: [
-          ['updatedAt', 'desc'],
-          ['title', 'asc'],
+          ['updatedAt', 'desc', '1', 'last'],
+          ['title', 'asc', '2', 'first'],
         ],
       },
     ],

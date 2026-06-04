@@ -1298,6 +1298,7 @@ body {
 
 .mockup-property-grid-card .mockup-property-grid {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   color: #172033;
   font-size: 12px;
@@ -1331,19 +1332,18 @@ body {
 
 
 .mockup-property-grid-card .mockup-property-name {
-  width: 100%;
   text-align: left;
 }
 
 .mockup-property-grid-card .mockup-field-separator {
-  width: 1%;
+  width: 8px;
   padding-right: 0;
   text-align: right;
   white-space: nowrap;
 }
 
 .mockup-property-grid-card .mockup-field-type {
-  width: 1%;
+  width: 64px;
   color: #64748b;
   font-family: "SFMono-Regular", Consolas, monospace;
   font-weight: 500;
@@ -1352,14 +1352,51 @@ body {
 }
 
 .mockup-property-grid-card .mockup-table-content-row > td {
+  max-width: 0;
   padding: 0;
 }
 
-.mockup-property-grid-card .mockup-table {
+.mockup-property-grid-card .mockup-table-scroll {
+  display: block;
+  overflow-x: auto;
   width: calc(100% - 8px);
+  max-width: calc(100% - 8px);
   margin-left: 8px;
-  border: 0;
   border-left: 1px solid var(--mockup-grid-line);
+  cursor: grab;
+  user-select: none;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+}
+
+.mockup-property-grid-card .mockup-table-scroll.is-dragging {
+  cursor: grabbing;
+}
+
+.mockup-property-grid-card .mockup-table-scroll {
+  scrollbar-width: thin;
+}
+
+.mockup-property-grid-card .mockup-table-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+
+.mockup-property-grid-card .mockup-table-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.mockup-property-grid-card .mockup-table-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.35);
+}
+
+.mockup-property-grid-card .mockup-table-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.55);
+}
+
+.mockup-property-grid-card .mockup-table {
+  min-width: 100%;
+  border: 0;
   border-collapse: collapse;
   font-size: 11px;
 }
@@ -1378,6 +1415,7 @@ body {
 .mockup-property-grid-card .mockup-table td {
   padding: 5px 10px;
   text-align: left;
+  white-space: nowrap;
 }
 
 .mockup-property-grid-card .mockup-table th + th,
@@ -1461,10 +1499,6 @@ body {
 .mockup-preview .mockup-table-row {
   grid-template-columns: 0.9fr 1.5fr;
   min-height: 34px;
-}
-
-.mockup-table-row {
-  border-left: 2px solid red;
 }
 
 .mockup-angled-tags .mockup-node,
