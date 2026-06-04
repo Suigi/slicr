@@ -1,3 +1,5 @@
+import { Fragment } from 'react';
+
 type ThingyPropertyGridTable = {
   name: string;
   columns: readonly string[];
@@ -12,41 +14,54 @@ type ThingyPropertyGridProps = {
 export function ThingyPropertyGrid({ properties, tables }: ThingyPropertyGridProps) {
   return (
     <div className="mockup-property-panel">
-      <div className="mockup-properties mockup-standalone-properties">
-        {properties.map((property) => (
-          <span key={property} className="mockup-field">
-            {property}
-            <span className="mockup-field-separator">: </span>
-            <span className="mockup-field-type">string</span>
-          </span>
-        ))}
-      </div>
-      {tables.map((table) => (
-        <div key={table.name} className="mockup-table-property">
-          <div className="mockup-field">
-            {table.name}<span className="mockup-field-separator">: </span>
-            <span className="mockup-field-type">Table</span>
-          </div>
-          <div className="mockup-table mockup-thingies-table" role="table" aria-label={`${table.name} property`}>
-            <div className="mockup-table-row mockup-table-header" role="row">
-              {table.columns.map((column) => (
-                <span key={column} role="columnheader">
-                  {column}
-                </span>
-              ))}
-            </div>
-            {table.rows.map((row) => (
-              <div key={row.join(':')} className="mockup-table-row" role="row">
-                {row.map((cell, index) => (
-                  <span key={`${table.name}-${table.columns[index] ?? index}-${cell}`} role="cell">
-                    {cell}
-                  </span>
-                ))}
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
+      <table className="mockup-property-grid">
+        <tbody>
+          {properties.map((property) => (
+            <tr key={property} className="mockup-property-row">
+              <th scope="row" className="mockup-property-name">
+                {property}
+              </th>
+              <td className="mockup-field-separator">:</td>
+              <td className="mockup-field-type">string</td>
+            </tr>
+          ))}
+          {tables.map((table) => (
+            <Fragment key={table.name}>
+              <tr className="mockup-property-row mockup-table-property-row">
+                <th scope="row" className="mockup-property-name">
+                  {table.name}
+                </th>
+                <td className="mockup-field-separator">:</td>
+                <td className="mockup-field-type">Table</td>
+              </tr>
+              <tr className="mockup-table-content-row">
+                <td colSpan={3}>
+                  <table className="mockup-table mockup-thingies-table" aria-label={`${table.name} property`}>
+                    <thead>
+                      <tr className="mockup-table-row mockup-table-header">
+                        {table.columns.map((column) => (
+                          <th key={column} scope="col">
+                            {column}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {table.rows.map((row) => (
+                        <tr key={row.join(':')} className="mockup-table-row">
+                          {row.map((cell, index) => (
+                            <td key={`${table.name}-${table.columns[index] ?? index}-${cell}`}>{cell}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </td>
+              </tr>
+            </Fragment>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

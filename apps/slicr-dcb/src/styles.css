@@ -819,7 +819,7 @@ body {
   position: absolute;
   left: 80px;
   top: 520px;
-  width: 1320px;
+  width: 1080px;
   color: #172033;
   font-size: 13px;
   user-select: none;
@@ -851,7 +851,7 @@ body {
 
 .mockup-grid {
   display: grid;
-  grid-template-columns: repeat(4, 320px);
+  grid-template-columns: repeat(4, 260px);
   gap: 16px;
 }
 
@@ -1001,7 +1001,7 @@ body {
 .mockup-table-header {
   background: rgba(21, 128, 61, 0.1);
   color: #15803d;
-  font-size: 15px;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -1069,6 +1069,16 @@ body {
 
 .mockup-thingy-node {
   min-height: 285px;
+}
+
+.mockup-pointy-card-tags {
+  --tag-height: 1.2rem;
+  --tag-step: 2rem;
+  --tip-size: 0.45rem;
+  --tags-right: 1.15rem;
+  --tags-overlap: 0.6rem;
+  opacity: 0.78;
+  font-size: 8px;
 }
 
 .mockup-table-property {
@@ -1286,44 +1296,77 @@ body {
   background: rgba(255, 255, 255, 0.35);
 }
 
-.mockup-property-grid-card .mockup-standalone-properties {
-  display: grid;
-  gap: 0;
-  margin: 0;
+.mockup-property-grid-card .mockup-property-grid {
+  width: 100%;
+  border-collapse: collapse;
+  color: #172033;
+  font-size: 12px;
 }
 
-.mockup-property-grid-card .mockup-field {
-  display: grid;
-  grid-template-columns: 1fr auto 64px;
-  border-radius: 0;
-  border-bottom: 1px solid var(--mockup-grid-line);
+.mockup-property-grid-card .mockup-table-content-row,
+.mockup-property-grid-card .mockup-property-row {
   background: rgba(255, 255, 255, 0.55);
-  padding: 5px 10px;
 }
 
-.mockup-property-grid-card .mockup-field-separator {
-  justify-self: end;
+.mockup-property-grid-card .mockup-table-content-row:not(:last-child),
+.mockup-property-grid-card .mockup-property-row:not(:last-child) {
+  border-bottom: 1px solid var(--mockup-grid-line);
+}
+
+.mockup-property-grid-card .mockup-property-name,
+.mockup-property-grid-card .mockup-field-separator,
+.mockup-property-grid-card .mockup-field-type {
+  padding: 5px 10px;
+  vertical-align: top;
 }
 
 .mockup-property-grid-card .mockup-field-type {
-  justify-self: start;
+  padding-left: 2px;
+}
+
+.mockup-property-grid-card .mockup-field-separator {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+
+.mockup-property-grid-card .mockup-property-name {
+  width: 100%;
   text-align: left;
 }
 
-.mockup-property-grid-card .mockup-table-property {
-  margin-top: 0;
+.mockup-property-grid-card .mockup-field-separator {
+  width: 1%;
+  padding-right: 0;
+  text-align: right;
+  white-space: nowrap;
 }
 
-.mockup-property-grid-card .mockup-table-property-name {
-  margin-bottom: 0;
-  border-bottom: 1px solid var(--mockup-grid-line);
-  background: rgba(255, 255, 255, 0.72);
-  padding: 5px 10px;
+.mockup-property-grid-card .mockup-field-type {
+  width: 1%;
+  color: #64748b;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.mockup-property-grid-card .mockup-table-content-row > td {
+  padding: 0;
 }
 
 .mockup-property-grid-card .mockup-table {
+  width: calc(100% - 8px);
+  margin-left: 8px;
   border: 0;
-  border-left: 8px solid var(--mockup-node-bg);
+  border-left: 1px solid var(--mockup-grid-line);
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.mockup-property-grid-card .mockup-table-row {
+  display: table-row;
+  border-color: var(--mockup-grid-line);
 }
 
 .mockup-property-grid-card .mockup-table-header {
@@ -1331,14 +1374,19 @@ body {
   color: var(--mockup-node-accent);
 }
 
-.mockup-property-grid-card .mockup-table-row span {
+.mockup-property-grid-card .mockup-table th,
+.mockup-property-grid-card .mockup-table td {
   padding: 5px 10px;
+  text-align: left;
 }
 
-.mockup-property-grid-card .mockup-table-row,
-.mockup-property-grid-card .mockup-table-row span + span,
-.mockup-property-grid-card .mockup-table-header + .mockup-table-row {
-  border-color: var(--mockup-grid-line);
+.mockup-property-grid-card .mockup-table th + th,
+.mockup-property-grid-card .mockup-table td + td {
+  border-left: 1px solid var(--mockup-grid-line);
+}
+
+.mockup-property-grid-card .mockup-table tbody tr:first-child td {
+  border-top: 1px solid var(--mockup-grid-line);
 }
 
 .mockup-thingies-compact .mockup-thingy-node {

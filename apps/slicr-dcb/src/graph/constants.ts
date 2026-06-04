@@ -1,6 +1,6 @@
 import type { LaneInput } from 'layout-lib';
 
-export const NODE_WIDTH = 180;
+export const NODE_WIDTH = 230;
 export const NODE_HEIGHT = 86;
 
 export const ARROW_LENGTH = 14;

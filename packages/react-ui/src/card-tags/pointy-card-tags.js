@@ -64,7 +64,7 @@ class PointyCardTags extends HTMLElement {
           padding-left: 0.75rem;
 
           color: var(--tag-text);
-          font-size: 0.9rem;
+          font-size: 0.7rem;
           font-weight: 700;
           line-height: 1;
           text-decoration: none;

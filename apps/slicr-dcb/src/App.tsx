@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { InfiniteCanvas, type InfiniteCanvasHandle } from '@slicr/react-ui';
+import { InfiniteCanvas, PointyCardTags, type InfiniteCanvasHandle } from '@slicr/react-ui';
 import { compactLayout } from 'layout-lib';
 import { AppShell } from './components/AppShell';
 import { ChapterSidebar, type Chapter } from './components/ChapterSidebar';
@@ -39,6 +39,11 @@ const propertyGridCardMockups = [
     nodeClassName: 'mockup-event-node',
     nodeTitleLines: ['NodeAdded'],
     properties: ['nodeId', 'label', 'laneId'],
+    pointyTags: [
+      { label: 'nodeId', href: '#node-id' },
+      { label: 'chapterId', href: '#chapter-id' },
+      { label: 'projectId', href: '#project-id' },
+    ],
     tables: [
       {
         name: 'tags',
@@ -457,6 +462,9 @@ export function App() {
                     </strong>
                   </div>
                   <ThingyPropertyGrid properties={mockup.properties} tables={mockup.tables} />
+                  {'pointyTags' in mockup ? (
+                    <PointyCardTags className="mockup-pointy-card-tags" tags={mockup.pointyTags} ariaLabel="Event card tags" />
+                  ) : null}
                 </div>
               </article>
             ))}
