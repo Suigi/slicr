@@ -38,7 +38,11 @@ const propertyGridCardMockups = [
     note: 'Event styling wrapped around the compact property grid.',
     nodeClassName: 'mockup-event-node',
     nodeTitleLines: ['NodeAdded'],
-    properties: ['nodeId', 'label', 'laneId'],
+    properties: {
+      nodeId: { type: 'string' },
+      label: { type: 'string' },
+      laneId: { type: 'string' },
+    },
     pointyTags: [
       { label: 'nodeId', href: '#node-id' },
       { label: 'chapterId', href: '#chapter-id' },
@@ -61,7 +65,10 @@ const propertyGridCardMockups = [
     note: 'Read-model styling wrapped around the compact property grid.',
     nodeClassName: 'mockup-read-model-node',
     nodeTitleLines: ['Slice', 'Overview'],
-    properties: ['chapterId', 'projectionName'],
+    properties: {
+      chapterId: { type: 'string' },
+      projectionName: { type: 'string' },
+    },
     tables: [
       {
         name: 'columns',
@@ -87,7 +94,11 @@ const propertyGridCardMockups = [
     note: 'Command styling wrapped around the compact property grid.',
     nodeClassName: 'mockup-command-node',
     nodeTitleLines: ['CreateNode'],
-    properties: ['commandId', 'requestedBy', 'targetLane'],
+    properties: {
+      commandId: { type: 'string' },
+      requestedBy: { type: 'string' },
+      targetLane: { type: 'string' },
+    },
     tables: [
       {
         name: 'payload',
@@ -98,6 +109,24 @@ const propertyGridCardMockups = [
         ],
       },
     ],
+  },
+  {
+    title: 'Event card with a complex property',
+    variant: 'complex-property-grid',
+    note: 'Complex values show a typed parent row and one-level nested property table.',
+    nodeClassName: 'mockup-event-node',
+    nodeTitleLines: ['LocationChanged'],
+    properties: {
+      label: { type: 'string', value: 'Home' },
+      address: {
+        type: 'Address',
+        value: {
+          street: 'Fake Street 123',
+          city: 'Springfield',
+        },
+      },
+    },
+    tables: [],
   },
 ] as const;
 

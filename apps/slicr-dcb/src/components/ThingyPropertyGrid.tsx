@@ -1,5 +1,14 @@
 import { Fragment, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 
+type ThingyPropertyValue = string | number | boolean | null | undefined | Record<string, unknown>;
+
+type ThingyProperty = {
+  type: string;
+  value?: ThingyPropertyValue;
+};
+
+type ThingyProperties = Record<string, ThingyProperty>;
+
 type ThingyPropertyGridTable = {
   name: string;
   columns: readonly string[];
@@ -7,7 +16,7 @@ type ThingyPropertyGridTable = {
 };
 
 type ThingyPropertyGridProps = {
-  properties: readonly string[];
+  properties: ThingyProperties;
   tables: readonly ThingyPropertyGridTable[];
 };
 
@@ -125,20 +134,80 @@ function DraggableTableScroller({ children }: { children: ReactNode }) {
   );
 }
 
+function isPlainRecord(value: ThingyPropertyValue): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function formatPropertyValue(value: unknown) {
+  if (value === null) {
+    return 'null';
+  }
+
+  if (value === undefined) {
+    return 'undefined';
+  }
+
+  if (typeof value === 'object') {
+    return 'Object';
+  }
+
+  return String(value);
+}
+
 export function ThingyPropertyGrid({ properties, tables }: ThingyPropertyGridProps) {
   return (
     <div className="mockup-property-panel">
       <table className="mockup-property-grid">
         <tbody>
-          {properties.map((property) => (
-            <tr key={property} className="mockup-property-row">
-              <th scope="row" className="mockup-property-name">
-                {property}
-              </th>
-              <td className="mockup-field-separator">:</td>
-              <td className="mockup-field-type">string</td>
-            </tr>
-          ))}
+          {Object.entries(properties).map(([propertyName, property]) => {
+            const propertyValue = property.value;
+            const hasValue = 'value' in property;
+            const hasComplexValue = isPlainRecord(propertyValue);
+            const propertyType = hasComplexValue ? property.type || 'Object' : property.type;
+            const showPropertyValue = hasValue && !hasComplexValue;
+
+            return (
+              <Fragment key={propertyName}>
+                <tr className="mockup-property-row">
+                  <th scope="row" className="mockup-property-name">
+                    {propertyName}
+                  </th>
+                  {showPropertyValue ? (
+                    <td colSpan={2} className="mockup-field-value">
+                      {formatPropertyValue(propertyValue)}
+                    </td>
+                  ) : (
+                    <>
+                      <td className="mockup-field-separator">:</td>
+                      <td className="mockup-field-type">{propertyType}</td>
+                    </>
+                  )}
+                </tr>
+                {hasComplexValue ? (
+                  <tr className="mockup-table-content-row mockup-complex-property-content-row">
+                    <td colSpan={3}>
+                      <div className="mockup-nested-property-grid-wrapper">
+                        <table className="mockup-property-grid mockup-nested-property-grid" aria-label={`${propertyName} properties`}>
+                          <tbody>
+                            {Object.entries(propertyValue).map(([nestedPropertyName, nestedPropertyValue]) => (
+                              <tr key={nestedPropertyName} className="mockup-property-row mockup-nested-property-row">
+                                <th scope="row" className="mockup-property-name">
+                                  {nestedPropertyName}
+                                </th>
+                                <td colSpan={2} className="mockup-field-value">
+                                  {formatPropertyValue(nestedPropertyValue)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </td>
+                  </tr>
+                ) : null}
+              </Fragment>
+            );
+          })}
           {tables.map((table) => (
             <Fragment key={table.name}>
               <tr className="mockup-property-row mockup-table-property-row">
