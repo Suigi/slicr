@@ -6,6 +6,7 @@ import { ChapterSidebar, type Chapter } from './components/ChapterSidebar';
 import { EdgeLayer } from './components/EdgeLayer';
 import { GraphNodeView } from './components/GraphNodeView';
 import { ProjectSwitcher, type Project } from './components/ProjectSwitcher';
+import { PropertyEditor, type EditableProperty } from './components/PropertyEditor';
 import { NODE_HEIGHT, NODE_WIDTH } from './graph/constants';
 import {
   getArrowRenderPoints,
@@ -139,6 +140,19 @@ export function App() {
   const [activeChapterId, setActiveChapterId] = useState('cart-events');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const [exampleProperties, setExampleProperties] = useState<EditableProperty[]>([
+    { name: 'customerId', type: 'string', example: 'cust-123' },
+    { name: 'quantity', type: 'number', example: '2' },
+    { name: 'isGift', type: 'boolean', example: 'false' },
+    {
+      name: 'shippingAddress',
+      type: 'Object',
+      properties: [
+        { name: 'street', type: 'string', example: 'Fake Street 123' },
+        { name: 'postalCode', type: 'string', example: '12345' },
+      ],
+    },
+  ]);
   const activeChapterName = dummyChapters.find((chapter) => chapter.id === activeChapterId)?.title ?? 'Untitled';
   const {
     nodes,
@@ -419,7 +433,7 @@ export function App() {
         defaultCamera={{ x: 100, y: 100, zoom: 1 }}
         controls={{ toolbar: true }}
         viewportRef={viewportRef}
-        ignorePanSelector=".node-box, .node-add-button, .node-menu-button, .node-menu, .node-label-input, .export-menu, .node-layout-mockups"
+        ignorePanSelector=".node-box, .node-add-button, .node-menu-button, .node-menu, .node-label-input, .export-menu, .node-layout-mockups, .property-editor-example"
         onCanvasPointerDown={(event) => {
           if (event.target instanceof Element && !event.target.closest('.node-box')) {
             setFocusedNodeId(null);
@@ -503,6 +517,13 @@ export function App() {
               </article>
             ))}
           </div>
+        </section>
+        <section className="property-editor-example" aria-label="Property editor example">
+          <div className="mockups-heading">
+            <p className="mockups-eyebrow">Schema editor experiment</p>
+            <h2>PropertyEditor</h2>
+          </div>
+          <PropertyEditor properties={exampleProperties} onChange={setExampleProperties} />
         </section>
         {!layoutResult.ok ? (
           <div className="layout-error">

@@ -964,6 +964,17 @@ body {
   padding: 8px 10px;
 }
 
+.property-editor-example {
+  position: absolute;
+  left: 80px;
+  top: 1040px;
+  width: 760px;
+}
+
+.property-editor-example .mockups-heading {
+  color: #172033;
+}
+
 .layout-error {
   position: absolute;
   left: 16px;
