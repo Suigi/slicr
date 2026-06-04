@@ -42,21 +42,19 @@ const propertyGridCardMockups = [
       nodeId: { type: 'string' },
       label: { type: 'string' },
       laneId: { type: 'string' },
+      tags: {
+        kind: 'table',
+        columns: [{ key: 'key' }, { key: 'value' }],
+        rows: [
+          { key: 'nodeId', value: 'node-42' },
+          { key: 'type', value: 'evt' },
+        ],
+      },
     },
     pointyTags: [
       { label: 'nodeId', href: '#node-id' },
       { label: 'chapterId', href: '#chapter-id' },
       { label: 'projectId', href: '#project-id' },
-    ],
-    tables: [
-      {
-        name: 'tags',
-        columns: ['key', 'value'],
-        rows: [
-          ['nodeId', 'node-42'],
-          ['type', 'evt'],
-        ],
-      },
     ],
   },
   {
@@ -68,25 +66,23 @@ const propertyGridCardMockups = [
     properties: {
       chapterId: { type: 'string' },
       projectionName: { type: 'string' },
+      columns: {
+        kind: 'table',
+        columns: [{ key: 'field' }, { key: 'type' }, { key: 'source' }],
+        rows: [
+          { field: 'title', type: 'string', source: 'event' },
+          { field: 'status', type: 'string', source: 'event' },
+        ],
+      },
+      sorts: {
+        kind: 'table',
+        columns: [{ key: 'field' }, { key: 'direction' }, { key: 'priority' }, { key: 'nulls' }],
+        rows: [
+          { field: 'updatedAt', direction: 'desc', priority: '1', nulls: 'last' },
+          { field: 'title', direction: 'asc', priority: '2', nulls: 'first' },
+        ],
+      },
     },
-    tables: [
-      {
-        name: 'columns',
-        columns: ['field', 'type', 'source'],
-        rows: [
-          ['title', 'string', 'event'],
-          ['status', 'string', 'event'],
-        ],
-      },
-      {
-        name: 'sorts',
-        columns: ['field', 'direction', 'priority', 'nulls'],
-        rows: [
-          ['updatedAt', 'desc', '1', 'last'],
-          ['title', 'asc', '2', 'first'],
-        ],
-      },
-    ],
   },
   {
     title: 'Command card with a property grid',
@@ -98,17 +94,15 @@ const propertyGridCardMockups = [
       commandId: { type: 'string' },
       requestedBy: { type: 'string' },
       targetLane: { type: 'string' },
-    },
-    tables: [
-      {
-        name: 'payload',
-        columns: ['name', 'type'],
+      payload: {
+        kind: 'table',
+        columns: [{ key: 'name' }, { key: 'type' }],
         rows: [
-          ['label', 'string'],
-          ['nodeType', 'NodeType'],
+          { name: 'label', type: 'string' },
+          { name: 'nodeType', type: 'NodeType' },
         ],
       },
-    ],
+    },
   },
   {
     title: 'Event card with a complex property',
@@ -119,14 +113,14 @@ const propertyGridCardMockups = [
     properties: {
       label: { type: 'string', value: 'Home' },
       address: {
+        kind: 'object',
         type: 'Address',
-        value: {
-          street: 'Fake Street 123',
-          city: 'Springfield',
+        properties: {
+          street: { type: 'string', value: 'Fake Street 123' },
+          city: { type: 'string', value: 'Springfield' },
         },
       },
     },
-    tables: [],
   },
 ] as const;
 
@@ -490,7 +484,7 @@ export function App() {
                       ))}
                     </strong>
                   </div>
-                  <ThingyPropertyGrid properties={mockup.properties} tables={mockup.tables} />
+                  <ThingyPropertyGrid properties={mockup.properties} />
                   {'pointyTags' in mockup ? (
                     <PointyCardTags className="mockup-pointy-card-tags" tags={mockup.pointyTags} ariaLabel="Event card tags" />
                   ) : null}
