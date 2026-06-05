@@ -152,13 +152,13 @@ const initialPropertyGridCardMockups: PropertyGridCardMockup[] = [
     nodeClassName: 'mockup-event-node',
     nodeTitleLines: ['LocationChanged'],
     properties: [
-      { name: 'label', type: 'string', value: 'Home' },
+      { name: 'label', type: 'string', example: 'Home' },
       {
         name: 'address',
         type: 'Object',
         properties: [
-          { name: 'street', type: 'string', value: 'Fake Street 123' },
-          { name: 'city', type: 'string', value: 'Springfield' },
+          { name: 'street', type: 'string', example: 'Fake Street 123' },
+          { name: 'city', type: 'string', example: 'Springfield' },
         ],
       },
     ],

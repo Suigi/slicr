@@ -124,6 +124,31 @@ describe('PropertyGrid React wrapper', () => {
     expect(cells).toEqual(['ABC', '2']);
   });
 
+  it('renders the type fallback for editable scalar properties with an empty example', () => {
+    const container = renderPropertyGrid(<PropertyGrid properties={[{ name: 'title', type: 'string', example: '' }]} />);
+    const element = container.querySelector<PropertyGridElement>('property-grid');
+
+    expect(element?.shadowRoot?.querySelector('.field-value')).toBeNull();
+    expect(element?.shadowRoot?.querySelector('.field-separator')?.textContent).toBe(':');
+    expect(element?.shadowRoot?.querySelector('.field-type')?.textContent).toBe('string');
+  });
+
+  it('renders the type fallback after an editable scalar example is cleared even if a legacy value remains', () => {
+    const container = renderPropertyGrid(<PropertyGrid properties={[{ name: 'title', type: 'string', value: 'Legacy', example: '' }]} />);
+    const element = container.querySelector<PropertyGridElement>('property-grid');
+
+    expect(element?.shadowRoot?.querySelector('.field-value')).toBeNull();
+    expect(element?.shadowRoot?.querySelector('.field-separator')?.textContent).toBe(':');
+    expect(element?.shadowRoot?.querySelector('.field-type')?.textContent).toBe('string');
+  });
+
+  it('renders editable scalar examples instead of legacy values', () => {
+    const container = renderPropertyGrid(<PropertyGrid properties={[{ name: 'title', type: 'string', value: 'Legacy', example: 'Edited' }]} />);
+    const element = container.querySelector<PropertyGridElement>('property-grid');
+
+    expect(element?.shadowRoot?.querySelector('.field-value')?.textContent).toBe('Edited');
+  });
+
   it('updates the custom element properties when React props change', () => {
     const firstProperties: PropertyGridProperties = {
       before: { type: 'string' },

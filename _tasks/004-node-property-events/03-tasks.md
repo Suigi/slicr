@@ -21,7 +21,7 @@ Add any learnings about the project overall to the documents in the ./knowledge 
 
 ## Task 1: Fix no-example property display semantics
 ### Status
-[created]
+[done]
 
 ### Description
 Fix the current `PropertyGrid`/`PropertyEditor` behavior where a property without an example can render as blank instead of displaying its type fallback, such as `: string`. Investigate whether the separate editable `value` field is still needed; if it is redundant, remove it from the editable property flow.

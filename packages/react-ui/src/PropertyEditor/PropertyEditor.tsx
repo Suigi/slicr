@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import type { PropertyGridEditableProperty, PropertyGridPrimitiveValue, PropertyGridTableRow } from '../PropertyGrid';
+import type { PropertyGridEditableProperty, PropertyGridTableRow } from '../PropertyGrid';
 import './PropertyEditor.css';
 
 const propertyTypes = ['string', 'number', 'boolean', 'Object'] as const;
@@ -10,7 +10,6 @@ export type PropertyExampleValue = string | PropertyGridTableRow;
 
 export type EditableProperty = Omit<PropertyGridEditableProperty, 'type' | 'value' | 'properties' | 'exampleValues' | 'rows'> & {
   type: PropertyType;
-  value?: PropertyGridPrimitiveValue;
   properties?: EditableProperty[];
   exampleValues?: PropertyExampleValue[];
   rows?: PropertyGridTableRow[];

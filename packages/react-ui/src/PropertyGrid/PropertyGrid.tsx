@@ -53,21 +53,13 @@ export type PropertyGridProperties = Record<string, PropertyGridProperty>;
 
 export type PropertyGridInputProperties = PropertyGridProperties | readonly PropertyGridEditableProperty[];
 
-const hasOwn = (value: object, key: PropertyKey) => Object.prototype.hasOwnProperty.call(value, key);
-
 const isEditablePropertyList = (properties: PropertyGridInputProperties): properties is readonly PropertyGridEditableProperty[] =>
   Array.isArray(properties);
 
 const isObjectProperty = (property: PropertyGridEditableProperty) =>
   property.kind === 'object' || property.type === 'Object' || property.properties !== undefined;
 
-const scalarValueFor = (property: PropertyGridEditableProperty): PropertyGridPrimitiveValue => {
-  if (hasOwn(property, 'value')) {
-    return property.value;
-  }
-
-  return property.example;
-};
+const hasScalarExample = (property: PropertyGridEditableProperty) => property.example !== undefined && property.example !== '';
 
 const rowsFor = (property: PropertyGridEditableProperty): readonly PropertyGridTableRow[] => {
   if (property.rows) {
@@ -139,8 +131,8 @@ export function toPropertyGridProperties(properties: PropertyGridInputProperties
         }
 
         const scalarProperty: PropertyGridScalarProperty = { type: property.type };
-        if (hasOwn(property, 'value') || hasOwn(property, 'example')) {
-          scalarProperty.value = scalarValueFor(property);
+        if (hasScalarExample(property)) {
+          scalarProperty.value = property.example;
         }
 
         return [property.name, scalarProperty];

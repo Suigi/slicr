@@ -37,9 +37,9 @@ Do not treat prose-only predictions as sufficient. Test commands in a PTDD itera
 9. Invoke the `pi-ptdd` skill for the selected task.
 10. Predict and implement the smallest missing behavior through the required PTDD extension-tool sequence.
 11. Add or adjust exactly one focused test first for each PTDD iteration.
-12. Call `ptdd_record_prediction` before every test command in the iteration.
-13. Run exactly the predicted test command.
-14. Call `ptdd_record_actual` immediately after each test command.
+12. Call `ptdd_record_prediction` for every test command in the iteration; this tool records the prediction, runs the command itself, and reports the result.
+13. Do not run the predicted command separately with `bash` during an active PTDD iteration.
+14. Call `ptdd_record_actual` immediately after each `ptdd_record_prediction` command result.
 15. Implement the smallest code change only after `ptdd_record_actual` confirms a matching red failure.
 16. Re-run tests only after recording a green prediction through `ptdd_record_prediction`.
 17. Call `ptdd_finish_iteration` after green is confirmed.
@@ -51,7 +51,7 @@ Do not treat prose-only predictions as sufficient. Test commands in a PTDD itera
 - State what seam you are testing before editing code.
 - Prefer the smallest viable surface area.
 - Use the PTDD extension tools as the auditable source of truth for prediction and actual-result tracking.
-- Do not run test commands from memory after writing prose predictions; the prediction must be recorded with `ptdd_record_prediction`.
+- Do not run test commands from memory after writing prose predictions; the prediction must be recorded and the command must be run by `ptdd_record_prediction`.
 - If an expected failure does not occur, treat that as information:
   - call `ptdd_record_actual` with `match: false` and `outcome: "unexpected"`
   - verify whether the behavior already exists
