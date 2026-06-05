@@ -1,4 +1,4 @@
-import { isToolCallEventType, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { isToolCallEventType, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { spawn } from "node:child_process";
 import { Type } from "typebox";
 
@@ -29,6 +29,26 @@ type GuardState = {
 
 const state: GuardState = { phase: "idle" };
 
+const phaseEmoji: Record<GuardPhase, string> = {
+  idle: "⚪",
+  "iteration-started": "🧪",
+  "prediction-recorded": "🔮",
+  "test-result-awaiting-actual": "⏳",
+  "red-confirmed": "🔴",
+  "green-confirmed": "🟢",
+  "unexpected-result": "⚠️",
+};
+
+const phaseLabel: Record<GuardPhase, string> = {
+  idle: "idle",
+  "iteration-started": "iteration",
+  "prediction-recorded": "predicted",
+  "test-result-awaiting-actual": "record actual",
+  "red-confirmed": "red",
+  "green-confirmed": "green",
+  "unexpected-result": "unexpected",
+};
+
 const testCommandPattern = /(^|\s)(\.\/scripts\/test\.sh|npm\s+run\s+test|npm\s+test|vitest)(\s|$)/;
 const allowedBeforeRedPattern = /(\.test\.|\.spec\.|test-list\.md$|ptdd-log\.md$|_tasks\/|\.agents\/skills\/|\.pi\/extensions\/)/;
 
@@ -53,6 +73,17 @@ function isTestCommand(command: string) {
 
 function isAllowedBeforeRed(path: string) {
   return allowedBeforeRedPattern.test(path);
+}
+
+function shorten(text: string, maxLength = 28) {
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength - 1)}…`;
+}
+
+function updateStatus(ctx: ExtensionContext) {
+  const phase = `${phaseEmoji[state.phase]} PTDD ${phaseLabel[state.phase]}`;
+  const behavior = state.behavior ? ` · ${shorten(state.behavior)}` : "";
+  ctx.ui.setStatus("ptdd-guard", phase + behavior);
 }
 
 function statusText() {
@@ -162,6 +193,10 @@ function formatCommandResult(result: Awaited<ReturnType<typeof runPredictedComma
 }
 
 export default function (pi: ExtensionAPI) {
+  pi.on("session_start", async (_event, ctx) => {
+    updateStatus(ctx);
+  });
+
   pi.registerTool({
     name: "ptdd_start_iteration",
     label: "PTDD Start Iteration",
@@ -170,7 +205,7 @@ export default function (pi: ExtensionAPI) {
       behavior: Type.String({ description: "The single behavior under test in this iteration." }),
       acceptanceCriteria: Type.String({ description: "Observable acceptance criteria for this one behavior." }),
     }),
-    async execute(_toolCallId, params) {
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       state.phase = "iteration-started";
       state.behavior = params.behavior;
       state.acceptanceCriteria = params.acceptanceCriteria;
@@ -183,6 +218,7 @@ export default function (pi: ExtensionAPI) {
       state.lastActual = undefined;
       state.lastMatch = undefined;
       state.lastMismatchExplanation = undefined;
+      updateStatus(ctx);
       return {
         content: [{ type: "text", text: `PTDD iteration started: ${params.behavior}` }],
         details: { ...state },
@@ -244,11 +280,13 @@ export default function (pi: ExtensionAPI) {
       state.lastActual = undefined;
       state.lastMatch = undefined;
       state.lastMismatchExplanation = undefined;
+      updateStatus(ctx);
 
       try {
         const commandResult = await runPredictedCommand(params.command, ctx.cwd, signal);
         const actual = formatCommandResult(commandResult);
         state.phase = "test-result-awaiting-actual";
+        updateStatus(ctx);
         return {
           content: [{
             type: "text",
@@ -268,6 +306,7 @@ export default function (pi: ExtensionAPI) {
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         state.phase = "test-result-awaiting-actual";
+        updateStatus(ctx);
         return {
           content: [{
             type: "text",
@@ -296,7 +335,7 @@ export default function (pi: ExtensionAPI) {
         description: "Required when match is false. Explain exactly what differed from the prediction.",
       })),
     }),
-    async execute(_toolCallId, params) {
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       if (state.phase !== "test-result-awaiting-actual") {
         return {
           content: [{ type: "text", text: `Cannot record actual while phase is ${state.phase}. Call ptdd_record_prediction first so it can run the predicted test command.` }],
@@ -329,6 +368,7 @@ export default function (pi: ExtensionAPI) {
       } else {
         state.phase = "green-confirmed";
       }
+      updateStatus(ctx);
       return {
         content: [{ type: "text", text: `ACTUAL recorded. MATCH: ${params.match ? "✅" : "❌"}. phase=${state.phase}` }],
         details: { ...state },
@@ -343,9 +383,10 @@ export default function (pi: ExtensionAPI) {
     parameters: Type.Object({
       resolution: Type.String({ description: "Short summary of the completed behavior or stop reason." }),
     }),
-    async execute(_toolCallId, params) {
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const previous = { ...state };
       resetIteration();
+      updateStatus(ctx);
       return {
         content: [{ type: "text", text: `PTDD iteration finished: ${params.resolution}` }],
         details: { previous, current: { ...state } },
@@ -358,7 +399,8 @@ export default function (pi: ExtensionAPI) {
     label: "PTDD Status",
     description: "Show the current PTDD guard state.",
     parameters: Type.Object({}),
-    async execute() {
+    async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
+      updateStatus(ctx);
       return {
         content: [{ type: "text", text: statusText() }],
         details: { ...state },
