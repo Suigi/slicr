@@ -103,7 +103,7 @@ Extend the domain graph projection and renderer graph adaptation so replayed mod
 
 ## Task 5: Split and merge editor property data
 ### Status
-[created]
+[done]
 
 ### Description
 Add focused mapping helpers that convert combined `EditableProperty[]` editor data into separate schema/example payloads and merge projected schema/example data back into editor properties.
@@ -127,12 +127,19 @@ Add focused mapping helpers that convert combined `EditableProperty[]` editor da
 [created]
 
 ### Description
-Wire the focused-node side panel property editor to the event-sourced graph model so edits update the UI immediately and append separated schema/example events after a 1 second debounce.
+Wire the focused-node side panel property editor to the event-sourced graph model so edits update the UI immediately and append separated schema/example events after a 1 second debounce. Create the persistence commands explicitly as:
+
+* `ChangeNodeSchemaCommand` with `{ nodeId, schema }`, emitted through `changeNodeSchemaHandler`.
+* `ChangeNodeExampleValuesCommand` with `{ nodeId, exampleValues }`, emitted through `changeNodeExampleValuesHandler`.
+
+Place the command types and handlers in `apps/slicr-dcb/src/domain/nodeCommands/handler.ts` alongside the existing node command handlers, with tests in `apps/slicr-dcb/src/domain/nodeCommands/handler.test.ts`. Expose them through `apps/slicr-dcb/src/graph/eventSourcedGraphModel.ts` and call them from the `useGraphModel`/App side-panel wiring after the debounce or flush.
 
 ### Acceptance Criteria
 * Editing properties in the side panel updates the visible editor immediately.
 * No schema/example event is appended before the 1 second debounce expires.
-* After the debounce expires, only changed schema and/or example payloads are appended as `NodeSchemaChanged` and/or `NodeExampleValuesChanged` events for the focused logical `nodeId`.
+* After the debounce expires, `changeNodeSchemaHandler` appends `NodeSchemaChanged` only when the derived schema payload changed for the focused logical `nodeId`.
+* After the debounce expires, `changeNodeExampleValuesHandler` appends `NodeExampleValuesChanged` only when the derived example payload changed for the focused logical `nodeId`.
+* Both new handlers reject unknown `nodeId` values consistently with the existing node command handlers.
 * No-op edits append no property events.
 * Pending edits flush rather than being discarded when focus changes, import replaces the graph, or the editor/side panel unmounts before the debounce expires.
 * Replayed persisted properties appear when the same node is focused again or after model reload.
@@ -143,6 +150,7 @@ Wire the focused-node side panel property editor to the event-sourced graph mode
 
 ### Notes
 * Preserve the existing behavior that property editor keyboard events do not trigger canvas/node shortcuts.
+* The handler layer should stay in `domain/nodeCommands/handler.ts`; debounce timing and flush lifecycle belong in `graph/useGraphModel.ts` and/or the App boundary, not inside the domain handlers.
 
 ## Task 7: Show imported and exported persisted properties in App flow
 ### Status
