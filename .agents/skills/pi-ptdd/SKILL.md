@@ -38,11 +38,11 @@ Use these tools as part of the workflow. Do not rely on prose-only predictions.
 
 - Each iteration covers exactly one independently testable behavior.
 - Write or adjust exactly one focused test before production code for that behavior.
-- Before running any test command for the iteration, call `ptdd_record_prediction` with the exact command and a concrete, falsifiable prediction of the test outcome.
+- To run a test command during an active iteration, call `ptdd_record_prediction` with the exact command and a concrete, falsifiable prediction of the test outcome; this tool call runs the command itself and returns the result.
 - A red prediction must state the specific failing assertion/behavior, the expected value/result, the current actual value/result, and the likely failure message or failing test name when known.
 - A green prediction must state the concrete behavior/assertion expected to pass and any related tests expected to remain passing.
-- The immediately following test command must match the recorded command exactly.
-- After the test command returns, call `ptdd_record_actual` before editing production code or running another test, recording whether the observed output matched the concrete prediction.
+- Do not run the predicted test command separately with `bash`; `ptdd_record_prediction` is the test runner for active PTDD iterations.
+- After `ptdd_record_prediction` returns the command result, call `ptdd_record_actual` before editing production code or running another test, recording whether the observed output matched the concrete prediction.
 - Do not edit production code until `ptdd_record_actual` confirms `failed-as-expected` with `match: true`.
 - After production code changes, call `ptdd_record_prediction` again for the green test run before running tests.
 - After the green test run, call `ptdd_record_actual` with `passed-as-expected` and `match: true`.
@@ -92,7 +92,7 @@ For each `[todo]` behavior:
    Bad red prediction: "This test fails because the method is not implemented."
 
    Good red prediction: "`calculateTotalDiscount()` fails because the new test asserts the returned total is `25`, but the current implementation returns `7`; the matcher output should be equivalent to `expected 25 received 7`."
-5. Run exactly that test command.
+5. Wait for `ptdd_record_prediction` to run the command and return the result. Do not run the command separately.
 6. Call `ptdd_record_actual` with:
    - what happened, including the relevant failure/pass output
    - whether the observed output matched the predicted outcome, reason, expected value, and actual value
@@ -104,7 +104,7 @@ For each `[todo]` behavior:
    - the exact focused/full-enough test command
    - `expectedOutcome: "pass"`
    - `predictedReason`: the concrete previously failing assertion/behavior expected to pass now, plus any existing tests likely affected
-10. Run exactly that command.
+10. Wait for `ptdd_record_prediction` to run that command and return the result. Do not run the command separately.
 11. Call `ptdd_record_actual` with:
    - what happened, including the pass summary or any failure output
    - whether it matched the concrete pass prediction

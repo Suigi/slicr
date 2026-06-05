@@ -1,4 +1,5 @@
 import { isToolCallEventType, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { spawn } from "node:child_process";
 import { Type } from "typebox";
 
 type ExpectedOutcome = "fail" | "pass";
@@ -90,6 +91,76 @@ function predictionError(params: {
   return undefined;
 }
 
+function truncateMiddle(text: string, maxLength = 50_000) {
+  if (text.length <= maxLength) return text;
+  const keep = Math.floor((maxLength - 100) / 2);
+  return `${text.slice(0, keep)}\n\n... output truncated by ptdd_record_prediction (${text.length} chars total) ...\n\n${text.slice(-keep)}`;
+}
+
+function runPredictedCommand(command: string, cwd: string, signal?: AbortSignal) {
+  return new Promise<{
+    exitCode: number | null;
+    signal: string | null;
+    stdout: string;
+    stderr: string;
+    durationMs: number;
+    timedOut: boolean;
+  }>((resolve, reject) => {
+    const started = Date.now();
+    const child = spawn(command, {
+      cwd,
+      shell: true,
+      stdio: ["ignore", "pipe", "pipe"],
+      env: process.env,
+    });
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGTERM");
+    }, 120_000);
+    const abort = () => {
+      child.kill("SIGTERM");
+    };
+    signal?.addEventListener("abort", abort, { once: true });
+    child.stdout.on("data", (chunk) => { stdout += chunk.toString(); });
+    child.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
+    child.on("error", (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      signal?.removeEventListener("abort", abort);
+      reject(error);
+    });
+    child.on("close", (exitCode, closeSignal) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      signal?.removeEventListener("abort", abort);
+      resolve({
+        exitCode,
+        signal: closeSignal,
+        stdout: truncateMiddle(stdout),
+        stderr: truncateMiddle(stderr),
+        durationMs: Date.now() - started,
+        timedOut,
+      });
+    });
+  });
+}
+
+function formatCommandResult(result: Awaited<ReturnType<typeof runPredictedCommand>>) {
+  const parts = [
+    `exitCode=${result.exitCode}${result.signal ? ` signal=${result.signal}` : ""}${result.timedOut ? " timedOut=true" : ""}`,
+    `durationMs=${result.durationMs}`,
+  ];
+  if (result.stdout.trim()) parts.push(`stdout:\n${result.stdout}`);
+  if (result.stderr.trim()) parts.push(`stderr:\n${result.stderr}`);
+  return parts.join("\n");
+}
+
 export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "ptdd_start_iteration",
@@ -121,10 +192,10 @@ export default function (pi: ExtensionAPI) {
 
   pi.registerTool({
     name: "ptdd_record_prediction",
-    label: "PTDD Record Prediction",
-    description: "Record the required concrete test outcome prediction immediately before running the exact test command.",
+    label: "PTDD Predict And Run",
+    description: "Record the required concrete test outcome prediction, run the exact test command, and report the command result for actual-outcome recording.",
     parameters: Type.Object({
-      command: Type.String({ description: "The exact bash test command that will be run next." }),
+      command: Type.String({ description: "The exact bash test command to run now." }),
       expectedOutcome: Type.Union([Type.Literal("fail"), Type.Literal("pass")]),
       predictedReason: Type.String({
         minLength: 20,
@@ -140,7 +211,7 @@ export default function (pi: ExtensionAPI) {
         description: "Expected failure message, matcher output, thrown error, or test name likely to fail.",
       })),
     }),
-    async execute(_toolCallId, params) {
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       if (state.phase !== "iteration-started" && state.phase !== "red-confirmed" && state.phase !== "unexpected-result") {
         return {
           content: [{ type: "text", text: `Cannot record prediction while phase is ${state.phase}. Start an iteration first or resolve the current test result.` }],
@@ -156,6 +227,13 @@ export default function (pi: ExtensionAPI) {
           details: { ...state },
         };
       }
+      if (!isTestCommand(params.command)) {
+        return {
+          content: [{ type: "text", text: `ptdd_record_prediction only runs recognized test commands. Got: ${params.command}` }],
+          isError: true,
+          details: { ...state },
+        };
+      }
       state.phase = "prediction-recorded";
       state.predictedCommand = params.command;
       state.expectedOutcome = params.expectedOutcome;
@@ -166,10 +244,39 @@ export default function (pi: ExtensionAPI) {
       state.lastActual = undefined;
       state.lastMatch = undefined;
       state.lastMismatchExplanation = undefined;
-      return {
-        content: [{ type: "text", text: `PREDICTION recorded for: ${params.command}: ${params.predictedReason}` }],
-        details: { ...state },
-      };
+
+      try {
+        const commandResult = await runPredictedCommand(params.command, ctx.cwd, signal);
+        const actual = formatCommandResult(commandResult);
+        state.phase = "test-result-awaiting-actual";
+        return {
+          content: [{
+            type: "text",
+            text: [
+              `PREDICTION recorded for: ${params.command}`,
+              params.predictedReason,
+              "",
+              "Command result:",
+              actual,
+              "",
+              "Next: call ptdd_record_actual with whether this matched the concrete prediction.",
+            ].join("\n"),
+          }],
+          details: { state: { ...state }, commandResult, actual },
+          isError: commandResult.timedOut,
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        state.phase = "test-result-awaiting-actual";
+        return {
+          content: [{
+            type: "text",
+            text: `PREDICTION recorded for: ${params.command}\n${params.predictedReason}\n\nCommand execution failed before producing a test result: ${message}\n\nNext: call ptdd_record_actual with outcome=\"unexpected\" and match=false.`,
+          }],
+          details: { state: { ...state }, executionError: message },
+          isError: true,
+        };
+      }
     },
   });
 
@@ -192,7 +299,7 @@ export default function (pi: ExtensionAPI) {
     async execute(_toolCallId, params) {
       if (state.phase !== "test-result-awaiting-actual") {
         return {
-          content: [{ type: "text", text: `Cannot record actual while phase is ${state.phase}. Run the predicted test command first.` }],
+          content: [{ type: "text", text: `Cannot record actual while phase is ${state.phase}. Call ptdd_record_prediction first so it can run the predicted test command.` }],
           isError: true,
           details: { ...state },
         };
@@ -264,20 +371,10 @@ export default function (pi: ExtensionAPI) {
       const command = event.input.command;
       if (!isTestCommand(command)) return undefined;
       if (state.phase === "idle") return undefined;
-      if (state.phase !== "prediction-recorded") {
-        return {
-          block: true,
-          reason: `PTDD guard blocked test command. Record ptdd_record_prediction first. Current ${statusText()}`,
-        };
-      }
-      if (command !== state.predictedCommand) {
-        return {
-          block: true,
-          reason: `PTDD guard blocked test command. Predicted command was ${JSON.stringify(state.predictedCommand)}, got ${JSON.stringify(command)}.`,
-        };
-      }
-      state.phase = "test-result-awaiting-actual";
-      return undefined;
+      return {
+        block: true,
+        reason: `PTDD guard blocked direct test command. ptdd_record_prediction now records the prediction, runs the test command itself, and reports the result. Current ${statusText()}`,
+      };
     }
 
     if ((event.toolName === "write" || event.toolName === "edit") && state.phase !== "idle") {
