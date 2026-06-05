@@ -1,9 +1,13 @@
+import type {Ref} from 'react';
 import {DCB_NODE_MEASURE_CLASS} from '../nodeMeasurement';
 import type {GraphNode, RenderNode} from '../graph/types';
 import {GraphNodeView} from './GraphNodeView';
 
 type NodeMeasureLayerProps = {
   nodes: readonly RenderNode[];
+  editingNodeId: string | null;
+  draftLabel: string;
+  containerRef?: Ref<HTMLDivElement>;
 };
 
 const noop = () => {};
@@ -28,9 +32,10 @@ const noopLabelChange = (label: string) => {
   void label;
 };
 
-export function NodeMeasureLayer({nodes}: NodeMeasureLayerProps) {
+export function NodeMeasureLayer({nodes, editingNodeId, draftLabel, containerRef}: NodeMeasureLayerProps) {
   return (
     <div
+      ref={containerRef}
       className="node-measure-layer"
       aria-hidden="true"
       tabIndex={-1}
@@ -46,10 +51,10 @@ export function NodeMeasureLayer({nodes}: NodeMeasureLayerProps) {
           <GraphNodeView
             node={{...node, x: 0, y: 0}}
             isFocused={false}
-            isEditing={false}
+            isEditing={node.id === editingNodeId}
             isMenuOpen={false}
             isConnectingSource={false}
-            draftLabel=""
+            draftLabel={node.id === editingNodeId ? draftLabel : ''}
             connectionMenuItems={[]}
             renderMode="measurement"
             onNodeClick={noopNodeHandler}

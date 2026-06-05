@@ -5,3 +5,4 @@
 - Keep the DCB measurement helper pure and app-specific: use a shared selector plus `data-node-id`, and filter invalid DOMRect values before they can influence layout state.
 - When reusing `GraphNodeView` for off-canvas measurement, suppress focus-only classes, menus, add buttons, and edit handlers instead of forking the stable label/box markup.
 - Keep the measurement layer mounted as a sibling outside `InfiniteCanvas`; if it lives inside the canvas subtree, DOM size reads can inherit zoom/pan behavior instead of true unzoomed node size.
+- When measurement state is derived from just-rendered DOM, queue the React state update after the render commit instead of setting it synchronously inside the effect body; this keeps the measurement pass lint-clean and avoids cascading-render warnings.

@@ -47,7 +47,7 @@ describe('NodeMeasureLayer', () => {
     root = createRoot(container);
 
     await act(async () => {
-      root?.render(createElement(NodeMeasureLayer, {nodes}));
+      root?.render(createElement(NodeMeasureLayer, {nodes, editingNodeId: null, draftLabel: ''}));
     });
 
     const layer = container.querySelector<HTMLElement>('.node-measure-layer');
@@ -60,5 +60,23 @@ describe('NodeMeasureLayer', () => {
     expect([...measurementTargets].map((target) => target.dataset.nodeId)).toEqual(nodes.map((node) => node.id));
     expect(measurementTargets[0]?.textContent).toContain('Checkout Completed');
     expect(measurementTargets[1]?.textContent).toContain('Read Model');
+  });
+
+  it('renders the active editing node with the current draft label in measurement mode', async () => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(createElement(NodeMeasureLayer, {nodes, editingNodeId: 'node-1', draftLabel: 'Checkout Draft'}));
+    });
+
+    const editingInput = container.querySelector<HTMLInputElement>('.node-measure-layer [data-node-id="node-1"] .node-label-input');
+    const otherNodeButton = container.querySelector<HTMLButtonElement>('.node-measure-layer [data-node-id="node-2"] .node-label-button');
+
+    expect(editingInput).not.toBeNull();
+    expect(editingInput?.value).toBe('Checkout Draft');
+    expect(editingInput?.readOnly).toBe(true);
+    expect(otherNodeButton?.textContent).toContain('Read Model');
   });
 });

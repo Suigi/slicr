@@ -61,11 +61,14 @@ export function GraphNodeView({
   const isMeasurementMode = renderMode === 'measurement';
   const showTransientControls = !isMeasurementMode && isFocused;
   const showNodeMenu = showTransientControls && isMenuOpen;
+  const nodeStyle = isMeasurementMode
+    ? {position: 'relative' as const}
+    : {left: node.x, top: node.y, width: node.width, height: node.height};
 
   return (
     <div
       className={`node-box node-type-${node.type}${showTransientControls ? ' node-focused' : ''}${!isMeasurementMode && isConnectingSource ? ' node-connecting-source' : ''}`}
-      style={{ left: node.x, top: node.y, width: node.width, height: node.height }}
+      style={nodeStyle}
       onClick={
         isMeasurementMode
           ? undefined

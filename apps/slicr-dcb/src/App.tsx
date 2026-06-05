@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { InfiniteCanvas, PointyCardTags, PropertyEditor, PropertyGrid, type EditableProperty, type InfiniteCanvasHandle } from '@slicr/react-ui';
 import { compactLayout } from 'layout-lib';
 import { AppShell } from './components/AppShell';
@@ -17,6 +17,7 @@ import {parseImportEvents, serializeDomainEvents} from './graph/importExport';
 import { storeLastOkGraphModel, useGraphModel } from './graph/useGraphModel';
 import {serializeVisualGraphAcceptanceTest} from './graph/visualGraphExport';
 import type { RenderNode } from './graph/types';
+import {measureNodeDimensions, type NodeDimensions} from './nodeMeasurement';
 
 const dummyProjects: Project[] = [
   { id: 'checkout-system', name: 'Checkout System' },
@@ -49,6 +50,24 @@ type PropertyGridCardMockup = {
   properties: EditableProperty[];
   pointyTags?: { label: string; href: string }[];
 };
+
+function areNodeMeasurementMapsEqual(
+  current: Record<string, NodeDimensions>,
+  next: Record<string, NodeDimensions>,
+) {
+  const currentKeys = Object.keys(current);
+  const nextKeys = Object.keys(next);
+
+  if (currentKeys.length !== nextKeys.length) {
+    return false;
+  }
+
+  return currentKeys.every((nodeId) => {
+    const currentDimensions = current[nodeId];
+    const nextDimensions = next[nodeId];
+    return currentDimensions?.width === nextDimensions?.width && currentDimensions?.height === nextDimensions?.height;
+  });
+}
 
 const initialPropertyGridCardMockups: PropertyGridCardMockup[] = [
   {
@@ -174,12 +193,15 @@ const initialPropertyGridCardMockups: PropertyGridCardMockup[] = [
 export function App() {
   const canvasRef = useRef<InfiniteCanvasHandle>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const measurementLayerRef = useRef<HTMLDivElement>(null);
   const [activeProjectId, setActiveProjectId] = useState('checkout-system');
   const [activeChapterId, setActiveChapterId] = useState('cart-events');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [propertyGridMockups, setPropertyGridMockups] = useState<PropertyGridCardMockup[]>(initialPropertyGridCardMockups);
   const [selectedPropertyGridMockupVariant, setSelectedPropertyGridMockupVariant] = useState(initialPropertyGridCardMockups[0]?.variant ?? '');
+  const [nodeMeasurements, setNodeMeasurements] = useState<Record<string, NodeDimensions>>({});
+  const [settledMeasurementKey, setSettledMeasurementKey] = useState('');
   const selectedPropertyGridMockup =
     propertyGridMockups.find((mockup) => mockup.variant === selectedPropertyGridMockupVariant) ?? propertyGridMockups[0];
   const updateSelectedPropertyGridProperties = (properties: EditableProperty[]) => {
@@ -221,16 +243,25 @@ export function App() {
     handleLabelBlur,
   } = useGraphModel();
 
+  const layoutNodes = useMemo(
+    () =>
+      nodes.map((node) => {
+        const measuredDimensions = nodeMeasurements[node.id];
+        return measuredDimensions ? {...node, ...measuredDimensions} : node;
+      }),
+    [nodeMeasurements, nodes],
+  );
+
   const layoutResult = useMemo(
     () =>
       compactLayout({
-        nodes,
+        nodes: layoutNodes,
         edges,
         lanes,
         defaults: { nodeWidth: NODE_WIDTH, nodeHeight: NODE_HEIGHT },
         spacing: { laneMargin: 0, laneGap: 100, minTargetShift: 20, minNodeGap: 40 },
       }),
-    [edges, lanes, nodes],
+    [edges, lanes, layoutNodes],
   );
 
   const renderedNodes: RenderNode[] = useMemo(() => {
@@ -238,7 +269,7 @@ export function App() {
       return [];
     }
 
-    const inputNodeById = new Map(nodes.map((node) => [node.id, node]));
+    const inputNodeById = new Map(layoutNodes.map((node) => [node.id, node]));
     return layoutResult.result.nodes.flatMap((nodeLayout) => {
       const node = inputNodeById.get(nodeLayout.id);
       if (!node) {
@@ -247,7 +278,7 @@ export function App() {
 
       return [{ ...node, ...nodeLayout }];
     });
-  }, [layoutResult, nodes]);
+  }, [layoutNodes, layoutResult]);
 
   const arrowRenderPoints = layoutResult.ok
     ? layoutResult.result.edges
@@ -268,6 +299,32 @@ export function App() {
           } => Boolean(edge.points),
         )
     : [];
+
+  const measurementStateKey = useMemo(
+    () => JSON.stringify({nodes, editingNodeId, draftLabel}),
+    [draftLabel, editingNodeId, nodes],
+  );
+  const isMeasurementSettled = settledMeasurementKey === measurementStateKey;
+
+  useLayoutEffect(() => {
+    let cancelled = false;
+
+    queueMicrotask(() => {
+      if (cancelled) {
+        return;
+      }
+
+      const measuredDimensions = measureNodeDimensions(measurementLayerRef.current ?? document);
+      setNodeMeasurements((currentMeasurements) =>
+        areNodeMeasurementMapsEqual(currentMeasurements, measuredDimensions) ? currentMeasurements : measuredDimensions,
+      );
+      setSettledMeasurementKey(measurementStateKey);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [measurementStateKey]);
 
   const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
   const focusedNode = focusedNodeId ? nodeById.get(focusedNodeId) : undefined;
@@ -431,7 +488,7 @@ export function App() {
         />
       }
     >
-      <div className="graph-workspace">
+      <div className="graph-workspace" data-measurement-settled={isMeasurementSettled ? 'true' : 'false'}>
         <div className="overlay-actions">
         <button type="button" className="new-slice-button" onClick={addNewSlice}>
           + New Slice
@@ -477,7 +534,12 @@ export function App() {
           </section>
         </aside>
       ) : null}
-      <NodeMeasureLayer nodes={renderedNodes} />
+      <NodeMeasureLayer
+        nodes={renderedNodes}
+        editingNodeId={editingNodeId}
+        draftLabel={draftLabel}
+        containerRef={measurementLayerRef}
+      />
       <InfiniteCanvas
         ref={canvasRef}
         className="canvas"

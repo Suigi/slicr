@@ -81,7 +81,7 @@ Add a `NodeMeasureLayer` for `apps/slicr-dcb` that renders one hidden off-screen
 
 ## Task 4: Feed measurements into layout-lib
 ### Status
-[created]
+[done]
 
 ### Description
 Add measurement state and settled/not-settled layout state in the DCB app flow, run measurement after committed graph node DOM renders, derive layout nodes with measured dimensions, and pass those nodes to `compactLayout`.
