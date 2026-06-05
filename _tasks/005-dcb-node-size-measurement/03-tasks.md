@@ -101,7 +101,7 @@ Add measurement state and settled/not-settled layout state in the DCB app flow, 
 
 ## Task 5: Trigger remeasurement from graph changes
 ### Status
-[created]
+[done]
 
 ### Description
 Ensure committed graph/store changes that can alter node content trigger a fresh measurement pass after the updated node DOM has rendered, using existing React graph state updates unless a minimal subscription/version mechanism is proven necessary.

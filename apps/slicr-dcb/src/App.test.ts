@@ -235,6 +235,137 @@ describe('App', () => {
       HTMLElement.prototype.getBoundingClientRect = originalGetBoundingClientRect;
     }
   });
+
+  it('re-runs measurement and layout after a committed graph content change', async () => {
+    const originalGetBoundingClientRect = HTMLElement.prototype.getBoundingClientRect;
+    let currentMeasurement = {width: 312, height: 118};
+    let graphModelState = createGraphModelMockValue({
+      nodes: [{id: 'node-1', label: 'Checkout Completed', type: 'evt', laneId: 'lane-0', width: NODE_WIDTH, height: NODE_HEIGHT}],
+    });
+
+    graphModelMock.useGraphModel.mockImplementation(() => graphModelState);
+    HTMLElement.prototype.getBoundingClientRect = function () {
+      if (this instanceof HTMLElement && this.dataset.nodeId === 'node-1') {
+        return {
+          x: 0,
+          y: 0,
+          top: 0,
+          left: 0,
+          bottom: currentMeasurement.height,
+          right: currentMeasurement.width,
+          width: currentMeasurement.width,
+          height: currentMeasurement.height,
+          toJSON: () => ({}),
+        };
+      }
+
+      return originalGetBoundingClientRect.call(this);
+    };
+
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+
+    try {
+      await act(async () => {
+        root?.render(createElement(App));
+        await Promise.resolve();
+      });
+
+      currentMeasurement = {width: 420, height: 160};
+      graphModelState = createGraphModelMockValue({
+        nodes: [{id: 'node-1', label: 'Checkout Draft', type: 'evt', laneId: 'lane-0', width: NODE_WIDTH, height: NODE_HEIGHT}],
+      });
+
+      await act(async () => {
+        root?.render(createElement(App));
+        await Promise.resolve();
+      });
+
+      expect(layoutLibMock.compactLayout).toHaveBeenCalledTimes(4);
+      expect(layoutLibMock.compactLayout.mock.calls[2]?.[0].nodes).toEqual([
+        expect.objectContaining({id: 'node-1', width: 312, height: 118, label: 'Checkout Draft'}),
+      ]);
+      expect(layoutLibMock.compactLayout.mock.calls[3]?.[0].nodes).toEqual([
+        expect.objectContaining({id: 'node-1', width: 420, height: 160, label: 'Checkout Draft'}),
+      ]);
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = originalGetBoundingClientRect;
+    }
+  });
+
+  it('does not re-run measurement or layout for focus and node-menu state changes alone', async () => {
+    const originalGetBoundingClientRect = HTMLElement.prototype.getBoundingClientRect;
+    const stableNodes = [{id: 'node-1', label: 'Checkout Completed', type: 'evt', laneId: 'lane-0', width: NODE_WIDTH, height: NODE_HEIGHT}];
+    const stableEdges: [] = [];
+    const stableLanes = [{id: 'lane-0', order: 0}];
+    let measurementCallCount = 0;
+    let graphModelState = createGraphModelMockValue({
+      nodes: stableNodes,
+      edges: stableEdges,
+      lanes: stableLanes,
+      focusedNodeId: 'node-1',
+      openNodeMenuId: null,
+    });
+
+    graphModelMock.useGraphModel.mockImplementation(() => graphModelState);
+    HTMLElement.prototype.getBoundingClientRect = function () {
+      if (this instanceof HTMLElement && this.dataset.nodeId === 'node-1') {
+        measurementCallCount += 1;
+        return {
+          x: 0,
+          y: 0,
+          top: 0,
+          left: 0,
+          bottom: 118,
+          right: 312,
+          width: 312,
+          height: 118,
+          toJSON: () => ({}),
+        };
+      }
+
+      return originalGetBoundingClientRect.call(this);
+    };
+
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+
+    try {
+      await act(async () => {
+        root?.render(createElement(App));
+        await Promise.resolve();
+      });
+
+      const measurementCallCountAfterMount = measurementCallCount;
+      const layoutCallCountAfterMount = layoutLibMock.compactLayout.mock.calls.length;
+
+      graphModelState = createGraphModelMockValue({
+        nodes: stableNodes,
+        edges: stableEdges,
+        lanes: stableLanes,
+        focusedNodeId: null,
+        openNodeMenuId: 'node-1',
+      });
+
+      await act(async () => {
+        root?.render(createElement(App));
+        await Promise.resolve();
+      });
+
+      expect(measurementCallCount).toBe(measurementCallCountAfterMount);
+      expect(layoutLibMock.compactLayout).toHaveBeenCalledTimes(layoutCallCountAfterMount);
+      expect(layoutLibMock.compactLayout.mock.calls[0]?.[0].nodes).toEqual([
+        expect.objectContaining({id: 'node-1', width: NODE_WIDTH, height: NODE_HEIGHT}),
+      ]);
+      expect(layoutLibMock.compactLayout.mock.calls[1]?.[0].nodes).toEqual([
+        expect.objectContaining({id: 'node-1', width: 312, height: 118}),
+      ]);
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = originalGetBoundingClientRect;
+    }
+  });
 });
 
 describe('Decision Model nodes', () => {
