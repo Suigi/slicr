@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { Fragment, useRef, useState, type KeyboardEvent } from 'react';
 import type { PropertyGridEditableProperty, PropertyGridTableRow } from '../PropertyGrid';
 import './PropertyEditor.css';
 
@@ -32,44 +32,6 @@ const emptyProperty = (): EditableProperty => ({
   example: '',
 });
 
-const ensurePropertyIds = (properties: EditableProperty[]): { properties: EditableProperty[]; changed: boolean } => {
-  let changed = false;
-
-  const propertiesWithIds = properties.map((property) => {
-    const nestedResult = property.properties ? ensurePropertyIds(property.properties) : undefined;
-    const nestedProperties = nestedResult?.properties ?? property.properties;
-    const rows = property.rows?.map((row) => {
-      if (property.type !== 'Object' || !nestedProperties) {
-        return row;
-      }
-
-      let rowChanged = false;
-      const rowWithPropertyIds = { ...row };
-
-      nestedProperties.forEach((nestedProperty) => {
-        if (nestedProperty.id && rowWithPropertyIds[nestedProperty.id] === undefined && rowWithPropertyIds[nestedProperty.name] !== undefined) {
-          rowWithPropertyIds[nestedProperty.id] = rowWithPropertyIds[nestedProperty.name];
-          rowChanged = true;
-        }
-      });
-
-      changed ||= rowChanged;
-      return rowChanged ? rowWithPropertyIds : row;
-    });
-    const propertyWithId: EditableProperty = {
-      ...property,
-      id: property.id ?? createPropertyId(),
-      properties: nestedProperties,
-      rows,
-    };
-
-    changed ||= !property.id || Boolean(nestedResult?.changed);
-    return propertyWithId;
-  });
-
-  return { properties: propertiesWithIds, changed };
-};
-
 export function PropertyEditor({
   properties,
   onChange,
@@ -77,19 +39,12 @@ export function PropertyEditor({
   showColumnHeaders = true,
   disableExampleValues = false,
 }: PropertyEditorProps) {
-  const normalizedProperties = useMemo(() => ensurePropertyIds(properties), [properties]);
-  const editorProperties = normalizedProperties.properties;
+  const editorProperties = properties;
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [draggedExample, setDraggedExample] = useState<{ propertyIndex: number; exampleIndex: number } | null>(null);
   const [settingsIndex, setSettingsIndex] = useState<number | null>(null);
   const [templatePropertyType, setTemplatePropertyType] = useState<PropertyType>('string');
   const templateNameInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (normalizedProperties.changed) {
-      onChange(editorProperties);
-    }
-  }, [editorProperties, normalizedProperties.changed, onChange]);
 
   const updateProperty = (index: number, property: EditableProperty) => {
     onChange(editorProperties.map((currentProperty, currentIndex) => (currentIndex === index ? property : currentProperty)));

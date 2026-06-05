@@ -5,7 +5,7 @@ import '../property-grid/property-grid.js';
 export type PropertyGridPrimitiveValue = string | number | boolean | null | undefined;
 
 export type PropertyGridEditableProperty = {
-  id?: string;
+  id: string;
   name: string;
   kind?: 'scalar' | 'object';
   type: string;

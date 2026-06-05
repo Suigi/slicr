@@ -41,7 +41,7 @@ Fix the current `PropertyGrid`/`PropertyEditor` behavior where a property withou
 
 ## Task 2: Require stable editable property ids
 ### Status
-[created]
+[done]
 
 ### Description
 Make `EditableProperty.id` required and update existing property editor/property grid mockup data to provide stable IDs.

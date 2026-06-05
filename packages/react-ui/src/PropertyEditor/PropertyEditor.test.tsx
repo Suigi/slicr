@@ -87,7 +87,7 @@ describe('PropertyEditor', () => {
     expect(container.querySelector<HTMLInputElement>('input[value="age"]')?.value).toBe('age');
   });
 
-  it('adds missing ids and migrates object row values from nested property names to ids', () => {
+  it('does not synthesize ids for invalid id-less input during normal rendering', () => {
     const onChange = vi.fn();
 
     renderPropertyEditor([
@@ -97,17 +97,10 @@ describe('PropertyEditor', () => {
         list: true,
         properties: [{ name: 'sku', type: 'string', example: 'ABC' }],
         rows: [{ sku: 'ABC' }],
-      },
+      } as unknown as EditableProperty,
     ], onChange);
 
-    expect(onChange).toHaveBeenCalledWith([
-      expect.objectContaining({
-        id: 'property-2',
-        name: 'items',
-        properties: [expect.objectContaining({ id: 'property-1', name: 'sku' })],
-        rows: [expect.objectContaining({ sku: 'ABC', 'property-1': 'ABC' })],
-      }),
-    ]);
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it('adds a property from the template row when Enter is pressed', () => {

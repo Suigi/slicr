@@ -67,17 +67,18 @@ describe('PropertyGrid React wrapper', () => {
   it('normalizes editable object-list properties into table properties', () => {
     const properties = toPropertyGridProperties([
       {
+        id: 'items-id',
         name: 'items',
         kind: 'object',
         type: 'Item',
         list: true,
         properties: [
-          { name: 'sku', kind: 'scalar', type: 'string' },
-          { name: 'quantity', kind: 'scalar', type: 'number' },
+          { id: 'sku-id', name: 'sku', kind: 'scalar', type: 'string' },
+          { id: 'quantity-id', name: 'quantity', kind: 'scalar', type: 'number' },
         ],
         rows: [
-          { sku: 'ABC', quantity: 2 },
-          { sku: 'XYZ', quantity: 5 },
+          { 'sku-id': 'ABC', 'quantity-id': 2 },
+          { 'sku-id': 'XYZ', 'quantity-id': 5 },
         ],
       },
     ]);
@@ -87,12 +88,12 @@ describe('PropertyGrid React wrapper', () => {
         kind: 'table',
         type: 'Item[]',
         columns: [
-          { key: 'sku', label: 'sku', type: 'string' },
-          { key: 'quantity', label: 'quantity', type: 'number' },
+          { key: 'sku-id', label: 'sku', type: 'string' },
+          { key: 'quantity-id', label: 'quantity', type: 'number' },
         ],
         rows: [
-          { sku: 'ABC', quantity: 2 },
-          { sku: 'XYZ', quantity: 5 },
+          { 'sku-id': 'ABC', 'quantity-id': 2 },
+          { 'sku-id': 'XYZ', 'quantity-id': 5 },
         ],
       },
     });
@@ -103,15 +104,16 @@ describe('PropertyGrid React wrapper', () => {
       <PropertyGrid
         properties={[
           {
+            id: 'items-id',
             name: 'items',
             kind: 'object',
             type: 'Item',
             list: true,
             properties: [
-              { name: 'sku', kind: 'scalar', type: 'string' },
-              { name: 'quantity', kind: 'scalar', type: 'number' },
+              { id: 'sku-id', name: 'sku', kind: 'scalar', type: 'string' },
+              { id: 'quantity-id', name: 'quantity', kind: 'scalar', type: 'number' },
             ],
-            rows: [{ sku: 'ABC', quantity: 2 }],
+            rows: [{ 'sku-id': 'ABC', 'quantity-id': 2 }],
           },
         ]}
       />,
@@ -125,7 +127,7 @@ describe('PropertyGrid React wrapper', () => {
   });
 
   it('renders the type fallback for editable scalar properties with an empty example', () => {
-    const container = renderPropertyGrid(<PropertyGrid properties={[{ name: 'title', type: 'string', example: '' }]} />);
+    const container = renderPropertyGrid(<PropertyGrid properties={[{ id: 'title-id', name: 'title', type: 'string', example: '' }]} />);
     const element = container.querySelector<PropertyGridElement>('property-grid');
 
     expect(element?.shadowRoot?.querySelector('.field-value')).toBeNull();
@@ -134,7 +136,7 @@ describe('PropertyGrid React wrapper', () => {
   });
 
   it('renders the type fallback after an editable scalar example is cleared even if a legacy value remains', () => {
-    const container = renderPropertyGrid(<PropertyGrid properties={[{ name: 'title', type: 'string', value: 'Legacy', example: '' }]} />);
+    const container = renderPropertyGrid(<PropertyGrid properties={[{ id: 'title-id', name: 'title', type: 'string', value: 'Legacy', example: '' }]} />);
     const element = container.querySelector<PropertyGridElement>('property-grid');
 
     expect(element?.shadowRoot?.querySelector('.field-value')).toBeNull();
@@ -143,7 +145,7 @@ describe('PropertyGrid React wrapper', () => {
   });
 
   it('renders editable scalar examples instead of legacy values', () => {
-    const container = renderPropertyGrid(<PropertyGrid properties={[{ name: 'title', type: 'string', value: 'Legacy', example: 'Edited' }]} />);
+    const container = renderPropertyGrid(<PropertyGrid properties={[{ id: 'title-id', name: 'title', type: 'string', value: 'Legacy', example: 'Edited' }]} />);
     const element = container.querySelector<PropertyGridElement>('property-grid');
 
     expect(element?.shadowRoot?.querySelector('.field-value')?.textContent).toBe('Edited');
