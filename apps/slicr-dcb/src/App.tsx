@@ -524,6 +524,7 @@ export function App() {
             <h2>PropertyEditor</h2>
           </div>
           <PropertyEditor properties={exampleProperties} onChange={setExampleProperties} />
+          <PropertyGrid properties={exampleProperties} style={propertyGridColorScheme} ariaLabel="Edited node properties" />
         </section>
         {!layoutResult.ok ? (
           <div className="layout-error">

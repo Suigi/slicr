@@ -1,8 +1,10 @@
-export { PropertyGrid } from './PropertyGrid';
+export { PropertyGrid, toPropertyGridProperties } from './PropertyGrid';
 export type {
+  PropertyGridEditableProperty,
   PropertyGridElement,
   PropertyGridPrimitiveValue,
   PropertyGridProperties,
+  PropertyGridInputProperties,
   PropertyGridProperty,
   PropertyGridProps,
   PropertyGridScalarProperty,

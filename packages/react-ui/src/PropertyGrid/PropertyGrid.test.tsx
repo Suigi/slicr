@@ -4,7 +4,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { PropertyGrid, type PropertyGridElement, type PropertyGridProperties } from './PropertyGrid';
+import { PropertyGrid, toPropertyGridProperties, type PropertyGridElement, type PropertyGridProperties } from './PropertyGrid';
 
 let root: Root | undefined;
 
@@ -62,6 +62,66 @@ describe('PropertyGrid React wrapper', () => {
     expect(element?.className).toBe('external-property-grid');
     expect(element?.style.getPropertyValue('--property-grid-line')).toBe('rgb(255, 0, 0)');
     expect(element?.shadowRoot?.querySelector('.property-grid')?.getAttribute('aria-label')).toBe('Node properties');
+  });
+
+  it('normalizes editable object-list properties into table properties', () => {
+    const properties = toPropertyGridProperties([
+      {
+        name: 'items',
+        kind: 'object',
+        type: 'Item',
+        list: true,
+        properties: [
+          { name: 'sku', kind: 'scalar', type: 'string' },
+          { name: 'quantity', kind: 'scalar', type: 'number' },
+        ],
+        rows: [
+          { sku: 'ABC', quantity: 2 },
+          { sku: 'XYZ', quantity: 5 },
+        ],
+      },
+    ]);
+
+    expect(properties).toEqual({
+      items: {
+        kind: 'table',
+        type: 'Item[]',
+        columns: [
+          { key: 'sku', label: 'sku', type: 'string' },
+          { key: 'quantity', label: 'quantity', type: 'number' },
+        ],
+        rows: [
+          { sku: 'ABC', quantity: 2 },
+          { sku: 'XYZ', quantity: 5 },
+        ],
+      },
+    });
+  });
+
+  it('renders editable object-list properties as tables', () => {
+    const container = renderPropertyGrid(
+      <PropertyGrid
+        properties={[
+          {
+            name: 'items',
+            kind: 'object',
+            type: 'Item',
+            list: true,
+            properties: [
+              { name: 'sku', kind: 'scalar', type: 'string' },
+              { name: 'quantity', kind: 'scalar', type: 'number' },
+            ],
+            rows: [{ sku: 'ABC', quantity: 2 }],
+          },
+        ]}
+      />,
+    );
+    const element = container.querySelector<PropertyGridElement>('property-grid');
+    const headers = [...(element?.shadowRoot?.querySelectorAll('.table-header th') ?? [])].map((header) => header.textContent);
+    const cells = [...(element?.shadowRoot?.querySelectorAll('.table tbody td') ?? [])].map((cell) => cell.textContent);
+
+    expect(headers).toEqual(['sku', 'quantity']);
+    expect(cells).toEqual(['ABC', '2']);
   });
 
   it('updates the custom element properties when React props change', () => {

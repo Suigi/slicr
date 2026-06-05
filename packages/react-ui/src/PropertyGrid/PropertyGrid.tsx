@@ -1,8 +1,24 @@
-import { useEffect, useRef, type HTMLAttributes } from 'react';
+import { useEffect, useMemo, useRef, type HTMLAttributes } from 'react';
 
 import '../property-grid/property-grid.js';
 
 export type PropertyGridPrimitiveValue = string | number | boolean | null | undefined;
+
+export type PropertyGridEditableProperty = {
+  id?: string;
+  name: string;
+  kind?: 'scalar' | 'object';
+  type: string;
+  value?: PropertyGridPrimitiveValue;
+  example?: string;
+  list?: boolean;
+  properties?: readonly PropertyGridEditableProperty[];
+  rows?: readonly PropertyGridTableRow[];
+  exampleValues?: readonly (string | PropertyGridTableRow)[];
+  optional?: boolean;
+  generated?: boolean;
+  tag?: { name: string };
+};
 
 export type PropertyGridProperty = PropertyGridScalarProperty | PropertyGridObjectProperty | PropertyGridTableProperty;
 
@@ -35,6 +51,94 @@ export type PropertyGridTableRow = Record<string, PropertyGridPrimitiveValue>;
 
 export type PropertyGridProperties = Record<string, PropertyGridProperty>;
 
+export type PropertyGridInputProperties = PropertyGridProperties | readonly PropertyGridEditableProperty[];
+
+const hasOwn = (value: object, key: PropertyKey) => Object.prototype.hasOwnProperty.call(value, key);
+
+const isEditablePropertyList = (properties: PropertyGridInputProperties): properties is readonly PropertyGridEditableProperty[] =>
+  Array.isArray(properties);
+
+const isObjectProperty = (property: PropertyGridEditableProperty) =>
+  property.kind === 'object' || property.type === 'Object' || property.properties !== undefined;
+
+const scalarValueFor = (property: PropertyGridEditableProperty): PropertyGridPrimitiveValue => {
+  if (hasOwn(property, 'value')) {
+    return property.value;
+  }
+
+  return property.example;
+};
+
+const rowsFor = (property: PropertyGridEditableProperty): readonly PropertyGridTableRow[] => {
+  if (property.rows) {
+    return property.rows;
+  }
+
+  return (property.exampleValues ?? []).map((exampleValue) => (typeof exampleValue === 'string' ? { value: exampleValue } : exampleValue));
+};
+
+export function toPropertyGridProperties(properties: PropertyGridInputProperties): PropertyGridProperties {
+  if (!isEditablePropertyList(properties)) {
+    return properties;
+  }
+
+  return Object.fromEntries(
+    properties
+      .filter((property) => property.name.trim())
+      .map((property) => {
+        if (isObjectProperty(property)) {
+          if (property.list) {
+            const columns = (property.properties ?? [])
+              .filter((nestedProperty) => nestedProperty.name.trim())
+              .map((nestedProperty) => ({
+                key: nestedProperty.name,
+                label: nestedProperty.name,
+                type: nestedProperty.type,
+              }));
+
+            return [
+              property.name,
+              {
+                kind: 'table',
+                type: property.type === 'Object' ? 'Object[]' : `${property.type}[]`,
+                columns,
+                rows: rowsFor(property),
+              },
+            ];
+          }
+
+          return [
+            property.name,
+            {
+              kind: 'object',
+              type: property.type,
+              properties: toPropertyGridProperties(property.properties ?? []),
+            },
+          ];
+        }
+
+        if (property.list) {
+          return [
+            property.name,
+            {
+              kind: 'table',
+              type: `${property.type}[]`,
+              columns: [{ key: 'value', label: property.name, type: property.type }],
+              rows: rowsFor(property),
+            },
+          ];
+        }
+
+        const scalarProperty: PropertyGridScalarProperty = { type: property.type };
+        if (hasOwn(property, 'value') || hasOwn(property, 'example')) {
+          scalarProperty.value = scalarValueFor(property);
+        }
+
+        return [property.name, scalarProperty];
+      }),
+  );
+}
+
 export type PropertyGridElement = HTMLElement & {
   properties: PropertyGridProperties;
 };
@@ -54,18 +158,19 @@ declare module 'react' {
 }
 
 export type PropertyGridProps = Omit<HTMLAttributes<PropertyGridElement>, 'children'> & {
-  properties: PropertyGridProperties;
+  properties: PropertyGridInputProperties;
   ariaLabel?: string;
 };
 
 export function PropertyGrid({ properties, ariaLabel = 'Properties', ...elementProps }: PropertyGridProps) {
   const elementRef = useRef<PropertyGridElement>(null);
+  const normalizedProperties = useMemo(() => toPropertyGridProperties(properties), [properties]);
 
   useEffect(() => {
     if (elementRef.current) {
-      elementRef.current.properties = properties;
+      elementRef.current.properties = normalizedProperties;
     }
-  }, [properties]);
+  }, [normalizedProperties]);
 
   return <property-grid {...elementProps} ref={elementRef} aria-label={ariaLabel} />;
 }

@@ -1,24 +1,19 @@
 import { Fragment, useState } from 'react';
+import type { PropertyGridEditableProperty, PropertyGridPrimitiveValue, PropertyGridTableRow } from '@slicr/react-ui';
 import './PropertyEditor.css';
 
 export const propertyTypes = ['string', 'number', 'boolean', 'Object'] as const;
 
 export type PropertyType = (typeof propertyTypes)[number];
 
-export type PropertyExampleValue = string | Record<string, string>;
+export type PropertyExampleValue = string | PropertyGridTableRow;
 
-export type EditableProperty = {
-  name: string;
+export type EditableProperty = Omit<PropertyGridEditableProperty, 'type' | 'value' | 'properties' | 'exampleValues' | 'rows'> & {
   type: PropertyType;
-  example?: string;
+  value?: PropertyGridPrimitiveValue;
   properties?: EditableProperty[];
-  list?: boolean;
   exampleValues?: PropertyExampleValue[];
-  optional?: boolean;
-  generated?: boolean;
-  tag?: {
-    name: string;
-  };
+  rows?: PropertyGridTableRow[];
 };
 
 type PropertyEditorProps = {
@@ -84,14 +79,6 @@ export function PropertyEditor({
       return property.exampleValues;
     }
 
-    if (property.type === 'Object') {
-      if ((property.properties ?? []).length > 0) {
-        return [Object.fromEntries((property.properties ?? []).map((nestedProperty) => [nestedProperty.name, nestedProperty.example ?? '']))];
-      }
-
-      return [];
-    }
-
     if (!property.example) {
       return [];
     }
@@ -99,26 +86,42 @@ export function PropertyEditor({
     return [property.example];
   };
 
+  const getInitialRows = (property: EditableProperty): PropertyGridTableRow[] => {
+    if (property.rows) {
+      return property.rows;
+    }
+
+    if ((property.properties ?? []).length > 0) {
+      return [Object.fromEntries((property.properties ?? []).map((nestedProperty) => [nestedProperty.name, nestedProperty.example ?? '']))];
+    }
+
+    return [];
+  };
+
   const updateListMode = (index: number, property: EditableProperty, list: boolean) => {
     updateProperty(index, {
       ...property,
       list,
-      exampleValues: list ? getInitialExampleValues(property) : undefined,
+      rows: property.type === 'Object' ? (list ? getInitialRows(property) : undefined) : property.rows,
+      exampleValues: property.type === 'Object' ? property.exampleValues : list ? getInitialExampleValues(property) : undefined,
     });
   };
 
   const addExampleValue = (index: number, property: EditableProperty) => {
-    updateProperty(index, {
-      ...property,
-      exampleValues: [...(property.exampleValues ?? []), property.type === 'Object' ? {} : ''],
-    });
+    updateProperty(index,
+      property.type === 'Object'
+        ? { ...property, rows: [...(property.rows ?? []), {}] }
+        : { ...property, exampleValues: [...(property.exampleValues ?? []), ''] },
+    );
   };
 
   const removeExampleValue = (propertyIndex: number, property: EditableProperty, exampleIndex: number) => {
-    updateProperty(propertyIndex, {
-      ...property,
-      exampleValues: (property.exampleValues ?? []).filter((_, currentIndex) => currentIndex !== exampleIndex),
-    });
+    updateProperty(
+      propertyIndex,
+      property.type === 'Object'
+        ? { ...property, rows: (property.rows ?? []).filter((_, currentIndex) => currentIndex !== exampleIndex) }
+        : { ...property, exampleValues: (property.exampleValues ?? []).filter((_, currentIndex) => currentIndex !== exampleIndex) },
+    );
   };
 
   const reorderExampleValue = (
@@ -131,15 +134,15 @@ export function PropertyEditor({
       return;
     }
 
-    const exampleValues = [...(property.exampleValues ?? [])];
+    const values = property.type === 'Object' ? [...(property.rows ?? [])] : [...(property.exampleValues ?? [])];
 
-    if (fromIndex < 0 || fromIndex >= exampleValues.length || toIndex < 0 || toIndex >= exampleValues.length) {
+    if (fromIndex < 0 || fromIndex >= values.length || toIndex < 0 || toIndex >= values.length) {
       return;
     }
 
-    const [exampleValue] = exampleValues.splice(fromIndex, 1);
-    exampleValues.splice(toIndex, 0, exampleValue);
-    updateProperty(propertyIndex, { ...property, exampleValues });
+    const [value] = values.splice(fromIndex, 1);
+    values.splice(toIndex, 0, value);
+    updateProperty(propertyIndex, property.type === 'Object' ? { ...property, rows: values as PropertyGridTableRow[] } : { ...property, exampleValues: values });
   };
 
   const updatePrimitiveExampleValue = (
@@ -165,13 +168,7 @@ export function PropertyEditor({
   ) => {
     updateProperty(propertyIndex, {
       ...property,
-      exampleValues: (property.exampleValues ?? []).map((exampleValue, currentIndex) => {
-        if (currentIndex !== exampleIndex || typeof exampleValue === 'string') {
-          return exampleValue;
-        }
-
-        return { ...exampleValue, [fieldName]: value };
-      }),
+      rows: (property.rows ?? []).map((row, currentIndex) => (currentIndex === exampleIndex ? { ...row, [fieldName]: value } : row)),
     });
   };
 
@@ -323,9 +320,7 @@ export function PropertyEditor({
                           </tr>
                         </thead>
                         <tbody>
-                          {(property.exampleValues ?? []).map((exampleValue, exampleIndex) => {
-                            const objectValue = typeof exampleValue === 'string' ? {} : exampleValue;
-
+                          {(property.rows ?? []).map((objectValue, exampleIndex) => {
                             return (
                               <tr
                                 key={exampleIndex}
@@ -358,7 +353,7 @@ export function PropertyEditor({
                                   <td key={nestedProperty.name}>
                                     <input
                                       type="text"
-                                      value={objectValue[nestedProperty.name] ?? ''}
+                                      value={String(objectValue[nestedProperty.name] ?? '')}
                                       aria-label={`${nestedProperty.name} example value`}
                                       onChange={(event) =>
                                         updateObjectExampleValue(index, property, exampleIndex, nestedProperty.name, event.target.value)
