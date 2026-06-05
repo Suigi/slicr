@@ -340,6 +340,54 @@ export function PropertyEditor({
                 </div>
               </div>
 
+              {showPropertyToolbar && settingsIndex === index ? (
+                <div className="property-editor-toolbar">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={property.list ?? false}
+                      onChange={(event) => updateListMode(index, property, event.target.checked)}
+                    />
+                    List
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={property.optional ?? false}
+                      onChange={(event) => updateProperty(index, { ...property, optional: event.target.checked })}
+                    />
+                    Optional
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={property.generated ?? false}
+                      onChange={(event) => updateProperty(index, { ...property, generated: event.target.checked })}
+                    />
+                    Generated
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(property.tag)}
+                      onChange={(event) =>
+                        updateProperty(index, { ...property, tag: event.target.checked ? { name: property.tag?.name ?? '' } : undefined })
+                      }
+                    />
+                    Tag
+                  </label>
+                  <input
+                    type="text"
+                    className="property-editor-tag-name-input"
+                    value={property.tag?.name ?? ''}
+                    placeholder="tag name"
+                    disabled={!property.tag}
+                    aria-label="Tag name"
+                    onChange={(event) => updateProperty(index, { ...property, tag: { name: event.target.value } })}
+                  />
+                </div>
+              ) : null}
+
               {property.type === 'Object' ? (
                 <div className="property-editor-nested">
                   <PropertyEditor
@@ -483,54 +531,6 @@ export function PropertyEditor({
                   <button type="button" className="property-editor-list-add-button" onClick={() => addExampleValue(index, property)}>
                     + Add example value
                   </button>
-                </div>
-              ) : null}
-
-              {showPropertyToolbar && settingsIndex === index ? (
-                <div className="property-editor-toolbar">
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={property.list ?? false}
-                      onChange={(event) => updateListMode(index, property, event.target.checked)}
-                    />
-                    List
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={property.optional ?? false}
-                      onChange={(event) => updateProperty(index, { ...property, optional: event.target.checked })}
-                    />
-                    Optional
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={property.generated ?? false}
-                      onChange={(event) => updateProperty(index, { ...property, generated: event.target.checked })}
-                    />
-                    Generated
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={Boolean(property.tag)}
-                      onChange={(event) =>
-                        updateProperty(index, { ...property, tag: event.target.checked ? { name: property.tag?.name ?? '' } : undefined })
-                      }
-                    />
-                    Tag
-                  </label>
-                  <input
-                    type="text"
-                    className="property-editor-tag-name-input"
-                    value={property.tag?.name ?? ''}
-                    placeholder="tag name"
-                    disabled={!property.tag}
-                    aria-label="Tag name"
-                    onChange={(event) => updateProperty(index, { ...property, tag: { name: event.target.value } })}
-                  />
                 </div>
               ) : null}
             </Fragment>
