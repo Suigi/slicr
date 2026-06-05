@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import type { PropertyGridEditableProperty, PropertyGridPrimitiveValue, PropertyGridTableRow } from '@slicr/react-ui';
 import './PropertyEditor.css';
 
@@ -137,6 +137,17 @@ export function PropertyEditor({
     setTemplatePropertyType('string');
   };
 
+  const addPropertyFromTemplateInput = (input: HTMLInputElement) => {
+    const name = input.value.trim();
+
+    if (!name) {
+      return;
+    }
+
+    addPropertyFromTemplate({ name });
+    input.value = '';
+  };
+
   const getInitialExampleValues = (property: EditableProperty): PropertyExampleValue[] => {
     if (property.exampleValues) {
       return property.exampleValues;
@@ -177,6 +188,17 @@ export function PropertyEditor({
     });
   };
 
+  const addPrimitiveExampleValueFromTemplateInput = (index: number, property: EditableProperty, input: HTMLInputElement) => {
+    const value = input.value.trim();
+
+    if (!value) {
+      return;
+    }
+
+    addPrimitiveExampleValueFromTemplate(index, property, value);
+    input.value = '';
+  };
+
   const addObjectExampleValueFromTemplate = (
     index: number,
     property: EditableProperty,
@@ -187,6 +209,22 @@ export function PropertyEditor({
       ...property,
       rows: [...(property.rows ?? []), { [fieldKey]: value }],
     });
+  };
+
+  const addObjectExampleValueFromTemplateInput = (
+    index: number,
+    property: EditableProperty,
+    fieldKey: string,
+    input: HTMLInputElement,
+  ) => {
+    const value = input.value.trim();
+
+    if (!value) {
+      return;
+    }
+
+    addObjectExampleValueFromTemplate(index, property, fieldKey, value);
+    input.value = '';
   };
 
   const removeExampleValue = (propertyIndex: number, property: EditableProperty, exampleIndex: number) => {
@@ -247,7 +285,7 @@ export function PropertyEditor({
   };
 
   const reorderProperty = (fromIndex: number, toIndex: number) => {
-    if (fromIndex === toIndex) {
+    if (fromIndex === toIndex || fromIndex < 0 || fromIndex >= editorProperties.length || toIndex < 0 || toIndex >= editorProperties.length) {
       return;
     }
 
@@ -258,8 +296,94 @@ export function PropertyEditor({
     setSettingsIndex((currentIndex) => (currentIndex === fromIndex ? toIndex : currentIndex));
   };
 
+  const isReorderShortcut = (event: KeyboardEvent) =>
+    event.shiftKey && (event.ctrlKey || event.metaKey) && (event.key === 'ArrowUp' || event.key === 'ArrowDown');
+
+  const selectFocusedCellText = (target: EventTarget) => {
+    if (target instanceof HTMLInputElement && (target.type === 'text' || target.type === 'search')) {
+      target.select();
+    }
+  };
+
+  const getFocusableElements = (element: Element) =>
+    Array.from(
+      element.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex]'),
+    ).filter((focusableElement) => focusableElement.tabIndex >= 0 && !focusableElement.closest('[aria-hidden="true"]'));
+
+  const getOutermostPropertyEditor = (element: HTMLElement) => {
+    let editor = element.closest<HTMLElement>('.property-editor');
+
+    while (editor?.parentElement?.closest('.property-editor')) {
+      editor = editor.parentElement.closest<HTMLElement>('.property-editor');
+    }
+
+    return editor;
+  };
+
+  const getNavigableRows = (row: HTMLElement) =>
+    Array.from(
+      getOutermostPropertyEditor(row)?.querySelectorAll<HTMLElement>(
+        '.property-editor-row, .property-editor-list-value-row, .property-editor-list-table tbody tr',
+      ) ?? [],
+    );
+
+  const focusAdjacentRowControl = (event: KeyboardEvent) => {
+    if (event.shiftKey || event.ctrlKey || event.metaKey || event.altKey || event.key !== 'ArrowUp' && event.key !== 'ArrowDown') {
+      return false;
+    }
+
+    const row = event.currentTarget as HTMLElement;
+    const rows = getNavigableRows(row);
+    const rowIndex = rows.indexOf(row);
+    const nextRow = rows[rowIndex + (event.key === 'ArrowUp' ? -1 : 1)];
+
+    if (!nextRow) {
+      return false;
+    }
+
+    const currentFocusableElements = getFocusableElements(row);
+    const nextFocusableElements = getFocusableElements(nextRow);
+
+    if (nextFocusableElements.length === 0) {
+      return false;
+    }
+
+    const currentControlIndex = Math.max(currentFocusableElements.indexOf(event.target as HTMLElement), 0);
+    const nextControl = nextFocusableElements[Math.min(currentControlIndex, nextFocusableElements.length - 1)];
+
+    event.preventDefault();
+    nextControl.focus();
+    return true;
+  };
+
+  const handlePropertyShortcut = (event: KeyboardEvent, index: number) => {
+    if (focusAdjacentRowControl(event)) {
+      return;
+    }
+
+    if (!isReorderShortcut(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    reorderProperty(index, event.key === 'ArrowUp' ? index - 1 : index + 1);
+  };
+
+  const handleExampleShortcut = (event: KeyboardEvent, propertyIndex: number, property: EditableProperty, exampleIndex: number) => {
+    if (focusAdjacentRowControl(event)) {
+      return;
+    }
+
+    if (!isReorderShortcut(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    reorderExampleValue(propertyIndex, property, exampleIndex, event.key === 'ArrowUp' ? exampleIndex - 1 : exampleIndex + 1);
+  };
+
   return (
-    <div className="property-editor">
+    <div className="property-editor" onFocusCapture={(event) => selectFocusedCellText(event.target)}>
       <div className="property-editor-grid" role="table" aria-label="Object schema properties">
         {showColumnHeaders ? (
           <div className="property-editor-grid-heading" role="row">
@@ -287,12 +411,14 @@ export function PropertyEditor({
                     setDraggedIndex(null);
                   }
                 }}
+                onKeyDown={(event) => handlePropertyShortcut(event, index)}
               >
                 <button
                   type="button"
                   className="property-editor-drag-handle"
                   draggable
-                  aria-label="Drag to reorder property"
+                  tabIndex={-1}
+                  aria-label="Drag to reorder property, or press Control Shift Arrow Up or Control Shift Arrow Down on this row"
                   onDragStart={(event) => {
                     setDraggedIndex(index);
                     event.dataTransfer.effectAllowed = 'move';
@@ -452,13 +578,15 @@ export function PropertyEditor({
                                     setDraggedExample(null);
                                   }
                                 }}
+                                onKeyDown={(event) => handleExampleShortcut(event, index, property, exampleIndex)}
                               >
                                 <td className="property-editor-list-reorder-cell">
                                   <button
                                     type="button"
                                     className="property-editor-list-drag-handle"
                                     draggable
-                                    aria-label="Drag to reorder example value"
+                                    tabIndex={-1}
+                                    aria-label="Drag to reorder example value, or press Control Shift Arrow Up or Control Shift Arrow Down on this row"
                                     onDragStart={(event) => {
                                       setDraggedExample({ propertyIndex: index, exampleIndex });
                                       event.dataTransfer.effectAllowed = 'move';
@@ -500,7 +628,7 @@ export function PropertyEditor({
                             );
                           })}
                           {(property.properties ?? []).length > 0 ? (
-                            <tr className="property-editor-template-row">
+                            <tr className="property-editor-template-row" onKeyDown={(event) => focusAdjacentRowControl(event)}>
                               <td className="property-editor-list-reorder-cell" aria-hidden="true" />
                               {(property.properties ?? []).map((nestedProperty) => {
                                 const fieldKey = nestedProperty.id ?? nestedProperty.name;
@@ -512,15 +640,11 @@ export function PropertyEditor({
                                       defaultValue=""
                                       placeholder="..."
                                       aria-label={`Add ${nestedProperty.name || 'property'} example value`}
-                                      onBlur={(event) => {
-                                        if (event.target.value) {
-                                          addObjectExampleValueFromTemplate(index, property, fieldKey, event.target.value);
-                                          event.target.value = '';
-                                        }
-                                      }}
+                                      onBlur={(event) => addObjectExampleValueFromTemplateInput(index, property, fieldKey, event.currentTarget)}
                                       onKeyDown={(event) => {
                                         if (event.key === 'Enter') {
-                                          event.currentTarget.blur();
+                                          event.preventDefault();
+                                          addObjectExampleValueFromTemplateInput(index, property, fieldKey, event.currentTarget);
                                         }
                                       }}
                                     />
@@ -547,13 +671,15 @@ export function PropertyEditor({
                               setDraggedExample(null);
                             }
                           }}
+                          onKeyDown={(event) => handleExampleShortcut(event, index, property, exampleIndex)}
                         >
                           <div className="property-editor-list-reorder-cell">
                             <button
                               type="button"
                               className="property-editor-list-drag-handle"
                               draggable
-                              aria-label="Drag to reorder example value"
+                              tabIndex={-1}
+                              aria-label="Drag to reorder example value, or press Control Shift Arrow Up or Control Shift Arrow Down on this row"
                               onDragStart={(event) => {
                                 setDraggedExample({ propertyIndex: index, exampleIndex });
                                 event.dataTransfer.effectAllowed = 'move';
@@ -582,22 +708,21 @@ export function PropertyEditor({
                           </div>
                         </div>
                       ))}
-                      <div className="property-editor-list-value-row property-editor-template-row">
+                      <div
+                        className="property-editor-list-value-row property-editor-template-row"
+                        onKeyDown={(event) => focusAdjacentRowControl(event)}
+                      >
                         <div className="property-editor-list-reorder-cell" aria-hidden="true" />
                         <input
                           type="text"
                           defaultValue=""
                           placeholder="Add example value"
                           aria-label="Add example value"
-                          onBlur={(event) => {
-                            if (event.target.value) {
-                              addPrimitiveExampleValueFromTemplate(index, property, event.target.value);
-                              event.target.value = '';
-                            }
-                          }}
+                          onBlur={(event) => addPrimitiveExampleValueFromTemplateInput(index, property, event.currentTarget)}
                           onKeyDown={(event) => {
                             if (event.key === 'Enter') {
-                              event.currentTarget.blur();
+                              event.preventDefault();
+                              addPrimitiveExampleValueFromTemplateInput(index, property, event.currentTarget);
                             }
                           }}
                         />
@@ -610,7 +735,12 @@ export function PropertyEditor({
             </Fragment>
           ))
         )}
-        <div className="property-editor-row property-editor-template-row" role="row" aria-label="Add property">
+        <div
+          className="property-editor-row property-editor-template-row"
+          role="row"
+          aria-label="Add property"
+          onKeyDown={(event) => focusAdjacentRowControl(event)}
+        >
           <div className="property-editor-template-cell" aria-hidden="true" />
 
           <label className="property-editor-field">
@@ -620,15 +750,11 @@ export function PropertyEditor({
               type="text"
               defaultValue=""
               placeholder="Add property"
-              onBlur={(event) => {
-                if (event.target.value) {
-                  addPropertyFromTemplate({ name: event.target.value });
-                  event.target.value = '';
-                }
-              }}
+              onBlur={(event) => addPropertyFromTemplateInput(event.currentTarget)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
-                  event.currentTarget.blur();
+                  event.preventDefault();
+                  addPropertyFromTemplateInput(event.currentTarget);
                 }
               }}
             />
@@ -658,6 +784,7 @@ export function PropertyEditor({
               type="text"
               value=""
               readOnly
+              tabIndex={-1}
               aria-label="Example is available after adding the property"
             />
           </label>
