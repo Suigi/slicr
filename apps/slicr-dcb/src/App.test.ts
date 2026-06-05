@@ -94,6 +94,26 @@ describe('App', () => {
     expect(propertiesHeading?.compareDocumentPosition(propertyEditor as Node) ?? 0).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
+  it('renders focused-node properties supplied by the graph model hook', async () => {
+    const updateFocusedNodeProperties = vi.fn();
+    graphModelMock.useGraphModel.mockReturnValue(createGraphModelMockValue({
+      focusedNodeProperties: [{id: 'prop-title', name: 'title', type: 'string', example: 'Hello'}],
+      updateFocusedNodeProperties,
+    }));
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(createElement(App));
+      await Promise.resolve();
+    });
+
+    const propertyNameInput = container.querySelector<HTMLInputElement>('.property-editor-field input[placeholder="propertyName"]');
+    expect(propertyNameInput?.value).toBe('title');
+    expect([...container.querySelectorAll<HTMLInputElement>('input')].map((input) => input.value)).toContain('Hello');
+  });
+
   it('does not start node title editing when Enter is pressed inside the property editor', async () => {
     const startEditingNode = vi.fn();
     graphModelMock.useGraphModel.mockReturnValue(createGraphModelMockValue({ startEditingNode }));

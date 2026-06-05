@@ -179,7 +179,6 @@ export function App() {
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [propertyGridMockups, setPropertyGridMockups] = useState<PropertyGridCardMockup[]>(initialPropertyGridCardMockups);
   const [selectedPropertyGridMockupVariant, setSelectedPropertyGridMockupVariant] = useState(initialPropertyGridCardMockups[0]?.variant ?? '');
-  const [nodePropertiesById, setNodePropertiesById] = useState<Record<string, EditableProperty[]>>({});
   const selectedPropertyGridMockup =
     propertyGridMockups.find((mockup) => mockup.variant === selectedPropertyGridMockupVariant) ?? propertyGridMockups[0];
   const updateSelectedPropertyGridProperties = (properties: EditableProperty[]) => {
@@ -199,6 +198,8 @@ export function App() {
     draftLabel,
     openNodeMenuId,
     connectingSourceNodeId,
+    focusedNodeProperties = [],
+    updateFocusedNodeProperties = () => {},
     setFocusedNodeId,
     setDraftLabel,
     setOpenNodeMenuId,
@@ -269,17 +270,6 @@ export function App() {
 
   const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
   const focusedNode = focusedNodeId ? nodeById.get(focusedNodeId) : undefined;
-  const focusedNodeProperties = focusedNode ? nodePropertiesById[focusedNode.id] ?? [] : [];
-  const updateFocusedNodeProperties = (properties: EditableProperty[]) => {
-    if (!focusedNode) {
-      return;
-    }
-
-    setNodePropertiesById((currentPropertiesById) => ({
-      ...currentPropertiesById,
-      [focusedNode.id]: properties,
-    }));
-  };
   const connectingSourceNode = connectingSourceNodeId
     ? nodes.find((node) => node.id === connectingSourceNodeId)
     : undefined;

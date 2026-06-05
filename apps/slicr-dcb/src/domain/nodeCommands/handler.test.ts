@@ -4,6 +4,8 @@ import {describe, it} from 'vitest';
 import {
   addConnectedNodeHandler,
   addNodeHandler,
+  changeNodeExampleValuesHandler,
+  changeNodeSchemaHandler,
   changeNodeTypeHandler,
   connectNodesHandler,
   disconnectNodesHandler,
@@ -57,6 +59,38 @@ describe('commands project state', () => {
       .given(Events.nodeAdded(nodeId, 'evt', 0))
       .when({nodeId, newType: 'dm'})
       .thenEmits(Events.nodeTypeChanged(nodeId, 'dm'));
+  });
+
+  it('changing node schema emits only when the schema differs for an existing node', () => {
+    const nodeId = uuid();
+    const originalSchema = [{propertyId: 'prop-title', name: 'title', type: 'string' as const}];
+    const changedSchema = [{propertyId: 'prop-total', name: 'total', type: 'number' as const}];
+
+    expectHandler(changeNodeSchemaHandler)
+      .given(Events.nodeAdded(nodeId, 'evt', 0), Events.nodeSchemaChanged(nodeId, originalSchema))
+      .when({nodeId, schema: changedSchema})
+      .thenEmits(Events.nodeSchemaChanged(nodeId, changedSchema));
+
+    expectHandler(changeNodeSchemaHandler)
+      .given(Events.nodeAdded(nodeId, 'evt', 0), Events.nodeSchemaChanged(nodeId, changedSchema))
+      .when({nodeId, schema: changedSchema})
+      .thenEmits();
+  });
+
+  it('changing node example values emits only when examples differ for an existing node', () => {
+    const nodeId = uuid();
+    const originalExamples = [{propertyId: 'prop-title', scalarValue: 'Old title'}];
+    const changedExamples = [{propertyId: 'prop-title', scalarValue: 'New title'}];
+
+    expectHandler(changeNodeExampleValuesHandler)
+      .given(Events.nodeAdded(nodeId, 'evt', 0), Events.nodeExampleValuesChanged(nodeId, originalExamples))
+      .when({nodeId, exampleValues: changedExamples})
+      .thenEmits(Events.nodeExampleValuesChanged(nodeId, changedExamples));
+
+    expectHandler(changeNodeExampleValuesHandler)
+      .given(Events.nodeAdded(nodeId, 'evt', 0), Events.nodeExampleValuesChanged(nodeId, changedExamples))
+      .when({nodeId, exampleValues: changedExamples})
+      .thenEmits();
   });
 
   it('throws when changing type for a Node that does not exist', () => {
@@ -285,5 +319,21 @@ describe('commands project state', () => {
       .given(Events.nodeAdded(sourceNodeId, 'cmd', 0), Events.nodeRemoved(sourceNodeId))
       .when({sourceNodeId, nodeType: 'evt', laneId: 1, label: 'Thing Happened'})
       .thenThrows(new Error(`Unknown nodeId ${sourceNodeId}`));
+  });
+
+  it('connects previously deleted and re-added node', () => {
+    const sourceNodeId = uuid();
+    const newNodeId = uuid();
+
+    expectHandler(addConnectedNodeHandler(() => newNodeId))
+      .given(
+        Events.nodeAdded(sourceNodeId, 'cmd', 0),
+        Events.nodeRemoved(sourceNodeId),
+        Events.nodeAdded(sourceNodeId, 'cmd', 0))
+      .when({sourceNodeId, nodeType: 'evt', laneId: 1, label: 'Thing Happened'})
+      .thenEmits(
+        Events.nodeAdded(newNodeId, 'evt', 1, 'Thing Happened'),
+        Events.nodesConnected(sourceNodeId, newNodeId, 'flow'),
+      );
   });
 });

@@ -1,6 +1,12 @@
 import {MemoryStore} from '@slicr/event-sourcing';
 
 import {Events, type DomainEvent} from '../domain/events';
+import {
+  changeNodeExampleValuesHandler,
+  changeNodeSchemaHandler,
+  type ChangeNodeExampleValuesCommand,
+  type ChangeNodeSchemaCommand,
+} from '../domain/nodeCommands/handler';
 import {GraphProjector} from '../domain/graphProjector/graphProjector';
 import {adaptModelGraphToRenderer, type RendererGraph} from './domainGraphAdapter';
 import type {NodeType} from './types';
@@ -22,6 +28,8 @@ export type EventSourcedGraphModel = {
   addConnectedNode(command: {sourceNodeId: string; nodeType: NodeType; laneId: number; label: string; role?: 'flow' | 'back-reference'}): Promise<RendererGraph>;
   renameNode(nodeId: string, newName: string): Promise<RendererGraph>;
   setNodeType(nodeId: string, type: NodeType): Promise<RendererGraph>;
+  changeNodeSchema(command: ChangeNodeSchemaCommand): Promise<RendererGraph>;
+  changeNodeExampleValues(command: ChangeNodeExampleValuesCommand): Promise<RendererGraph>;
   deleteNode(nodeId: string): Promise<RendererGraph>;
   replace(events: readonly DomainEvent[]): Promise<RendererGraph>;
 };
@@ -40,9 +48,19 @@ export function createEventSourcedGraphModel(config: {store: AsyncGraphEventStor
   };
 
   const appendAndProject = async (event: DomainEvent | readonly DomainEvent[]) => {
-    await config.store.append(event);
     const appendedEvents = Array.isArray(event) ? event : [event];
+    if (appendedEvents.length === 0) {
+      return snapshot;
+    }
+    await config.store.append(appendedEvents);
     return project([...events, ...appendedEvents]);
+  };
+
+  const decideWithCurrentEvents = <Command>(handlerFactory: (store: ReturnType<typeof MemoryStore.create<DomainEvent>>) => {handle(command: Command): DomainEvent[]}, command: Command) => {
+    console.dir({events, command})
+    const memoryStore = MemoryStore.create<DomainEvent>();
+    memoryStore.append(events);
+    return handlerFactory(memoryStore).handle(command);
   };
 
   return {
@@ -83,6 +101,12 @@ export function createEventSourcedGraphModel(config: {store: AsyncGraphEventStor
     },
     async setNodeType(nodeId: string, type: NodeType) {
       return appendAndProject(Events.nodeTypeChanged(nodeId, type));
+    },
+    async changeNodeSchema(command: ChangeNodeSchemaCommand) {
+      return appendAndProject(decideWithCurrentEvents(changeNodeSchemaHandler, command));
+    },
+    async changeNodeExampleValues(command: ChangeNodeExampleValuesCommand) {
+      return appendAndProject(decideWithCurrentEvents(changeNodeExampleValuesHandler, command));
     },
     async deleteNode(nodeId: string) {
       return appendAndProject(Events.nodeRemoved(nodeId));

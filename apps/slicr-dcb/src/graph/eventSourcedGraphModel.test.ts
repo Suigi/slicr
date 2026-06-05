@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest';
 
 import {createEventSourcedGraphModel, type AsyncGraphEventStore} from './eventSourcedGraphModel';
-import type {DomainEvent} from '../domain/events';
+import {Events, type DomainEvent} from '../domain/events';
 import {NODE_HEIGHT, NODE_WIDTH} from './constants';
 
 function createStore(events: DomainEvent[] = []): AsyncGraphEventStore {
@@ -49,6 +49,28 @@ describe('createEventSourcedGraphModel', () => {
       nodeSchemas: {},
       nodeExampleValues: {},
     });
+  });
+
+  it('persists changed node property schema and examples while skipping unchanged payloads', async () => {
+    const events: DomainEvent[] = [Events.nodeAdded('node-1', 'evt', 0)];
+    const model = createEventSourcedGraphModel({store: createStore(events)});
+    await model.load();
+
+    const schema = [{propertyId: 'prop-title', name: 'title', type: 'string' as const}];
+    const exampleValues = [{propertyId: 'prop-title', scalarValue: 'Hello'}];
+
+    await model.changeNodeSchema({nodeId: 'node-1', schema});
+    await model.changeNodeSchema({nodeId: 'node-1', schema});
+    await model.changeNodeExampleValues({nodeId: 'node-1', exampleValues});
+    await model.changeNodeExampleValues({nodeId: 'node-1', exampleValues});
+
+    expect(events.slice(1)).toEqual([
+      Events.nodeSchemaChanged('node-1', schema),
+      Events.nodeExampleValuesChanged('node-1', exampleValues),
+    ]);
+    expect(model.getSnapshot().nodeSchemas).toEqual({'node-1': schema});
+    expect(model.getSnapshot().nodeExampleValues).toEqual({'node-1': exampleValues});
+    await expect(model.changeNodeSchema({nodeId: 'missing-node', schema})).rejects.toThrow('Unknown nodeId missing-node');
   });
 
   it('records connect, disconnect, delete, rename, and type-change mutations as domain events', async () => {

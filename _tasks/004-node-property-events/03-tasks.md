@@ -124,7 +124,7 @@ Add focused mapping helpers that convert combined `EditableProperty[]` editor da
 
 ## Task 6: Persist focused node property edits with debounce
 ### Status
-[created]
+[done]
 
 ### Description
 Wire the focused-node side panel property editor to the event-sourced graph model so edits update the UI immediately and append separated schema/example events after a 1 second debounce. Create the persistence commands explicitly as:

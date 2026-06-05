@@ -1,10 +1,12 @@
 import {Handler, Query, Store, type Event} from '@slicr/event-sourcing';
 import {NodeType} from '../../graph/types';
-import {DomainEvent, Events, NodesConnected, NodesDisconnected} from '../events';
+import {DomainEvent, Events, NodesConnected, NodesDisconnected, type NodePropertyExampleValues, type NodePropertySchema} from '../events';
 
 export type AddNodeCommand = { nodeType: NodeType, laneId: number, label: string };
 export type RenameNodeCommand = { nodeId: string, newName: string };
 export type ChangeNodeTypeCommand = { nodeId: string, newType: NodeType };
+export type ChangeNodeSchemaCommand = { nodeId: string, schema: NodePropertySchema[] };
+export type ChangeNodeExampleValuesCommand = { nodeId: string, exampleValues: NodePropertyExampleValues[] };
 export type RemoveNodeCommand = { nodeId: string };
 export type ConnectNodesCommand = { sourceNodeId: string, targetNodeId: string, role?: 'flow' | 'back-reference' };
 export type DisconnectNodesCommand = { sourceNodeId: string, targetNodeId: string };
@@ -22,14 +24,37 @@ type ConnectionDecisionModel = {
   connectionExists: boolean;
 };
 
+type NodeSchemaDecisionModel = {
+  exists: boolean;
+  schema: NodePropertySchema[];
+};
+
+type NodeExampleValuesDecisionModel = {
+  exists: boolean;
+  exampleValues: NodePropertyExampleValues[];
+};
+
 function nodeExists(events: readonly DomainEvent[]) {
-  return events.some(event => event.type === 'NodeAdded') && !events.some(event => event.type === 'NodeRemoved');
+  let exists = false;
+  for (const event of events) {
+    if (event.type === 'NodeAdded') {
+      exists = true;
+    }
+    if (event.type === 'NodeRemoved') {
+      exists = false;
+    }
+  }
+  return exists;
 }
 
 function assertNodeExists(nodeId: string, exists: boolean) {
   if (!exists) {
     throw new Error(`Unknown nodeId ${nodeId}`);
   }
+}
+
+function samePayload(left: unknown, right: unknown) {
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 export const addNodeHandler =
@@ -80,6 +105,52 @@ export const changeNodeTypeHandler =
       decide: (command, exists) => {
         assertNodeExists(command.nodeId, exists);
         return Events.nodeTypeChanged(command.nodeId, command.newType);
+      }
+    });
+
+export const changeNodeSchemaHandler =
+  (store: Store<DomainEvent>) =>
+    Handler.create<ChangeNodeSchemaCommand, DomainEvent, NodeSchemaDecisionModel>({
+      store,
+      query: command => Query.where({tags: [`nodeId:${command.nodeId}`]}),
+      project: events => ({
+        exists: nodeExists(events),
+        schema: events.reduce<NodePropertySchema[]>((schema, event) => {
+          if (event.type === 'NodeSchemaChanged') {
+            return event.payload.schema;
+          }
+          return schema;
+        }, []),
+      }),
+      decide: (command, model) => {
+        assertNodeExists(command.nodeId, model.exists);
+        if (samePayload(command.schema, model.schema)) {
+          return [];
+        }
+        return Events.nodeSchemaChanged(command.nodeId, command.schema);
+      }
+    });
+
+export const changeNodeExampleValuesHandler =
+  (store: Store<DomainEvent>) =>
+    Handler.create<ChangeNodeExampleValuesCommand, DomainEvent, NodeExampleValuesDecisionModel>({
+      store,
+      query: command => Query.where({tags: [`nodeId:${command.nodeId}`]}),
+      project: events => ({
+        exists: nodeExists(events),
+        exampleValues: events.reduce<NodePropertyExampleValues[]>((exampleValues, event) => {
+          if (event.type === 'NodeExampleValuesChanged') {
+            return event.payload.exampleValues;
+          }
+          return exampleValues;
+        }, []),
+      }),
+      decide: (command, model) => {
+        assertNodeExists(command.nodeId, model.exists);
+        if (samePayload(command.exampleValues, model.exampleValues)) {
+          return [];
+        }
+        return Events.nodeExampleValuesChanged(command.nodeId, command.exampleValues);
       }
     });
 

@@ -1,16 +1,24 @@
 import {IndexedDBEventStore} from '@slicr/event-sourcing';
+import type {EditableProperty} from '@slicr/react-ui';
 import type {EdgeInput, LaneInput} from 'layout-lib';
-import {useCallback, useEffect, useRef, useState} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 
-import type {DomainEvent} from '../domain/events';
+import type {DomainEvent, NodePropertyExampleValues, NodePropertySchema} from '../domain/events';
 import {createEventSourcedGraphModel, type AsyncGraphEventStore, type EventSourcedGraphModel} from './eventSourcedGraphModel';
 import {getLaneOrder, getSuccessorNodeType} from './graphUtils';
+import {
+  deriveNodePropertyExampleValues,
+  deriveNodePropertySchema,
+  mergeNodePropertyEditorProperties,
+} from './propertyEventMapping';
 import type {AddDirection, GraphNode, NodeType} from './types';
 
 export type StoredGraphModel = {
   nodes: GraphNode[];
   edges: EdgeInput[];
   lanes: LaneInput[];
+  nodeSchemas?: Record<string, NodePropertySchema[]>;
+  nodeExampleValues?: Record<string, NodePropertyExampleValues[]>;
 };
 
 const LAST_OK_STORAGE_KEY = 'slicr-dcb.lastOkGraphModel.v1';
@@ -167,11 +175,16 @@ export function useGraphModel() {
   const skipBlurSaveRef = useRef(false);
   const cancelEditRef = useRef(false);
   const modelRef = useRef<EventSourcedGraphModel | null>(null);
+  const propertyDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingPropertyEditRef = useRef<{nodeId: string; properties: EditableProperty[]} | null>(null);
 
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [edges, setEdges] = useState<EdgeInput[]>([]);
   const [lanes, setLanes] = useState<LaneInput[]>([]);
-  const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
+  const [nodeSchemas, setNodeSchemas] = useState<Record<string, NodePropertySchema[]>>({});
+  const [nodeExampleValues, setNodeExampleValues] = useState<Record<string, NodePropertyExampleValues[]>>({});
+  const [editorPropertiesById, setEditorPropertiesById] = useState<Record<string, EditableProperty[]>>({});
+  const [focusedNodeId, setFocusedNodeIdState] = useState<string | null>(null);
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [draftLabel, setDraftLabel] = useState('');
   const [originalLabel, setOriginalLabel] = useState('');
@@ -182,7 +195,46 @@ export function useGraphModel() {
     setNodes(graphModel.nodes);
     setEdges(graphModel.edges);
     setLanes(graphModel.lanes);
+    setNodeSchemas(graphModel.nodeSchemas ?? {});
+    setNodeExampleValues(graphModel.nodeExampleValues ?? {});
+    setEditorPropertiesById({});
   }, []);
+
+  const flushPendingPropertyEdit = useCallback(async () => {
+    const pendingEdit = pendingPropertyEditRef.current;
+    if (!pendingEdit || !modelRef.current) {
+      return;
+    }
+
+    pendingPropertyEditRef.current = null;
+    if (propertyDebounceRef.current) {
+      clearTimeout(propertyDebounceRef.current);
+      propertyDebounceRef.current = null;
+    }
+
+    const schema = deriveNodePropertySchema(pendingEdit.properties);
+    const exampleValues = deriveNodePropertyExampleValues(pendingEdit.properties);
+    let graphModel = await modelRef.current.changeNodeSchema({nodeId: pendingEdit.nodeId, schema});
+    graphModel = await modelRef.current.changeNodeExampleValues({nodeId: pendingEdit.nodeId, exampleValues});
+    applyGraphModel(graphModel);
+    setFocusedNodeIdState((currentFocusedNodeId) => currentFocusedNodeId);
+  }, [applyGraphModel]);
+
+  const schedulePropertyEditFlush = useCallback(() => {
+    if (propertyDebounceRef.current) {
+      clearTimeout(propertyDebounceRef.current);
+    }
+    propertyDebounceRef.current = setTimeout(() => {
+      void flushPendingPropertyEdit();
+    }, 1000);
+  }, [flushPendingPropertyEdit]);
+
+  const setFocusedNodeId = useCallback((nodeId: string | null) => {
+    if (pendingPropertyEditRef.current && pendingPropertyEditRef.current.nodeId !== nodeId) {
+      void flushPendingPropertyEdit();
+    }
+    setFocusedNodeIdState(nodeId);
+  }, [flushPendingPropertyEdit]);
 
   const resetTransientState = useCallback(() => {
     setEditingNodeId(null);
@@ -214,7 +266,7 @@ export function useGraphModel() {
     return () => {
       cancelled = true;
     };
-  }, [applyGraphModel]);
+  }, [applyGraphModel, setFocusedNodeId]);
 
   const replaceGraphModel = useCallback(
     (graphModel: StoredGraphModel) => {
@@ -222,13 +274,14 @@ export function useGraphModel() {
       setFocusedNodeId(graphModel.nodes[0]?.id ?? null);
       resetTransientState();
     },
-    [applyGraphModel, resetTransientState],
+    [applyGraphModel, resetTransientState, setFocusedNodeId],
   );
 
   const readGraphEvents = useCallback(async () => modelRef.current?.readEvents() ?? [], []);
 
   const replaceGraphEvents = useCallback(
     async (events: readonly DomainEvent[]) => {
+      await flushPendingPropertyEdit();
       const graphModel = await modelRef.current?.replace(events);
       if (!graphModel) {
         return;
@@ -238,7 +291,7 @@ export function useGraphModel() {
       setFocusedNodeId(graphModel.nodes[0]?.id ?? null);
       resetTransientState();
     },
-    [applyGraphModel, resetTransientState],
+    [applyGraphModel, flushPendingPropertyEdit, resetTransientState, setFocusedNodeId],
   );
 
   const revertToLastOkGraphModel = useCallback(() => {
@@ -265,13 +318,13 @@ export function useGraphModel() {
       setDraftLabel(newNode.label);
       setOriginalLabel(newNode.label);
     })();
-  }, [applyGraphModel]);
+  }, [applyGraphModel, setFocusedNodeId]);
 
   const startConnectingFromNode = useCallback((nodeId: string) => {
     setFocusedNodeId(nodeId);
     setOpenNodeMenuId(null);
     setConnectingSourceNodeId(nodeId);
-  }, []);
+  }, [setFocusedNodeId]);
 
   const cancelConnecting = useCallback(() => {
     setConnectingSourceNodeId(null);
@@ -299,7 +352,7 @@ export function useGraphModel() {
         setOpenNodeMenuId(null);
       })();
     },
-    [applyGraphModel, edges],
+    [applyGraphModel, edges, setFocusedNodeId],
   );
 
   const deleteConnection = useCallback(
@@ -348,7 +401,7 @@ export function useGraphModel() {
         setOriginalLabel(newNode.label);
       })();
     },
-    [applyGraphModel, lanes, nodes],
+    [applyGraphModel, lanes, nodes, setFocusedNodeId],
   );
 
   const deleteNode = useCallback(
@@ -376,7 +429,7 @@ export function useGraphModel() {
         }
       })();
     },
-    [applyGraphModel, connectingSourceNodeId, edges, editingNodeId, focusedNodeId, openNodeMenuId],
+    [applyGraphModel, connectingSourceNodeId, edges, editingNodeId, focusedNodeId, openNodeMenuId, setFocusedNodeId],
   );
 
   const setNodeType = useCallback(
@@ -400,7 +453,7 @@ export function useGraphModel() {
     setEditingNodeId(node.id);
     setDraftLabel(node.label);
     setOriginalLabel(node.label);
-  }, []);
+  }, [setFocusedNodeId]);
 
   const saveEditingNode = useCallback(() => {
     if (!editingNodeId || cancelEditRef.current) {
@@ -471,15 +524,45 @@ export function useGraphModel() {
     return () => document.removeEventListener('pointerdown', saveWhenClickingOutsideTextBox, {capture: true});
   }, [editingNodeId, saveEditingNode]);
 
+  useEffect(() => {
+    return () => {
+      void flushPendingPropertyEdit();
+    };
+  }, [flushPendingPropertyEdit]);
+
+  const focusedNodeProperties = useMemo(() => {
+    if (!focusedNodeId) {
+      return [];
+    }
+
+    return editorPropertiesById[focusedNodeId]
+      ?? mergeNodePropertyEditorProperties(nodeSchemas[focusedNodeId] ?? [], nodeExampleValues[focusedNodeId] ?? []);
+  }, [editorPropertiesById, focusedNodeId, nodeExampleValues, nodeSchemas]);
+
+  const updateFocusedNodeProperties = useCallback((properties: EditableProperty[]) => {
+    if (!focusedNodeId) {
+      return;
+    }
+
+    setEditorPropertiesById((currentPropertiesById) => ({
+      ...currentPropertiesById,
+      [focusedNodeId]: properties,
+    }));
+    pendingPropertyEditRef.current = {nodeId: focusedNodeId, properties};
+    schedulePropertyEditFlush();
+  }, [focusedNodeId, schedulePropertyEditFlush]);
+
   return {
     nodes,
     edges,
     lanes,
     focusedNodeId,
+    focusedNodeProperties,
     editingNodeId,
     draftLabel,
     openNodeMenuId,
     connectingSourceNodeId,
+    updateFocusedNodeProperties,
     setFocusedNodeId,
     setDraftLabel,
     setOpenNodeMenuId,
