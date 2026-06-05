@@ -22,7 +22,7 @@ Add any learnings about the project overall to the documents in the ./knowledge 
 
 ## Task 1: Add node measurement utility
 ### Status
-[created]
+[done]
 
 ### Description
 Add a DCB DOM measurement helper that finds graph node measurement targets by shared selector/data attribute and returns validated `{width, height}` values keyed by node id.
