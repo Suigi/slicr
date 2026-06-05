@@ -1,7 +1,48 @@
 import { describe, expect, it } from 'vitest';
-import { Events } from './events';
+import { Events, type NodePropertyExampleValues, type NodePropertySchema } from './events';
 
 describe('Events', () => {
+  it('creates separated node property events with nodeId-only tags', () => {
+    const schema: NodePropertySchema[] = [
+      {
+        propertyId: 'prop-title',
+        name: 'title',
+        type: 'string',
+        optional: true,
+      },
+      {
+        propertyId: 'prop-lines',
+        name: 'lines',
+        type: 'Object',
+        list: true,
+        properties: [
+          {propertyId: 'prop-sku', name: 'sku', type: 'string'},
+          {propertyId: 'prop-quantity', name: 'quantity', type: 'number'},
+        ],
+      },
+    ];
+    const exampleValues: NodePropertyExampleValues[] = [
+      {propertyId: 'prop-title', scalarValue: 'Checkout completed'},
+      {
+        propertyId: 'prop-lines',
+        complexListValues: [
+          {'prop-sku': 'ABC-123', 'prop-quantity': '2'},
+        ],
+      },
+    ];
+
+    expect(Events.nodeSchemaChanged('node-1', schema)).toEqual({
+      type: 'NodeSchemaChanged',
+      payload: {nodeId: 'node-1', schema},
+      tags: ['nodeId:node-1'],
+    });
+    expect(Events.nodeExampleValuesChanged('node-1', exampleValues)).toEqual({
+      type: 'NodeExampleValuesChanged',
+      payload: {nodeId: 'node-1', exampleValues},
+      tags: ['nodeId:node-1'],
+    });
+  });
+
   it('creates tagged events for every persistent graph mutation', () => {
     expect(Events.nodeAdded('node-1', 'cmd', 2, 'Create Thing')).toEqual({
       type: 'NodeAdded',

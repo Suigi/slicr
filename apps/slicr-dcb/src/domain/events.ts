@@ -2,6 +2,41 @@ import {type NodeType} from './graph';
 import {type Event} from '@slicr/event-sourcing';
 
 export type NodeId = string;
+export type NodePropertyId = string;
+
+export type NodePropertySchema = {
+  propertyId: NodePropertyId,
+  name: string,
+  type: 'string' | 'number' | 'boolean' | 'Object',
+  list?: boolean,
+  optional?: boolean,
+  generated?: boolean,
+  properties?: NodePropertySchema[],
+};
+
+export type NodeExamplePrimitive = string | null;
+
+export interface NodeComplexExampleValue {
+  [propertyId: NodePropertyId]: NodeExamplePrimitive | NodeComplexExampleValue;
+}
+
+export type NodePropertyExampleValues = {
+  propertyId: NodePropertyId,
+  scalarValue?: NodeExamplePrimitive,
+  scalarListValues?: NodeExamplePrimitive[],
+  complexValue?: NodeComplexExampleValue,
+  complexListValues?: NodeComplexExampleValue[],
+};
+
+export type NodeSchemaChanged = {
+  nodeId: NodeId,
+  schema: NodePropertySchema[],
+};
+
+export type NodeExampleValuesChanged = {
+  nodeId: NodeId,
+  exampleValues: NodePropertyExampleValues[],
+};
 
 export type NodeAdded = {
   nodeId: NodeId,
@@ -35,6 +70,8 @@ export type DomainEvent =
   Event<'NodeRenamed', NodeRenamed> |
   Event<'NodeRemoved', NodeRemoved> |
   Event<'NodeTypeChanged', NodeTypeChanged> |
+  Event<'NodeSchemaChanged', NodeSchemaChanged> |
+  Event<'NodeExampleValuesChanged', NodeExampleValuesChanged> |
   Event<'NodesConnected', NodesConnected> |
   Event<'NodesDisconnected', NodesDisconnected>
   ;
@@ -66,6 +103,21 @@ export const Events = {
       type: 'NodeTypeChanged',
       payload: {nodeId, newType},
       tags: [`nodeId:${nodeId}`, `type:${newType}`]
+    };
+  },
+  nodeSchemaChanged(nodeId: NodeId, schema: NodePropertySchema[]): Event<'NodeSchemaChanged', NodeSchemaChanged> {
+    return {
+      type: 'NodeSchemaChanged',
+      payload: {nodeId, schema},
+      tags: [`nodeId:${nodeId}`]
+    };
+  },
+  nodeExampleValuesChanged(nodeId: NodeId,
+                           exampleValues: NodePropertyExampleValues[]): Event<'NodeExampleValuesChanged', NodeExampleValuesChanged> {
+    return {
+      type: 'NodeExampleValuesChanged',
+      payload: {nodeId, exampleValues},
+      tags: [`nodeId:${nodeId}`]
     };
   },
   nodesConnected(sourceNodeId: NodeId,

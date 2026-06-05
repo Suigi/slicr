@@ -61,7 +61,7 @@ Make `EditableProperty.id` required and update existing property editor/property
 
 ## Task 3: Add property event contracts
 ### Status
-[created]
+[done]
 
 ### Description
 Extend the slicr-dcb domain event contract with `NodeSchemaChanged` and `NodeExampleValuesChanged` factory functions, payload types, tags, and import/export validation support.

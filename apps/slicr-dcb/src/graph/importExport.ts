@@ -49,6 +49,8 @@ function isKnownEventType(type: string): type is DomainEvent['type'] {
     type === 'NodeRenamed' ||
     type === 'NodeRemoved' ||
     type === 'NodeTypeChanged' ||
+    type === 'NodeSchemaChanged' ||
+    type === 'NodeExampleValuesChanged' ||
     type === 'NodesConnected' ||
     type === 'NodesDisconnected'
   );
@@ -74,6 +76,14 @@ function isEventPayload(type: DomainEvent['type'], payload: unknown): boolean {
       return typeof candidate.nodeId === 'string';
     case 'NodeTypeChanged':
       return typeof candidate.nodeId === 'string' && isNodeType(candidate.newType);
+    case 'NodeSchemaChanged':
+      return typeof candidate.nodeId === 'string' && Array.isArray(candidate.schema) && candidate.schema.every(isNodePropertySchema);
+    case 'NodeExampleValuesChanged':
+      return (
+        typeof candidate.nodeId === 'string' &&
+        Array.isArray(candidate.exampleValues) &&
+        candidate.exampleValues.every(isNodePropertyExampleValues)
+      );
     case 'NodesConnected':
       return (
         typeof candidate.sourceNodeId === 'string' &&
@@ -149,6 +159,59 @@ function isLegacyEdge(edge: unknown): edge is LegacyEdge {
 
 function isNodeType(type: unknown): type is NodeType {
   return type === 'ui' || type === 'cmd' || type === 'evt' || type === 'rm' || type === 'dm' || type === 'processor';
+}
+
+function isNodePropertySchema(schema: unknown): boolean {
+  if (!schema || typeof schema !== 'object') {
+    return false;
+  }
+
+  const candidate = schema as Record<string, unknown>;
+  return (
+    typeof candidate.propertyId === 'string' &&
+    typeof candidate.name === 'string' &&
+    isPropertyType(candidate.type) &&
+    (candidate.list === undefined || typeof candidate.list === 'boolean') &&
+    (candidate.optional === undefined || typeof candidate.optional === 'boolean') &&
+    (candidate.generated === undefined || typeof candidate.generated === 'boolean') &&
+    (candidate.properties === undefined ||
+      (candidate.type === 'Object' && Array.isArray(candidate.properties) && candidate.properties.every(isNodePropertySchema)))
+  );
+}
+
+function isPropertyType(type: unknown): boolean {
+  return type === 'string' || type === 'number' || type === 'boolean' || type === 'Object';
+}
+
+function isNodePropertyExampleValues(exampleValues: unknown): boolean {
+  if (!exampleValues || typeof exampleValues !== 'object') {
+    return false;
+  }
+
+  const candidate = exampleValues as Record<string, unknown>;
+  return (
+    typeof candidate.propertyId === 'string' &&
+    (candidate.scalarValue === undefined || isNodeExamplePrimitive(candidate.scalarValue)) &&
+    (candidate.scalarListValues === undefined ||
+      (Array.isArray(candidate.scalarListValues) && candidate.scalarListValues.every(isNodeExamplePrimitive))) &&
+    (candidate.complexValue === undefined || isNodeComplexExampleValue(candidate.complexValue)) &&
+    (candidate.complexListValues === undefined ||
+      (Array.isArray(candidate.complexListValues) && candidate.complexListValues.every(isNodeComplexExampleValue)))
+  );
+}
+
+function isNodeExamplePrimitive(value: unknown): boolean {
+  return typeof value === 'string' || value === null;
+}
+
+function isNodeComplexExampleValue(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+
+  return Object.values(value).every((nestedValue) => (
+    isNodeExamplePrimitive(nestedValue) || isNodeComplexExampleValue(nestedValue)
+  ));
 }
 
 function legacySnapshotToEvents(snapshot: LegacyGraphSnapshot): DomainEvent[] {

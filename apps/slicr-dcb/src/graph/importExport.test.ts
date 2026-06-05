@@ -23,6 +23,50 @@ describe('import/export conversion utilities', () => {
     expect(parseImportEvents(JSON.stringify(events))).toEqual({ok: true, events});
   });
 
+  it('accepts and serializes node property event streams with valid required payloads', () => {
+    const importedEvents = [
+      {
+        type: 'NodeSchemaChanged',
+        payload: {
+          nodeId: 'node-1',
+          schema: [
+            {
+              propertyId: 'prop-title',
+              name: 'title',
+              type: 'string',
+              optional: true,
+              extraSchemaField: 'ignored by validation',
+            },
+            {
+              propertyId: 'prop-lines',
+              name: 'lines',
+              type: 'Object',
+              list: true,
+              properties: [{propertyId: 'prop-sku', name: 'sku', type: 'string'}],
+            },
+          ],
+          extraPayloadField: 'ignored by validation',
+        },
+        tags: ['nodeId:node-1'],
+      },
+      {
+        type: 'NodeExampleValuesChanged',
+        payload: {
+          nodeId: 'node-1',
+          exampleValues: [
+            {propertyId: 'prop-title', scalarValue: 'Checkout completed', extraExampleField: true},
+            {propertyId: 'prop-lines', complexListValues: [{'prop-sku': 'ABC-123'}]},
+          ],
+          extraPayloadField: 'ignored by validation',
+        },
+        tags: ['nodeId:node-1'],
+      },
+    ];
+
+    expect(parseImportEvents(JSON.stringify(importedEvents))).toEqual({ok: true, events: importedEvents});
+    expect(JSON.parse(serializeDomainEvents(importedEvents as DomainEvent[]))).toEqual(importedEvents);
+  });
+
   it('converts legacy graph snapshots into replacement event streams', () => {
     const legacySnapshot = {
       nodes: [
@@ -45,6 +89,31 @@ describe('import/export conversion utilities', () => {
         Events.nodeAdded('node-2', 'evt', 2, 'Event'),
         Events.nodesConnected('node-1', 'node-2', 'back-reference'),
       ],
+    });
+  });
+
+  it('rejects invalid node property event required payload shapes', () => {
+    const malformedPropertyEventArray = [
+      {
+        type: 'NodeSchemaChanged',
+        payload: {
+          nodeId: 'node-1',
+          schema: [
+            {
+              propertyId: 'prop-title',
+              name: 'title',
+              type: 'string',
+              properties: [{propertyId: 'prop-nested', name: 'nested', type: 'string'}],
+            },
+          ],
+        },
+        tags: ['nodeId:node-1'],
+      },
+    ];
+
+    expect(parseImportEvents(JSON.stringify(malformedPropertyEventArray))).toEqual({
+      ok: false,
+      error: 'Import must be an exported event array or a legacy graph snapshot.',
     });
   });
 
