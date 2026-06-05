@@ -1,7 +1,4 @@
-# Single repo-level pointer to the active feature folder.
-# Update this file as the workflow advances.
-
-feature_dir = "_tasks/003-event-sourcing-app-migration"
-phase = "implementation"
+feature_dir = "_tasks/004-node-property-events"
+phase = "task-breakdown"
 current_task = ""
 status = "active"
