@@ -9,6 +9,8 @@ type ConnectionMenuItem = {
   nodeType: NodeType;
 };
 
+type GraphNodeRenderMode = 'interactive' | 'measurement';
+
 type GraphNodeViewProps = {
   node: RenderNode;
   isFocused: boolean;
@@ -17,6 +19,7 @@ type GraphNodeViewProps = {
   isConnectingSource: boolean;
   draftLabel: string;
   connectionMenuItems: ConnectionMenuItem[];
+  renderMode?: GraphNodeRenderMode;
   onNodeClick: (node: GraphNode) => void;
   onCloseOtherMenus: () => void;
   onToggleMenu: () => void;
@@ -40,6 +43,7 @@ export function GraphNodeView({
   isConnectingSource,
   draftLabel,
   connectionMenuItems,
+  renderMode = 'interactive',
   onNodeClick,
   onCloseOtherMenus,
   onToggleMenu,
@@ -54,54 +58,72 @@ export function GraphNodeView({
   onCancelEditingFromKeyboard,
   onLabelBlur,
 }: GraphNodeViewProps) {
+  const isMeasurementMode = renderMode === 'measurement';
+  const showTransientControls = !isMeasurementMode && isFocused;
+  const showNodeMenu = showTransientControls && isMenuOpen;
+
   return (
     <div
-      className={`node-box node-type-${node.type}${isFocused ? ' node-focused' : ''}${isConnectingSource ? ' node-connecting-source' : ''}`}
+      className={`node-box node-type-${node.type}${showTransientControls ? ' node-focused' : ''}${!isMeasurementMode && isConnectingSource ? ' node-connecting-source' : ''}`}
       style={{ left: node.x, top: node.y, width: node.width, height: node.height }}
-      onClick={() => {
-        onNodeClick(node);
-        if (!isMenuOpen) {
-          onCloseOtherMenus();
-        }
-      }}
+      onClick={
+        isMeasurementMode
+          ? undefined
+          : () => {
+              onNodeClick(node);
+              if (!isMenuOpen) {
+                onCloseOtherMenus();
+              }
+            }
+      }
     >
-      {isFocused ? <NodeAddButton node={node} direction="top" onAddConnectedNode={onAddConnectedNode} /> : null}
+      {showTransientControls ? <NodeAddButton node={node} direction="top" onAddConnectedNode={onAddConnectedNode} /> : null}
       {isEditing ? (
         <input
           className="node-label-input"
           value={draftLabel}
-          autoFocus
+          autoFocus={!isMeasurementMode}
+          readOnly={isMeasurementMode}
+          tabIndex={isMeasurementMode ? -1 : undefined}
           aria-label={`Edit ${node.label} label`}
-          onChange={(event) => onDraftLabelChange(event.target.value)}
-          onFocus={(event) => event.currentTarget.select()}
-          onBlur={onLabelBlur}
-          onClick={(event) => event.stopPropagation()}
-          onDoubleClick={(event) => event.stopPropagation()}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') {
-              onSaveEditingNode();
-            }
-            if (event.key === 'Escape') {
-              event.preventDefault();
-              event.stopPropagation();
-              onCancelEditingFromKeyboard();
-            }
-          }}
+          onChange={isMeasurementMode ? undefined : (event) => onDraftLabelChange(event.target.value)}
+          onFocus={isMeasurementMode ? undefined : (event) => event.currentTarget.select()}
+          onBlur={isMeasurementMode ? undefined : onLabelBlur}
+          onClick={isMeasurementMode ? undefined : (event) => event.stopPropagation()}
+          onDoubleClick={isMeasurementMode ? undefined : (event) => event.stopPropagation()}
+          onKeyDown={
+            isMeasurementMode
+              ? undefined
+              : (event) => {
+                  if (event.key === 'Enter') {
+                    onSaveEditingNode();
+                  }
+                  if (event.key === 'Escape') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onCancelEditingFromKeyboard();
+                  }
+                }
+          }
         />
       ) : (
         <button
           type="button"
           className="node-label-button"
           title="Double-click to edit"
-          onDoubleClick={(event) => {
-            event.stopPropagation();
-            onStartEditingNode(node);
-          }}
+          onDoubleClick={
+            isMeasurementMode
+              ? undefined
+              : (event) => {
+                  event.stopPropagation();
+                  onStartEditingNode(node);
+                }
+          }
         >
           {node.label}
         </button>
       )}
-      {isFocused ? (
+      {showTransientControls ? (
         <button
           type="button"
           className="node-menu-button"
@@ -117,7 +139,7 @@ export function GraphNodeView({
           </svg>
         </button>
       ) : null}
-      {isFocused && isMenuOpen ? (
+      {showNodeMenu ? (
         <NodeMenu
           label={node.label}
           connectionMenuItems={connectionMenuItems}
@@ -127,8 +149,8 @@ export function GraphNodeView({
           onDelete={() => onDeleteNode(node.id)}
         />
       ) : null}
-      {isFocused ? <NodeAddButton node={node} direction="right" onAddConnectedNode={onAddConnectedNode} /> : null}
-      {isFocused ? <NodeAddButton node={node} direction="bottom" onAddConnectedNode={onAddConnectedNode} /> : null}
+      {showTransientControls ? <NodeAddButton node={node} direction="right" onAddConnectedNode={onAddConnectedNode} /> : null}
+      {showTransientControls ? <NodeAddButton node={node} direction="bottom" onAddConnectedNode={onAddConnectedNode} /> : null}
     </div>
   );
 }

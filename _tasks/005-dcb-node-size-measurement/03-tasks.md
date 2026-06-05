@@ -41,7 +41,7 @@ Add a DCB DOM measurement helper that finds graph node measurement targets by sh
 
 ## Task 2: Extract stable node box rendering
 ### Status
-[created]
+[done]
 
 ### Description
 Refactor `GraphNodeView` so the stable node box/content can be rendered without transient focus/menu/add-button controls, allowing visible and measurement nodes to share equivalent markup.
