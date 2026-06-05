@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, expect, it } from 'vitest';
+import { NODE_HEIGHT, NODE_WIDTH } from './graph/constants';
 import {
   DCB_NODE_MEASURE_CLASS,
   DCB_NODE_MEASURE_SELECTOR,
@@ -8,7 +9,7 @@ import {
 } from './nodeMeasurement';
 
 describe('nodeMeasurement', () => {
-  it('measures only DCB nodes matching the shared selector', () => {
+  it('measures only DCB nodes matching the shared selector and clamps to shared minimum dimensions', () => {
     const container = document.createElement('div');
 
     const measuredNode = document.createElement('div');
@@ -45,7 +46,7 @@ describe('nodeMeasurement', () => {
 
     expect(DCB_NODE_MEASURE_SELECTOR).toBe(`.${DCB_NODE_MEASURE_CLASS}[data-node-id]`);
     expect(measureNodeDimensions(container)).toEqual({
-      'node-1': { width: 181, height: 98 }
+      'node-1': { width: NODE_WIDTH, height: 98 }
     });
   });
 

@@ -236,6 +236,58 @@ describe('App', () => {
     }
   });
 
+  it('keeps measured dimensions at or above the shared minimum node size', async () => {
+    const originalGetBoundingClientRect = HTMLElement.prototype.getBoundingClientRect;
+    layoutLibMock.compactLayout.mockImplementation(({nodes}: {nodes: Array<{id: string; width: number; height: number}>}) => ({
+      ok: true,
+      result: {
+        nodes: nodes.map((node, index) => ({id: node.id, x: index * 10, y: 0, width: node.width, height: node.height})),
+        edges: [],
+      },
+    }));
+    HTMLElement.prototype.getBoundingClientRect = function () {
+      if (this instanceof HTMLElement && this.dataset.nodeId === 'node-1') {
+        return {
+          x: 0,
+          y: 0,
+          top: 0,
+          left: 0,
+          bottom: 40,
+          right: 120,
+          width: 120,
+          height: 40,
+          toJSON: () => ({}),
+        };
+      }
+
+      return originalGetBoundingClientRect.call(this);
+    };
+
+    graphModelMock.useGraphModel.mockReturnValue(createGraphModelMockValue({
+      nodes: [{id: 'node-1', label: 'Checkout Completed', type: 'evt', laneId: 'lane-0', width: NODE_WIDTH, height: NODE_HEIGHT}],
+    }));
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+
+    try {
+      await act(async () => {
+        root?.render(createElement(App));
+        await Promise.resolve();
+      });
+
+      expect(layoutLibMock.compactLayout).toHaveBeenCalledTimes(2);
+      expect(layoutLibMock.compactLayout.mock.calls[0]?.[0].nodes).toEqual([
+        expect.objectContaining({id: 'node-1', width: NODE_WIDTH, height: NODE_HEIGHT}),
+      ]);
+      expect(layoutLibMock.compactLayout.mock.calls[1]?.[0].nodes).toEqual([
+        expect.objectContaining({id: 'node-1', width: NODE_WIDTH, height: NODE_HEIGHT}),
+      ]);
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = originalGetBoundingClientRect;
+    }
+  });
+
   it('re-runs measurement and layout after a committed graph content change', async () => {
     const originalGetBoundingClientRect = HTMLElement.prototype.getBoundingClientRect;
     let currentMeasurement = {width: 312, height: 118};

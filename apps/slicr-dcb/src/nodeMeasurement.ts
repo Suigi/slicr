@@ -1,3 +1,5 @@
+import { NODE_HEIGHT, NODE_WIDTH } from './graph/constants';
+
 export type NodeDimensions = {
   width: number;
   height: number;
@@ -16,11 +18,14 @@ export function measureNodeDimensions(root: ParentNode = document): Record<strin
       return;
     }
 
-    const width = Math.ceil(element.getBoundingClientRect().width);
-    const height = Math.ceil(element.getBoundingClientRect().height);
+    const measuredWidth = Math.ceil(element.getBoundingClientRect().width);
+    const measuredHeight = Math.ceil(element.getBoundingClientRect().height);
 
-    if (Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0) {
-      measured[nodeId] = { width, height };
+    if (Number.isFinite(measuredWidth) && measuredWidth > 0 && Number.isFinite(measuredHeight) && measuredHeight > 0) {
+      measured[nodeId] = {
+        width: Math.max(NODE_WIDTH, measuredWidth),
+        height: Math.max(NODE_HEIGHT, measuredHeight),
+      };
     }
   });
 

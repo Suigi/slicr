@@ -247,7 +247,13 @@ export function App() {
     () =>
       nodes.map((node) => {
         const measuredDimensions = nodeMeasurements[node.id];
-        return measuredDimensions ? {...node, ...measuredDimensions} : node;
+        return measuredDimensions
+          ? {
+              ...node,
+              width: Math.max(NODE_WIDTH, measuredDimensions.width),
+              height: Math.max(NODE_HEIGHT, measuredDimensions.height),
+            }
+          : node;
       }),
     [nodeMeasurements, nodes],
   );
