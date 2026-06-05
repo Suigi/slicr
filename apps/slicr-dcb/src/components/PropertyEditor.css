@@ -81,7 +81,8 @@
 }
 
 .property-editor-field input,
-.property-editor-field select {
+.property-editor-field select,
+.property-editor-list-editor input {
   width: 100%;
   min-width: 0;
   border: 1px solid rgba(23, 32, 51, 0.16);
@@ -90,6 +91,18 @@
   color: #172033;
   font: inherit;
   padding: 6px 8px;
+}
+
+.property-editor-example-hidden {
+  overflow: hidden;
+  border: 1px dashed rgba(23, 32, 51, 0.14);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #64748b;
+  font: inherit;
+  padding: 6px 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .property-editor-drag-handle {
@@ -120,11 +133,21 @@
   cursor: grabbing;
 }
 
+.property-editor-field input:disabled,
+.property-editor-list-editor input:disabled {
+  background: #eef2f7;
+  color: #64748b;
+  cursor: not-allowed;
+}
+
 .property-editor-field input:focus,
 .property-editor-field select:focus,
+.property-editor-list-editor input:focus,
 .property-editor-add-button:focus-visible,
 .property-editor-row-actions button:focus-visible,
-.property-editor-drag-handle:focus-visible {
+.property-editor-drag-handle:focus-visible,
+.property-editor-list-drag-handle:focus-visible,
+.property-editor-list-editor button:focus-visible {
   outline: 2px solid rgba(37, 99, 235, 0.24);
   outline-offset: 1px;
 }
@@ -183,6 +206,114 @@
   border-bottom: 0;
   border-radius: 0;
   background: #fff;
+}
+
+.property-editor-list-editor {
+  border-top: 1px solid rgba(23, 32, 51, 0.08);
+  background: #f8fafc;
+  padding: 8px 10px 8px 46px;
+}
+
+.property-editor-list-values {
+  display: grid;
+  gap: 6px;
+}
+
+.property-editor-list-value-row {
+  display: grid;
+  grid-template-columns: 32px minmax(140px, 1fr) 32px;
+  gap: 6px;
+  align-items: center;
+}
+
+.property-editor-list-reorder-cell {
+  display: flex;
+  gap: 4px;
+}
+
+.property-editor-list-remove-button,
+.property-editor-list-add-button {
+  border: 1px solid rgba(23, 32, 51, 0.14);
+  border-radius: 8px;
+  background: #fff;
+  color: #172033;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.property-editor-list-drag-handle {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #64748b;
+  cursor: grab;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.2em;
+  line-height: 1;
+  padding: 0;
+}
+
+.property-editor-list-drag-handle:hover {
+  background: #fff;
+  color: #172033;
+}
+
+.property-editor-list-drag-handle:active {
+  cursor: grabbing;
+}
+
+.property-editor-list-remove-button {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+}
+
+.property-editor-list-add-button {
+  margin-top: 8px;
+  padding: 6px 9px;
+}
+
+.property-editor-list-table-wrap {
+  overflow-x: auto;
+}
+
+.property-editor-list-table {
+  width: 100%;
+  border-collapse: collapse;
+  font: inherit;
+}
+
+.property-editor-list-table th,
+.property-editor-list-table td {
+  border-bottom: 1px solid rgba(23, 32, 51, 0.08);
+  padding: 4px;
+  text-align: left;
+}
+
+.property-editor-list-table th {
+  color: #52627a;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.property-editor-list-table th:first-child,
+.property-editor-list-table td:first-child {
+  width: 36px;
+}
+
+.property-editor-list-table th:last-child,
+.property-editor-list-table td:last-child {
+  width: 36px;
 }
 
 .property-editor-toolbar {

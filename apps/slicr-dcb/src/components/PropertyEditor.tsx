@@ -5,11 +5,15 @@ export const propertyTypes = ['string', 'number', 'boolean', 'Object'] as const;
 
 export type PropertyType = (typeof propertyTypes)[number];
 
+export type PropertyExampleValue = string | Record<string, string>;
+
 export type EditableProperty = {
   name: string;
   type: PropertyType;
   example?: string;
   properties?: EditableProperty[];
+  list?: boolean;
+  exampleValues?: PropertyExampleValue[];
   optional?: boolean;
   generated?: boolean;
   tag?: {
@@ -22,6 +26,7 @@ type PropertyEditorProps = {
   onChange: (properties: EditableProperty[]) => void;
   showPropertyToolbar?: boolean;
   showColumnHeaders?: boolean;
+  disableExampleValues?: boolean;
 };
 
 const emptyProperty = (): EditableProperty => ({
@@ -35,8 +40,10 @@ export function PropertyEditor({
   onChange,
   showPropertyToolbar = true,
   showColumnHeaders = true,
+  disableExampleValues = false,
 }: PropertyEditorProps) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [draggedExample, setDraggedExample] = useState<{ propertyIndex: number; exampleIndex: number } | null>(null);
   const [settingsIndex, setSettingsIndex] = useState<number | null>(null);
 
   const updateProperty = (index: number, property: EditableProperty) => {
@@ -70,6 +77,102 @@ export function PropertyEditor({
     }
 
     updateProperty(index, { ...property, properties: nestedProperties });
+  };
+
+  const getInitialExampleValues = (property: EditableProperty): PropertyExampleValue[] => {
+    if (property.exampleValues) {
+      return property.exampleValues;
+    }
+
+    if (property.type === 'Object') {
+      if ((property.properties ?? []).length > 0) {
+        return [Object.fromEntries((property.properties ?? []).map((nestedProperty) => [nestedProperty.name, nestedProperty.example ?? '']))];
+      }
+
+      return [];
+    }
+
+    if (!property.example) {
+      return [];
+    }
+
+    return [property.example];
+  };
+
+  const updateListMode = (index: number, property: EditableProperty, list: boolean) => {
+    updateProperty(index, {
+      ...property,
+      list,
+      exampleValues: list ? getInitialExampleValues(property) : undefined,
+    });
+  };
+
+  const addExampleValue = (index: number, property: EditableProperty) => {
+    updateProperty(index, {
+      ...property,
+      exampleValues: [...(property.exampleValues ?? []), property.type === 'Object' ? {} : ''],
+    });
+  };
+
+  const removeExampleValue = (propertyIndex: number, property: EditableProperty, exampleIndex: number) => {
+    updateProperty(propertyIndex, {
+      ...property,
+      exampleValues: (property.exampleValues ?? []).filter((_, currentIndex) => currentIndex !== exampleIndex),
+    });
+  };
+
+  const reorderExampleValue = (
+    propertyIndex: number,
+    property: EditableProperty,
+    fromIndex: number,
+    toIndex: number,
+  ) => {
+    if (fromIndex === toIndex) {
+      return;
+    }
+
+    const exampleValues = [...(property.exampleValues ?? [])];
+
+    if (fromIndex < 0 || fromIndex >= exampleValues.length || toIndex < 0 || toIndex >= exampleValues.length) {
+      return;
+    }
+
+    const [exampleValue] = exampleValues.splice(fromIndex, 1);
+    exampleValues.splice(toIndex, 0, exampleValue);
+    updateProperty(propertyIndex, { ...property, exampleValues });
+  };
+
+  const updatePrimitiveExampleValue = (
+    propertyIndex: number,
+    property: EditableProperty,
+    exampleIndex: number,
+    value: string,
+  ) => {
+    updateProperty(propertyIndex, {
+      ...property,
+      exampleValues: (property.exampleValues ?? []).map((exampleValue, currentIndex) =>
+        currentIndex === exampleIndex ? value : exampleValue,
+      ),
+    });
+  };
+
+  const updateObjectExampleValue = (
+    propertyIndex: number,
+    property: EditableProperty,
+    exampleIndex: number,
+    fieldName: string,
+    value: string,
+  ) => {
+    updateProperty(propertyIndex, {
+      ...property,
+      exampleValues: (property.exampleValues ?? []).map((exampleValue, currentIndex) => {
+        if (currentIndex !== exampleIndex || typeof exampleValue === 'string') {
+          return exampleValue;
+        }
+
+        return { ...exampleValue, [fieldName]: value };
+      }),
+    });
   };
 
   const reorderProperty = (fromIndex: number, toIndex: number) => {
@@ -157,12 +260,18 @@ export function PropertyEditor({
 
                 <label className="property-editor-field">
                   <span>Example</span>
-                  <input
-                    type="text"
-                    value={property.example ?? ''}
-                    placeholder="optional"
-                    onChange={(event) => updateProperty(index, { ...property, example: event.target.value })}
-                  />
+                  {property.type === 'Object' ? (
+                    <div className="property-editor-example-hidden">Defined by nested properties</div>
+                  ) : property.list || disableExampleValues ? (
+                    <div className="property-editor-example-hidden">List examples below</div>
+                  ) : (
+                    <input
+                      type="text"
+                      value={property.example ?? ''}
+                      placeholder="optional"
+                      onChange={(event) => updateProperty(index, { ...property, example: event.target.value })}
+                    />
+                  )}
                 </label>
 
                 <div className="property-editor-row-actions">
@@ -194,12 +303,150 @@ export function PropertyEditor({
                     onChange={(nestedProperties) => updateNestedProperties(index, nestedProperties)}
                     showPropertyToolbar={false}
                     showColumnHeaders={false}
+                    disableExampleValues={property.list}
                   />
+                </div>
+              ) : null}
+
+              {property.list ? (
+                <div className="property-editor-list-editor">
+                  {property.type === 'Object' ? (
+                    <div className="property-editor-list-table-wrap">
+                      <table className="property-editor-list-table">
+                        <thead>
+                          <tr>
+                            <th aria-label="Reorder" />
+                            {(property.properties ?? []).map((nestedProperty) => (
+                              <th key={nestedProperty.name}>{nestedProperty.name || 'Unnamed'}</th>
+                            ))}
+                            <th aria-label="Actions" />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(property.exampleValues ?? []).map((exampleValue, exampleIndex) => {
+                            const objectValue = typeof exampleValue === 'string' ? {} : exampleValue;
+
+                            return (
+                              <tr
+                                key={exampleIndex}
+                                onDragOver={(event) => event.preventDefault()}
+                                onDrop={(event) => {
+                                  event.preventDefault();
+                                  if (draggedExample?.propertyIndex === index) {
+                                    reorderExampleValue(index, property, draggedExample.exampleIndex, exampleIndex);
+                                    setDraggedExample(null);
+                                  }
+                                }}
+                              >
+                                <td className="property-editor-list-reorder-cell">
+                                  <button
+                                    type="button"
+                                    className="property-editor-list-drag-handle"
+                                    draggable
+                                    aria-label="Drag to reorder example value"
+                                    onDragStart={(event) => {
+                                      setDraggedExample({ propertyIndex: index, exampleIndex });
+                                      event.dataTransfer.effectAllowed = 'move';
+                                      event.dataTransfer.setData('text/plain', String(exampleIndex));
+                                    }}
+                                    onDragEnd={() => setDraggedExample(null)}
+                                  >
+                                    ⋮⋮
+                                  </button>
+                                </td>
+                                {(property.properties ?? []).map((nestedProperty) => (
+                                  <td key={nestedProperty.name}>
+                                    <input
+                                      type="text"
+                                      value={objectValue[nestedProperty.name] ?? ''}
+                                      aria-label={`${nestedProperty.name} example value`}
+                                      onChange={(event) =>
+                                        updateObjectExampleValue(index, property, exampleIndex, nestedProperty.name, event.target.value)
+                                      }
+                                    />
+                                  </td>
+                                ))}
+                                <td>
+                                  <button
+                                    type="button"
+                                    className="property-editor-list-remove-button"
+                                    onClick={() => removeExampleValue(index, property, exampleIndex)}
+                                    aria-label="Remove example value"
+                                  >
+                                    ×
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="property-editor-list-values">
+                      {(property.exampleValues ?? []).map((exampleValue, exampleIndex) => (
+                        <div
+                          className="property-editor-list-value-row"
+                          key={exampleIndex}
+                          onDragOver={(event) => event.preventDefault()}
+                          onDrop={(event) => {
+                            event.preventDefault();
+                            if (draggedExample?.propertyIndex === index) {
+                              reorderExampleValue(index, property, draggedExample.exampleIndex, exampleIndex);
+                              setDraggedExample(null);
+                            }
+                          }}
+                        >
+                          <div className="property-editor-list-reorder-cell">
+                            <button
+                              type="button"
+                              className="property-editor-list-drag-handle"
+                              draggable
+                              aria-label="Drag to reorder example value"
+                              onDragStart={(event) => {
+                                setDraggedExample({ propertyIndex: index, exampleIndex });
+                                event.dataTransfer.effectAllowed = 'move';
+                                event.dataTransfer.setData('text/plain', String(exampleIndex));
+                              }}
+                              onDragEnd={() => setDraggedExample(null)}
+                            >
+                              ⋮⋮
+                            </button>
+                          </div>
+                          <input
+                            type="text"
+                            value={typeof exampleValue === 'string' ? exampleValue : ''}
+                            placeholder="example value"
+                            onChange={(event) => updatePrimitiveExampleValue(index, property, exampleIndex, event.target.value)}
+                          />
+                          <button
+                            type="button"
+                            className="property-editor-list-remove-button"
+                            onClick={() => removeExampleValue(index, property, exampleIndex)}
+                            aria-label="Remove example value"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <button type="button" className="property-editor-list-add-button" onClick={() => addExampleValue(index, property)}>
+                    + Add example value
+                  </button>
                 </div>
               ) : null}
 
               {showPropertyToolbar && settingsIndex === index ? (
                 <div className="property-editor-toolbar">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={property.list ?? false}
+                      onChange={(event) => updateListMode(index, property, event.target.checked)}
+                    />
+                    List
+                  </label>
                   <label>
                     <input
                       type="checkbox"
