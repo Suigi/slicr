@@ -27,7 +27,7 @@ export type EventSourcedGraphModel = {
 };
 
 export function createEventSourcedGraphModel(config: {store: AsyncGraphEventStore}): EventSourcedGraphModel {
-  let snapshot: RendererGraph = {nodes: [], edges: [], lanes: []};
+  let snapshot: RendererGraph = {nodes: [], edges: [], lanes: [], nodeSchemas: {}, nodeExampleValues: {}};
 
   let events: DomainEvent[] = [];
 

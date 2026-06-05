@@ -25,7 +25,7 @@ describe('createEventSourcedGraphModel', () => {
 
     await model.load();
 
-    expect(model.getSnapshot()).toEqual({nodes: [], edges: [], lanes: []});
+    expect(model.getSnapshot()).toEqual({nodes: [], edges: [], lanes: [], nodeSchemas: {}, nodeExampleValues: {}});
   });
 
   it('appends a node event and reprojects the renderer graph', async () => {
@@ -46,6 +46,8 @@ describe('createEventSourcedGraphModel', () => {
       nodes: [{id: 'node-1', label: 'Node 1', type: 'ui', laneId: 'lane-0', width: NODE_WIDTH, height: NODE_HEIGHT}],
       edges: [],
       lanes: [{id: 'lane-0', order: 0}],
+      nodeSchemas: {},
+      nodeExampleValues: {},
     });
   });
 

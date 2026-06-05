@@ -17,6 +17,8 @@ export class GraphProjector {
         'NodeRenamed',
         'NodeRemoved',
         'NodeTypeChanged',
+        'NodeSchemaChanged',
+        'NodeExampleValuesChanged',
         'NodesConnected',
         'NodesDisconnected',
       ]
@@ -25,6 +27,8 @@ export class GraphProjector {
       nodes: [],
       edges: [],
       lanes: [],
+      nodeSchemas: {},
+      nodeExampleValues: {},
     };
     for (const event of events) {
       switch (event.type) {
@@ -50,6 +54,8 @@ export class GraphProjector {
           model.edges = model.edges.filter(edge =>
             edge.sourceNodeId !== event.payload.nodeId && edge.targetNodeId !== event.payload.nodeId
           );
+          delete model.nodeSchemas[event.payload.nodeId];
+          delete model.nodeExampleValues[event.payload.nodeId];
           break;
         case 'NodeTypeChanged': {
           const node = model.nodes.find(node => node.nodeId === event.payload.nodeId);
@@ -58,6 +64,12 @@ export class GraphProjector {
           }
           break;
         }
+        case 'NodeSchemaChanged':
+          model.nodeSchemas[event.payload.nodeId] = event.payload.schema;
+          break;
+        case 'NodeExampleValuesChanged':
+          model.nodeExampleValues[event.payload.nodeId] = event.payload.exampleValues;
+          break;
         case 'NodesConnected': {
           const sourceExists = model.nodes.some(node => node.nodeId === event.payload.sourceNodeId);
           const targetExists = model.nodes.some(node => node.nodeId === event.payload.targetNodeId);

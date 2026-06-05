@@ -6,8 +6,8 @@ import {NODE_HEIGHT, NODE_WIDTH} from './constants';
 
 describe('adaptModelGraphToRenderer', () => {
   it('maps empty and populated domain graphs to renderer inputs', () => {
-    expect(adaptModelGraphToRenderer({nodes: [], edges: [], lanes: []}))
-      .toEqual({nodes: [], edges: [], lanes: []});
+    expect(adaptModelGraphToRenderer({nodes: [], edges: [], lanes: [], nodeSchemas: {}, nodeExampleValues: {}}))
+      .toEqual({nodes: [], edges: [], lanes: [], nodeSchemas: {}, nodeExampleValues: {}});
 
     const model: ModelGraph = {
       nodes: [
@@ -21,6 +21,16 @@ describe('adaptModelGraphToRenderer', () => {
         {id: 'lane-2', order: 2},
         {id: 'lane-5', order: 5},
       ],
+      nodeSchemas: {
+        'cmd-1': [
+          {propertyId: 'prop-title', name: 'title', type: 'string'},
+        ],
+      },
+      nodeExampleValues: {
+        'cmd-1': [
+          {propertyId: 'prop-title', scalarValue: 'Checkout completed'},
+        ],
+      },
     };
 
     expect(adaptModelGraphToRenderer(model))
@@ -55,6 +65,16 @@ describe('adaptModelGraphToRenderer', () => {
           {id: 'lane-2', order: 2},
           {id: 'lane-5', order: 5},
         ],
+        nodeSchemas: {
+          'cmd-1': [
+            {propertyId: 'prop-title', name: 'title', type: 'string'},
+          ],
+        },
+        nodeExampleValues: {
+          'cmd-1': [
+            {propertyId: 'prop-title', scalarValue: 'Checkout completed'},
+          ],
+        },
       });
   });
 });

@@ -6,3 +6,4 @@
 - For object-list editable properties, row values should use stable nested property IDs as keys. `PropertyGrid` can still fall back to names for legacy display, but new mockups/event mappings should prefer IDs.
 - Keep property event import validation structural and additive: validate required schema/example fields, allow extra payload fields for forward compatibility, and reject nested `properties` on non-`Object` schema entries.
 - TypeScript recursive complex example values should use an interface with an index signature rather than a recursive `Record` type alias, which fails typecheck in this repo.
+- The projected property maps are part of both `ModelGraph` and `RendererGraph`; even empty graph snapshots should carry empty `nodeSchemas` and `nodeExampleValues` maps so downstream hooks can rely on the shape.

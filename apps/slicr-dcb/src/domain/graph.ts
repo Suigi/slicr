@@ -1,4 +1,4 @@
-import {NodeId} from './events';
+import {NodeId, type NodePropertyExampleValues, type NodePropertySchema} from './events';
 
 export type NodeType = 'ui' | 'cmd' | 'evt' | 'rm' | 'dm' | 'processor';
 
@@ -24,4 +24,6 @@ export type ModelGraph = {
   nodes: Node[];
   edges: Edge[];
   lanes: Lane[];
+  nodeSchemas: Record<NodeId, NodePropertySchema[]>;
+  nodeExampleValues: Record<NodeId, NodePropertyExampleValues[]>;
 };

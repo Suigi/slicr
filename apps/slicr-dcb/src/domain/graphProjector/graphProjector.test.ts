@@ -95,10 +95,54 @@ describe('events project state', () => {
       .toEqual('Renamed Command');
   });
 
+  it('projects node property schema and examples independently', () => {
+    const store = MemoryStore.create<DomainEvent>();
+    const projector = GraphProjector.create({store});
+
+    store.append([
+      Events.nodeAdded('kept-node', 'dm', 0, 'Kept'),
+      Events.nodeAdded('removed-node', 'dm', 0, 'Removed'),
+      Events.nodeSchemaChanged('kept-node', [
+        {propertyId: 'old-title', name: 'oldTitle', type: 'string'},
+      ]),
+      Events.nodeExampleValuesChanged('kept-node', [
+        {propertyId: 'prop-title', scalarValue: 'Checkout started'},
+      ]),
+      Events.nodeSchemaChanged('kept-node', [
+        {propertyId: 'prop-title', name: 'title', type: 'string', optional: true},
+        {propertyId: 'prop-lines', name: 'lines', type: 'Object', list: true},
+      ]),
+      Events.nodeExampleValuesChanged('removed-node', [
+        {propertyId: 'removed-prop', scalarValue: 'discard me'},
+      ]),
+      Events.nodeSchemaChanged('removed-node', [
+        {propertyId: 'removed-prop', name: 'removed', type: 'string'},
+      ]),
+      Events.nodeRemoved('removed-node'),
+    ]);
+
+    const model = projector.project();
+
+    expect(model.nodeSchemas).toEqual({
+      'kept-node': [
+        {propertyId: 'prop-title', name: 'title', type: 'string', optional: true},
+        {propertyId: 'prop-lines', name: 'lines', type: 'Object', list: true},
+      ],
+    });
+    expect(model.nodeExampleValues).toEqual({
+      'kept-node': [
+        {propertyId: 'prop-title', scalarValue: 'Checkout started'},
+      ],
+    });
+    expect(model.nodes).toEqual([
+      {nodeId: 'kept-node', nodeType: 'dm', laneId: 0, label: 'Kept'},
+    ]);
+  });
+
   it('replays the complete graph event stream deterministically', () => {
     const emptyStore = MemoryStore.create<DomainEvent>();
     expect(GraphProjector.create({store: emptyStore}).project())
-      .toEqual({nodes: [], edges: [], lanes: []});
+      .toEqual({nodes: [], edges: [], lanes: [], nodeSchemas: {}, nodeExampleValues: {}});
 
     const store = MemoryStore.create<DomainEvent>();
     const projector = GraphProjector.create({store});

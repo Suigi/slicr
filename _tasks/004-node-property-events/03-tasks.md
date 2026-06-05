@@ -83,7 +83,7 @@ Extend the slicr-dcb domain event contract with `NodeSchemaChanged` and `NodeExa
 
 ## Task 4: Project schemas and examples separately
 ### Status
-[created]
+[done]
 
 ### Description
 Extend the domain graph projection and renderer graph adaptation so replayed models retain the latest schema and latest example values per logical node id.
