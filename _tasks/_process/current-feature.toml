@@ -1,4 +1,4 @@
 feature_dir = "_tasks/004-node-property-events"
-phase = "implementation"
+phase = "complete"
 current_task = ""
-status = "active"
+status = "done"

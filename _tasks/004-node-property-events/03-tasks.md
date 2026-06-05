@@ -154,7 +154,7 @@ Place the command types and handlers in `apps/slicr-dcb/src/domain/nodeCommands/
 
 ## Task 7: Show imported and exported persisted properties in App flow
 ### Status
-[created]
+[done]
 
 ### Description
 Verify the full App-level flow across import/export and the focused-node side panel: imported property events populate the editor, and exporting includes saved property events.
