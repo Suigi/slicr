@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import type { PropertyGridEditableProperty, PropertyGridPrimitiveValue, PropertyGridTableRow } from '@slicr/react-ui';
 import './PropertyEditor.css';
 
@@ -83,6 +83,8 @@ export function PropertyEditor({
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [draggedExample, setDraggedExample] = useState<{ propertyIndex: number; exampleIndex: number } | null>(null);
   const [settingsIndex, setSettingsIndex] = useState<number | null>(null);
+  const [templatePropertyType, setTemplatePropertyType] = useState<PropertyType>('string');
+  const templateNameInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (normalizedProperties.changed) {
@@ -123,6 +125,18 @@ export function PropertyEditor({
     updateProperty(index, { ...property, properties: nestedProperties });
   };
 
+  const addPropertyFromTemplate = (propertyUpdate: Partial<EditableProperty>) => {
+    const property = {
+      ...emptyProperty(),
+      type: templatePropertyType,
+      properties: templatePropertyType === 'Object' ? [] : undefined,
+      ...propertyUpdate,
+    };
+
+    onChange([...editorProperties, property]);
+    setTemplatePropertyType('string');
+  };
+
   const getInitialExampleValues = (property: EditableProperty): PropertyExampleValue[] => {
     if (property.exampleValues) {
       return property.exampleValues;
@@ -156,12 +170,23 @@ export function PropertyEditor({
     });
   };
 
-  const addExampleValue = (index: number, property: EditableProperty) => {
-    updateProperty(index,
-      property.type === 'Object'
-        ? { ...property, rows: [...(property.rows ?? []), {}] }
-        : { ...property, exampleValues: [...(property.exampleValues ?? []), ''] },
-    );
+  const addPrimitiveExampleValueFromTemplate = (index: number, property: EditableProperty, value: string) => {
+    updateProperty(index, {
+      ...property,
+      exampleValues: [...(property.exampleValues ?? []), value],
+    });
+  };
+
+  const addObjectExampleValueFromTemplate = (
+    index: number,
+    property: EditableProperty,
+    fieldKey: string,
+    value: string,
+  ) => {
+    updateProperty(index, {
+      ...property,
+      rows: [...(property.rows ?? []), { [fieldKey]: value }],
+    });
   };
 
   const removeExampleValue = (propertyIndex: number, property: EditableProperty, exampleIndex: number) => {
@@ -474,6 +499,37 @@ export function PropertyEditor({
                               </tr>
                             );
                           })}
+                          {(property.properties ?? []).length > 0 ? (
+                            <tr className="property-editor-template-row">
+                              <td className="property-editor-list-reorder-cell" aria-hidden="true" />
+                              {(property.properties ?? []).map((nestedProperty) => {
+                                const fieldKey = nestedProperty.id ?? nestedProperty.name;
+
+                                return (
+                                  <td key={fieldKey}>
+                                    <input
+                                      type="text"
+                                      defaultValue=""
+                                      placeholder="..."
+                                      aria-label={`Add ${nestedProperty.name || 'property'} example value`}
+                                      onBlur={(event) => {
+                                        if (event.target.value) {
+                                          addObjectExampleValueFromTemplate(index, property, fieldKey, event.target.value);
+                                          event.target.value = '';
+                                        }
+                                      }}
+                                      onKeyDown={(event) => {
+                                        if (event.key === 'Enter') {
+                                          event.currentTarget.blur();
+                                        }
+                                      }}
+                                    />
+                                  </td>
+                                );
+                              })}
+                              <td />
+                            </tr>
+                          ) : null}
                         </tbody>
                       </table>
                     </div>
@@ -526,20 +582,87 @@ export function PropertyEditor({
                           </div>
                         </div>
                       ))}
+                      <div className="property-editor-list-value-row property-editor-template-row">
+                        <div className="property-editor-list-reorder-cell" aria-hidden="true" />
+                        <input
+                          type="text"
+                          defaultValue=""
+                          placeholder="Add example value"
+                          aria-label="Add example value"
+                          onBlur={(event) => {
+                            if (event.target.value) {
+                              addPrimitiveExampleValueFromTemplate(index, property, event.target.value);
+                              event.target.value = '';
+                            }
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.currentTarget.blur();
+                            }
+                          }}
+                        />
+                        <div className="property-editor-row-actions" aria-hidden="true" />
+                      </div>
                     </div>
                   )}
-                  <button type="button" className="property-editor-list-add-button" onClick={() => addExampleValue(index, property)}>
-                    + Add example value
-                  </button>
                 </div>
               ) : null}
             </Fragment>
           ))
         )}
-        <div className="property-editor-add-row">
-          <button type="button" className="property-editor-add-button" onClick={() => onChange([...editorProperties, emptyProperty()])}>
-            + Add property
-          </button>
+        <div className="property-editor-row property-editor-template-row" role="row" aria-label="Add property">
+          <div className="property-editor-template-cell" aria-hidden="true" />
+
+          <label className="property-editor-field">
+            <span>Name</span>
+            <input
+              ref={templateNameInputRef}
+              type="text"
+              defaultValue=""
+              placeholder="Add property"
+              onBlur={(event) => {
+                if (event.target.value) {
+                  addPropertyFromTemplate({ name: event.target.value });
+                  event.target.value = '';
+                }
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.currentTarget.blur();
+                }
+              }}
+            />
+          </label>
+
+          <label className="property-editor-field">
+            <span>Type</span>
+            <select
+              value={templatePropertyType}
+              aria-label="Add property type"
+              onChange={(event) => {
+                setTemplatePropertyType(event.target.value as PropertyType);
+                templateNameInputRef.current?.focus();
+              }}
+            >
+              {propertyTypes.map((type) => (
+                <option value={type} key={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="property-editor-field">
+            <span>Example</span>
+            <input
+              type="text"
+              value=""
+              readOnly
+              aria-label="Example is available after adding the property"
+            />
+          </label>
+
+          <div className="property-editor-row-actions" aria-hidden="true" />
         </div>
       </div>
     </div>

@@ -211,10 +211,22 @@
   fill: currentColor;
 }
 
-.property-editor-add-row {
+.property-editor-template-row {
   border-top: 1px solid rgba(23, 32, 51, 0.08);
-  background: #fff;
-  padding: 5px 7px;
+  background: #fbfdff;
+}
+
+.property-editor-template-cell {
+  min-height: 30px;
+}
+
+.property-editor-template-row input {
+  font-weight: 400;
+}
+
+.property-editor-template-row input::placeholder {
+  color: #94a3b8;
+  font-weight: 400;
 }
 
 .property-editor-nested {
