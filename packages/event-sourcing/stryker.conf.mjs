@@ -1,10 +1,8 @@
 export default {
   packageManager: 'npm',
-  // The native Stryker Vitest runner currently crashes in this repo on Node 24;
-  // use Stryker's command runner to execute the package's Vitest suite reliably.
-  testRunner: 'command',
-  commandRunner: {
-    command: 'npm run test:mutation:vitest',
+  testRunner: 'vitest',
+  vitest: {
+    configFile: 'vitest.mutation.config.ts',
   },
   // coverageAnalysis: 'off',
   reporters: ['html', 'clear-text', 'progress'],
