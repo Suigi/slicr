@@ -61,7 +61,7 @@ Refactor `GraphNodeView` so the stable node box/content can be rendered without 
 
 ## Task 3: Render hidden measurement layer
 ### Status
-[created]
+[done]
 
 ### Description
 Add a `NodeMeasureLayer` for `apps/slicr-dcb` that renders one hidden off-screen measurement target per graph node outside the canvas transform using the real `GraphNodeView` measurement render path.

@@ -134,6 +134,28 @@ describe('App', () => {
 
     expect(startEditingNode).not.toHaveBeenCalled();
   });
+
+  it('renders the hidden node measurement layer outside the canvas subtree', async () => {
+    graphModelMock.useGraphModel.mockReturnValue(createGraphModelMockValue());
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(createElement(App));
+      await Promise.resolve();
+    });
+
+    const canvas = container.querySelector('.canvas');
+    const measurementLayer = container.querySelector('.node-measure-layer');
+    const measurementTargets = container.querySelectorAll('.node-measure-layer [data-node-id]');
+
+    expect(canvas).not.toBeNull();
+    expect(measurementLayer).not.toBeNull();
+    expect(measurementTargets).toHaveLength(1);
+    expect(measurementLayer?.closest('.canvas')).toBeNull();
+    expect(canvas?.contains(measurementLayer as Node)).toBe(false);
+  });
 });
 
 describe('Decision Model nodes', () => {

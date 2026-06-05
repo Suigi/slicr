@@ -4,3 +4,4 @@
 - When measured dimensions feed layout and export, define a settled-state rule up front so export behavior is deterministic after graph changes.
 - Keep the DCB measurement helper pure and app-specific: use a shared selector plus `data-node-id`, and filter invalid DOMRect values before they can influence layout state.
 - When reusing `GraphNodeView` for off-canvas measurement, suppress focus-only classes, menus, add buttons, and edit handlers instead of forking the stable label/box markup.
+- Keep the measurement layer mounted as a sibling outside `InfiniteCanvas`; if it lives inside the canvas subtree, DOM size reads can inherit zoom/pan behavior instead of true unzoomed node size.

@@ -5,6 +5,7 @@ import { AppShell } from './components/AppShell';
 import { ChapterSidebar, type Chapter } from './components/ChapterSidebar';
 import { EdgeLayer } from './components/EdgeLayer';
 import { GraphNodeView } from './components/GraphNodeView';
+import { NodeMeasureLayer } from './components/NodeMeasureLayer';
 import { ProjectSwitcher, type Project } from './components/ProjectSwitcher';
 import { NODE_HEIGHT, NODE_WIDTH } from './graph/constants';
 import {
@@ -476,6 +477,7 @@ export function App() {
           </section>
         </aside>
       ) : null}
+      <NodeMeasureLayer nodes={renderedNodes} />
       <InfiniteCanvas
         ref={canvasRef}
         className="canvas"
