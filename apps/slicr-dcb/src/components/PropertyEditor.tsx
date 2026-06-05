@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import type { PropertyGridEditableProperty, PropertyGridPrimitiveValue, PropertyGridTableRow } from '@slicr/react-ui';
 import './PropertyEditor.css';
 
-export const propertyTypes = ['string', 'number', 'boolean', 'Object'] as const;
+const propertyTypes = ['string', 'number', 'boolean', 'Object'] as const;
 
 export type PropertyType = (typeof propertyTypes)[number];
 
