@@ -88,13 +88,22 @@ export function toPropertyGridProperties(properties: PropertyGridInputProperties
       .map((property) => {
         if (isObjectProperty(property)) {
           if (property.list) {
-            const columns = (property.properties ?? [])
+            const nestedProperties = property.properties ?? [];
+            const columns = nestedProperties
               .filter((nestedProperty) => nestedProperty.name.trim())
               .map((nestedProperty) => ({
-                key: nestedProperty.name,
+                key: nestedProperty.id ?? nestedProperty.name,
                 label: nestedProperty.name,
                 type: nestedProperty.type,
               }));
+            const rows = rowsFor(property).map((row) =>
+              Object.fromEntries(
+                nestedProperties.map((nestedProperty) => {
+                  const key = nestedProperty.id ?? nestedProperty.name;
+                  return [key, row[key] ?? row[nestedProperty.name]];
+                }),
+              ),
+            );
 
             return [
               property.name,
@@ -102,7 +111,7 @@ export function toPropertyGridProperties(properties: PropertyGridInputProperties
                 kind: 'table',
                 type: property.type === 'Object' ? 'Object[]' : `${property.type}[]`,
                 columns,
-                rows: rowsFor(property),
+                rows,
               },
             ];
           }

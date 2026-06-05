@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import type { PropertyGridEditableProperty, PropertyGridPrimitiveValue, PropertyGridTableRow } from '@slicr/react-ui';
 import './PropertyEditor.css';
 
@@ -24,11 +24,52 @@ type PropertyEditorProps = {
   disableExampleValues?: boolean;
 };
 
+const createPropertyId = () => crypto.randomUUID();
+
 const emptyProperty = (): EditableProperty => ({
+  id: createPropertyId(),
   name: '',
   type: 'string',
   example: '',
 });
+
+const ensurePropertyIds = (properties: EditableProperty[]): { properties: EditableProperty[]; changed: boolean } => {
+  let changed = false;
+
+  const propertiesWithIds = properties.map((property) => {
+    const nestedResult = property.properties ? ensurePropertyIds(property.properties) : undefined;
+    const nestedProperties = nestedResult?.properties ?? property.properties;
+    const rows = property.rows?.map((row) => {
+      if (property.type !== 'Object' || !nestedProperties) {
+        return row;
+      }
+
+      let rowChanged = false;
+      const rowWithPropertyIds = { ...row };
+
+      nestedProperties.forEach((nestedProperty) => {
+        if (nestedProperty.id && rowWithPropertyIds[nestedProperty.id] === undefined && rowWithPropertyIds[nestedProperty.name] !== undefined) {
+          rowWithPropertyIds[nestedProperty.id] = rowWithPropertyIds[nestedProperty.name];
+          rowChanged = true;
+        }
+      });
+
+      changed ||= rowChanged;
+      return rowChanged ? rowWithPropertyIds : row;
+    });
+    const propertyWithId: EditableProperty = {
+      ...property,
+      id: property.id ?? createPropertyId(),
+      properties: nestedProperties,
+      rows,
+    };
+
+    changed ||= !property.id || Boolean(nestedResult?.changed);
+    return propertyWithId;
+  });
+
+  return { properties: propertiesWithIds, changed };
+};
 
 export function PropertyEditor({
   properties,
@@ -37,16 +78,24 @@ export function PropertyEditor({
   showColumnHeaders = true,
   disableExampleValues = false,
 }: PropertyEditorProps) {
+  const normalizedProperties = useMemo(() => ensurePropertyIds(properties), [properties]);
+  const editorProperties = normalizedProperties.properties;
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [draggedExample, setDraggedExample] = useState<{ propertyIndex: number; exampleIndex: number } | null>(null);
   const [settingsIndex, setSettingsIndex] = useState<number | null>(null);
 
+  useEffect(() => {
+    if (normalizedProperties.changed) {
+      onChange(editorProperties);
+    }
+  }, [editorProperties, normalizedProperties.changed, onChange]);
+
   const updateProperty = (index: number, property: EditableProperty) => {
-    onChange(properties.map((currentProperty, currentIndex) => (currentIndex === index ? property : currentProperty)));
+    onChange(editorProperties.map((currentProperty, currentIndex) => (currentIndex === index ? property : currentProperty)));
   };
 
   const removeProperty = (index: number) => {
-    onChange(properties.filter((_, currentIndex) => currentIndex !== index));
+    onChange(editorProperties.filter((_, currentIndex) => currentIndex !== index));
     setSettingsIndex((currentIndex) => {
       if (currentIndex === null || currentIndex === index) {
         return null;
@@ -65,7 +114,7 @@ export function PropertyEditor({
   };
 
   const updateNestedProperties = (index: number, nestedProperties: EditableProperty[]) => {
-    const property = properties[index];
+    const property = editorProperties[index];
 
     if (!property) {
       return;
@@ -92,7 +141,7 @@ export function PropertyEditor({
     }
 
     if ((property.properties ?? []).length > 0) {
-      return [Object.fromEntries((property.properties ?? []).map((nestedProperty) => [nestedProperty.name, nestedProperty.example ?? '']))];
+      return [Object.fromEntries((property.properties ?? []).map((nestedProperty) => [nestedProperty.id ?? nestedProperty.name, nestedProperty.example ?? '']))];
     }
 
     return [];
@@ -163,12 +212,12 @@ export function PropertyEditor({
     propertyIndex: number,
     property: EditableProperty,
     exampleIndex: number,
-    fieldName: string,
+    fieldKey: string,
     value: string,
   ) => {
     updateProperty(propertyIndex, {
       ...property,
-      rows: (property.rows ?? []).map((row, currentIndex) => (currentIndex === exampleIndex ? { ...row, [fieldName]: value } : row)),
+      rows: (property.rows ?? []).map((row, currentIndex) => (currentIndex === exampleIndex ? { ...row, [fieldKey]: value } : row)),
     });
   };
 
@@ -177,7 +226,7 @@ export function PropertyEditor({
       return;
     }
 
-    const reorderedProperties = [...properties];
+    const reorderedProperties = [...editorProperties];
     const [property] = reorderedProperties.splice(fromIndex, 1);
     reorderedProperties.splice(toIndex, 0, property);
     onChange(reorderedProperties);
@@ -197,11 +246,11 @@ export function PropertyEditor({
           </div>
         ) : null}
 
-        {properties.length === 0 ? (
+        {editorProperties.length === 0 ? (
           <div className="property-editor-empty">No properties yet.</div>
         ) : (
-          properties.map((property, index) => (
-            <Fragment key={`${index}-${property.name}`}>
+          editorProperties.map((property, index) => (
+            <Fragment key={property.id}>
               <div
                 className="property-editor-row"
                 role="row"
@@ -312,7 +361,7 @@ export function PropertyEditor({
                           <tr>
                             <th aria-label="Reorder" />
                             {(property.properties ?? []).map((nestedProperty) => (
-                              <th key={nestedProperty.name}>{nestedProperty.name || 'Unnamed'}</th>
+                              <th key={nestedProperty.id}>{nestedProperty.name || 'Unnamed'}</th>
                             ))}
                             <th aria-label="Actions" />
                           </tr>
@@ -347,18 +396,21 @@ export function PropertyEditor({
                                     ⋮⋮
                                   </button>
                                 </td>
-                                {(property.properties ?? []).map((nestedProperty) => (
-                                  <td key={nestedProperty.name}>
-                                    <input
-                                      type="text"
-                                      value={String(objectValue[nestedProperty.name] ?? '')}
-                                      aria-label={`${nestedProperty.name} example value`}
-                                      onChange={(event) =>
-                                        updateObjectExampleValue(index, property, exampleIndex, nestedProperty.name, event.target.value)
-                                      }
-                                    />
-                                  </td>
-                                ))}
+                                {(property.properties ?? []).map((nestedProperty) => {
+                                  const fieldKey = nestedProperty.id ?? nestedProperty.name;
+                                  const fieldValue = objectValue[fieldKey] ?? objectValue[nestedProperty.name] ?? '';
+
+                                  return (
+                                    <td key={fieldKey}>
+                                      <input
+                                        type="text"
+                                        value={String(fieldValue)}
+                                        aria-label={`${nestedProperty.name} example value`}
+                                        onChange={(event) => updateObjectExampleValue(index, property, exampleIndex, fieldKey, event.target.value)}
+                                      />
+                                    </td>
+                                  );
+                                })}
                                 <td>
                                   <div className="property-editor-row-actions">
                                     <button
@@ -485,7 +537,7 @@ export function PropertyEditor({
           ))
         )}
         <div className="property-editor-add-row">
-          <button type="button" className="property-editor-add-button" onClick={() => onChange([...properties, emptyProperty()])}>
+          <button type="button" className="property-editor-add-button" onClick={() => onChange([...editorProperties, emptyProperty()])}>
             + Add property
           </button>
         </div>
