@@ -193,9 +193,7 @@ export function PropertyEditor({
             <span role="columnheader">Name</span>
             <span role="columnheader">Type</span>
             <span role="columnheader">Example</span>
-            <span role="columnheader" className="property-editor-actions-heading">
-              Actions
-            </span>
+            <span role="columnheader" className="property-editor-actions-heading" aria-label="Actions" />
           </div>
         ) : null}
 
@@ -258,9 +256,9 @@ export function PropertyEditor({
                 <label className="property-editor-field">
                   <span>Example</span>
                   {property.type === 'Object' ? (
-                    <div className="property-editor-example-hidden">Defined by nested properties</div>
+                    <div className="property-editor-example-hidden">{"{...}"}</div>
                   ) : property.list || disableExampleValues ? (
-                    <div className="property-editor-example-hidden">List examples below</div>
+                    <div className="property-editor-example-hidden">{"[...]"}</div>
                   ) : (
                     <input
                       type="text"
@@ -287,7 +285,7 @@ export function PropertyEditor({
                   ) : null}
                   <button type="button" className="property-editor-remove-button" onClick={() => removeProperty(index)} aria-label="Remove property">
                     <svg aria-hidden="true" viewBox="0 0 448 512" className="property-editor-action-icon">
-                      <path d="M135.2 17.7 128 32H32C14.3 32 0 46.3 0 64s14.3 32 32 32h384c17.7 0 32-14.3 32-32s-14.3-32-32-32h-96l-7.2-14.3C307.4 6.8 296.3 0 284.2 0H163.8c-12.1 0-23.2 6.8-28.6 17.7zM416 128H32l21.2 339c1.6 25.3 22.6 45 48 45h245.6c25.4 0 46.4-19.7 48-45L416 128z" />
+                      <path d="M296 64l-16-32H168l-16 32h144zm-184 0l19.2-38.4C139.3 9.4 155.9 0 173.9 0h100.2c18 0 34.6 9.4 42.7 25.6L336 64h80c17.7 0 32 14.3 32 32s-14.3 32-32 32h-16v304c0 44.2-35.8 80-80 80H128c-44.2 0-80-35.8-80-80V128H32C14.3 128 0 113.7 0 96s14.3-32 32-32h80zm0 64v304c0 8.8 7.2 16 16 16h192c8.8 0 16-7.2 16-16V128H112zm48 64c8.8 0 16 7.2 16 16v160c0 8.8-7.2 16-16 16s-16-7.2-16-16V208c0-8.8 7.2-16 16-16zm64 0c8.8 0 16 7.2 16 16v160c0 8.8-7.2 16-16 16s-16-7.2-16-16V208c0-8.8 7.2-16 16-16zm64 0c8.8 0 16 7.2 16 16v160c0 8.8-7.2 16-16 16s-16-7.2-16-16V208c0-8.8 7.2-16 16-16z" />
                     </svg>
                   </button>
                 </div>
@@ -362,14 +360,16 @@ export function PropertyEditor({
                                   </td>
                                 ))}
                                 <td>
-                                  <button
-                                    type="button"
-                                    className="property-editor-list-remove-button"
-                                    onClick={() => removeExampleValue(index, property, exampleIndex)}
-                                    aria-label="Remove example value"
-                                  >
-                                    ×
-                                  </button>
+                                  <div className="property-editor-row-actions">
+                                    <button
+                                      type="button"
+                                      className="property-editor-list-remove-button"
+                                      onClick={() => removeExampleValue(index, property, exampleIndex)}
+                                      aria-label="Remove example value"
+                                    >
+                                      ×
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
                             );
@@ -414,14 +414,16 @@ export function PropertyEditor({
                             placeholder="example value"
                             onChange={(event) => updatePrimitiveExampleValue(index, property, exampleIndex, event.target.value)}
                           />
-                          <button
-                            type="button"
-                            className="property-editor-list-remove-button"
-                            onClick={() => removeExampleValue(index, property, exampleIndex)}
-                            aria-label="Remove example value"
-                          >
-                            ×
-                          </button>
+                          <div className="property-editor-row-actions">
+                            <button
+                              type="button"
+                              className="property-editor-list-remove-button"
+                              onClick={() => removeExampleValue(index, property, exampleIndex)}
+                              aria-label="Remove example value"
+                            >
+                              ×
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>

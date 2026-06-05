@@ -983,6 +983,10 @@ body {
   left: 80px;
   top: 1040px;
   width: 760px;
+  min-width: 320px;
+  min-height: 120px;
+  overflow: auto;
+  resize: both;
 }
 
 .property-editor-example .mockups-heading {
