@@ -460,6 +460,59 @@ body {
   padding: 10px 14px;
 }
 
+.node-detail-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 35;
+  width: min(410px, 90vw);
+  height: 100%;
+  border-left: 1px solid rgba(23, 32, 51, 0.12);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: -18px 0 42px rgba(23, 32, 51, 0.14);
+  padding: 28px 10px;
+}
+
+.node-detail-title {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.15;
+}
+
+.node-detail-properties {
+  margin-top: 28px;
+}
+
+.node-detail-properties-heading {
+  margin: 0 0 12px;
+  color: #172033;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.node-detail-title-ui {
+  color: var(--ui-color);
+}
+
+.node-detail-title-cmd {
+  color: var(--cmd);
+}
+
+.node-detail-title-evt {
+  color: var(--evt);
+}
+
+.node-detail-title-rm,
+.node-detail-title-dm {
+  color: var(--rm);
+}
+
+.node-detail-title-processor {
+  color: var(--processor);
+}
+
 .canvas {
   width: 100%;
   height: 100%;

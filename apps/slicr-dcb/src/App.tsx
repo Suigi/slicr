@@ -174,6 +174,7 @@ export function App() {
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [propertyGridMockups, setPropertyGridMockups] = useState<PropertyGridCardMockup[]>(initialPropertyGridCardMockups);
   const [selectedPropertyGridMockupVariant, setSelectedPropertyGridMockupVariant] = useState(initialPropertyGridCardMockups[0]?.variant ?? '');
+  const [nodePropertiesById, setNodePropertiesById] = useState<Record<string, EditableProperty[]>>({});
   const selectedPropertyGridMockup =
     propertyGridMockups.find((mockup) => mockup.variant === selectedPropertyGridMockupVariant) ?? propertyGridMockups[0];
   const updateSelectedPropertyGridProperties = (properties: EditableProperty[]) => {
@@ -262,6 +263,18 @@ export function App() {
     : [];
 
   const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
+  const focusedNode = focusedNodeId ? nodeById.get(focusedNodeId) : undefined;
+  const focusedNodeProperties = focusedNode ? nodePropertiesById[focusedNode.id] ?? [] : [];
+  const updateFocusedNodeProperties = (properties: EditableProperty[]) => {
+    if (!focusedNode) {
+      return;
+    }
+
+    setNodePropertiesById((currentPropertiesById) => ({
+      ...currentPropertiesById,
+      [focusedNode.id]: properties,
+    }));
+  };
   const connectingSourceNode = connectingSourceNodeId
     ? nodes.find((node) => node.id === connectingSourceNodeId)
     : undefined;
@@ -322,7 +335,7 @@ export function App() {
 
   useEffect(() => {
     const navigateFocusedNode = (event: KeyboardEvent) => {
-      if (event.target instanceof Element && event.target.closest('.node-label-input')) {
+      if (event.target instanceof Element && event.target.closest('.node-label-input, .property-editor')) {
         return;
       }
 
@@ -456,6 +469,17 @@ export function App() {
         <div className="connect-mode-status">
           Select a target node to connect from “{connectingSourceNode.label}”. Esc to cancel.
         </div>
+      ) : null}
+      {focusedNode ? (
+        <aside className="node-detail-panel" aria-label="Focused node details">
+          <h2 className={`node-detail-title node-detail-title-${focusedNode.type}`}>{focusedNode.label}</h2>
+          <section className="node-detail-properties" aria-labelledby="node-detail-properties-heading">
+            <h3 id="node-detail-properties-heading" className="node-detail-properties-heading">
+              Properties
+            </h3>
+            <PropertyEditor properties={focusedNodeProperties} onChange={updateFocusedNodeProperties} />
+          </section>
+        </aside>
       ) : null}
       <InfiniteCanvas
         ref={canvasRef}
