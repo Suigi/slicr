@@ -13,6 +13,7 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
+    "test:browser": "vitest run --project browser --passWithNoTests",
     "test:watch": "vitest"
   },
   "peerDependencies": {
@@ -22,7 +23,9 @@
   "devDependencies": {
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@vitest/browser-playwright": "^4.1.1",
     "jsdom": "^28.1.0",
+    "playwright": "^1.60.0",
     "typescript": "^5.6.3",
     "vite": "^8.0.16",
     "vitest": "^4.1.1"

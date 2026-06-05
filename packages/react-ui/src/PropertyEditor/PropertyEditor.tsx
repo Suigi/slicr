@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import type { PropertyGridEditableProperty, PropertyGridPrimitiveValue, PropertyGridTableRow } from '@slicr/react-ui';
+import type { PropertyGridEditableProperty, PropertyGridPrimitiveValue, PropertyGridTableRow } from '../PropertyGrid';
 import './PropertyEditor.css';
 
 const propertyTypes = ['string', 'number', 'boolean', 'Object'] as const;

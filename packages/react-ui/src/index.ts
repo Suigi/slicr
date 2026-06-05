@@ -6,6 +6,8 @@ export type {
   PointyCardTagsElement,
   PointyCardTagsProps
 } from './CardTags';
+export { PropertyEditor } from './PropertyEditor';
+export type { EditableProperty, PropertyExampleValue, PropertyType } from './PropertyEditor';
 export { PropertyGrid, toPropertyGridProperties } from './PropertyGrid';
 export type {
   PropertyGridEditableProperty,

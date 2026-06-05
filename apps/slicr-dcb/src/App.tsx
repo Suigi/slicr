@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { InfiniteCanvas, PointyCardTags, PropertyGrid, type InfiniteCanvasHandle } from '@slicr/react-ui';
+import { InfiniteCanvas, PointyCardTags, PropertyEditor, PropertyGrid, type EditableProperty, type InfiniteCanvasHandle } from '@slicr/react-ui';
 import { compactLayout } from 'layout-lib';
 import { AppShell } from './components/AppShell';
 import { ChapterSidebar, type Chapter } from './components/ChapterSidebar';
 import { EdgeLayer } from './components/EdgeLayer';
 import { GraphNodeView } from './components/GraphNodeView';
 import { ProjectSwitcher, type Project } from './components/ProjectSwitcher';
-import { PropertyEditor, type EditableProperty } from './components/PropertyEditor';
 import { NODE_HEIGHT, NODE_WIDTH } from './graph/constants';
 import {
   getArrowRenderPoints,
