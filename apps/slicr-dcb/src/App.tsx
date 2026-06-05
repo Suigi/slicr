@@ -40,26 +40,41 @@ const propertyGridColorScheme = {
   '--property-grid-value-text': '#172033',
 } as CSSProperties;
 
-const propertyGridCardMockups = [
+type PropertyGridCardMockup = {
+  title: string;
+  variant: string;
+  note: string;
+  nodeClassName: string;
+  nodeTitleLines: string[];
+  properties: EditableProperty[];
+  pointyTags?: { label: string; href: string }[];
+};
+
+const initialPropertyGridCardMockups: PropertyGridCardMockup[] = [
   {
     title: 'Event card with a property grid',
     variant: 'event-property-grid',
     note: 'Event styling wrapped around the compact property grid.',
     nodeClassName: 'mockup-event-node',
     nodeTitleLines: ['NodeAdded'],
-    properties: {
-      nodeId: { type: 'string' },
-      label: { type: 'string' },
-      laneId: { type: 'string' },
-      tags: {
-        kind: 'table',
-        columns: [{ key: 'key' }, { key: 'value' }],
+    properties: [
+      { name: 'nodeId', type: 'string' },
+      { name: 'label', type: 'string' },
+      { name: 'laneId', type: 'string' },
+      {
+        name: 'tags',
+        type: 'Object',
+        list: true,
+        properties: [
+          { name: 'key', type: 'string' },
+          { name: 'value', type: 'string' },
+        ],
         rows: [
           { key: 'nodeId', value: 'node-42' },
           { key: 'type', value: 'evt' },
         ],
       },
-    },
+    ],
     pointyTags: [
       { label: 'nodeId', href: '#node-id' },
       { label: 'chapterId', href: '#chapter-id' },
@@ -72,26 +87,39 @@ const propertyGridCardMockups = [
     note: 'Read-model styling wrapped around the compact property grid.',
     nodeClassName: 'mockup-read-model-node',
     nodeTitleLines: ['Slice', 'Overview'],
-    properties: {
-      chapterId: { type: 'string' },
-      projectionName: { type: 'string' },
-      columns: {
-        kind: 'table',
-        columns: [{ key: 'field' }, { key: 'type' }, { key: 'source' }],
+    properties: [
+      { name: 'chapterId', type: 'string' },
+      { name: 'projectionName', type: 'string' },
+      {
+        name: 'columns',
+        type: 'Object',
+        list: true,
+        properties: [
+          { name: 'field', type: 'string' },
+          { name: 'type', type: 'string' },
+          { name: 'source', type: 'string' },
+        ],
         rows: [
           { field: 'title', type: 'string', source: 'event' },
           { field: 'status', type: 'string', source: 'event' },
         ],
       },
-      sorts: {
-        kind: 'table',
-        columns: [{ key: 'field' }, { key: 'direction' }, { key: 'priority' }, { key: 'nulls' }],
+      {
+        name: 'sorts',
+        type: 'Object',
+        list: true,
+        properties: [
+          { name: 'field', type: 'string' },
+          { name: 'direction', type: 'string' },
+          { name: 'priority', type: 'number' },
+          { name: 'nulls', type: 'string' },
+        ],
         rows: [
           { field: 'updatedAt', direction: 'desc', priority: '1', nulls: 'last' },
           { field: 'title', direction: 'asc', priority: '2', nulls: 'first' },
         ],
       },
-    },
+    ],
   },
   {
     title: 'Command card with a property grid',
@@ -99,19 +127,24 @@ const propertyGridCardMockups = [
     note: 'Command styling wrapped around the compact property grid.',
     nodeClassName: 'mockup-command-node',
     nodeTitleLines: ['CreateNode'],
-    properties: {
-      commandId: { type: 'string' },
-      requestedBy: { type: 'string' },
-      targetLane: { type: 'string' },
-      payload: {
-        kind: 'table',
-        columns: [{ key: 'name' }, { key: 'type' }],
+    properties: [
+      { name: 'commandId', type: 'string' },
+      { name: 'requestedBy', type: 'string' },
+      { name: 'targetLane', type: 'string' },
+      {
+        name: 'payload',
+        type: 'Object',
+        list: true,
+        properties: [
+          { name: 'name', type: 'string' },
+          { name: 'type', type: 'string' },
+        ],
         rows: [
           { name: 'label', type: 'string' },
           { name: 'nodeType', type: 'NodeType' },
         ],
       },
-    },
+    ],
   },
   {
     title: 'Event card with a complex property',
@@ -119,19 +152,19 @@ const propertyGridCardMockups = [
     note: 'Complex values show a typed parent row and one-level nested property table.',
     nodeClassName: 'mockup-event-node',
     nodeTitleLines: ['LocationChanged'],
-    properties: {
-      label: { type: 'string', value: 'Home' },
-      address: {
-        kind: 'object',
-        type: 'Address',
-        properties: {
-          street: { type: 'string', value: 'Fake Street 123' },
-          city: { type: 'string', value: 'Springfield' },
-        },
+    properties: [
+      { name: 'label', type: 'string', value: 'Home' },
+      {
+        name: 'address',
+        type: 'Object',
+        properties: [
+          { name: 'street', type: 'string', value: 'Fake Street 123' },
+          { name: 'city', type: 'string', value: 'Springfield' },
+        ],
       },
-    },
+    ],
   },
-] as const;
+];
 
 export function App() {
   const canvasRef = useRef<InfiniteCanvasHandle>(null);
@@ -140,19 +173,17 @@ export function App() {
   const [activeChapterId, setActiveChapterId] = useState('cart-events');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
-  const [exampleProperties, setExampleProperties] = useState<EditableProperty[]>([
-    { name: 'customerId', type: 'string', example: 'cust-123' },
-    { name: 'quantity', type: 'number', example: '2' },
-    { name: 'isGift', type: 'boolean', example: 'false' },
-    {
-      name: 'shippingAddress',
-      type: 'Object',
-      properties: [
-        { name: 'street', type: 'string', example: 'Fake Street 123' },
-        { name: 'postalCode', type: 'string', example: '12345' },
-      ],
-    },
-  ]);
+  const [propertyGridMockups, setPropertyGridMockups] = useState<PropertyGridCardMockup[]>(initialPropertyGridCardMockups);
+  const [selectedPropertyGridMockupVariant, setSelectedPropertyGridMockupVariant] = useState(initialPropertyGridCardMockups[0]?.variant ?? '');
+  const selectedPropertyGridMockup =
+    propertyGridMockups.find((mockup) => mockup.variant === selectedPropertyGridMockupVariant) ?? propertyGridMockups[0];
+  const updateSelectedPropertyGridProperties = (properties: EditableProperty[]) => {
+    setPropertyGridMockups((currentMockups) =>
+      currentMockups.map((mockup) =>
+        mockup.variant === selectedPropertyGridMockup?.variant ? { ...mockup, properties } : mockup,
+      ),
+    );
+  };
   const activeChapterName = dummyChapters.find((chapter) => chapter.id === activeChapterId)?.title ?? 'Untitled';
   const {
     nodes,
@@ -492,7 +523,10 @@ export function App() {
             <h2>Properties, tags, and read-model table preview</h2>
           </div>
           <div className="mockup-grid">
-            {propertyGridCardMockups.map((mockup) => (
+            {propertyGridMockups.map((mockup) => {
+              const isSelectedMockup = mockup.variant === selectedPropertyGridMockup?.variant;
+
+              return (
               <article
                 key={`property-grid-${mockup.variant}`}
                 className={`mockup-card mockup-${mockup.variant} mockup-property-grid-card`}
@@ -501,7 +535,20 @@ export function App() {
                   <h3>{mockup.title}</h3>
                   <p>{mockup.note}</p>
                 </div>
-                <div className={`mockup-node ${mockup.nodeClassName} mockup-thingy-node`}>
+                <div
+                  className={`mockup-node ${mockup.nodeClassName} mockup-thingy-node${isSelectedMockup ? ' mockup-node-selected' : ''}`}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={isSelectedMockup}
+                  aria-label={`Select ${mockup.nodeTitleLines.join(' ')} mockup node`}
+                  onClick={() => setSelectedPropertyGridMockupVariant(mockup.variant)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setSelectedPropertyGridMockupVariant(mockup.variant);
+                    }
+                  }}
+                >
                   <div className="mockup-node-title-row">
                     <strong className="mockup-node-title-text">
                       {mockup.nodeTitleLines.map((line) => (
@@ -510,21 +557,30 @@ export function App() {
                     </strong>
                   </div>
                   <PropertyGrid properties={mockup.properties} style={propertyGridColorScheme} />
-                  {'pointyTags' in mockup ? (
+                  {mockup.pointyTags ? (
                     <PointyCardTags className="mockup-pointy-card-tags" tags={mockup.pointyTags} ariaLabel="Event card tags" />
                   ) : null}
                 </div>
               </article>
-            ))}
+              );
+            })}
           </div>
         </section>
         <section className="property-editor-example" aria-label="Property editor example">
           <div className="mockups-heading">
             <p className="mockups-eyebrow">Schema editor experiment</p>
-            <h2>PropertyEditor</h2>
+            <h2>PropertyEditor: {selectedPropertyGridMockup?.nodeTitleLines.join(' / ') ?? 'No mockup selected'}</h2>
           </div>
-          <PropertyEditor properties={exampleProperties} onChange={setExampleProperties} />
-          <PropertyGrid properties={exampleProperties} style={propertyGridColorScheme} ariaLabel="Edited node properties" />
+          {selectedPropertyGridMockup ? (
+            <>
+              <PropertyEditor properties={selectedPropertyGridMockup.properties} onChange={updateSelectedPropertyGridProperties} />
+              <PropertyGrid
+                properties={selectedPropertyGridMockup.properties}
+                style={propertyGridColorScheme}
+                ariaLabel={`${selectedPropertyGridMockup.nodeTitleLines.join(' ')} edited node properties`}
+              />
+            </>
+          ) : null}
         </section>
         {!layoutResult.ok ? (
           <div className="layout-error">

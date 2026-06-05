@@ -888,6 +888,20 @@ body {
   font-size: 15px;
   font-weight: 600;
   padding: 12px;
+  cursor: pointer;
+}
+
+.mockup-node:focus-visible {
+  outline: 3px solid rgba(23, 32, 51, 0.35);
+  outline-offset: 4px;
+}
+
+.mockup-node-selected {
+  border-width: 2px;
+  border-color: var(--mockup-node-accent, #172033);
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--mockup-node-accent, #172033) 24%, transparent),
+    0 14px 32px rgba(23, 32, 51, 0.18);
 }
 
 .mockup-event-node {
