@@ -609,6 +609,7 @@ body {
 }
 
 .node-focused {
+  z-index: 50;
   box-shadow: 0 0 0 3px rgba(23, 32, 51, 0.18), 0 14px 40px rgba(23, 32, 51, 0.18);
 }
 
