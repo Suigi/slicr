@@ -141,11 +141,12 @@ export function PropertyEditor({
     const name = input.value.trim();
 
     if (!name) {
-      return;
+      return false;
     }
 
     addPropertyFromTemplate({ name });
     input.value = '';
+    return true;
   };
 
   const getInitialExampleValues = (property: EditableProperty): PropertyExampleValue[] => {
@@ -310,6 +311,10 @@ export function PropertyEditor({
       element.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex]'),
     ).filter((focusableElement) => focusableElement.tabIndex >= 0 && !focusableElement.closest('[aria-hidden="true"]'));
 
+  const getCellElements = (element: Element) =>
+    Array.from(element.querySelectorAll<HTMLElement>('input:not(:disabled), select:not(:disabled), [tabindex]'))
+      .filter((focusableElement) => focusableElement.tabIndex >= 0 && !focusableElement.closest('[aria-hidden="true"]'));
+
   const getOutermostPropertyEditor = (element: HTMLElement) => {
     let editor = element.closest<HTMLElement>('.property-editor');
 
@@ -327,6 +332,22 @@ export function PropertyEditor({
       ) ?? [],
     );
 
+  const focusRowControl = (row: HTMLElement | undefined, controlIndex: number) => {
+    if (!row) {
+      return false;
+    }
+
+    const controls = getFocusableElements(row);
+    const control = controls[Math.min(controlIndex, controls.length - 1)];
+
+    if (!control) {
+      return false;
+    }
+
+    control.focus();
+    return true;
+  };
+
   const focusAdjacentRowControl = (event: KeyboardEvent) => {
     if (event.shiftKey || event.ctrlKey || event.metaKey || event.altKey || event.key !== 'ArrowUp' && event.key !== 'ArrowDown') {
       return false;
@@ -335,29 +356,97 @@ export function PropertyEditor({
     const row = event.currentTarget as HTMLElement;
     const rows = getNavigableRows(row);
     const rowIndex = rows.indexOf(row);
-    const nextRow = rows[rowIndex + (event.key === 'ArrowUp' ? -1 : 1)];
+    const currentControlIndex = Math.max(getFocusableElements(row).indexOf(event.target as HTMLElement), 0);
 
-    if (!nextRow) {
+    if (!focusRowControl(rows[rowIndex + (event.key === 'ArrowUp' ? -1 : 1)], currentControlIndex)) {
       return false;
     }
-
-    const currentFocusableElements = getFocusableElements(row);
-    const nextFocusableElements = getFocusableElements(nextRow);
-
-    if (nextFocusableElements.length === 0) {
-      return false;
-    }
-
-    const currentControlIndex = Math.max(currentFocusableElements.indexOf(event.target as HTMLElement), 0);
-    const nextControl = nextFocusableElements[Math.min(currentControlIndex, nextFocusableElements.length - 1)];
 
     event.preventDefault();
-    nextControl.focus();
     return true;
   };
 
+  const focusNextCell = (event: KeyboardEvent) => {
+    if (event.key !== 'Enter' || event.ctrlKey || event.metaKey || event.altKey) {
+      return false;
+    }
+
+    const row = event.currentTarget as HTMLElement;
+    const rows = getNavigableRows(row);
+    const rowIndex = rows.indexOf(row);
+    const controls = getCellElements(row);
+    const controlIndex = controls.indexOf(event.target as HTMLElement);
+
+    if (controlIndex === -1) {
+      return false;
+    }
+
+    const direction = event.shiftKey ? -1 : 1;
+    const nextControl = controls[controlIndex + direction];
+
+    event.preventDefault();
+
+    if (nextControl) {
+      nextControl.focus();
+      return true;
+    }
+
+    const nextRow = rows[rowIndex + direction];
+    const nextRowControls = nextRow ? getCellElements(nextRow) : [];
+    const wrappedControl = event.shiftKey ? nextRowControls[nextRowControls.length - 1] : nextRowControls[0];
+
+    if (!wrappedControl) {
+      return false;
+    }
+
+    wrappedControl.focus();
+    return true;
+  };
+
+  const focusRelevantTemplateRow = (event: KeyboardEvent) => {
+    if (event.key !== 'Enter' || !(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey) {
+      return false;
+    }
+
+    const row = event.currentTarget as HTMLElement;
+    const templateRow = row.closest('.property-editor-list-editor')?.querySelector<HTMLElement>('.property-editor-template-row')
+      ?? row.closest('.property-editor')?.querySelector<HTMLElement>(':scope > .property-editor-grid > .property-editor-template-row');
+
+    if (!templateRow) {
+      return false;
+    }
+
+    event.preventDefault();
+    focusRowControl(templateRow, 0);
+    return true;
+  };
+
+  const focusAfterRemovedRow = (row: HTMLElement, controlIndex: number) => {
+    const editor = getOutermostPropertyEditor(row);
+    const rows = getNavigableRows(row);
+    const rowIndex = rows.indexOf(row);
+
+    setTimeout(() => {
+      const nextRows = Array.from(
+        editor?.querySelectorAll<HTMLElement>(
+          '.property-editor-row, .property-editor-list-value-row, .property-editor-list-table tbody tr',
+        ) ?? [],
+      );
+      if (!focusRowControl(nextRows[Math.min(rowIndex, nextRows.length - 1)], controlIndex)) {
+        focusRowControl(nextRows[rowIndex - 1], controlIndex);
+      }
+    });
+  };
+
   const handlePropertyShortcut = (event: KeyboardEvent, index: number) => {
-    if (focusAdjacentRowControl(event)) {
+    if (focusAdjacentRowControl(event) || focusRelevantTemplateRow(event) || focusNextCell(event)) {
+      return;
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Backspace') {
+      event.preventDefault();
+      focusAfterRemovedRow(event.currentTarget as HTMLElement, Math.max(getFocusableElements(event.currentTarget as HTMLElement).indexOf(event.target as HTMLElement), 0));
+      removeProperty(index);
       return;
     }
 
@@ -370,7 +459,14 @@ export function PropertyEditor({
   };
 
   const handleExampleShortcut = (event: KeyboardEvent, propertyIndex: number, property: EditableProperty, exampleIndex: number) => {
-    if (focusAdjacentRowControl(event)) {
+    if (focusAdjacentRowControl(event) || focusRelevantTemplateRow(event) || focusNextCell(event)) {
+      return;
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Backspace') {
+      event.preventDefault();
+      focusAfterRemovedRow(event.currentTarget as HTMLElement, Math.max(getFocusableElements(event.currentTarget as HTMLElement).indexOf(event.target as HTMLElement), 0));
+      removeExampleValue(propertyIndex, property, exampleIndex);
       return;
     }
 
@@ -380,6 +476,30 @@ export function PropertyEditor({
 
     event.preventDefault();
     reorderExampleValue(propertyIndex, property, exampleIndex, event.key === 'ArrowUp' ? exampleIndex - 1 : exampleIndex + 1);
+  };
+
+  const handleTemplateShortcut = (event: KeyboardEvent) => {
+    if (focusAdjacentRowControl(event) || focusRelevantTemplateRow(event) || focusNextCell(event)) {
+      return;
+    }
+  };
+
+  const refocusInput = (input: HTMLInputElement) => {
+    setTimeout(() => {
+      input.focus();
+      input.select();
+    });
+  };
+
+  const focusAddedPropertyTypeCell = (templateInput: HTMLInputElement) => {
+    const editor = templateInput.closest<HTMLElement>('.property-editor');
+    const newPropertyIndex = editorProperties.length;
+
+    setTimeout(() => {
+      const newPropertyRow = editor?.querySelectorAll<HTMLElement>(':scope > .property-editor-grid > .property-editor-row:not(.property-editor-template-row)')[newPropertyIndex];
+      const typeCell = newPropertyRow?.querySelectorAll<HTMLElement>('input:not(:disabled), select:not(:disabled)')[1];
+      typeCell?.focus();
+    });
   };
 
   return (
@@ -483,7 +603,18 @@ export function PropertyEditor({
                       </svg>
                     </button>
                   ) : null}
-                  <button type="button" className="property-editor-remove-button" onClick={() => removeProperty(index)} aria-label="Remove property">
+                  <button
+                    type="button"
+                    className="property-editor-remove-button"
+                    onClick={(event) => {
+                      const row = event.currentTarget.closest<HTMLElement>('.property-editor-row');
+                      if (row) {
+                        focusAfterRemovedRow(row, Math.max(getFocusableElements(row).indexOf(event.currentTarget), 0));
+                      }
+                      removeProperty(index);
+                    }}
+                    aria-label="Remove property"
+                  >
                     <svg aria-hidden="true" viewBox="0 0 448 512" className="property-editor-action-icon">
                       <path d="M296 64l-16-32H168l-16 32h144zm-184 0l19.2-38.4C139.3 9.4 155.9 0 173.9 0h100.2c18 0 34.6 9.4 42.7 25.6L336 64h80c17.7 0 32 14.3 32 32s-14.3 32-32 32h-16v304c0 44.2-35.8 80-80 80H128c-44.2 0-80-35.8-80-80V128H32C14.3 128 0 113.7 0 96s14.3-32 32-32h80zm0 64v304c0 8.8 7.2 16 16 16h192c8.8 0 16-7.2 16-16V128H112zm48 64c8.8 0 16 7.2 16 16v160c0 8.8-7.2 16-16 16s-16-7.2-16-16V208c0-8.8 7.2-16 16-16zm64 0c8.8 0 16 7.2 16 16v160c0 8.8-7.2 16-16 16s-16-7.2-16-16V208c0-8.8 7.2-16 16-16zm64 0c8.8 0 16 7.2 16 16v160c0 8.8-7.2 16-16 16s-16-7.2-16-16V208c0-8.8 7.2-16 16-16z" />
                     </svg>
@@ -617,7 +748,13 @@ export function PropertyEditor({
                                     <button
                                       type="button"
                                       className="property-editor-list-remove-button"
-                                      onClick={() => removeExampleValue(index, property, exampleIndex)}
+                                      onClick={(event) => {
+                                        const row = event.currentTarget.closest<HTMLElement>('tr');
+                                        if (row) {
+                                          focusAfterRemovedRow(row, Math.max(getFocusableElements(row).indexOf(event.currentTarget), 0));
+                                        }
+                                        removeExampleValue(index, property, exampleIndex);
+                                      }}
                                       aria-label="Remove example value"
                                     >
                                       ×
@@ -628,7 +765,7 @@ export function PropertyEditor({
                             );
                           })}
                           {(property.properties ?? []).length > 0 ? (
-                            <tr className="property-editor-template-row" onKeyDown={(event) => focusAdjacentRowControl(event)}>
+                            <tr className="property-editor-template-row" onKeyDown={(event) => handleTemplateShortcut(event)}>
                               <td className="property-editor-list-reorder-cell" aria-hidden="true" />
                               {(property.properties ?? []).map((nestedProperty) => {
                                 const fieldKey = nestedProperty.id ?? nestedProperty.name;
@@ -642,9 +779,11 @@ export function PropertyEditor({
                                       aria-label={`Add ${nestedProperty.name || 'property'} example value`}
                                       onBlur={(event) => addObjectExampleValueFromTemplateInput(index, property, fieldKey, event.currentTarget)}
                                       onKeyDown={(event) => {
-                                        if (event.key === 'Enter') {
+                                        if (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.metaKey && event.currentTarget.value.trim()) {
                                           event.preventDefault();
+                                          event.stopPropagation();
                                           addObjectExampleValueFromTemplateInput(index, property, fieldKey, event.currentTarget);
+                                          refocusInput(event.currentTarget);
                                         }
                                       }}
                                     />
@@ -700,7 +839,13 @@ export function PropertyEditor({
                             <button
                               type="button"
                               className="property-editor-list-remove-button"
-                              onClick={() => removeExampleValue(index, property, exampleIndex)}
+                              onClick={(event) => {
+                                const row = event.currentTarget.closest<HTMLElement>('.property-editor-list-value-row');
+                                if (row) {
+                                  focusAfterRemovedRow(row, Math.max(getFocusableElements(row).indexOf(event.currentTarget), 0));
+                                }
+                                removeExampleValue(index, property, exampleIndex);
+                              }}
                               aria-label="Remove example value"
                             >
                               ×
@@ -710,7 +855,7 @@ export function PropertyEditor({
                       ))}
                       <div
                         className="property-editor-list-value-row property-editor-template-row"
-                        onKeyDown={(event) => focusAdjacentRowControl(event)}
+                        onKeyDown={(event) => handleTemplateShortcut(event)}
                       >
                         <div className="property-editor-list-reorder-cell" aria-hidden="true" />
                         <input
@@ -720,9 +865,11 @@ export function PropertyEditor({
                           aria-label="Add example value"
                           onBlur={(event) => addPrimitiveExampleValueFromTemplateInput(index, property, event.currentTarget)}
                           onKeyDown={(event) => {
-                            if (event.key === 'Enter') {
+                            if (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.metaKey && event.currentTarget.value.trim()) {
                               event.preventDefault();
+                              event.stopPropagation();
                               addPrimitiveExampleValueFromTemplateInput(index, property, event.currentTarget);
+                              refocusInput(event.currentTarget);
                             }
                           }}
                         />
@@ -739,7 +886,7 @@ export function PropertyEditor({
           className="property-editor-row property-editor-template-row"
           role="row"
           aria-label="Add property"
-          onKeyDown={(event) => focusAdjacentRowControl(event)}
+          onKeyDown={(event) => handleTemplateShortcut(event)}
         >
           <div className="property-editor-template-cell" aria-hidden="true" />
 
@@ -752,9 +899,20 @@ export function PropertyEditor({
               placeholder="Add property"
               onBlur={(event) => addPropertyFromTemplateInput(event.currentTarget)}
               onKeyDown={(event) => {
-                if (event.key === 'Enter') {
+                if (event.key === 'Tab' && !event.shiftKey && !event.ctrlKey && !event.metaKey && event.currentTarget.value.trim()) {
                   event.preventDefault();
+                  event.stopPropagation();
+                  if (addPropertyFromTemplateInput(event.currentTarget)) {
+                    focusAddedPropertyTypeCell(event.currentTarget);
+                  }
+                  return;
+                }
+
+                if (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.metaKey && event.currentTarget.value.trim()) {
+                  event.preventDefault();
+                  event.stopPropagation();
                   addPropertyFromTemplateInput(event.currentTarget);
+                  refocusInput(event.currentTarget);
                 }
               }}
             />
