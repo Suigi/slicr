@@ -120,7 +120,7 @@ Ensure committed graph/store changes that can alter node content trigger a fresh
 
 ## Task 6: Use measured dimensions in visual graph export
 ### Status
-[created]
+[done]
 
 ### Description
 Update the visual graph export path so it waits for settled measurement/layout state and then serializes the same layout node dimensions that were used in the current `compactLayout` request.

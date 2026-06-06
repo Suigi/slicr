@@ -34,13 +34,16 @@ describe('App', () => {
   let container: HTMLDivElement | null = null;
 
   beforeEach(() => {
-    layoutLibMock.compactLayout.mockImplementation(({nodes}: {nodes: Array<{id: string; width: number; height: number}>}) => ({
-      ok: true,
-      result: {
-        nodes: nodes.map((node, index) => ({id: node.id, x: index * 10, y: 0, width: node.width, height: node.height})),
-        edges: [],
-      },
-    }));
+    layoutLibMock.compactLayout.mockImplementation(
+      ({nodes, lanes}: {nodes: Array<{id: string; width: number; height: number}>; lanes?: Array<{id: string; order: number}>}) => ({
+        ok: true,
+        result: {
+          lanes: (lanes ?? []).map((lane) => ({id: lane.id, top: -43, bottom: 43})),
+          nodes: nodes.map((node, index) => ({id: node.id, x: index * 10, y: 0, width: node.width, height: node.height})),
+          edges: [],
+        },
+      }),
+    );
   });
 
   afterEach(() => {
@@ -414,6 +417,152 @@ describe('App', () => {
       expect(layoutLibMock.compactLayout.mock.calls[1]?.[0].nodes).toEqual([
         expect.objectContaining({id: 'node-1', width: 312, height: 118}),
       ]);
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = originalGetBoundingClientRect;
+    }
+  });
+
+  it('blocks visual graph export until measurement settles after a graph change', async () => {
+    const originalGetBoundingClientRect = HTMLElement.prototype.getBoundingClientRect;
+    const originalQueueMicrotask = globalThis.queueMicrotask;
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => undefined);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const queuedMeasurementPasses: Array<() => void> = [];
+    let currentMeasurement = {width: 312, height: 118};
+    let graphModelState = createGraphModelMockValue({
+      nodes: [{id: 'node-1', label: 'Checkout Completed', type: 'evt', laneId: 'lane-0', width: NODE_WIDTH, height: NODE_HEIGHT}],
+    });
+
+    globalThis.queueMicrotask = vi.fn((callback: VoidFunction) => {
+      queuedMeasurementPasses.push(callback);
+    });
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {writeText},
+    });
+    graphModelMock.useGraphModel.mockImplementation(() => graphModelState);
+    HTMLElement.prototype.getBoundingClientRect = function () {
+      if (this instanceof HTMLElement && this.dataset.nodeId === 'node-1') {
+        return {
+          x: 0,
+          y: 0,
+          top: 0,
+          left: 0,
+          bottom: currentMeasurement.height,
+          right: currentMeasurement.width,
+          width: currentMeasurement.width,
+          height: currentMeasurement.height,
+          toJSON: () => ({}),
+        };
+      }
+
+      return originalGetBoundingClientRect.call(this);
+    };
+
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+
+    try {
+      await act(async () => {
+        root?.render(createElement(App));
+      });
+
+      await act(async () => {
+        while (queuedMeasurementPasses.length > 0) {
+          queuedMeasurementPasses.shift()?.();
+        }
+      });
+
+      currentMeasurement = {width: 420, height: 160};
+      graphModelState = createGraphModelMockValue({
+        nodes: [{id: 'node-1', label: 'Checkout Draft', type: 'evt', laneId: 'lane-0', width: NODE_WIDTH, height: NODE_HEIGHT}],
+      });
+
+      await act(async () => {
+        root?.render(createElement(App));
+      });
+
+      await act(async () => {
+        const exportMenuButton = [...container!.querySelectorAll<HTMLButtonElement>('button')].find(
+          (button) => button.textContent === 'Export ▾',
+        );
+        exportMenuButton?.click();
+      });
+
+      await act(async () => {
+        const exportVisualGraphButton = [...container!.querySelectorAll<HTMLButtonElement>('button')].find(
+          (button) => button.textContent === 'Export layout-lib vitest case',
+        );
+        exportVisualGraphButton?.click();
+      });
+
+      expect(container!.querySelector('.graph-workspace')?.getAttribute('data-measurement-settled')).toBe('false');
+      expect(alertSpy).toHaveBeenCalledWith('Cannot export a visual graph until measurement and layout have settled.');
+      expect(writeText).not.toHaveBeenCalled();
+    } finally {
+      globalThis.queueMicrotask = originalQueueMicrotask;
+      HTMLElement.prototype.getBoundingClientRect = originalGetBoundingClientRect;
+    }
+  });
+
+  it('exports the measured node dimensions used for the settled layout', async () => {
+    const originalGetBoundingClientRect = HTMLElement.prototype.getBoundingClientRect;
+    const writeText = vi.fn().mockResolvedValue(undefined);
+
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {writeText},
+    });
+    graphModelMock.useGraphModel.mockReturnValue(createGraphModelMockValue({
+      nodes: [{id: 'node-1', label: 'Checkout Completed', type: 'evt', laneId: 'lane-0', width: NODE_WIDTH, height: NODE_HEIGHT}],
+    }));
+    HTMLElement.prototype.getBoundingClientRect = function () {
+      if (this instanceof HTMLElement && this.dataset.nodeId === 'node-1') {
+        return {
+          x: 0,
+          y: 0,
+          top: 0,
+          left: 0,
+          bottom: 118,
+          right: 312,
+          width: 312,
+          height: 118,
+          toJSON: () => ({}),
+        };
+      }
+
+      return originalGetBoundingClientRect.call(this);
+    };
+
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+
+    try {
+      await act(async () => {
+        root?.render(createElement(App));
+        await Promise.resolve();
+      });
+
+      await act(async () => {
+        const exportMenuButton = [...container!.querySelectorAll<HTMLButtonElement>('button')].find(
+          (button) => button.textContent === 'Export ▾',
+        );
+        exportMenuButton?.click();
+      });
+
+      await act(async () => {
+        const exportVisualGraphButton = [...container!.querySelectorAll<HTMLButtonElement>('button')].find(
+          (button) => button.textContent === 'Export layout-lib vitest case',
+        );
+        exportVisualGraphButton?.click();
+      });
+
+      expect(writeText).toHaveBeenCalledTimes(1);
+      expect(writeText.mock.calls[0]?.[0]).toContain(
+        '{\n      id: "node-1",\n      laneId: "lane-0",\n      width: 312,\n      height: 118\n    }',
+      );
     } finally {
       HTMLElement.prototype.getBoundingClientRect = originalGetBoundingClientRect;
     }

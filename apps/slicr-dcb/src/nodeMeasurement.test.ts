@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, expect, it } from 'vitest';
-import { NODE_HEIGHT, NODE_WIDTH } from './graph/constants';
+import { NODE_WIDTH } from './graph/constants';
 import {
   DCB_NODE_MEASURE_CLASS,
   DCB_NODE_MEASURE_SELECTOR,

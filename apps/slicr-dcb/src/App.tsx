@@ -344,6 +344,12 @@ export function App() {
   };
 
   const exportCurrentVisualGraph = async () => {
+    if (!isMeasurementSettled) {
+      window.alert('Cannot export a visual graph until measurement and layout have settled.');
+      setIsExportMenuOpen(false);
+      return;
+    }
+
     if (!layoutResult.ok) {
       window.alert('Cannot export a visual graph while layout is invalid.');
       setIsExportMenuOpen(false);
@@ -352,7 +358,7 @@ export function App() {
 
     await navigator.clipboard.writeText(
       serializeVisualGraphAcceptanceTest({
-        nodes,
+        nodes: layoutNodes,
         edges,
         lanes,
         defaults: {nodeWidth: NODE_WIDTH, nodeHeight: NODE_HEIGHT},

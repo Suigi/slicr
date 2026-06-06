@@ -1,4 +1,4 @@
 feature_dir = "_tasks/005-dcb-node-size-measurement"
-phase = "implementation"
+phase = "complete"
 current_task = ""
-status = "active"
+status = "done"
