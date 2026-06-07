@@ -49,9 +49,23 @@ export function deriveNodePropertySchema(properties: readonly EditableProperty[]
 }
 
 export function deriveNodePropertyExampleValues(properties: readonly EditableProperty[]): NodePropertyExampleValues[] {
+  return collectExampleValues(properties);
+}
+
+function collectExampleValues(
+  properties: readonly EditableProperty[],
+  includeNonListProperties = true,
+): NodePropertyExampleValues[] {
   return properties.flatMap((property) => {
     const exampleValues = deriveExampleValue(property);
-    return exampleValues ? [exampleValues] : [];
+    const nestedExampleValues = property.type === 'Object'
+      ? collectExampleValues(property.properties ?? [], false)
+      : [];
+
+    return [
+      ...(includeNonListProperties || property.list) && exampleValues ? [exampleValues] : [],
+      ...nestedExampleValues,
+    ];
   });
 }
 
@@ -125,10 +139,14 @@ export function mergeNodePropertyEditorProperties(
   exampleValues: readonly NodePropertyExampleValues[],
 ): EditableProperty[] {
   const examplesById = new Map(exampleValues.map((exampleValue) => [exampleValue.propertyId, exampleValue]));
-  return schema.map((propertySchema) => mergeProperty(propertySchema, examplesById.get(propertySchema.propertyId)));
+  return schema.map((propertySchema) => mergeProperty(propertySchema, examplesById.get(propertySchema.propertyId), examplesById));
 }
 
-function mergeProperty(schema: NodePropertySchema, examples: NodePropertyExampleValues | undefined): EditableProperty {
+function mergeProperty(
+  schema: NodePropertySchema,
+  examples: NodePropertyExampleValues | undefined,
+  examplesById: ReadonlyMap<string, NodePropertyExampleValues>,
+): EditableProperty {
   const property: EditableProperty = {
     id: schema.propertyId,
     name: schema.name,
@@ -156,7 +174,7 @@ function mergeProperty(schema: NodePropertySchema, examples: NodePropertyExample
       return property;
     }
 
-    property.properties = mergeObjectProperties(schema.properties ?? [], examples?.complexValue);
+    property.properties = mergeObjectProperties(schema.properties ?? [], examples?.complexValue, examplesById);
     return property;
   }
 
@@ -177,15 +195,22 @@ function mergeProperty(schema: NodePropertySchema, examples: NodePropertyExample
 function mergeObjectProperties(
   schema: readonly NodePropertySchema[],
   complexValue: NodeComplexExampleValue | undefined,
+  examplesById: ReadonlyMap<string, NodePropertyExampleValues>,
 ): EditableProperty[] {
   return schema.map((propertySchema) => {
     const nestedValue = complexValue?.[propertySchema.propertyId];
+
+    if (propertySchema.list) {
+      return mergeProperty(propertySchema, examplesById.get(propertySchema.propertyId), examplesById);
+    }
+
     if (propertySchema.type === 'Object') {
       return mergeProperty(
         propertySchema,
         nestedValue && typeof nestedValue === 'object'
           ? { propertyId: propertySchema.propertyId, complexValue: nestedValue }
           : undefined,
+        examplesById,
       );
     }
 
@@ -194,6 +219,7 @@ function mergeObjectProperties(
       nestedValue === null || typeof nestedValue === 'string'
         ? { propertyId: propertySchema.propertyId, scalarValue: nestedValue }
         : undefined,
+      examplesById,
     );
   });
 }

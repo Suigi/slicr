@@ -164,6 +164,70 @@ describe('PropertyEditor', () => {
     expect(onChange).toHaveBeenCalledWith([{ ...property, list: true, exampleValues: ['urgent'] }]);
   });
 
+  it('initializes object-list rows from nested scalar example values', () => {
+    const property: EditableProperty = {
+      id: 'line-id',
+      name: 'line',
+      type: 'Object',
+      properties: [
+        { id: 'sku-id', name: 'sku', type: 'string', example: 'ABC' },
+        {
+          id: 'discount-id',
+          name: 'discount',
+          type: 'Object',
+          properties: [{ id: 'code-id', name: 'code', type: 'string', example: 'SPRING' }],
+        },
+      ],
+    };
+    const onChange = vi.fn();
+    const { container } = renderPropertyEditor([property], onChange);
+    const settingsButton = container.querySelector<HTMLButtonElement>('button[aria-label="Property settings"]');
+
+    click(settingsButton!);
+    const listCheckbox = container.querySelector<HTMLInputElement>('.property-editor-toolbar input[type="checkbox"]');
+    click(listCheckbox!);
+
+    expect(onChange).toHaveBeenCalledWith([
+      {
+        ...property,
+        list: true,
+        rows: [{ 'sku-id': 'ABC', 'discount-id': { 'code-id': 'SPRING' } }],
+      },
+    ]);
+  });
+
+  it('initializes object-list rows as empty when no nested scalar example values exist', () => {
+    const property: EditableProperty = {
+      id: 'empty-line-id',
+      name: 'emptyLine',
+      type: 'Object',
+      properties: [
+        { id: 'empty-sku-id', name: 'sku', type: 'string', example: '' },
+        {
+          id: 'empty-discount-id',
+          name: 'discount',
+          type: 'Object',
+          properties: [{ id: 'empty-code-id', name: 'code', type: 'string', example: '' }],
+        },
+      ],
+    };
+    const onChange = vi.fn();
+    const { container } = renderPropertyEditor([property], onChange);
+    const settingsButton = container.querySelector<HTMLButtonElement>('button[aria-label="Property settings"]');
+
+    click(settingsButton!);
+    const listCheckbox = container.querySelector<HTMLInputElement>('.property-editor-toolbar input[type="checkbox"]');
+    click(listCheckbox!);
+
+    expect(onChange).toHaveBeenCalledWith([
+      {
+        ...property,
+        list: true,
+        rows: [],
+      },
+    ]);
+  });
+
   it('renders and updates nested object properties through the parent onChange', () => {
     const property: EditableProperty = {
       id: 'item-id',

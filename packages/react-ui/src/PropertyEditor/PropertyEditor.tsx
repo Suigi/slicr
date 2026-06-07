@@ -30,6 +30,99 @@ const emptyProperty = (): EditableProperty => ({
   example: '',
 });
 
+type ListFieldDefinition = {
+  path: string[];
+  key: string;
+  label: string;
+};
+
+const getPropertyKey = (property: EditableProperty) => property.id ?? property.name;
+
+const collectListFieldDefinitions = (
+  properties: readonly EditableProperty[],
+  parentPath: string[] = [],
+  parentNames: string[] = [],
+  preserveTopLevelObjectLabel = true,
+): ListFieldDefinition[] =>
+  properties.flatMap((property) => {
+    const propertyKey = getPropertyKey(property);
+    const path = [...parentPath, propertyKey];
+
+    if (property.type !== 'Object' || (property.properties ?? []).length === 0) {
+      return [{
+        path,
+        key: path.join('.'),
+        label: parentNames.length > 0 ? `${parentNames.join(' ')} ${property.name}` : property.name,
+      }];
+    }
+
+    const childDefinitions = collectListFieldDefinitions(
+      property.properties ?? [],
+      path,
+      [...parentNames, property.name],
+      false,
+    );
+
+    if (preserveTopLevelObjectLabel && parentPath.length === 0 && childDefinitions.length === 1) {
+      return childDefinitions.map((definition) => ({...definition, label: property.name}));
+    }
+
+    return childDefinitions;
+  });
+
+const getValueAtPath = (row: unknown, path: readonly string[]): unknown => {
+  let currentValue = row;
+
+  for (const segment of path) {
+    if (!currentValue || typeof currentValue !== 'object' || Array.isArray(currentValue)) {
+      return undefined;
+    }
+
+    currentValue = (currentValue as Record<string, unknown>)[segment];
+  }
+
+  return currentValue;
+};
+
+const setValueAtPath = (row: Record<string, unknown>, path: readonly string[], value: string): Record<string, unknown> => {
+  const [segment, ...rest] = path;
+
+  if (!segment) {
+    return row;
+  }
+
+  if (rest.length === 0) {
+    return {...row, [segment]: value};
+  }
+
+  const currentChild = row[segment];
+  const child = currentChild && typeof currentChild === 'object' && !Array.isArray(currentChild)
+    ? currentChild as Record<string, unknown>
+    : {};
+
+  return {
+    ...row,
+    [segment]: setValueAtPath(child, rest, value),
+  };
+};
+
+const getSeedRowFromProperties = (properties: readonly EditableProperty[]): Record<string, unknown> => {
+  const row = properties.reduce<Record<string, unknown>>((currentRow, property) => {
+    const propertyKey = getPropertyKey(property);
+
+    if (property.type === 'Object') {
+      const nestedRow = getSeedRowFromProperties(property.properties ?? []);
+      return Object.keys(nestedRow).length > 0 ? {...currentRow, [propertyKey]: nestedRow} : currentRow;
+    }
+
+    return property.example && property.example !== ''
+      ? {...currentRow, [propertyKey]: property.example}
+      : currentRow;
+  }, {});
+
+  return row;
+};
+
 type PropertyEditorInternalProps = {
   properties: EditableProperty[];
   onChange: (properties: EditableProperty[]) => void;
@@ -67,6 +160,7 @@ export function PropertyEditorInternal({ properties, onChange, options }: Proper
   const [draggedExample, setDraggedExample] = useState<{ propertyIndex: number; exampleIndex: number } | null>(null);
   const [settingsIndex, setSettingsIndex] = useState<number | null>(null);
   const [templatePropertyType, setTemplatePropertyType] = useState<PropertyType>('string');
+  const [objectExampleTemplateDrafts, setObjectExampleTemplateDrafts] = useState<Record<string, Record<string, string>>>({});
   const templateNameInputRef = useRef<HTMLInputElement>(null);
 
   const updateProperty = (index: number, property: EditableProperty) => {
@@ -143,11 +237,8 @@ export function PropertyEditorInternal({ properties, onChange, options }: Proper
       return property.rows;
     }
 
-    if ((property.properties ?? []).length > 0) {
-      return [Object.fromEntries((property.properties ?? []).map((nestedProperty) => [nestedProperty.id ?? nestedProperty.name, nestedProperty.example ?? '']))];
-    }
-
-    return [];
+    const seedRow = getSeedRowFromProperties(property.properties ?? []);
+    return Object.keys(seedRow).length > 0 ? [seedRow as PropertyGridTableRow] : [];
   };
 
   const updateListMode = (index: number, property: EditableProperty, list: boolean) => {
@@ -177,32 +268,64 @@ export function PropertyEditorInternal({ properties, onChange, options }: Proper
     input.value = '';
   };
 
-  const addObjectExampleValueFromTemplate = (
-    index: number,
-    property: EditableProperty,
-    fieldKey: string,
-    value: string,
-  ) => {
-    updateProperty(index, {
-      ...property,
-      rows: [...(property.rows ?? []), { [fieldKey]: value }],
+  const getObjectExampleTemplateDraft = (property: EditableProperty) => objectExampleTemplateDrafts[getPropertyKey(property)] ?? {};
+
+  const updateObjectExampleTemplateDraft = (property: EditableProperty, fieldKey: string, value: string) => {
+    const propertyKey = getPropertyKey(property);
+
+    setObjectExampleTemplateDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [propertyKey]: {
+        ...(currentDrafts[propertyKey] ?? {}),
+        [fieldKey]: value,
+      },
+    }));
+  };
+
+  const clearObjectExampleTemplateDraft = (property: EditableProperty) => {
+    const propertyKey = getPropertyKey(property);
+
+    setObjectExampleTemplateDrafts((currentDrafts) => {
+      if (!(propertyKey in currentDrafts)) {
+        return currentDrafts;
+      }
+
+      const {[propertyKey]: _removed, ...remainingDrafts} = currentDrafts;
+      return remainingDrafts;
     });
   };
 
-  const addObjectExampleValueFromTemplateInput = (
-    index: number,
-    property: EditableProperty,
-    fieldKey: string,
-    input: HTMLInputElement,
-  ) => {
-    const value = input.value.trim();
+  const addObjectExampleValueFromTemplate = (index: number, property: EditableProperty) => {
+    const fieldDefinitions = collectListFieldDefinitions(property.properties ?? []);
+    const draft = getObjectExampleTemplateDraft(property);
+    const nextRow = fieldDefinitions.reduce<Record<string, unknown>>((row, fieldDefinition) => {
+      const draftValue = draft[fieldDefinition.key]?.trim();
 
-    if (!value) {
-      return;
+      if (!draftValue) {
+        return row;
+      }
+
+      return setValueAtPath(row, fieldDefinition.path, draftValue);
+    }, {});
+
+    if (Object.keys(nextRow).length === 0) {
+      return false;
     }
 
-    addObjectExampleValueFromTemplate(index, property, fieldKey, value);
-    input.value = '';
+    updateProperty(index, {
+      ...property,
+      rows: [...(property.rows ?? []), nextRow as PropertyGridTableRow],
+    });
+    clearObjectExampleTemplateDraft(property);
+    return true;
+  };
+
+  const commitObjectExampleValueTemplateRowOnBlur = (index: number, property: EditableProperty, row: HTMLElement) => {
+    setTimeout(() => {
+      if (!row.contains(document.activeElement)) {
+        addObjectExampleValueFromTemplate(index, property);
+      }
+    });
   };
 
   const removeExampleValue = (propertyIndex: number, property: EditableProperty, exampleIndex: number) => {
@@ -253,12 +376,16 @@ export function PropertyEditorInternal({ properties, onChange, options }: Proper
     propertyIndex: number,
     property: EditableProperty,
     exampleIndex: number,
-    fieldKey: string,
+    fieldPath: string[],
     value: string,
   ) => {
     updateProperty(propertyIndex, {
       ...property,
-      rows: (property.rows ?? []).map((row, currentIndex) => (currentIndex === exampleIndex ? { ...row, [fieldKey]: value } : row)),
+      rows: (property.rows ?? []).map((row, currentIndex) => (
+        currentIndex === exampleIndex
+          ? setValueAtPath((row ?? {}) as Record<string, unknown>, fieldPath, value) as PropertyGridTableRow
+          : row
+      )),
     });
   };
 
@@ -713,115 +840,124 @@ export function PropertyEditorInternal({ properties, onChange, options }: Proper
                 <div className="property-editor-list-editor">
                   {property.type === 'Object' ? (
                     <div className="property-editor-list-table-wrap">
-                      <table className="property-editor-list-table">
-                        <thead>
-                          <tr>
-                            <th aria-label="Reorder" />
-                            {(property.properties ?? []).map((nestedProperty) => (
-                              <th key={nestedProperty.id}>{nestedProperty.name || 'Unnamed'}</th>
-                            ))}
-                            <th aria-label="Actions" />
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {(property.rows ?? []).map((objectValue, exampleIndex) => {
-                            return (
-                              <tr
-                                key={exampleIndex}
-                                onDragOver={(event) => event.preventDefault()}
-                                onDrop={(event) => {
-                                  event.preventDefault();
-                                  if (draggedExample?.propertyIndex === index) {
-                                    reorderExampleValue(index, property, draggedExample.exampleIndex, exampleIndex);
-                                    setDraggedExample(null);
-                                  }
-                                }}
-                                onKeyDown={(event) => handleExampleShortcut(event, index, property, exampleIndex)}
-                              >
-                                <td className="property-editor-list-reorder-cell">
-                                  <button
-                                    type="button"
-                                    className="property-editor-list-drag-handle"
-                                    draggable
-                                    tabIndex={-1}
-                                    aria-label="Drag to reorder example value, or press Control Shift Arrow Up or Control Shift Arrow Down on this row"
-                                    onDragStart={(event) => {
-                                      setDraggedExample({ propertyIndex: index, exampleIndex });
-                                      event.dataTransfer.effectAllowed = 'move';
-                                      event.dataTransfer.setData('text/plain', String(exampleIndex));
-                                    }}
-                                    onDragEnd={() => setDraggedExample(null)}
-                                  >
-                                    ⋮⋮
-                                  </button>
-                                </td>
-                                {(property.properties ?? []).map((nestedProperty) => {
-                                  const fieldKey = nestedProperty.id ?? nestedProperty.name;
-                                  const fieldValue = objectValue[fieldKey] ?? objectValue[nestedProperty.name] ?? '';
+                      {(() => {
+                        const fieldDefinitions = collectListFieldDefinitions(property.properties ?? []);
+                        const templateDraft = getObjectExampleTemplateDraft(property);
 
-                                  return (
-                                    <td key={fieldKey}>
-                                      <input
-                                        type="text"
-                                        value={String(fieldValue)}
-                                        aria-label={`${nestedProperty.name} example value`}
-                                        onChange={(event) => updateObjectExampleValue(index, property, exampleIndex, fieldKey, event.target.value)}
-                                      />
-                                    </td>
-                                  );
-                                })}
-                                <td>
-                                  <div className="property-editor-row-actions">
-                                    <button
-                                      type="button"
-                                      className="property-editor-list-remove-button"
-                                      onClick={(event) => {
-                                        const row = event.currentTarget.closest<HTMLElement>('tr');
-                                        if (row) {
-                                          focusAfterRemovedRow(row, Math.max(getFocusableElements(row).indexOf(event.currentTarget), 0));
-                                        }
-                                        removeExampleValue(index, property, exampleIndex);
-                                      }}
-                                      aria-label="Remove example value"
-                                    >
-                                      ×
-                                    </button>
-                                  </div>
-                                </td>
+                        return (
+                          <table className="property-editor-list-table">
+                            <thead>
+                              <tr>
+                                <th aria-label="Reorder" />
+                                {fieldDefinitions.map((fieldDefinition) => (
+                                  <th key={fieldDefinition.key}>{fieldDefinition.label || 'Unnamed'}</th>
+                                ))}
+                                <th aria-label="Actions" />
                               </tr>
-                            );
-                          })}
-                          {(property.properties ?? []).length > 0 ? (
-                            <tr className="property-editor-template-row" onKeyDown={(event) => handleTemplateShortcut(event)}>
-                              <td className="property-editor-list-reorder-cell" aria-hidden="true" />
-                              {(property.properties ?? []).map((nestedProperty) => {
-                                const fieldKey = nestedProperty.id ?? nestedProperty.name;
-
+                            </thead>
+                            <tbody>
+                              {(property.rows ?? []).map((objectValue, exampleIndex) => {
                                 return (
-                                  <td key={fieldKey}>
-                                    <input
-                                      type="text"
-                                      defaultValue=""
-                                      placeholder="..."
-                                      aria-label={`Add ${nestedProperty.name || 'property'} example value`}
-                                      onBlur={(event) => addObjectExampleValueFromTemplateInput(index, property, fieldKey, event.currentTarget)}
-                                      onKeyDown={(event) => {
-                                        if (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.metaKey && event.currentTarget.value.trim()) {
-                                          event.preventDefault();
-                                          event.stopPropagation();
-                                          addObjectExampleValueFromTemplateInput(index, property, fieldKey, event.currentTarget);
-                                          refocusInput(event.currentTarget);
-                                        }
-                                      }}
-                                    />
-                                  </td>
+                                  <tr
+                                    key={exampleIndex}
+                                    onDragOver={(event) => event.preventDefault()}
+                                    onDrop={(event) => {
+                                      event.preventDefault();
+                                      if (draggedExample?.propertyIndex === index) {
+                                        reorderExampleValue(index, property, draggedExample.exampleIndex, exampleIndex);
+                                        setDraggedExample(null);
+                                      }
+                                    }}
+                                    onKeyDown={(event) => handleExampleShortcut(event, index, property, exampleIndex)}
+                                  >
+                                    <td className="property-editor-list-reorder-cell">
+                                      <button
+                                        type="button"
+                                        className="property-editor-list-drag-handle"
+                                        draggable
+                                        tabIndex={-1}
+                                        aria-label="Drag to reorder example value, or press Control Shift Arrow Up or Control Shift Arrow Down on this row"
+                                        onDragStart={(event) => {
+                                          setDraggedExample({ propertyIndex: index, exampleIndex });
+                                          event.dataTransfer.effectAllowed = 'move';
+                                          event.dataTransfer.setData('text/plain', String(exampleIndex));
+                                        }}
+                                        onDragEnd={() => setDraggedExample(null)}
+                                      >
+                                        ⋮⋮
+                                      </button>
+                                    </td>
+                                    {fieldDefinitions.map((fieldDefinition) => {
+                                      const fieldValue = getValueAtPath(objectValue, fieldDefinition.path) ?? '';
+
+                                      return (
+                                        <td key={fieldDefinition.key}>
+                                          <input
+                                            type="text"
+                                            value={String(fieldValue)}
+                                            aria-label={`${fieldDefinition.label} example value`}
+                                            onChange={(event) => updateObjectExampleValue(index, property, exampleIndex, fieldDefinition.path, event.target.value)}
+                                          />
+                                        </td>
+                                      );
+                                    })}
+                                    <td>
+                                      <div className="property-editor-row-actions">
+                                        <button
+                                          type="button"
+                                          className="property-editor-list-remove-button"
+                                          onClick={(event) => {
+                                            const row = event.currentTarget.closest<HTMLElement>('tr');
+                                            if (row) {
+                                              focusAfterRemovedRow(row, Math.max(getFocusableElements(row).indexOf(event.currentTarget), 0));
+                                            }
+                                            removeExampleValue(index, property, exampleIndex);
+                                          }}
+                                          aria-label="Remove example value"
+                                        >
+                                          ×
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
                                 );
                               })}
-                              <td />
-                            </tr>
-                          ) : null}
-                        </tbody>
-                      </table>
+                              {fieldDefinitions.length > 0 ? (
+                                <tr className="property-editor-template-row" onKeyDown={(event) => handleTemplateShortcut(event)}>
+                                  <td className="property-editor-list-reorder-cell" aria-hidden="true" />
+                                  {fieldDefinitions.map((fieldDefinition) => (
+                                    <td key={fieldDefinition.key}>
+                                      <input
+                                        type="text"
+                                        value={templateDraft[fieldDefinition.key] ?? ''}
+                                        placeholder="..."
+                                        aria-label={`Add ${fieldDefinition.label || 'property'} example value`}
+                                        onChange={(event) => updateObjectExampleTemplateDraft(property, fieldDefinition.key, event.target.value)}
+                                        onBlur={(event) => {
+                                          const row = event.currentTarget.closest<HTMLElement>('tr');
+                                          if (row) {
+                                            commitObjectExampleValueTemplateRowOnBlur(index, property, row);
+                                          }
+                                        }}
+                                        onKeyDown={(event) => {
+                                          if (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
+                                            event.preventDefault();
+                                            event.stopPropagation();
+                                            if (addObjectExampleValueFromTemplate(index, property)) {
+                                              refocusInput(event.currentTarget);
+                                            }
+                                          }
+                                        }}
+                                      />
+                                    </td>
+                                  ))}
+                                  <td />
+                                </tr>
+                              ) : null}
+                            </tbody>
+                          </table>
+                        );
+                      })()}
                     </div>
                   ) : (
                     <div className="property-editor-list-values">

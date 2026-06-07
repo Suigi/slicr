@@ -24,9 +24,6 @@ export function NodeEditor({properties, onChange}: NodeEditorProps) {
   return (
     <div className="node-editor">
       <section className="node-editor-schema" aria-labelledby="node-editor-schema-heading">
-        <h4 id="node-editor-schema-heading" className="node-editor-schema-heading">
-          Schema
-        </h4>
         <SchemaEditor
           properties={schemaEditorProperties}
           onChange={(nextProperties) => {
