@@ -57,7 +57,6 @@ export function createEventSourcedGraphModel(config: {store: AsyncGraphEventStor
   };
 
   const decideWithCurrentEvents = <Command>(handlerFactory: (store: ReturnType<typeof MemoryStore.create<DomainEvent>>) => {handle(command: Command): DomainEvent[]}, command: Command) => {
-    console.dir({events, command})
     const memoryStore = MemoryStore.create<DomainEvent>();
     memoryStore.append(events);
     return handlerFactory(memoryStore).handle(command);
