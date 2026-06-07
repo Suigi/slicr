@@ -4,6 +4,7 @@ import type {EdgeInput, LaneInput} from 'layout-lib';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 
 import type {DomainEvent, NodePropertyExampleValues, NodePropertySchema} from '../domain/events';
+import type {WorkspaceProjection} from '../domain/workspaceProjector';
 import {createEventSourcedGraphModel, type AsyncGraphEventStore, type EventSourcedGraphModel} from './eventSourcedGraphModel';
 import {getLaneOrder, getSuccessorNodeType} from './graphUtils';
 import {
@@ -25,6 +26,7 @@ const LAST_OK_STORAGE_KEY = 'slicr-dcb.lastOkGraphModel.v1';
 const EVENT_STORE_DATABASE_NAME = 'slicr-dcb.events.v1';
 const EVENT_STORE_STREAM_NAME = 'graph';
 const emptyGraphModel: StoredGraphModel = {nodes: [], edges: [], lanes: []};
+const emptyWorkspace: WorkspaceProjection = {projects: [], chaptersByProjectId: {}};
 
 class InMemoryAsyncGraphEventStore implements AsyncGraphEventStore {
   private events: DomainEvent[] = [];
@@ -171,13 +173,16 @@ function wouldCreateCycle(edges: EdgeInput[], sourceNodeId: string, targetNodeId
   return false;
 }
 
-export function useGraphModel() {
+export function useGraphModel(scope: {activeProjectId?: string | null; activeChapterId?: string | null} = {}) {
   const skipBlurSaveRef = useRef(false);
   const cancelEditRef = useRef(false);
   const modelRef = useRef<EventSourcedGraphModel | null>(null);
   const propertyDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingPropertyEditRef = useRef<{nodeId: string; properties: EditableProperty[]} | null>(null);
 
+  const [workspace, setWorkspace] = useState<WorkspaceProjection>(emptyWorkspace);
+  const [resolvedProjectId, setResolvedProjectId] = useState('');
+  const [resolvedChapterId, setResolvedChapterId] = useState('');
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [edges, setEdges] = useState<EdgeInput[]>([]);
   const [lanes, setLanes] = useState<LaneInput[]>([]);
@@ -200,6 +205,14 @@ export function useGraphModel() {
     setEditorPropertiesById({});
   }, []);
 
+  const syncWorkspaceState = useCallback(() => {
+    const nextWorkspace = modelRef.current?.getWorkspace() ?? emptyWorkspace;
+    const nextScope = modelRef.current?.getScope() ?? {projectId: '', chapterId: ''};
+    setWorkspace(nextWorkspace);
+    setResolvedProjectId(nextScope.projectId);
+    setResolvedChapterId(nextScope.chapterId);
+  }, []);
+
   const flushPendingPropertyEdit = useCallback(async () => {
     const pendingEdit = pendingPropertyEditRef.current;
     if (!pendingEdit || !modelRef.current) {
@@ -217,8 +230,9 @@ export function useGraphModel() {
     let graphModel = await modelRef.current.changeNodeSchema({nodeId: pendingEdit.nodeId, schema});
     graphModel = await modelRef.current.changeNodeExampleValues({nodeId: pendingEdit.nodeId, exampleValues});
     applyGraphModel(graphModel);
+    syncWorkspaceState();
     setFocusedNodeIdState((currentFocusedNodeId) => currentFocusedNodeId);
-  }, [applyGraphModel]);
+  }, [applyGraphModel, syncWorkspaceState]);
 
   const schedulePropertyEditFlush = useCallback(() => {
     if (propertyDebounceRef.current) {
@@ -252,13 +266,17 @@ export function useGraphModel() {
     const loadModel = async () => {
       const store = await createDefaultGraphEventStore();
       const model = createEventSourcedGraphModel({store});
-      const graphModel = await model.load();
+      const graphModel = await model.load({
+        projectId: scope.activeProjectId ?? undefined,
+        chapterId: scope.activeChapterId ?? undefined,
+      });
       if (cancelled) {
         return;
       }
 
       modelRef.current = model;
       applyGraphModel(graphModel);
+      syncWorkspaceState();
       setFocusedNodeId(graphModel.nodes[0]?.id ?? null);
     };
 
@@ -266,7 +284,7 @@ export function useGraphModel() {
     return () => {
       cancelled = true;
     };
-  }, [applyGraphModel, setFocusedNodeId]);
+  }, [applyGraphModel, scope.activeChapterId, scope.activeProjectId, setFocusedNodeId, syncWorkspaceState]);
 
   const replaceGraphModel = useCallback(
     (graphModel: StoredGraphModel) => {
@@ -276,6 +294,21 @@ export function useGraphModel() {
     },
     [applyGraphModel, resetTransientState, setFocusedNodeId],
   );
+
+  useEffect(() => {
+    if (!modelRef.current) {
+      return;
+    }
+
+    const graphModel = modelRef.current.setScope({
+      projectId: scope.activeProjectId ?? undefined,
+      chapterId: scope.activeChapterId ?? undefined,
+    });
+    applyGraphModel(graphModel);
+    syncWorkspaceState();
+    setFocusedNodeId(graphModel.nodes[0]?.id ?? null);
+    resetTransientState();
+  }, [applyGraphModel, resetTransientState, scope.activeChapterId, scope.activeProjectId, setFocusedNodeId, syncWorkspaceState]);
 
   const readGraphEvents = useCallback(async () => modelRef.current?.readEvents() ?? [], []);
 
@@ -288,10 +321,11 @@ export function useGraphModel() {
       }
 
       applyGraphModel(graphModel);
+      syncWorkspaceState();
       setFocusedNodeId(graphModel.nodes[0]?.id ?? null);
       resetTransientState();
     },
-    [applyGraphModel, flushPendingPropertyEdit, resetTransientState, setFocusedNodeId],
+    [applyGraphModel, flushPendingPropertyEdit, resetTransientState, setFocusedNodeId, syncWorkspaceState],
   );
 
   const revertToLastOkGraphModel = useCallback(() => {
@@ -305,6 +339,7 @@ export function useGraphModel() {
         return;
       }
       applyGraphModel(graphModel);
+      syncWorkspaceState();
       const newNode = graphModel.nodes[graphModel.nodes.length - 1];
       if (!newNode) {
         return;
@@ -318,7 +353,7 @@ export function useGraphModel() {
       setDraftLabel(newNode.label);
       setOriginalLabel(newNode.label);
     })();
-  }, [applyGraphModel, setFocusedNodeId]);
+  }, [applyGraphModel, setFocusedNodeId, syncWorkspaceState]);
 
   const startConnectingFromNode = useCallback((nodeId: string) => {
     setFocusedNodeId(nodeId);
@@ -346,13 +381,14 @@ export function useGraphModel() {
         const graphModel = await modelRef.current?.addConnection(sourceNodeId, targetNodeId, role);
         if (graphModel) {
           applyGraphModel(graphModel);
+          syncWorkspaceState();
         }
         setConnectingSourceNodeId(null);
         setFocusedNodeId(targetNodeId);
         setOpenNodeMenuId(null);
       })();
     },
-    [applyGraphModel, edges, setFocusedNodeId],
+    [applyGraphModel, edges, setFocusedNodeId, syncWorkspaceState],
   );
 
   const deleteConnection = useCallback(
@@ -361,10 +397,11 @@ export function useGraphModel() {
         const graphModel = await modelRef.current?.deleteConnection(edgeId);
         if (graphModel) {
           applyGraphModel(graphModel);
+          syncWorkspaceState();
         }
       })();
     },
-    [applyGraphModel],
+    [applyGraphModel, syncWorkspaceState],
   );
 
   const addConnectedNode = useCallback(
@@ -388,6 +425,7 @@ export function useGraphModel() {
         }
 
         applyGraphModel(graphModel);
+        syncWorkspaceState();
         const newNode = graphModel.nodes.find((node) => node.label === label) ?? graphModel.nodes[graphModel.nodes.length - 1];
         if (!newNode) {
           return;
@@ -401,7 +439,7 @@ export function useGraphModel() {
         setOriginalLabel(newNode.label);
       })();
     },
-    [applyGraphModel, lanes, nodes, setFocusedNodeId],
+    [applyGraphModel, lanes, nodes, setFocusedNodeId, syncWorkspaceState],
   );
 
   const deleteNode = useCallback(
@@ -412,6 +450,7 @@ export function useGraphModel() {
         const graphModel = await modelRef.current?.deleteNode(nodeId);
         if (graphModel) {
           applyGraphModel(graphModel);
+          syncWorkspaceState();
         }
         if (editingNodeId === nodeId) {
           setEditingNodeId(null);
@@ -429,7 +468,7 @@ export function useGraphModel() {
         }
       })();
     },
-    [applyGraphModel, connectingSourceNodeId, edges, editingNodeId, focusedNodeId, openNodeMenuId, setFocusedNodeId],
+    [applyGraphModel, connectingSourceNodeId, edges, editingNodeId, focusedNodeId, openNodeMenuId, setFocusedNodeId, syncWorkspaceState],
   );
 
   const setNodeType = useCallback(
@@ -438,11 +477,12 @@ export function useGraphModel() {
         const graphModel = await modelRef.current?.setNodeType(nodeId, type);
         if (graphModel) {
           applyGraphModel(graphModel);
+          syncWorkspaceState();
         }
         setOpenNodeMenuId(null);
       })();
     },
-    [applyGraphModel],
+    [applyGraphModel, syncWorkspaceState],
   );
 
   const startEditingNode = useCallback((node: GraphNode) => {
@@ -466,13 +506,14 @@ export function useGraphModel() {
       const graphModel = await modelRef.current?.renameNode(nodeId, nextLabel);
       if (graphModel) {
         applyGraphModel(graphModel);
+        syncWorkspaceState();
       }
       cancelEditRef.current = false;
       setEditingNodeId(null);
       setDraftLabel('');
       setOriginalLabel('');
     })();
-  }, [applyGraphModel, draftLabel, editingNodeId]);
+  }, [applyGraphModel, draftLabel, editingNodeId, syncWorkspaceState]);
 
   const cancelEditingNode = useCallback(() => {
     cancelEditRef.current = true;
@@ -564,6 +605,9 @@ export function useGraphModel() {
   }, [focusedNodeId, schedulePropertyEditFlush]);
 
   return {
+    workspace,
+    activeProjectId: resolvedProjectId,
+    activeChapterId: resolvedChapterId,
     nodes,
     edges,
     lanes,

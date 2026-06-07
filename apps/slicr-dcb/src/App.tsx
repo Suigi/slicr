@@ -2,12 +2,12 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperti
 import { InfiniteCanvas, PointyCardTags, PropertyEditor, PropertyGrid, type EditableProperty, type InfiniteCanvasHandle } from '@slicr/react-ui';
 import { compactLayout } from 'layout-lib';
 import { AppShell } from './components/AppShell';
-import { ChapterSidebar, type Chapter } from './components/ChapterSidebar';
+import { ChapterSidebar } from './components/ChapterSidebar';
 import { EdgeLayer } from './components/EdgeLayer';
 import { GraphNodeView } from './components/GraphNodeView';
 import { NodeEditor } from './components/NodeEditor';
 import { NodeMeasureLayer } from './components/NodeMeasureLayer';
-import { ProjectSwitcher, type Project } from './components/ProjectSwitcher';
+import { ProjectSwitcher } from './components/ProjectSwitcher';
 import { NODE_HEIGHT, NODE_WIDTH } from './graph/constants';
 import {
   getArrowRenderPoints,
@@ -19,19 +19,6 @@ import { storeLastOkGraphModel, useGraphModel } from './graph/useGraphModel';
 import {serializeVisualGraphAcceptanceTest} from './graph/visualGraphExport';
 import type { RenderNode } from './graph/types';
 import {measureNodeDimensions, type NodeDimensions} from './nodeMeasurement';
-
-const dummyProjects: Project[] = [
-  { id: 'checkout-system', name: 'Checkout System' },
-  { id: 'inventory-system', name: 'Inventory System' },
-  { id: 'Customer Portal', name: 'Customer Portal' },
-];
-
-const dummyChapters: Chapter[] = [
-  { id: 'overview', title: 'Overview' },
-  { id: 'cart-events', title: 'Cart Events' },
-  { id: 'payment-flow', title: 'Payment Flow' },
-  { id: 'fulfillment', title: 'Fulfillment' },
-];
 
 const propertyGridColorScheme = {
   '--property-grid-line': 'var(--mockup-grid-line)',
@@ -195,8 +182,8 @@ export function App() {
   const canvasRef = useRef<InfiniteCanvasHandle>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const measurementLayerRef = useRef<HTMLDivElement>(null);
-  const [activeProjectId, setActiveProjectId] = useState('checkout-system');
-  const [activeChapterId, setActiveChapterId] = useState('cart-events');
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [propertyGridMockups, setPropertyGridMockups] = useState<PropertyGridCardMockup[]>(initialPropertyGridCardMockups);
@@ -215,8 +202,10 @@ export function App() {
       ),
     );
   };
-  const activeChapterName = dummyChapters.find((chapter) => chapter.id === activeChapterId)?.title ?? 'Untitled';
   const {
+    workspace = {projects: [], chaptersByProjectId: {}},
+    activeProjectId,
+    activeChapterId,
     nodes,
     edges,
     lanes,
@@ -246,7 +235,26 @@ export function App() {
     saveEditingNode,
     cancelEditingFromKeyboard,
     handleLabelBlur,
-  } = useGraphModel();
+  } = useGraphModel({activeProjectId: selectedProjectId, activeChapterId: selectedChapterId});
+
+  useEffect(() => {
+    if (!workspace.projects.length) {
+      return;
+    }
+
+    if (activeProjectId && selectedProjectId !== activeProjectId) {
+      setSelectedProjectId(activeProjectId);
+    }
+
+    if (activeChapterId && selectedChapterId !== activeChapterId) {
+      setSelectedChapterId(activeChapterId);
+    }
+  }, [activeChapterId, activeProjectId, selectedChapterId, selectedProjectId, workspace.projects.length]);
+
+  const effectiveProjectId = activeProjectId || selectedProjectId || workspace.projects[0]?.id || '';
+  const activeChapters = workspace.chaptersByProjectId[effectiveProjectId] ?? [];
+  const effectiveChapterId = activeChapterId || selectedChapterId || activeChapters[0]?.id || '';
+  const activeChapterName = activeChapters.find((chapter) => chapter.id === effectiveChapterId)?.title ?? 'Untitled';
 
   const layoutNodes = useMemo(
     () =>
@@ -496,9 +504,12 @@ export function App() {
     <AppShell
       projectSwitcher={
         <ProjectSwitcher
-          projects={dummyProjects}
-          activeProjectId={activeProjectId}
-          onSelectProject={setActiveProjectId}
+          projects={workspace.projects}
+          activeProjectId={effectiveProjectId}
+          onSelectProject={(projectId) => {
+            setSelectedProjectId(projectId);
+            setSelectedChapterId(null);
+          }}
         />
       }
       collapsedSidebarLabel={activeChapterName}
@@ -506,9 +517,9 @@ export function App() {
       onExpandSidebar={() => setIsSidebarOpen(true)}
       sidebar={
         <ChapterSidebar
-          chapters={dummyChapters}
-          activeChapterId={activeChapterId}
-          onSelectChapter={setActiveChapterId}
+          chapters={activeChapters}
+          activeChapterId={effectiveChapterId}
+          onSelectChapter={setSelectedChapterId}
           onCollapse={() => setIsSidebarOpen(false)}
         />
       }

@@ -1,13 +1,14 @@
 import {MemoryStore} from '@slicr/event-sourcing';
 
 import {Events, type DomainEvent} from '../domain/events';
+import {GraphProjector} from '../domain/graphProjector/graphProjector';
 import {
   changeNodeExampleValuesHandler,
   changeNodeSchemaHandler,
   type ChangeNodeExampleValuesCommand as ScopedChangeNodeExampleValuesCommand,
   type ChangeNodeSchemaCommand as ScopedChangeNodeSchemaCommand,
 } from '../domain/nodeCommands/handler';
-import {GraphProjector} from '../domain/graphProjector/graphProjector';
+import {projectWorkspace, type WorkspaceProjection} from '../domain/workspaceProjector';
 import {adaptModelGraphToRenderer, type RendererGraph} from './domainGraphAdapter';
 import type {NodeType} from './types';
 
@@ -31,9 +32,17 @@ export type AsyncGraphEventStore = {
 type ChangeNodeSchemaInput = Omit<ScopedChangeNodeSchemaCommand, 'projectId'>;
 type ChangeNodeExampleValuesInput = Omit<ScopedChangeNodeExampleValuesCommand, 'projectId'>;
 
+export type GraphModelScope = {
+  projectId?: string;
+  chapterId?: string;
+};
+
 export type EventSourcedGraphModel = {
-  load(): Promise<RendererGraph>;
+  load(scope?: GraphModelScope): Promise<RendererGraph>;
+  setScope(scope: GraphModelScope): RendererGraph;
   getSnapshot(): RendererGraph;
+  getWorkspace(): WorkspaceProjection;
+  getScope(): {projectId: string; chapterId: string};
   readEvents(): Promise<DomainEvent[]>;
   addNewSlice(): Promise<RendererGraph>;
   addConnection(sourceNodeId: string, targetNodeId: string, role?: 'flow' | 'back-reference'): Promise<RendererGraph>;
@@ -47,16 +56,33 @@ export type EventSourcedGraphModel = {
   replace(events: readonly DomainEvent[]): Promise<RendererGraph>;
 };
 
+function resolveScope(workspace: WorkspaceProjection, scope: GraphModelScope) {
+  const resolvedProjectId = workspace.projects.some((project) => project.id === scope.projectId)
+    ? (scope.projectId ?? DEFAULT_PROJECT_ID)
+    : (workspace.projects[0]?.id ?? DEFAULT_PROJECT_ID);
+  const chapters = workspace.chaptersByProjectId[resolvedProjectId] ?? [];
+  const resolvedChapterId = chapters.some((chapter) => chapter.id === scope.chapterId)
+    ? (scope.chapterId ?? DEFAULT_CHAPTER_ID)
+    : (chapters[0]?.id ?? DEFAULT_CHAPTER_ID);
+
+  return {projectId: resolvedProjectId, chapterId: resolvedChapterId};
+}
+
 export function createEventSourcedGraphModel(config: {store: AsyncGraphEventStore}): EventSourcedGraphModel {
   let snapshot: RendererGraph = {nodes: [], edges: [], lanes: [], nodeSchemas: {}, nodeExampleValues: {}};
-
+  let workspace: WorkspaceProjection = projectWorkspace(defaultWorkspaceEvents);
+  let currentProjectId = DEFAULT_PROJECT_ID;
+  let currentChapterId = DEFAULT_CHAPTER_ID;
   let events: DomainEvent[] = [];
 
-  const project = (nextEvents: readonly DomainEvent[]) => {
+  const project = (nextEvents: readonly DomainEvent[], scope: GraphModelScope = {}) => {
     events = [...nextEvents];
+    workspace = projectWorkspace(events);
+    ({projectId: currentProjectId, chapterId: currentChapterId} = resolveScope(workspace, scope));
+
     const memoryStore = MemoryStore.create<DomainEvent>();
     memoryStore.append(events);
-    snapshot = adaptModelGraphToRenderer(GraphProjector.create({store: memoryStore}).project(DEFAULT_PROJECT_ID, DEFAULT_CHAPTER_ID));
+    snapshot = adaptModelGraphToRenderer(GraphProjector.create({store: memoryStore}).project(currentProjectId, currentChapterId));
     return snapshot;
   };
 
@@ -66,26 +92,38 @@ export function createEventSourcedGraphModel(config: {store: AsyncGraphEventStor
       return snapshot;
     }
     await config.store.append(appendedEvents);
-    return project([...events, ...appendedEvents]);
+    return project([...events, ...appendedEvents], {projectId: currentProjectId, chapterId: currentChapterId});
   };
 
-  const decideWithCurrentEvents = <Command>(handlerFactory: (store: ReturnType<typeof MemoryStore.create<DomainEvent>>) => {handle(command: Command): DomainEvent[]}, command: Command) => {
+  const decideWithCurrentEvents = <Command>(
+    handlerFactory: (store: ReturnType<typeof MemoryStore.create<DomainEvent>>) => {handle(command: Command): DomainEvent[]},
+    command: Command,
+  ) => {
     const memoryStore = MemoryStore.create<DomainEvent>();
     memoryStore.append(events);
     return handlerFactory(memoryStore).handle(command);
   };
 
   return {
-    async load() {
+    async load(scope = {}) {
       const storedEvents = await config.store.readAll();
       if (storedEvents.length === 0) {
         await config.store.append(defaultWorkspaceEvents);
-        return project(defaultWorkspaceEvents);
+        return project(defaultWorkspaceEvents, scope);
       }
-      return project(storedEvents);
+      return project(storedEvents, scope);
+    },
+    setScope(scope) {
+      return project(events, scope);
     },
     getSnapshot() {
       return snapshot;
+    },
+    getWorkspace() {
+      return workspace;
+    },
+    getScope() {
+      return {projectId: currentProjectId, chapterId: currentChapterId};
     },
     async readEvents() {
       return config.store.readAll();
@@ -93,44 +131,44 @@ export function createEventSourcedGraphModel(config: {store: AsyncGraphEventStor
     async addNewSlice() {
       const newNodeNumber = Math.max(0, ...snapshot.nodes.map((node) => Number(node.id.replace('node-', '')) || 0)) + 1;
       const newNodeId = `node-${newNodeNumber}`;
-      return appendAndProject(Events.nodeAdded(DEFAULT_PROJECT_ID, DEFAULT_CHAPTER_ID, newNodeId, 'ui', 0, `Node ${newNodeNumber}`));
+      return appendAndProject(Events.nodeAdded(currentProjectId, currentChapterId, newNodeId, 'ui', 0, `Node ${newNodeNumber}`));
     },
     async addConnection(sourceNodeId: string, targetNodeId: string, role?: 'flow' | 'back-reference') {
-      return appendAndProject(Events.nodesConnected(DEFAULT_PROJECT_ID, sourceNodeId, targetNodeId, role));
+      return appendAndProject(Events.nodesConnected(currentProjectId, sourceNodeId, targetNodeId, role));
     },
     async deleteConnection(edgeId: string) {
       const edge = snapshot.edges.find((candidate) => candidate.id === edgeId);
       if (!edge) {
         return snapshot;
       }
-      return appendAndProject(Events.nodesDisconnected(DEFAULT_PROJECT_ID, edge.sourceId, edge.targetId));
+      return appendAndProject(Events.nodesDisconnected(currentProjectId, edge.sourceId, edge.targetId));
     },
     async addConnectedNode(command: {sourceNodeId: string; nodeType: NodeType; laneId: number; label: string; role?: 'flow' | 'back-reference'}) {
       const newNodeNumber = Math.max(0, ...snapshot.nodes.map((node) => Number(node.id.replace('node-', '')) || 0)) + 1;
       const newNodeId = `node-${newNodeNumber}`;
       return appendAndProject([
-        Events.nodeAdded(DEFAULT_PROJECT_ID, DEFAULT_CHAPTER_ID, newNodeId, command.nodeType, command.laneId, command.label),
-        Events.nodesConnected(DEFAULT_PROJECT_ID, command.sourceNodeId, newNodeId, command.role),
+        Events.nodeAdded(currentProjectId, currentChapterId, newNodeId, command.nodeType, command.laneId, command.label),
+        Events.nodesConnected(currentProjectId, command.sourceNodeId, newNodeId, command.role),
       ]);
     },
     async renameNode(nodeId: string, newName: string) {
-      return appendAndProject(Events.nodeRenamed(DEFAULT_PROJECT_ID, nodeId, newName));
+      return appendAndProject(Events.nodeRenamed(currentProjectId, nodeId, newName));
     },
     async setNodeType(nodeId: string, type: NodeType) {
-      return appendAndProject(Events.nodeTypeChanged(DEFAULT_PROJECT_ID, nodeId, type));
+      return appendAndProject(Events.nodeTypeChanged(currentProjectId, nodeId, type));
     },
     async changeNodeSchema(command: ChangeNodeSchemaInput) {
-      return appendAndProject(decideWithCurrentEvents(changeNodeSchemaHandler, {...command, projectId: DEFAULT_PROJECT_ID}));
+      return appendAndProject(decideWithCurrentEvents(changeNodeSchemaHandler, {...command, projectId: currentProjectId}));
     },
     async changeNodeExampleValues(command: ChangeNodeExampleValuesInput) {
-      return appendAndProject(decideWithCurrentEvents(changeNodeExampleValuesHandler, {...command, projectId: DEFAULT_PROJECT_ID}));
+      return appendAndProject(decideWithCurrentEvents(changeNodeExampleValuesHandler, {...command, projectId: currentProjectId}));
     },
     async deleteNode(nodeId: string) {
-      return appendAndProject(Events.nodeRemoved(DEFAULT_PROJECT_ID, nodeId));
+      return appendAndProject(Events.nodeRemoved(currentProjectId, nodeId));
     },
     async replace(nextEvents: readonly DomainEvent[]) {
       await config.store.replace(nextEvents);
-      return project(nextEvents);
+      return project(nextEvents, {projectId: currentProjectId, chapterId: currentChapterId});
     },
   };
 }

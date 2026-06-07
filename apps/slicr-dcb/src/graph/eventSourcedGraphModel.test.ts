@@ -77,6 +77,31 @@ describe('createEventSourcedGraphModel', () => {
     expect(events).toEqual([Events.projectAdded('project-1', 'Checkout System')]);
   });
 
+  it('appends new graph events in the active project and chapter scope', async () => {
+    const events: DomainEvent[] = [
+      Events.projectAdded('project-1', 'Checkout System'),
+      Events.chapterAdded('project-1', 'chapter-1', 'Overview'),
+      Events.chapterAdded('project-1', 'chapter-2', 'Cart Flow'),
+      Events.projectAdded('project-2', 'Inventory System'),
+      Events.chapterAdded('project-2', 'chapter-3', 'Stock Levels'),
+      Events.nodeAdded('project-1', 'chapter-1', 'node-1', 'evt', 0, 'Overview Node'),
+    ];
+    const model = createEventSourcedGraphModel({store: createStore(events)});
+
+    await model.load({projectId: 'project-2', chapterId: 'chapter-3'});
+    await model.addNewSlice();
+
+    expect(events[events.length - 1]).toEqual(Events.nodeAdded('project-2', 'chapter-3', 'node-1', 'ui', 0, 'Node 1'));
+    expect(model.getScope()).toEqual({projectId: 'project-2', chapterId: 'chapter-3'});
+    expect(model.getSnapshot()).toEqual({
+      nodes: [{id: 'node-1', label: 'Node 1', type: 'ui', laneId: 'lane-0', width: NODE_WIDTH, height: NODE_HEIGHT}],
+      edges: [],
+      lanes: [{id: 'lane-0', order: 0}],
+      nodeSchemas: {},
+      nodeExampleValues: {},
+    });
+  });
+
   it('persists changed node property schema and examples while skipping unchanged payloads', async () => {
     const events: DomainEvent[] = [Events.nodeAdded(defaultProjectId, 'default-chapter', 'node-1', 'evt', 0)];
     const model = createEventSourcedGraphModel({store: createStore(events)});
