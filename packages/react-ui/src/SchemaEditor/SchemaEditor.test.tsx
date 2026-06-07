@@ -42,7 +42,7 @@ describe('SchemaEditor', () => {
     expect(SchemaEditor).toBeTypeOf('function');
   });
 
-  it('keeps schema settings but hides editable example-value inputs', () => {
+  it('keeps schema settings but removes the example column and example-value inputs', () => {
     const { container } = renderSchemaEditor([
       {
         id: 'status-id',
@@ -53,8 +53,10 @@ describe('SchemaEditor', () => {
         exampleValues: ['draft', 'published'],
       },
     ]);
+    const headers = [...container.querySelectorAll('[role="columnheader"]')].map((header) => header.textContent);
 
     expect(container.querySelector('button[aria-label="Property settings"]')).not.toBeNull();
+    expect(headers).toEqual(['', 'Name', 'Type', '']);
     expect(container.querySelector('input[placeholder="optional"]')).toBeNull();
     expect(container.querySelector('input[aria-label="Add example value"]')).toBeNull();
     expect(container.querySelector('.property-editor-list-value-row')).toBeNull();

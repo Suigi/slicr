@@ -32,7 +32,7 @@ export function ExampleValueEditor({ properties, onChange }: ExampleValueEditorP
       options={{
         showPropertyToolbar: false,
         showExtendedPropertyToolbarControls: false,
-        showColumnHeaders: false,
+        showColumnHeaders: true,
         disableExampleValues: false,
         schemaOnly: false,
         valueOnly: true,

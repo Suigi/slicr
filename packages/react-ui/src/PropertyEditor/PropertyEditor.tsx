@@ -480,15 +480,34 @@ export function PropertyEditorInternal({ properties, onChange, options }: Proper
   };
 
   return (
-    <div className="property-editor" onFocusCapture={(event) => selectFocusedCellText(event.target)}>
+    <div
+      className={`property-editor${schemaOnly ? ' property-editor-schema-only' : ''}${valueOnly ? ' property-editor-value-only' : ''}`}
+      onFocusCapture={(event) => selectFocusedCellText(event.target)}
+    >
       <div className="property-editor-grid" role="table" aria-label="Object schema properties">
         {showColumnHeaders ? (
           <div className="property-editor-grid-heading" role="row">
-            <span role="columnheader" aria-label="Reorder" />
-            <span role="columnheader">Name</span>
-            <span role="columnheader">Type</span>
-            <span role="columnheader">Example</span>
-            <span role="columnheader" className="property-editor-actions-heading" aria-label="Actions" />
+            {valueOnly ? (
+              <>
+                <span role="columnheader">Name</span>
+                <span role="columnheader">Value</span>
+              </>
+            ) : schemaOnly ? (
+              <>
+                <span role="columnheader" aria-label="Reorder" />
+                <span role="columnheader">Name</span>
+                <span role="columnheader">Type</span>
+                <span role="columnheader" className="property-editor-actions-heading" aria-label="Actions" />
+              </>
+            ) : (
+              <>
+                <span role="columnheader" aria-label="Reorder" />
+                <span role="columnheader">Name</span>
+                <span role="columnheader">Type</span>
+                <span role="columnheader">Example</span>
+                <span role="columnheader" className="property-editor-actions-heading" aria-label="Actions" />
+              </>
+            )}
           </div>
         ) : null}
 
@@ -498,85 +517,102 @@ export function PropertyEditorInternal({ properties, onChange, options }: Proper
           editorProperties.map((property, index) => (
             <Fragment key={property.id}>
               <div
-                className="property-editor-row"
-                role="row"
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  if (draggedIndex !== null) {
-                    reorderProperty(draggedIndex, index);
-                    setDraggedIndex(null);
-                  }
-                }}
-                onKeyDown={(event) => handlePropertyShortcut(event, index)}
-              >
-                {valueOnly ? null : (
-                  <button
-                    type="button"
-                    className="property-editor-drag-handle"
-                    draggable
-                    tabIndex={-1}
-                    aria-label="Drag to reorder property, or press Control Shift Arrow Up or Control Shift Arrow Down on this row"
-                    onDragStart={(event) => {
-                      setDraggedIndex(index);
-                      event.dataTransfer.effectAllowed = 'move';
-                      event.dataTransfer.setData('text/plain', String(index));
-                    }}
-                    onDragEnd={() => setDraggedIndex(null)}
-                  >
-                    ⋮⋮
-                  </button>
-                )}
-
-                <label className="property-editor-field">
-                  <span>Name</span>
+                  className="property-editor-row"
+                  role="row"
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    if (draggedIndex !== null) {
+                      reorderProperty(draggedIndex, index);
+                      setDraggedIndex(null);
+                    }
+                  }}
+                  onKeyDown={(event) => handlePropertyShortcut(event, index)}
+                >
                   {valueOnly ? (
-                    <div className="property-editor-example-hidden">{property.name || 'Unnamed'}</div>
-                  ) : (
-                    <input
-                      type="text"
-                      value={property.name}
-                      placeholder="propertyName"
-                      onChange={(event) => updateProperty(index, { ...property, name: event.target.value })}
-                    />
-                  )}
-                </label>
-
-                {valueOnly ? null : (
-                  <label className="property-editor-field">
-                    <span>Type</span>
-                    <select
-                      value={property.type}
-                      onChange={(event) => updatePropertyType(index, property, event.target.value as PropertyType)}
-                    >
-                      {propertyTypes.map((type) => (
-                        <option value={type} key={type}>
-                          {type}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-
-                <label className="property-editor-field">
-                  <span>Example</span>
-                  {property.type === 'Object' ? (
-                    <div className="property-editor-example-hidden">{"{...}"}</div>
-                  ) : property.list || disableExampleValues || schemaOnly ? (
-                    <div className="property-editor-example-hidden">{"[...]"}</div>
-                  ) : (
-                    <input
-                      type="text"
-                      value={property.example ?? ''}
-                      placeholder="optional"
-                      onChange={(event) => updateProperty(index, { ...property, example: event.target.value })}
-                    />
-                  )}
-                </label>
-
-                <div className="property-editor-row-actions">
-                  {valueOnly ? null : (
                     <>
+                      <label className="property-editor-field">
+                        <span>Name</span>
+                        <div className="property-editor-example-hidden">{property.name || 'Unnamed'}</div>
+                      </label>
+
+                      <label className="property-editor-field">
+                        <span>Value</span>
+                        {property.type === 'Object' ? (
+                          <div className="property-editor-example-hidden">{"{...}"}</div>
+                        ) : property.list || disableExampleValues || schemaOnly ? (
+                          <div className="property-editor-example-hidden">{"[...]"}</div>
+                        ) : (
+                          <input
+                            type="text"
+                            value={property.example ?? ''}
+                            placeholder="optional"
+                            onChange={(event) => updateProperty(index, { ...property, example: event.target.value })}
+                          />
+                        )}
+                      </label>
+                    </>
+                  ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="property-editor-drag-handle"
+                      draggable
+                      tabIndex={-1}
+                      aria-label="Drag to reorder property, or press Control Shift Arrow Up or Control Shift Arrow Down on this row"
+                      onDragStart={(event) => {
+                        setDraggedIndex(index);
+                        event.dataTransfer.effectAllowed = 'move';
+                        event.dataTransfer.setData('text/plain', String(index));
+                      }}
+                      onDragEnd={() => setDraggedIndex(null)}
+                    >
+                      ⋮⋮
+                    </button>
+
+                    <label className="property-editor-field">
+                      <span>Name</span>
+                      <input
+                        type="text"
+                        value={property.name}
+                        placeholder="propertyName"
+                        onChange={(event) => updateProperty(index, { ...property, name: event.target.value })}
+                      />
+                    </label>
+
+                    <label className="property-editor-field">
+                      <span>Type</span>
+                      <select
+                        value={property.type}
+                        onChange={(event) => updatePropertyType(index, property, event.target.value as PropertyType)}
+                      >
+                        {propertyTypes.map((type) => (
+                          <option value={type} key={type}>
+                            {type}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    {schemaOnly ? null : (
+                      <label className="property-editor-field">
+                        <span>Example</span>
+                        {property.type === 'Object' ? (
+                          <div className="property-editor-example-hidden">{"{...}"}</div>
+                        ) : property.list || disableExampleValues ? (
+                          <div className="property-editor-example-hidden">{"[...]"}</div>
+                        ) : (
+                          <input
+                            type="text"
+                            value={property.example ?? ''}
+                            placeholder="optional"
+                            onChange={(event) => updateProperty(index, { ...property, example: event.target.value })}
+                          />
+                        )}
+                      </label>
+                    )}
+
+                    <div className="property-editor-row-actions">
                       {showPropertyToolbar ? (
                         <button
                           type="button"
@@ -606,9 +642,9 @@ export function PropertyEditorInternal({ properties, onChange, options }: Proper
                           <path d="M296 64l-16-32H168l-16 32h144zm-184 0l19.2-38.4C139.3 9.4 155.9 0 173.9 0h100.2c18 0 34.6 9.4 42.7 25.6L336 64h80c17.7 0 32 14.3 32 32s-14.3 32-32 32h-16v304c0 44.2-35.8 80-80 80H128c-44.2 0-80-35.8-80-80V128H32C14.3 128 0 113.7 0 96s14.3-32 32-32h80zm0 64v304c0 8.8 7.2 16 16 16h192c8.8 0 16-7.2 16-16V128H112zm48 64c8.8 0 16 7.2 16 16v160c0 8.8-7.2 16-16 16s-16-7.2-16-16V208c0-8.8 7.2-16 16-16zm64 0c8.8 0 16 7.2 16 16v160c0 8.8-7.2 16-16 16s-16-7.2-16-16V208c0-8.8 7.2-16 16-16zm64 0c8.8 0 16 7.2 16 16v160c0 8.8-7.2 16-16 16s-16-7.2-16-16V208c0-8.8 7.2-16 16-16z" />
                         </svg>
                       </button>
-                    </>
-                  )}
-                </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               {showPropertyToolbar && settingsIndex === index ? (
@@ -663,7 +699,7 @@ export function PropertyEditorInternal({ properties, onChange, options }: Proper
                 </div>
               ) : null}
 
-              {property.type === 'Object' ? (
+              {property.type === 'Object' && !(valueOnly && property.list) ? (
                 <div className="property-editor-nested">
                   <PropertyEditorInternal
                     properties={property.properties ?? []}
@@ -852,8 +888,8 @@ export function PropertyEditorInternal({ properties, onChange, options }: Proper
                         <input
                           type="text"
                           defaultValue=""
-                          placeholder="Add example value"
-                          aria-label="Add example value"
+                          placeholder="Add value"
+                          aria-label="Add value"
                           onBlur={(event) => addPrimitiveExampleValueFromTemplateInput(index, property, event.currentTarget)}
                           onKeyDown={(event) => {
                             if (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.metaKey && event.currentTarget.value.trim()) {
@@ -928,11 +964,9 @@ export function PropertyEditorInternal({ properties, onChange, options }: Proper
               </select>
             </label>
 
-            <label className="property-editor-field">
-              <span>Example</span>
-              {schemaOnly ? (
-                <div className="property-editor-example-hidden">{"[...]"}</div>
-              ) : (
+            {schemaOnly ? null : (
+              <label className="property-editor-field">
+                <span>Example</span>
                 <input
                   type="text"
                   value=""
@@ -940,8 +974,8 @@ export function PropertyEditorInternal({ properties, onChange, options }: Proper
                   tabIndex={-1}
                   aria-label="Example is available after adding the property"
                 />
-              )}
-            </label>
+              </label>
+            )}
 
             <div className="property-editor-row-actions" aria-hidden="true" />
           </div>

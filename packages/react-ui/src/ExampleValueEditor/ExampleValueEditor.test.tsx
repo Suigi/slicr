@@ -44,15 +44,16 @@ afterEach(() => {
 });
 
 describe('ExampleValueEditor', () => {
-  it('is exported publicly and shows scalar value editing without schema controls', () => {
+  it('is exported publicly and shows Name and Value headers without schema controls', () => {
     const property: EditableProperty = { id: 'title-id', name: 'title', type: 'string', example: 'Draft' };
     const onChange = vi.fn();
     const { container } = renderExampleValueEditor([property], onChange);
     const row = container.querySelector<HTMLElement>(':scope .property-editor > .property-editor-grid > .property-editor-row');
     const exampleInput = row?.querySelector<HTMLInputElement>('input[type="text"]');
+    const headers = [...container.querySelectorAll('[role="columnheader"]')].map((header) => header.textContent);
 
     expect(ExampleValueEditor).toBeTypeOf('function');
-    expect(container.querySelector('[role="columnheader"]')).toBeNull();
+    expect(headers).toEqual(['Name', 'Value']);
     expect(container.querySelector('button[aria-label="Property settings"]')).toBeNull();
     expect(container.querySelector('button[aria-label="Remove property"]')).toBeNull();
     expect(container.querySelector('select')).toBeNull();
@@ -66,7 +67,7 @@ describe('ExampleValueEditor', () => {
     expect(onChange).toHaveBeenCalledWith([{ ...property, example: 'Published' }]);
   });
 
-  it('edits object-list example rows with read-only schema labels', () => {
+  it('edits object-list example rows without rendering duplicate nested property rows', () => {
     const property: EditableProperty = {
       id: 'item-id',
       name: 'item',
@@ -77,16 +78,17 @@ describe('ExampleValueEditor', () => {
     };
     const onChange = vi.fn();
     const { container } = renderExampleValueEditor([property], onChange);
+    const topLevelRow = container.querySelector<HTMLElement>(':scope .property-editor > .property-editor-grid > .property-editor-row');
     const nestedEditor = container.querySelector<HTMLElement>('.property-editor-nested .property-editor');
-    const nestedSkuInput = nestedEditor?.querySelector('input[value="sku"]');
+    const listHeaderCells = [...container.querySelectorAll<HTMLElement>('.property-editor-list-table thead th')].map((cell) => cell.textContent);
     const listValueInput = container.querySelector<HTMLInputElement>('input[aria-label="sku example value"]');
     const addValueInput = container.querySelector<HTMLInputElement>('input[aria-label="Add sku example value"]');
     const removeButton = container.querySelector<HTMLButtonElement>('button[aria-label="Remove example value"]');
 
-    expect(nestedEditor).not.toBeNull();
-    expect(nestedSkuInput).toBeNull();
-    expect(nestedEditor?.textContent).toContain('sku');
-    expect(nestedEditor?.querySelector('button[aria-label="Property settings"]')).toBeNull();
+    expect(topLevelRow?.textContent).toContain('item');
+    expect(topLevelRow?.textContent).toContain('{...}');
+    expect(nestedEditor).toBeNull();
+    expect(listHeaderCells).toEqual(['', 'sku', '']);
     expect(listValueInput?.value).toBe('ABC');
 
     setInputValue(listValueInput!, 'DEF');
@@ -100,6 +102,27 @@ describe('ExampleValueEditor', () => {
 
     click(removeButton!);
     expect(onChange).toHaveBeenNthCalledWith(3, [{ ...property, rows: [] }]);
+  });
+
+  it('keeps the top-level placeholder row for complex list values', () => {
+    const property: EditableProperty = {
+      id: 'items-id',
+      name: 'items',
+      type: 'Object',
+      list: true,
+      properties: [{ id: 'sku-id', name: 'sku', type: 'string' }],
+      rows: [{ 'sku-id': 'ABC' }, { 'sku-id': 'DEF' }],
+    };
+    const { container } = renderExampleValueEditor([property]);
+    const rootEditor = container.querySelector<HTMLElement>(':scope > .property-editor');
+    const topLevelRows = rootEditor?.querySelectorAll<HTMLElement>(':scope > .property-editor-grid > .property-editor-row');
+    const listTableRows = container.querySelectorAll<HTMLElement>('.property-editor-list-table tbody tr');
+    const nestedEditor = container.querySelector('.property-editor-nested .property-editor');
+
+    expect(topLevelRows).toHaveLength(1);
+    expect(listTableRows).toHaveLength(3);
+    expect(nestedEditor).toBeNull();
+    expect(container.textContent).toContain('{...}');
   });
 
   it('drops stale scalar example data after a property becomes complex', () => {
