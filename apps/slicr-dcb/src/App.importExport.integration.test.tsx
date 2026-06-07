@@ -47,7 +47,7 @@ describe('App import/export property event flow', () => {
   it('shows imported node property events in split schema and example editors in the focused node side panel', async () => {
     globalThis.indexedDB = undefined as unknown as typeof indexedDB;
     const importedEvents = [
-      Events.nodeAdded(defaultProjectId, 'node-1', 'evt', 0, 'Checkout Completed'),
+      Events.nodeAdded(defaultProjectId, 'default-chapter', 'node-1', 'evt', 0, 'Checkout Completed'),
       Events.nodeSchemaChanged(defaultProjectId, 'node-1', [
         {propertyId: 'prop-title', name: 'title', type: 'string'},
       ]),
@@ -94,7 +94,7 @@ describe('App import/export property event flow', () => {
     vi.useFakeTimers();
     globalThis.indexedDB = undefined as unknown as typeof indexedDB;
     const importedEvents = [
-      Events.nodeAdded(defaultProjectId, 'node-1', 'evt', 0, 'Checkout Completed'),
+      Events.nodeAdded(defaultProjectId, 'default-chapter', 'node-1', 'evt', 0, 'Checkout Completed'),
       Events.nodeSchemaChanged(defaultProjectId, 'node-1', [
         {propertyId: 'prop-title', name: 'title', type: 'string'},
       ]),

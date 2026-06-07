@@ -35,24 +35,32 @@ describe('createEventSourcedGraphModel', () => {
     expect(model.getSnapshot()).toEqual({nodes: [], edges: [], lanes: [], nodeSchemas: {}, nodeExampleValues: {}});
   });
 
-  it('appends default-project scoped node events and reprojects the default project renderer graph', async () => {
-    const events: DomainEvent[] = [];
+  it('replays and appends graph events in the default chapter', async () => {
+    const events: DomainEvent[] = [
+      Events.projectAdded(defaultProjectId, 'Default Project'),
+      Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
+      Events.chapterAdded(defaultProjectId, 'chapter-2', 'Chapter 2'),
+      Events.nodeAdded(defaultProjectId, 'default-chapter', 'node-1', 'ui', 0, 'Default Chapter Node'),
+      Events.nodeAdded(defaultProjectId, 'chapter-2', 'node-2', 'evt', 1, 'Other Chapter Node'),
+    ];
     const model = createEventSourcedGraphModel({store: createStore(events)});
-    await model.load();
 
+    await model.load();
     await model.addNewSlice();
 
     expect(events).toEqual([
       Events.projectAdded(defaultProjectId, 'Default Project'),
       Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
-      {
-        type: 'NodeAdded',
-        payload: {projectId: defaultProjectId, nodeId: 'node-1', type: 'ui', laneId: 0, label: 'Node 1'},
-        tags: ['projectId:default-project', 'nodeId:node-1', 'type:ui'],
-      },
+      Events.chapterAdded(defaultProjectId, 'chapter-2', 'Chapter 2'),
+      Events.nodeAdded(defaultProjectId, 'default-chapter', 'node-1', 'ui', 0, 'Default Chapter Node'),
+      Events.nodeAdded(defaultProjectId, 'chapter-2', 'node-2', 'evt', 1, 'Other Chapter Node'),
+      Events.nodeAdded(defaultProjectId, 'default-chapter', 'node-2', 'ui', 0, 'Node 2'),
     ]);
     expect(model.getSnapshot()).toEqual({
-      nodes: [{id: 'node-1', label: 'Node 1', type: 'ui', laneId: 'lane-0', width: NODE_WIDTH, height: NODE_HEIGHT}],
+      nodes: [
+        {id: 'node-1', label: 'Default Chapter Node', type: 'ui', laneId: 'lane-0', width: NODE_WIDTH, height: NODE_HEIGHT},
+        {id: 'node-2', label: 'Node 2', type: 'ui', laneId: 'lane-0', width: NODE_WIDTH, height: NODE_HEIGHT},
+      ],
       edges: [],
       lanes: [{id: 'lane-0', order: 0}],
       nodeSchemas: {},
@@ -70,7 +78,7 @@ describe('createEventSourcedGraphModel', () => {
   });
 
   it('persists changed node property schema and examples while skipping unchanged payloads', async () => {
-    const events: DomainEvent[] = [Events.nodeAdded(defaultProjectId, 'node-1', 'evt', 0)];
+    const events: DomainEvent[] = [Events.nodeAdded(defaultProjectId, 'default-chapter', 'node-1', 'evt', 0)];
     const model = createEventSourcedGraphModel({store: createStore(events)});
     await model.load();
 

@@ -1,6 +1,6 @@
 import {MemoryStore, Query, Store} from '@slicr/event-sourcing';
 import {DomainEvent} from '../events';
-import {Edge, ModelGraph} from '../graph';
+import {Edge, ModelGraph, NodeType} from '../graph';
 
 export class GraphProjector {
   private constructor(private readonly store: Store<DomainEvent>) {
@@ -10,10 +10,11 @@ export class GraphProjector {
     return new GraphProjector(config.store ?? MemoryStore.create<DomainEvent>());
   }
 
-  public project(projectId: string): ModelGraph {
+  public project(projectId: string, chapterId?: string): ModelGraph {
     const events = this.store.query(Query.where({
       types: [
         'NodeAdded',
+        'NodeChapterChanged',
         'NodeRenamed',
         'NodeRemoved',
         'NodeTypeChanged',
@@ -24,83 +25,109 @@ export class GraphProjector {
       ],
       tags: [`projectId:${projectId}`],
     }));
-    const model: ModelGraph = {
-      nodes: [],
-      edges: [],
-      lanes: [],
-      nodeSchemas: {},
-      nodeExampleValues: {},
-    };
+
+    const nodesById = new Map<string, {nodeId: string, nodeType: NodeType, laneId: number, label: string, chapterId: string, exists: boolean}>();
+    const nodeSchemas = new Map<string, ModelGraph['nodeSchemas'][string]>();
+    const nodeExampleValues = new Map<string, ModelGraph['nodeExampleValues'][string]>();
+    const edgesByConnection = new Map<string, Edge>();
+
     for (const event of events) {
       switch (event.type) {
         case 'NodeAdded':
-          if (!model.nodes.some(node => node.nodeId === event.payload.nodeId)) {
-            model.nodes.push({
-              nodeId: event.payload.nodeId,
-              nodeType: event.payload.type,
-              laneId: event.payload.laneId,
-              label: event.payload.label,
-            });
+          nodesById.set(event.payload.nodeId, {
+            nodeId: event.payload.nodeId,
+            nodeType: event.payload.type,
+            laneId: event.payload.laneId,
+            label: event.payload.label,
+            chapterId: event.payload.chapterId,
+            exists: true,
+          });
+          break;
+        case 'NodeChapterChanged': {
+          const node = nodesById.get(event.payload.nodeId);
+          if (node?.exists) {
+            node.chapterId = event.payload.chapterId;
           }
           break;
+        }
         case 'NodeRenamed': {
-          const node = model.nodes.find(node => node.nodeId === event.payload.nodeId);
-          if (node) {
+          const node = nodesById.get(event.payload.nodeId);
+          if (node?.exists) {
             node.label = event.payload.newName;
           }
           break;
         }
-        case 'NodeRemoved':
-          model.nodes = model.nodes.filter(node => node.nodeId !== event.payload.nodeId);
-          model.edges = model.edges.filter(edge =>
-            edge.sourceNodeId !== event.payload.nodeId && edge.targetNodeId !== event.payload.nodeId
-          );
-          delete model.nodeSchemas[event.payload.nodeId];
-          delete model.nodeExampleValues[event.payload.nodeId];
-          break;
-        case 'NodeTypeChanged': {
-          const node = model.nodes.find(node => node.nodeId === event.payload.nodeId);
+        case 'NodeRemoved': {
+          const node = nodesById.get(event.payload.nodeId);
           if (node) {
+            node.exists = false;
+          }
+          edgesByConnection.forEach((_, key) => {
+            if (key.startsWith(`${event.payload.nodeId}->`) || key.endsWith(`->${event.payload.nodeId}`)) {
+              edgesByConnection.delete(key);
+            }
+          });
+          nodeSchemas.delete(event.payload.nodeId);
+          nodeExampleValues.delete(event.payload.nodeId);
+          break;
+        }
+        case 'NodeTypeChanged': {
+          const node = nodesById.get(event.payload.nodeId);
+          if (node?.exists) {
             node.nodeType = event.payload.newType;
           }
           break;
         }
-        case 'NodeSchemaChanged':
-          model.nodeSchemas[event.payload.nodeId] = event.payload.schema;
-          break;
-        case 'NodeExampleValuesChanged':
-          model.nodeExampleValues[event.payload.nodeId] = event.payload.exampleValues;
-          break;
-        case 'NodesConnected': {
-          const sourceExists = model.nodes.some(node => node.nodeId === event.payload.sourceNodeId);
-          const targetExists = model.nodes.some(node => node.nodeId === event.payload.targetNodeId);
-          if (sourceExists && targetExists && event.payload.sourceNodeId !== event.payload.targetNodeId) {
-            const connection: Edge = {
-              sourceNodeId: event.payload.sourceNodeId,
-              targetNodeId: event.payload.targetNodeId,
-              role: event.payload.role,
-            };
-            const existingIndex = model.edges.findIndex(edge =>
-              edge.sourceNodeId === connection.sourceNodeId && edge.targetNodeId === connection.targetNodeId
-            );
-            if (existingIndex >= 0) {
-              model.edges[existingIndex] = connection;
-            } else {
-              model.edges.push(connection);
-            }
+        case 'NodeSchemaChanged': {
+          const node = nodesById.get(event.payload.nodeId);
+          if (node?.exists) {
+            nodeSchemas.set(event.payload.nodeId, event.payload.schema);
           }
           break;
         }
+        case 'NodeExampleValuesChanged': {
+          const node = nodesById.get(event.payload.nodeId);
+          if (node?.exists) {
+            nodeExampleValues.set(event.payload.nodeId, event.payload.exampleValues);
+          }
+          break;
+        }
+        case 'NodesConnected':
+          edgesByConnection.set(`${event.payload.sourceNodeId}->${event.payload.targetNodeId}`, {
+            sourceNodeId: event.payload.sourceNodeId,
+            targetNodeId: event.payload.targetNodeId,
+            role: event.payload.role,
+          });
+          break;
         case 'NodesDisconnected':
-          model.edges = model.edges.filter(edge =>
-            edge.sourceNodeId !== event.payload.sourceNodeId || edge.targetNodeId !== event.payload.targetNodeId
-          );
+          edgesByConnection.delete(`${event.payload.sourceNodeId}->${event.payload.targetNodeId}`);
           break;
       }
     }
-    model.lanes = Array.from(new Set(model.nodes.map(node => node.laneId)))
-      .sort((left, right) => left - right)
-      .map(laneId => ({id: `lane-${laneId}`, order: laneId}));
+
+    const visibleNodes = Array.from(nodesById.values())
+      .filter(node => node.exists && (!chapterId || node.chapterId === chapterId))
+      .map(({chapterId: _chapterId, exists: _exists, ...node}) => node);
+    const visibleNodeIds = new Set(visibleNodes.map(node => node.nodeId));
+
+    const model: ModelGraph = {
+      nodes: visibleNodes,
+      edges: Array.from(edgesByConnection.values()).filter(edge =>
+        edge.sourceNodeId !== edge.targetNodeId &&
+        visibleNodeIds.has(edge.sourceNodeId) &&
+        visibleNodeIds.has(edge.targetNodeId)
+      ),
+      lanes: Array.from(new Set(visibleNodes.map(node => node.laneId)))
+        .sort((left, right) => left - right)
+        .map(laneId => ({id: `lane-${laneId}`, order: laneId})),
+      nodeSchemas: Object.fromEntries(
+        Array.from(nodeSchemas.entries()).filter(([nodeId]) => visibleNodeIds.has(nodeId))
+      ),
+      nodeExampleValues: Object.fromEntries(
+        Array.from(nodeExampleValues.entries()).filter(([nodeId]) => visibleNodeIds.has(nodeId))
+      ),
+    };
+
     return model;
   }
 }

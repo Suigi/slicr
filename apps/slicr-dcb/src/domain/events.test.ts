@@ -32,10 +32,15 @@ describe('Events', () => {
       },
     ];
 
-    expect(Events.nodeAdded(projectId, 'node-1', 'cmd', 2, 'Create Thing')).toEqual({
+    expect(Events.nodeAdded(projectId, 'chapter-1', 'node-1', 'cmd', 2, 'Create Thing')).toEqual({
       type: 'NodeAdded',
-      payload: { projectId, nodeId: 'node-1', type: 'cmd', laneId: 2, label: 'Create Thing' },
-      tags: ['projectId:project-1', 'nodeId:node-1', 'type:cmd'],
+      payload: { projectId, chapterId: 'chapter-1', nodeId: 'node-1', type: 'cmd', laneId: 2, label: 'Create Thing' },
+      tags: ['projectId:project-1', 'chapterId:chapter-1', 'nodeId:node-1', 'type:cmd'],
+    });
+    expect(Events.nodeChapterChanged(projectId, 'node-1', 'chapter-2')).toEqual({
+      type: 'NodeChapterChanged',
+      payload: { projectId, nodeId: 'node-1', chapterId: 'chapter-2' },
+      tags: ['projectId:project-1', 'nodeId:node-1', 'chapterId:chapter-2'],
     });
     expect(Events.nodeRenamed(projectId, 'node-1', 'Renamed Thing')).toEqual({
       type: 'NodeRenamed',

@@ -56,7 +56,7 @@ export function createEventSourcedGraphModel(config: {store: AsyncGraphEventStor
     events = [...nextEvents];
     const memoryStore = MemoryStore.create<DomainEvent>();
     memoryStore.append(events);
-    snapshot = adaptModelGraphToRenderer(GraphProjector.create({store: memoryStore}).project(DEFAULT_PROJECT_ID));
+    snapshot = adaptModelGraphToRenderer(GraphProjector.create({store: memoryStore}).project(DEFAULT_PROJECT_ID, DEFAULT_CHAPTER_ID));
     return snapshot;
   };
 
@@ -93,7 +93,7 @@ export function createEventSourcedGraphModel(config: {store: AsyncGraphEventStor
     async addNewSlice() {
       const newNodeNumber = Math.max(0, ...snapshot.nodes.map((node) => Number(node.id.replace('node-', '')) || 0)) + 1;
       const newNodeId = `node-${newNodeNumber}`;
-      return appendAndProject(Events.nodeAdded(DEFAULT_PROJECT_ID, newNodeId, 'ui', 0, `Node ${newNodeNumber}`));
+      return appendAndProject(Events.nodeAdded(DEFAULT_PROJECT_ID, DEFAULT_CHAPTER_ID, newNodeId, 'ui', 0, `Node ${newNodeNumber}`));
     },
     async addConnection(sourceNodeId: string, targetNodeId: string, role?: 'flow' | 'back-reference') {
       return appendAndProject(Events.nodesConnected(DEFAULT_PROJECT_ID, sourceNodeId, targetNodeId, role));
@@ -109,7 +109,7 @@ export function createEventSourcedGraphModel(config: {store: AsyncGraphEventStor
       const newNodeNumber = Math.max(0, ...snapshot.nodes.map((node) => Number(node.id.replace('node-', '')) || 0)) + 1;
       const newNodeId = `node-${newNodeNumber}`;
       return appendAndProject([
-        Events.nodeAdded(DEFAULT_PROJECT_ID, newNodeId, command.nodeType, command.laneId, command.label),
+        Events.nodeAdded(DEFAULT_PROJECT_ID, DEFAULT_CHAPTER_ID, newNodeId, command.nodeType, command.laneId, command.label),
         Events.nodesConnected(DEFAULT_PROJECT_ID, command.sourceNodeId, newNodeId, command.role),
       ]);
     },

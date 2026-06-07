@@ -2,6 +2,7 @@ import {Events, type DomainEvent} from '../domain/events';
 import type {NodeType} from './types';
 
 const DEFAULT_PROJECT_ID = 'default-project';
+const DEFAULT_CHAPTER_ID = 'default-chapter';
 
 export type ImportEventsResult =
   | {ok: true, events: DomainEvent[]}
@@ -48,6 +49,7 @@ function isDomainEvent(event: unknown): event is DomainEvent {
 function isKnownEventType(type: string): type is DomainEvent['type'] {
   return (
     type === 'NodeAdded' ||
+    type === 'NodeChapterChanged' ||
     type === 'NodeRenamed' ||
     type === 'NodeRemoved' ||
     type === 'NodeTypeChanged' ||
@@ -72,11 +74,14 @@ function isEventPayload(type: DomainEvent['type'], payload: unknown): boolean {
     case 'NodeAdded':
       return (
         typeof candidate.projectId === 'string' &&
+        typeof candidate.chapterId === 'string' &&
         typeof candidate.nodeId === 'string' &&
         isNodeType(candidate.type) &&
         typeof candidate.laneId === 'number' &&
         typeof candidate.label === 'string'
       );
+    case 'NodeChapterChanged':
+      return typeof candidate.projectId === 'string' && typeof candidate.nodeId === 'string' && typeof candidate.chapterId === 'string';
     case 'NodeRenamed':
       return typeof candidate.projectId === 'string' && typeof candidate.nodeId === 'string' && typeof candidate.newName === 'string';
     case 'NodeRemoved':
@@ -242,7 +247,7 @@ function isNodeComplexExampleValue(value: unknown): boolean {
 function legacySnapshotToEvents(snapshot: LegacyGraphSnapshot): DomainEvent[] {
   const nodeIds = new Set(snapshot.nodes.map((node) => node.id));
   return [
-    ...snapshot.nodes.map((node) => Events.nodeAdded(DEFAULT_PROJECT_ID, node.id, node.type, legacyLaneOrder(node.laneId) ?? 0, node.label)),
+    ...snapshot.nodes.map((node) => Events.nodeAdded(DEFAULT_PROJECT_ID, DEFAULT_CHAPTER_ID, node.id, node.type, legacyLaneOrder(node.laneId) ?? 0, node.label)),
     ...snapshot.edges
       .filter((edge) => nodeIds.has(edge.sourceId) && nodeIds.has(edge.targetId))
       .map((edge) => Events.nodesConnected(DEFAULT_PROJECT_ID, edge.sourceId, edge.targetId, edge.role)),

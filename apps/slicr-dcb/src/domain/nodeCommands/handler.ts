@@ -2,7 +2,7 @@ import {Handler, Query, Store, type Event} from '@slicr/event-sourcing';
 import {NodeType} from '../../graph/types';
 import {DomainEvent, Events, NodesConnected, NodesDisconnected, type NodePropertyExampleValues, type NodePropertySchema} from '../events';
 
-export type AddNodeCommand = { projectId: string, nodeType: NodeType, laneId: number, label: string };
+export type AddNodeCommand = { projectId: string, chapterId: string, nodeType: NodeType, laneId: number, label: string };
 export type RenameNodeCommand = { projectId: string, nodeId: string, newName: string };
 export type ChangeNodeTypeCommand = { projectId: string, nodeId: string, newType: NodeType };
 export type ChangeNodeSchemaCommand = { projectId: string, nodeId: string, schema: NodePropertySchema[] };
@@ -12,6 +12,7 @@ export type ConnectNodesCommand = { projectId: string, sourceNodeId: string, tar
 export type DisconnectNodesCommand = { projectId: string, sourceNodeId: string, targetNodeId: string };
 export type AddConnectedNodeCommand = {
   projectId: string,
+  chapterId: string,
   sourceNodeId: string,
   nodeType: NodeType,
   laneId: number,
@@ -81,7 +82,7 @@ export const addNodeHandler =
       query: () => Query.none(),
       project: () => undefined,
       decide: command => {
-        return Events.nodeAdded(command.projectId, uuidGenerator(), command.nodeType, command.laneId, command.label);
+        return Events.nodeAdded(command.projectId, command.chapterId, uuidGenerator(), command.nodeType, command.laneId, command.label);
       }
     });
 
@@ -95,7 +96,7 @@ export const addConnectedNodeHandler =
         assertNodeExists(command.sourceNodeId, sourceExists);
         const newNodeId = uuidGenerator();
         return [
-          Events.nodeAdded(command.projectId, newNodeId, command.nodeType, command.laneId, command.label),
+          Events.nodeAdded(command.projectId, command.chapterId, newNodeId, command.nodeType, command.laneId, command.label),
           Events.nodesConnected(command.projectId, command.sourceNodeId, newNodeId, command.role),
         ];
       }

@@ -45,10 +45,16 @@ export type ChapterId = string;
 
 export type NodeAdded = {
   projectId: ProjectId,
+  chapterId: ChapterId,
   nodeId: NodeId,
   type: NodeType,
   laneId: number,
   label: string,
+};
+export type NodeChapterChanged = {
+  projectId: ProjectId,
+  nodeId: NodeId,
+  chapterId: ChapterId,
 };
 export type NodeRenamed = {
   projectId: ProjectId,
@@ -96,6 +102,7 @@ export type ChapterRenamed = {
 
 export type DomainEvent =
   Event<'NodeAdded', NodeAdded> |
+  Event<'NodeChapterChanged', NodeChapterChanged> |
   Event<'NodeRenamed', NodeRenamed> |
   Event<'NodeRemoved', NodeRemoved> |
   Event<'NodeTypeChanged', NodeTypeChanged> |
@@ -109,11 +116,18 @@ export type DomainEvent =
   Event<'ChapterRenamed', ChapterRenamed>;
 
 export const Events = {
-  nodeAdded(projectId: ProjectId, nodeId: NodeId, type: NodeType, laneId: number, label?: string): Event<'NodeAdded', NodeAdded> {
+  nodeAdded(projectId: ProjectId, chapterId: ChapterId, nodeId: NodeId, type: NodeType, laneId: number, label?: string): Event<'NodeAdded', NodeAdded> {
     return {
       type: 'NodeAdded',
-      payload: {projectId, nodeId, type, label: label ?? type, laneId},
-      tags: [`projectId:${projectId}`, `nodeId:${nodeId}`, `type:${type}`]
+      payload: {projectId, chapterId, nodeId, type, label: label ?? type, laneId},
+      tags: [`projectId:${projectId}`, `chapterId:${chapterId}`, `nodeId:${nodeId}`, `type:${type}`]
+    };
+  },
+  nodeChapterChanged(projectId: ProjectId, nodeId: NodeId, chapterId: ChapterId): Event<'NodeChapterChanged', NodeChapterChanged> {
+    return {
+      type: 'NodeChapterChanged',
+      payload: {projectId, nodeId, chapterId},
+      tags: [`projectId:${projectId}`, `nodeId:${nodeId}`, `chapterId:${chapterId}`]
     };
   },
   nodeRenamed(projectId: ProjectId, nodeId: NodeId, newEventName: string): Event<'NodeRenamed', NodeRenamed> {

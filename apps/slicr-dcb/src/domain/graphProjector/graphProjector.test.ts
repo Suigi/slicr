@@ -12,7 +12,7 @@ describe('events project state', () => {
     const store = MemoryStore.create<DomainEvent>();
     const projector = GraphProjector.create({store});
     const nodeId = uuid();
-    store.append(Events.nodeAdded(projectId, nodeId, 'cmd', 1, 'Command'));
+    store.append(Events.nodeAdded(projectId, 'chapter-1', nodeId, 'cmd', 1, 'Command'));
 
     const model = projector.project(projectId);
 
@@ -31,8 +31,8 @@ describe('events project state', () => {
     const commandId = uuid();
     const eventId = uuid();
     store.append([
-      Events.nodeAdded(projectId, commandId, 'cmd', 1, 'Command'),
-      Events.nodeAdded(projectId, eventId, 'evt', 2, 'Event')
+      Events.nodeAdded(projectId, 'chapter-1', commandId, 'cmd', 1, 'Command'),
+      Events.nodeAdded(projectId, 'chapter-1', eventId, 'evt', 2, 'Event')
     ]);
 
     const model = projector.project(projectId);
@@ -50,11 +50,11 @@ describe('events project state', () => {
     const store = MemoryStore.create<DomainEvent>();
     const projector = GraphProjector.create({store});
     store.append([
-      Events.nodeAdded('project-1', 'shared-node', 'cmd', 0, 'Command'),
-      Events.nodeAdded('project-1', 'project-1-event', 'evt', 1, 'Event'),
+      Events.nodeAdded('project-1', 'chapter-1', 'shared-node', 'cmd', 0, 'Command'),
+      Events.nodeAdded('project-1', 'chapter-1', 'project-1-event', 'evt', 1, 'Event'),
       Events.nodesConnected('project-1', 'shared-node', 'project-1-event', 'flow'),
-      Events.nodeAdded('project-2', 'shared-node', 'dm', 9, 'Other Project Node'),
-      Events.nodeAdded('project-2', 'project-2-event', 'evt', 9, 'Other Project Event'),
+      Events.nodeAdded('project-2', 'chapter-1', 'shared-node', 'dm', 9, 'Other Project Node'),
+      Events.nodeAdded('project-2', 'chapter-1', 'project-2-event', 'evt', 9, 'Other Project Event'),
       Events.nodesConnected('project-2', 'shared-node', 'project-2-event', 'back-reference'),
       Events.nodeRenamed('project-2', 'shared-node', 'Renamed Elsewhere'),
     ]);
@@ -69,14 +69,37 @@ describe('events project state', () => {
       .toEqual([{sourceNodeId: 'shared-node', targetNodeId: 'project-1-event', role: 'flow'}]);
   });
 
+  it('projects only nodes in the requested chapter', () => {
+    const store = MemoryStore.create<DomainEvent>();
+    const projector = GraphProjector.create({store});
+    store.append([
+      {
+        type: 'NodeAdded',
+        payload: {projectId, chapterId: 'chapter-1', nodeId: 'chapter-1-node', type: 'cmd', laneId: 0, label: 'Chapter 1 Node'},
+        tags: ['projectId:project-1', 'nodeId:chapter-1-node', 'type:cmd'],
+      },
+      {
+        type: 'NodeAdded',
+        payload: {projectId, chapterId: 'chapter-2', nodeId: 'chapter-2-node', type: 'evt', laneId: 1, label: 'Chapter 2 Node'},
+        tags: ['projectId:project-1', 'nodeId:chapter-2-node', 'type:evt'],
+      },
+    ] as DomainEvent[]);
+
+    const model = projector.project(projectId, 'chapter-1');
+
+    expect(model.nodes).toEqual([
+      {nodeId: 'chapter-1-node', nodeType: 'cmd', laneId: 0, label: 'Chapter 1 Node'},
+    ]);
+  });
+
   it('lanes are generated based on the node laneId', () => {
     const store = MemoryStore.create<DomainEvent>();
     const projector = GraphProjector.create({store});
     const commandId = uuid();
     const eventId = uuid();
     store.append([
-      Events.nodeAdded(projectId, commandId, 'cmd', 0),
-      Events.nodeAdded(projectId, eventId, 'evt', 1),
+      Events.nodeAdded(projectId, 'chapter-1', commandId, 'cmd', 0),
+      Events.nodeAdded(projectId, 'chapter-1', eventId, 'evt', 1),
     ]);
 
     const model = projector.project(projectId);
@@ -93,7 +116,7 @@ describe('events project state', () => {
     const projector = GraphProjector.create({store});
     const commandId = uuid();
     store.append([
-      Events.nodeAdded(projectId, commandId, 'cmd', 0, 'Command'),
+      Events.nodeAdded(projectId, 'chapter-1', commandId, 'cmd', 0, 'Command'),
       Events.nodeRenamed(projectId, commandId, 'Renamed Command'),
     ]);
 
@@ -108,8 +131,8 @@ describe('events project state', () => {
     const projector = GraphProjector.create({store});
 
     store.append([
-      Events.nodeAdded(projectId, 'kept-node', 'dm', 0, 'Kept'),
-      Events.nodeAdded(projectId, 'removed-node', 'dm', 0, 'Removed'),
+      Events.nodeAdded(projectId, 'chapter-1', 'kept-node', 'dm', 0, 'Kept'),
+      Events.nodeAdded(projectId, 'chapter-1', 'removed-node', 'dm', 0, 'Removed'),
       Events.nodeSchemaChanged(projectId, 'kept-node', [
         {propertyId: 'old-title', name: 'oldTitle', type: 'string'},
       ]),
@@ -147,6 +170,88 @@ describe('events project state', () => {
     ]);
   });
 
+  it('ignores schemas examples and edges for nodes outside the requested chapter', () => {
+    const store = MemoryStore.create<DomainEvent>();
+    const projector = GraphProjector.create({store});
+
+    store.append([
+      {
+        type: 'NodeAdded',
+        payload: {projectId, chapterId: 'chapter-1', nodeId: 'visible-node', type: 'dm', laneId: 0, label: 'Visible'},
+        tags: ['projectId:project-1', 'nodeId:visible-node', 'type:dm'],
+      },
+      {
+        type: 'NodeAdded',
+        payload: {projectId, chapterId: 'chapter-2', nodeId: 'hidden-node', type: 'evt', laneId: 1, label: 'Hidden'},
+        tags: ['projectId:project-1', 'nodeId:hidden-node', 'type:evt'],
+      },
+      Events.nodeSchemaChanged(projectId, 'visible-node', [
+        {propertyId: 'prop-title', name: 'title', type: 'string'},
+      ]),
+      Events.nodeExampleValuesChanged(projectId, 'visible-node', [
+        {propertyId: 'prop-title', scalarValue: 'Visible example'},
+      ]),
+      Events.nodeSchemaChanged(projectId, 'hidden-node', [
+        {propertyId: 'prop-hidden', name: 'hidden', type: 'string'},
+      ]),
+      Events.nodeExampleValuesChanged(projectId, 'hidden-node', [
+        {propertyId: 'prop-hidden', scalarValue: 'Hidden example'},
+      ]),
+      Events.nodesConnected(projectId, 'visible-node', 'hidden-node', 'flow'),
+    ] as DomainEvent[]);
+
+    const model = projector.project(projectId, 'chapter-1');
+
+    expect(model.nodeSchemas).toEqual({
+      'visible-node': [
+        {propertyId: 'prop-title', name: 'title', type: 'string'},
+      ],
+    });
+    expect(model.nodeExampleValues).toEqual({
+      'visible-node': [
+        {propertyId: 'prop-title', scalarValue: 'Visible example'},
+      ],
+    });
+    expect(model.edges).toEqual([]);
+  });
+
+  it('projects nodes by their latest chapter membership', () => {
+    const store = MemoryStore.create<DomainEvent>();
+    const projector = GraphProjector.create({store});
+
+    store.append([
+      Events.nodeAdded(projectId, 'chapter-1', 'moving-node', 'dm', 0, 'Moving Node'),
+      Events.nodeSchemaChanged(projectId, 'moving-node', [
+        {propertyId: 'prop-title', name: 'title', type: 'string'},
+      ]),
+      Events.nodeExampleValuesChanged(projectId, 'moving-node', [
+        {propertyId: 'prop-title', scalarValue: 'Before move'},
+      ]),
+      Events.nodeChapterChanged(projectId, 'moving-node', 'chapter-2'),
+    ]);
+
+    expect(projector.project(projectId, 'chapter-1')).toEqual({
+      nodes: [],
+      edges: [],
+      lanes: [],
+      nodeSchemas: {},
+      nodeExampleValues: {},
+    });
+    expect(projector.project(projectId, 'chapter-2')).toEqual({
+      nodes: [
+        {nodeId: 'moving-node', nodeType: 'dm', laneId: 0, label: 'Moving Node'},
+      ],
+      edges: [],
+      lanes: [{id: 'lane-0', order: 0}],
+      nodeSchemas: {
+        'moving-node': [{propertyId: 'prop-title', name: 'title', type: 'string'}],
+      },
+      nodeExampleValues: {
+        'moving-node': [{propertyId: 'prop-title', scalarValue: 'Before move'}],
+      },
+    });
+  });
+
   it('replays the complete graph event stream deterministically', () => {
     const emptyStore = MemoryStore.create<DomainEvent>();
     expect(GraphProjector.create({store: emptyStore}).project(projectId))
@@ -160,10 +265,10 @@ describe('events project state', () => {
     const dataModelId = uuid();
     const missingId = uuid();
     store.append([
-      Events.nodeAdded(projectId, removedId, 'ui', 9, 'Removed'),
-      Events.nodeAdded(projectId, commandId, 'cmd', 3, 'Command'),
-      Events.nodeAdded(projectId, eventId, 'evt', 1, 'Event'),
-      Events.nodeAdded(projectId, dataModelId, 'dm', 3, 'Data'),
+      Events.nodeAdded(projectId, 'chapter-1', removedId, 'ui', 9, 'Removed'),
+      Events.nodeAdded(projectId, 'chapter-1', commandId, 'cmd', 3, 'Command'),
+      Events.nodeAdded(projectId, 'chapter-1', eventId, 'evt', 1, 'Event'),
+      Events.nodeAdded(projectId, 'chapter-1', dataModelId, 'dm', 3, 'Data'),
       Events.nodesConnected(projectId, removedId, commandId, 'flow'),
       Events.nodesConnected(projectId, commandId, eventId, 'flow'),
       Events.nodesConnected(projectId, eventId, dataModelId, 'back-reference'),

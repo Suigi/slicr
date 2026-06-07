@@ -8,7 +8,7 @@ const projectId = 'project-1';
 describe('import/export conversion utilities', () => {
   it('serializes ordered domain events for export', () => {
     const events: DomainEvent[] = [
-      Events.nodeAdded(projectId, 'node-1', 'ui', 0, 'Start'),
+      Events.nodeAdded(projectId, 'chapter-1', 'node-1', 'ui', 0, 'Start'),
       Events.nodeRenamed(projectId, 'node-1', 'Renamed'),
       Events.nodesConnected(projectId, 'node-1', 'node-2', 'flow'),
     ];
@@ -18,7 +18,7 @@ describe('import/export conversion utilities', () => {
 
   it('parses project-scoped graph event arrays and assigns the default project to legacy graph snapshots', () => {
     const events: DomainEvent[] = [
-      Events.nodeAdded(projectId, 'node-1', 'cmd', 1, 'Command'),
+      Events.nodeAdded(projectId, 'chapter-1', 'node-1', 'cmd', 1, 'Command'),
       Events.nodeTypeChanged(projectId, 'node-1', 'dm'),
     ];
     const legacySnapshot = {
@@ -38,22 +38,21 @@ describe('import/export conversion utilities', () => {
     expect(parseImportEvents(JSON.stringify(legacySnapshot))).toEqual({
       ok: true,
       events: [
-        Events.nodeAdded('default-project', 'node-1', 'cmd', 2, 'Command'),
-        Events.nodeAdded('default-project', 'node-2', 'evt', 2, 'Event'),
+        Events.nodeAdded('default-project', 'default-chapter', 'node-1', 'cmd', 2, 'Command'),
+        Events.nodeAdded('default-project', 'default-chapter', 'node-2', 'evt', 2, 'Event'),
         Events.nodesConnected('default-project', 'node-1', 'node-2', 'back-reference'),
       ],
     });
   });
 
-  it('parses workspace metadata event arrays as replacement event streams', () => {
+  it('parses chapter-aware graph event arrays as replacement event streams', () => {
     const events: DomainEvent[] = [
-      Events.projectAdded('project-1', 'Checkout System'),
-      Events.projectRenamed('project-1', 'Checkout Platform'),
-      Events.chapterAdded('project-1', 'chapter-1', 'Overview'),
-      Events.chapterRenamed('project-1', 'chapter-1', 'Project Overview'),
+      Events.nodeAdded('project-1', 'chapter-1', 'node-1', 'cmd', 1, 'Command'),
+      Events.nodeChapterChanged('project-1', 'node-1', 'chapter-2'),
     ];
 
     expect(parseImportEvents(JSON.stringify(events))).toEqual({ok: true, events});
+    expect(JSON.parse(serializeDomainEvents(events))).toEqual(events);
   });
 
   it('accepts and serializes node property event streams with valid required payloads', () => {
@@ -120,8 +119,8 @@ describe('import/export conversion utilities', () => {
     expect(parseImportEvents(JSON.stringify(legacySnapshot))).toEqual({
       ok: true,
       events: [
-        Events.nodeAdded('default-project', 'node-1', 'cmd', 2, 'Command'),
-        Events.nodeAdded('default-project', 'node-2', 'evt', 2, 'Event'),
+        Events.nodeAdded('default-project', 'default-chapter', 'node-1', 'cmd', 2, 'Command'),
+        Events.nodeAdded('default-project', 'default-chapter', 'node-2', 'evt', 2, 'Event'),
         Events.nodesConnected('default-project', 'node-1', 'node-2', 'back-reference'),
       ],
     });
