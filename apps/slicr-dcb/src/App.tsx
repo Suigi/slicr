@@ -346,6 +346,11 @@ export function App() {
     ? nodes.find((node) => node.id === connectingSourceNodeId)
     : undefined;
 
+  useEffect(() => {
+    setEditorFocusedPropertyId(null);
+    setHoveredPropertyId(null);
+  }, [focusedNodeId]);
+
   const exportCurrentEvents = async () => {
     await navigator.clipboard.writeText(serializeDomainEvents(await readGraphEvents()));
     setIsExportMenuOpen(false);

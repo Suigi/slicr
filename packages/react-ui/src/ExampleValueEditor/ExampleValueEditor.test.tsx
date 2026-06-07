@@ -22,6 +22,18 @@ function renderExampleValueEditor(properties: EditableProperty[], onChange = vi.
   return { container, onChange };
 }
 
+function renderFocusedExampleValueEditor(properties: EditableProperty[], focusedPropertyId: string | null) {
+  const container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+
+  act(() => {
+    root?.render(<ExampleValueEditor properties={properties} onChange={() => undefined} focusedPropertyId={focusedPropertyId} />);
+  });
+
+  return { container };
+}
+
 function setInputValue(input: HTMLInputElement, value: string) {
   act(() => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, value);
@@ -147,5 +159,52 @@ describe('ExampleValueEditor', () => {
         properties: [{ id: 'sku-id', name: 'sku', type: 'string', example: 'DEF' }],
       },
     ]);
+  });
+
+  it('applies focusedPropertyId to the matching object-list example table column in value-only mode', () => {
+    const property: EditableProperty = {
+      id: 'columns-id',
+      name: 'columns',
+      type: 'Object',
+      list: true,
+      properties: [
+        { id: 'field-id', name: 'field', type: 'string', example: 'firstName' },
+        { id: 'label-id', name: 'label', type: 'string', example: 'First name' },
+      ],
+      rows: [
+        { 'field-id': 'firstName', 'label-id': 'First name' },
+        { 'field-id': 'lastName', 'label-id': 'Last name' },
+      ],
+    };
+    const { container } = renderFocusedExampleValueEditor([property], 'field-id');
+
+    const highlightedCells = [...container.querySelectorAll<HTMLElement>('.property-editor-list-table .is-property-highlighted')];
+    const highlightedValues = highlightedCells.map((cell) => {
+      const input = cell.querySelector<HTMLInputElement>('input');
+      return input ? input.value : cell.textContent;
+    });
+    const topLevelRow = container.querySelector<HTMLElement>(':scope .property-editor > .property-editor-grid > .property-editor-row');
+
+    expect(topLevelRow?.classList.contains('property-editor-row-focused')).toBe(false);
+    expect(highlightedValues).toEqual(['field', 'firstName', 'lastName']);
+  });
+
+  it('highlights the primitive-list property when focusedPropertyId matches the parent list property id', () => {
+    const property: EditableProperty = {
+      id: 'tags-id',
+      name: 'tags',
+      type: 'string',
+      list: true,
+      exampleValues: ['alpha', 'beta'],
+    };
+    const { container } = renderFocusedExampleValueEditor([property], 'tags-id');
+
+    const topLevelRow = container.querySelector<HTMLElement>(':scope .property-editor > .property-editor-grid > .property-editor-row');
+    const listEditor = container.querySelector<HTMLElement>('.property-editor-list-editor');
+    const listRows = [...container.querySelectorAll<HTMLElement>('.property-editor-list-value-row:not(.property-editor-template-row)')];
+
+    expect(topLevelRow?.classList.contains('property-editor-row-focused')).toBe(true);
+    expect(listEditor?.classList.contains('is-property-highlighted')).toBe(true);
+    expect(listRows.every((row) => row.classList.contains('property-editor-row-focused'))).toBe(false);
   });
 });

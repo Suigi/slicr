@@ -187,6 +187,59 @@ describe('NodeEditor', () => {
     expect(exampleNestedRows[1]?.classList.contains('property-editor-row-focused')).toBe(false);
   });
 
+  it('highlights the matching schema property when an example list value receives focus', () => {
+    const properties: EditableProperty[] = [
+      {
+        id: 'prop-tags',
+        name: 'tags',
+        type: 'string',
+        list: true,
+        exampleValues: ['alpha', 'beta'],
+      },
+      {
+        id: 'prop-columns',
+        name: 'columns',
+        type: 'Object',
+        list: true,
+        properties: [
+          {id: 'field-id', name: 'field', type: 'string', example: 'firstName'},
+          {id: 'label-id', name: 'label', type: 'string', example: 'First name'},
+        ],
+        rows: [
+          {'field-id': 'firstName', 'label-id': 'First name'},
+          {'field-id': 'lastName', 'label-id': 'Last name'},
+        ],
+      },
+    ];
+    const {container} = renderFocusSynchronizedNodeEditor(properties);
+    const schemaSection = container.querySelector<HTMLElement>('.node-editor-schema');
+    const exampleSection = container.querySelector<HTMLElement>('.node-editor-example');
+    const primitiveListValueInput = exampleSection?.querySelector<HTMLInputElement>('input[value="alpha"]');
+
+    expect(primitiveListValueInput).toBeDefined();
+
+    act(() => {
+      primitiveListValueInput?.focus();
+    });
+
+    let schemaRows = getTopLevelPropertyRows(schemaSection!);
+    expect(schemaRows.map((row) => row.classList.contains('property-editor-row-focused'))).toEqual([true, false]);
+
+    const objectListValueInput = exampleSection?.querySelector<HTMLInputElement>('input[aria-label="field example value"]');
+
+    expect(objectListValueInput).toBeDefined();
+
+    act(() => {
+      objectListValueInput?.focus();
+    });
+
+    schemaRows = getTopLevelPropertyRows(schemaSection!);
+    const objectListNestedRows = getNestedPropertyRows(schemaSection!);
+
+    expect(schemaRows.map((row) => row.classList.contains('property-editor-row-focused'))).toEqual([false, false]);
+    expect(objectListNestedRows.map((row) => row.classList.contains('property-editor-row-focused'))).toEqual([true, false]);
+  });
+
   it('preserves example values when schema edits rename a property', () => {
     const properties: EditableProperty[] = [
       {id: 'prop-title', name: 'title', type: 'string', example: 'Hello world'},

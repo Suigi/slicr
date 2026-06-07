@@ -276,6 +276,11 @@
   background: #f8fafc;
 }
 
+.property-editor-list-editor.is-property-highlighted {
+  background: rgba(37, 99, 235, 0.08);
+  box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.24);
+}
+
 .property-editor-list-values {
   display: grid;
   background: #ffffff;
@@ -392,6 +397,11 @@
 .property-editor-list-table th:first-child,
 .property-editor-list-table td:first-child {
   width: 26px;
+}
+
+.property-editor-list-table .is-property-highlighted {
+  background: rgba(37, 99, 235, 0.08);
+  box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.24);
 }
 
 .property-editor-list-table th:last-child,

@@ -274,6 +274,122 @@ describe('App', () => {
     expect(exampleRows.map((row) => row.classList.contains('property-editor-row-focused'))).toEqual([false]);
   });
 
+  it('clears property highlight when the focused node is deselected and does not restore stale highlight on reselect', async () => {
+    const focusedNodeProperties = [
+      {id: 'prop-title', name: 'title', type: 'string', example: 'Hello'},
+      {id: 'prop-summary', name: 'summary', type: 'string', example: 'Short'},
+    ];
+    const nodePropertiesById = {
+      'node-1': focusedNodeProperties,
+    };
+    let focusedNodeId: string | null = 'node-1';
+
+    graphModelMock.useGraphModel.mockImplementation(() => createGraphModelMockValue({
+      focusedNodeId,
+      focusedNodeProperties: focusedNodeId ? focusedNodeProperties : [],
+      nodePropertiesById,
+    }));
+
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(createElement(App));
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      container?.querySelector<HTMLInputElement>('.node-detail-panel .node-editor-schema input[value="title"]')?.focus();
+    });
+
+    focusedNodeId = null;
+    await act(async () => {
+      root?.render(createElement(App));
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('.node-detail-panel')).toBeNull();
+
+    focusedNodeId = 'node-1';
+    await act(async () => {
+      root?.render(createElement(App));
+      await Promise.resolve();
+    });
+
+    const schemaRows = [...container.querySelectorAll<HTMLElement>('.node-detail-panel .node-editor-schema > .property-editor > .property-editor-grid > .property-editor-row:not(.property-editor-template-row)')];
+    const exampleRows = [...container.querySelectorAll<HTMLElement>('.node-detail-panel .node-editor-example > .property-editor > .property-editor-grid > .property-editor-row:not(.property-editor-template-row)')];
+    const graphGrid = container.querySelector<HTMLElement & { focusedPropertyId?: string | null }>('.canvas .node-box-with-properties property-grid.node-property-grid');
+
+    expect(schemaRows.map((row) => row.classList.contains('property-editor-row-focused'))).toEqual([false, false]);
+    expect(exampleRows.map((row) => row.classList.contains('property-editor-row-focused'))).toEqual([false, false]);
+    expect(graphGrid?.focusedPropertyId ?? null).toBeNull();
+  });
+
+  it('highlights the matching example-value table column when the focused node property grid hovers an object-list child property', async () => {
+    graphModelMock.useGraphModel.mockReturnValue(createGraphModelMockValue({
+      focusedNodeProperties: [
+        {
+          id: 'prop-columns',
+          name: 'columns',
+          type: 'Object',
+          list: true,
+          properties: [
+            {id: 'field-id', name: 'field', type: 'string', example: 'firstName'},
+            {id: 'label-id', name: 'label', type: 'string', example: 'First name'},
+          ],
+          rows: [
+            {'field-id': 'firstName', 'label-id': 'First name'},
+            {'field-id': 'lastName', 'label-id': 'Last name'},
+          ],
+        },
+      ],
+      nodePropertiesById: {
+        'node-1': [
+          {
+            id: 'prop-columns',
+            name: 'columns',
+            type: 'Object',
+            list: true,
+            properties: [
+              {id: 'field-id', name: 'field', type: 'string', example: 'firstName'},
+              {id: 'label-id', name: 'label', type: 'string', example: 'First name'},
+            ],
+            rows: [
+              {'field-id': 'firstName', 'label-id': 'First name'},
+              {'field-id': 'lastName', 'label-id': 'Last name'},
+            ],
+          },
+        ],
+      },
+    }));
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(createElement(App));
+      await Promise.resolve();
+    });
+
+    const graphGrid = container.querySelector<HTMLElement>('.canvas .node-box-with-properties property-grid.node-property-grid');
+    await act(async () => {
+      graphGrid?.dispatchEvent(new CustomEvent('property-grid-hovered-property-change', { bubbles: true, composed: true, detail: { propertyId: 'field-id' } }));
+    });
+
+    const schemaFieldRow = container
+      .querySelector<HTMLInputElement>('.node-detail-panel .node-editor-schema input[value="field"]')
+      ?.closest<HTMLElement>('.property-editor-row');
+    const exampleHighlightedCells = [...container.querySelectorAll<HTMLElement>('.node-detail-panel .node-editor-example .is-property-highlighted')];
+    const exampleHighlightedValues = exampleHighlightedCells.map((cell) => {
+      const input = cell.querySelector<HTMLInputElement>('input');
+      return input ? input.value : cell.textContent;
+    });
+
+    expect(schemaFieldRow?.classList.contains('property-editor-row-focused')).toBe(true);
+    expect(exampleHighlightedValues).toEqual(['field', 'firstName', 'lastName']);
+  });
+
   it('does not start node title editing when Enter is pressed inside the property editor', async () => {
     const startEditingNode = vi.fn();
     graphModelMock.useGraphModel.mockReturnValue(createGraphModelMockValue({ startEditingNode }));

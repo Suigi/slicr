@@ -34,6 +34,7 @@ type ListFieldDefinition = {
   path: string[];
   key: string;
   label: string;
+  propertyId: string | null;
 };
 
 const getPropertyKey = (property: EditableProperty) => property.id ?? property.name;
@@ -53,6 +54,7 @@ const collectListFieldDefinitions = (
         path,
         key: path.join('.'),
         label: parentNames.length > 0 ? `${parentNames.join(' ')} ${property.name}` : property.name,
+        propertyId: property.id ?? null,
       }];
     }
 
@@ -545,9 +547,15 @@ export function PropertyEditorInternal({ properties, onChange, options, focusedP
   };
 
   const getPropertyRowClassName = (property: EditableProperty) => `property-editor-row${property.id === focusedPropertyId ? ' property-editor-row-focused' : ''}`;
+  const getFocusedListCellClassName = (propertyId: string | null) => propertyId && propertyId === focusedPropertyId ? 'is-property-highlighted' : '';
+  const getFocusedListEditorClassName = (property: EditableProperty) => property.id === focusedPropertyId ? 'property-editor-list-editor is-property-highlighted' : 'property-editor-list-editor';
+
+  const focusPropertyId = (propertyId: string | null) => {
+    onFocusedPropertyChange?.(propertyId);
+  };
 
   const focusProperty = (property: EditableProperty) => {
-    onFocusedPropertyChange?.(property.id ?? null);
+    focusPropertyId(property.id ?? null);
   };
 
   const handlePropertyShortcut = (event: KeyboardEvent, index: number) => {
@@ -848,7 +856,7 @@ export function PropertyEditorInternal({ properties, onChange, options, focusedP
               ) : null}
 
               {property.list && !schemaOnly ? (
-                <div className="property-editor-list-editor">
+                <div className={getFocusedListEditorClassName(property)}>
                   {property.type === 'Object' ? (
                     <div className="property-editor-list-table-wrap">
                       {(() => {
@@ -861,7 +869,7 @@ export function PropertyEditorInternal({ properties, onChange, options, focusedP
                               <tr>
                                 <th aria-label="Reorder" />
                                 {fieldDefinitions.map((fieldDefinition) => (
-                                  <th key={fieldDefinition.key}>{fieldDefinition.label || 'Unnamed'}</th>
+                                  <th key={fieldDefinition.key} className={getFocusedListCellClassName(fieldDefinition.propertyId)}>{fieldDefinition.label || 'Unnamed'}</th>
                                 ))}
                                 <th aria-label="Actions" />
                               </tr>
@@ -902,7 +910,11 @@ export function PropertyEditorInternal({ properties, onChange, options, focusedP
                                       const fieldValue = getValueAtPath(objectValue, fieldDefinition.path) ?? '';
 
                                       return (
-                                        <td key={fieldDefinition.key}>
+                                        <td
+                                          key={fieldDefinition.key}
+                                          className={getFocusedListCellClassName(fieldDefinition.propertyId)}
+                                          onFocusCapture={() => focusPropertyId(fieldDefinition.propertyId)}
+                                        >
                                           <input
                                             type="text"
                                             value={String(fieldValue)}
@@ -937,7 +949,7 @@ export function PropertyEditorInternal({ properties, onChange, options, focusedP
                                 <tr className="property-editor-template-row" onKeyDown={(event) => handleTemplateShortcut(event)}>
                                   <td className="property-editor-list-reorder-cell" aria-hidden="true" />
                                   {fieldDefinitions.map((fieldDefinition) => (
-                                    <td key={fieldDefinition.key}>
+                                    <td key={fieldDefinition.key} onFocusCapture={() => focusPropertyId(fieldDefinition.propertyId)}>
                                       <input
                                         type="text"
                                         value={templateDraft[fieldDefinition.key] ?? ''}
@@ -1007,6 +1019,7 @@ export function PropertyEditorInternal({ properties, onChange, options, focusedP
                             type="text"
                             value={typeof exampleValue === 'string' ? exampleValue : ''}
                             placeholder="example value"
+                            onFocusCapture={() => focusProperty(property)}
                             onChange={(event) => updatePrimitiveExampleValue(index, property, exampleIndex, event.target.value)}
                           />
                           <div className="property-editor-row-actions">
@@ -1037,6 +1050,7 @@ export function PropertyEditorInternal({ properties, onChange, options, focusedP
                           defaultValue=""
                           placeholder="Add value"
                           aria-label="Add value"
+                          onFocusCapture={() => focusProperty(property)}
                           onBlur={(event) => addPrimitiveExampleValueFromTemplateInput(index, property, event.currentTarget)}
                           onKeyDown={(event) => {
                             if (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.metaKey && event.currentTarget.value.trim()) {
