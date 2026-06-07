@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PropertyEditor, type EditableProperty } from './PropertyEditor';
+import { createNestedPropertyEditorOptions } from './PropertyEditor.shared';
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -212,6 +213,25 @@ describe('PropertyEditor', () => {
     expect(nestedToolbarText).not.toContain('Generated');
     expect(nestedToolbarText).not.toContain('Tag');
     expect(nestedToolbar?.querySelector('.property-editor-tag-name-input')).toBeNull();
+  });
+
+  it('derives nested editor options from the parent object property mode', () => {
+    expect(
+      createNestedPropertyEditorOptions(
+        {
+          showPropertyToolbar: true,
+          showExtendedPropertyToolbarControls: true,
+          showColumnHeaders: true,
+          disableExampleValues: false,
+        },
+        { list: true },
+      ),
+    ).toEqual({
+      showPropertyToolbar: true,
+      showExtendedPropertyToolbarControls: false,
+      showColumnHeaders: false,
+      disableExampleValues: true,
+    });
   });
 
   it('hides property toolbar, column headers, and editable examples when configured', () => {

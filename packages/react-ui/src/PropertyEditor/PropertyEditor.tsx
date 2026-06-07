@@ -1,19 +1,16 @@
 import { Fragment, useRef, useState, type KeyboardEvent } from 'react';
-import type { PropertyGridEditableProperty, PropertyGridTableRow } from '../PropertyGrid';
+import type { PropertyGridTableRow } from '../PropertyGrid';
+import {
+  createNestedPropertyEditorOptions,
+  propertyTypes,
+  type EditableProperty,
+  type PropertyEditorOptions,
+  type PropertyExampleValue,
+  type PropertyType,
+} from './PropertyEditor.shared';
 import './PropertyEditor.css';
 
-const propertyTypes = ['string', 'number', 'boolean', 'Object'] as const;
-
-export type PropertyType = (typeof propertyTypes)[number];
-
-export type PropertyExampleValue = string | PropertyGridTableRow;
-
-export type EditableProperty = Omit<PropertyGridEditableProperty, 'type' | 'value' | 'properties' | 'exampleValues' | 'rows'> & {
-  type: PropertyType;
-  properties?: EditableProperty[];
-  exampleValues?: PropertyExampleValue[];
-  rows?: PropertyGridTableRow[];
-};
+export type { EditableProperty, PropertyExampleValue, PropertyType } from './PropertyEditor.shared';
 
 type PropertyEditorProps = {
   properties: EditableProperty[];
@@ -33,6 +30,12 @@ const emptyProperty = (): EditableProperty => ({
   example: '',
 });
 
+type PropertyEditorInternalProps = {
+  properties: EditableProperty[];
+  onChange: (properties: EditableProperty[]) => void;
+  options: PropertyEditorOptions;
+};
+
 export function PropertyEditor({
   properties,
   onChange,
@@ -41,7 +44,23 @@ export function PropertyEditor({
   showColumnHeaders = true,
   disableExampleValues = false,
 }: PropertyEditorProps) {
+  return (
+    <PropertyEditorInternal
+      properties={properties}
+      onChange={onChange}
+      options={{
+        showPropertyToolbar,
+        showExtendedPropertyToolbarControls,
+        showColumnHeaders,
+        disableExampleValues,
+      }}
+    />
+  );
+}
+
+function PropertyEditorInternal({ properties, onChange, options }: PropertyEditorInternalProps) {
   const editorProperties = properties;
+  const { showPropertyToolbar, showExtendedPropertyToolbarControls, showColumnHeaders, disableExampleValues } = options;
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [draggedExample, setDraggedExample] = useState<{ propertyIndex: number; exampleIndex: number } | null>(null);
   const [settingsIndex, setSettingsIndex] = useState<number | null>(null);
@@ -632,12 +651,10 @@ export function PropertyEditor({
 
               {property.type === 'Object' ? (
                 <div className="property-editor-nested">
-                  <PropertyEditor
+                  <PropertyEditorInternal
                     properties={property.properties ?? []}
                     onChange={(nestedProperties) => updateNestedProperties(index, nestedProperties)}
-                    showExtendedPropertyToolbarControls={false}
-                    showColumnHeaders={false}
-                    disableExampleValues={property.list}
+                    options={createNestedPropertyEditorOptions(options, property)}
                   />
                 </div>
               ) : null}
