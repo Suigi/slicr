@@ -224,6 +224,7 @@ describe('PropertyEditor', () => {
           showColumnHeaders: true,
           disableExampleValues: false,
           schemaOnly: false,
+          valueOnly: false,
         },
         { list: true },
       ),
@@ -233,6 +234,7 @@ describe('PropertyEditor', () => {
       showColumnHeaders: false,
       disableExampleValues: true,
       schemaOnly: false,
+      valueOnly: false,
     });
   });
 

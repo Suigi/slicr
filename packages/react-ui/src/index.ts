@@ -8,6 +8,8 @@ export type {
 } from './CardTags';
 export { PropertyEditor } from './PropertyEditor';
 export type { EditableProperty, PropertyExampleValue, PropertyType } from './PropertyEditor';
+export { ExampleValueEditor } from './ExampleValueEditor';
+export type { ExampleValueEditorProps } from './ExampleValueEditor';
 export { SchemaEditor } from './SchemaEditor';
 export type { SchemaEditorProps } from './SchemaEditor';
 export { PropertyGrid, toPropertyGridProperties } from './PropertyGrid';
