@@ -93,7 +93,7 @@ describe('App', () => {
     ...overrides,
   });
 
-  it('opens a right side panel showing the focused node title and properties editor', async () => {
+  it('opens a right side panel showing the focused node title with schema and example editors', async () => {
     graphModelMock.useGraphModel.mockReturnValue(createGraphModelMockValue());
     container = document.createElement('div');
     document.body.append(container);
@@ -107,16 +107,23 @@ describe('App', () => {
     const panel = container.querySelector('.node-detail-panel');
     const title = panel?.querySelector('.node-detail-title');
     const propertiesHeading = panel?.querySelector('.node-detail-properties-heading');
-    const propertyEditor = panel?.querySelector('.property-editor');
+    const nodeEditor = panel?.querySelector('.node-editor');
+    const schemaHeading = panel?.querySelector('.node-editor-schema-heading');
+    const exampleHeading = panel?.querySelector('.node-editor-example-heading');
+    const propertyEditors = panel?.querySelectorAll('.property-editor');
 
     expect(panel).not.toBeNull();
     expect(panel?.getAttribute('aria-label')).toBe('Focused node details');
     expect(title?.textContent).toBe('Checkout Completed');
     expect(title?.classList.contains('node-detail-title-evt')).toBe(true);
     expect(propertiesHeading?.textContent).toBe('Properties');
-    expect(propertyEditor).not.toBeNull();
+    expect(nodeEditor).not.toBeNull();
+    expect(schemaHeading?.textContent).toBe('Schema');
+    expect(exampleHeading?.textContent).toBe('Example values');
+    expect(propertyEditors).toHaveLength(2);
     expect(title?.compareDocumentPosition(propertiesHeading as Node) ?? 0).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-    expect(propertiesHeading?.compareDocumentPosition(propertyEditor as Node) ?? 0).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(propertiesHeading?.compareDocumentPosition(nodeEditor as Node) ?? 0).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(schemaHeading?.compareDocumentPosition(exampleHeading as Node) ?? 0).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
   it('renders focused-node properties supplied by the graph model hook', async () => {

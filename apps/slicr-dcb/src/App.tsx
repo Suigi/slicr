@@ -5,6 +5,7 @@ import { AppShell } from './components/AppShell';
 import { ChapterSidebar, type Chapter } from './components/ChapterSidebar';
 import { EdgeLayer } from './components/EdgeLayer';
 import { GraphNodeView } from './components/GraphNodeView';
+import { NodeEditor } from './components/NodeEditor';
 import { NodeMeasureLayer } from './components/NodeMeasureLayer';
 import { ProjectSwitcher, type Project } from './components/ProjectSwitcher';
 import { NODE_HEIGHT, NODE_WIDTH } from './graph/constants';
@@ -546,7 +547,7 @@ export function App() {
             <h3 id="node-detail-properties-heading" className="node-detail-properties-heading">
               Properties
             </h3>
-            <PropertyEditor properties={focusedNodeProperties} onChange={updateFocusedNodeProperties} />
+            <NodeEditor properties={focusedNodeProperties} onChange={updateFocusedNodeProperties} />
           </section>
         </aside>
       ) : null}

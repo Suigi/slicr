@@ -39,11 +39,11 @@ describe('App import/export property event flow', () => {
     container?.remove();
     container = null;
     globalThis.indexedDB = originalIndexedDb;
-    window.localStorage.clear();
+    window.localStorage?.clear?.();
     vi.restoreAllMocks();
   });
 
-  it('shows imported node property events in the focused node side panel', async () => {
+  it('shows imported node property events in split schema and example editors in the focused node side panel', async () => {
     globalThis.indexedDB = undefined as unknown as typeof indexedDB;
     const importedEvents = [
       Events.nodeAdded('node-1', 'evt', 0, 'Checkout Completed'),
@@ -79,12 +79,14 @@ describe('App import/export property event flow', () => {
     });
 
     const title = container.querySelector('.node-detail-title');
-    const propertyNameInput = container.querySelector<HTMLInputElement>('.property-editor-field input[placeholder="propertyName"]');
-    const inputs = [...container.querySelectorAll<HTMLInputElement>('input')].map((input) => input.value);
+    const nodeEditor = container.querySelector('.node-editor');
+    const schemaNameInput = container.querySelector<HTMLInputElement>('.node-editor-schema input[placeholder="propertyName"]');
+    const exampleInput = container.querySelector<HTMLInputElement>('.node-editor-example input[placeholder="optional"]');
 
     expect(title?.textContent).toBe('Checkout Completed');
-    expect(propertyNameInput?.value).toBe('title');
-    expect(inputs).toContain('Hello world');
+    expect(nodeEditor).not.toBeNull();
+    expect(schemaNameInput?.value).toBe('title');
+    expect(exampleInput?.value).toBe('Hello world');
   });
 
   it('exports persisted property events after a debounced property edit', async () => {
