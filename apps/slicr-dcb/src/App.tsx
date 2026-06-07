@@ -197,7 +197,7 @@ export function App() {
   const measurementLayerRef = useRef<HTMLDivElement>(null);
   const [activeProjectId, setActiveProjectId] = useState('checkout-system');
   const [activeChapterId, setActiveChapterId] = useState('cart-events');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [propertyGridMockups, setPropertyGridMockups] = useState<PropertyGridCardMockup[]>(initialPropertyGridCardMockups);
   const [selectedPropertyGridMockupVariant, setSelectedPropertyGridMockupVariant] = useState(initialPropertyGridCardMockups[0]?.variant ?? '');
