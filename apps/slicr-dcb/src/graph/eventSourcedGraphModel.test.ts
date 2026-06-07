@@ -4,6 +4,8 @@ import {createEventSourcedGraphModel, type AsyncGraphEventStore} from './eventSo
 import {Events, type DomainEvent} from '../domain/events';
 import {NODE_HEIGHT, NODE_WIDTH} from './constants';
 
+const defaultProjectId = 'default-project';
+
 function createStore(events: DomainEvent[] = []): AsyncGraphEventStore {
   return {
     append: async (nextEvents) => {
@@ -27,13 +29,13 @@ describe('createEventSourcedGraphModel', () => {
     await model.load();
 
     expect(events).toEqual([
-      Events.projectAdded('default-project', 'Default Project'),
-      Events.chapterAdded('default-project', 'default-chapter', 'Chapter 1'),
+      Events.projectAdded(defaultProjectId, 'Default Project'),
+      Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
     ]);
     expect(model.getSnapshot()).toEqual({nodes: [], edges: [], lanes: [], nodeSchemas: {}, nodeExampleValues: {}});
   });
 
-  it('appends a node event and reprojects the renderer graph', async () => {
+  it('appends default-project scoped node events and reprojects the default project renderer graph', async () => {
     const events: DomainEvent[] = [];
     const model = createEventSourcedGraphModel({store: createStore(events)});
     await model.load();
@@ -41,12 +43,12 @@ describe('createEventSourcedGraphModel', () => {
     await model.addNewSlice();
 
     expect(events).toEqual([
-      Events.projectAdded('default-project', 'Default Project'),
-      Events.chapterAdded('default-project', 'default-chapter', 'Chapter 1'),
+      Events.projectAdded(defaultProjectId, 'Default Project'),
+      Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
       {
         type: 'NodeAdded',
-        payload: {nodeId: 'node-1', type: 'ui', laneId: 0, label: 'Node 1'},
-        tags: ['nodeId:node-1', 'type:ui'],
+        payload: {projectId: defaultProjectId, nodeId: 'node-1', type: 'ui', laneId: 0, label: 'Node 1'},
+        tags: ['projectId:default-project', 'nodeId:node-1', 'type:ui'],
       },
     ]);
     expect(model.getSnapshot()).toEqual({
@@ -68,7 +70,7 @@ describe('createEventSourcedGraphModel', () => {
   });
 
   it('persists changed node property schema and examples while skipping unchanged payloads', async () => {
-    const events: DomainEvent[] = [Events.nodeAdded('node-1', 'evt', 0)];
+    const events: DomainEvent[] = [Events.nodeAdded(defaultProjectId, 'node-1', 'evt', 0)];
     const model = createEventSourcedGraphModel({store: createStore(events)});
     await model.load();
 
@@ -81,8 +83,8 @@ describe('createEventSourcedGraphModel', () => {
     await model.changeNodeExampleValues({nodeId: 'node-1', exampleValues});
 
     expect(events.slice(1)).toEqual([
-      Events.nodeSchemaChanged('node-1', schema),
-      Events.nodeExampleValuesChanged('node-1', exampleValues),
+      Events.nodeSchemaChanged(defaultProjectId, 'node-1', schema),
+      Events.nodeExampleValuesChanged(defaultProjectId, 'node-1', exampleValues),
     ]);
     expect(model.getSnapshot().nodeSchemas).toEqual({'node-1': schema});
     expect(model.getSnapshot().nodeExampleValues).toEqual({'node-1': exampleValues});
@@ -116,28 +118,28 @@ describe('createEventSourcedGraphModel', () => {
     expect(events.slice(4)).toEqual([
       {
         type: 'NodesConnected',
-        payload: {sourceNodeId: 'node-1', targetNodeId: 'node-2', role: 'flow'},
-        tags: ['nodeId:node-1', 'nodeId:node-2', 'role:flow'],
+        payload: {projectId: defaultProjectId, sourceNodeId: 'node-1', targetNodeId: 'node-2', role: 'flow'},
+        tags: ['projectId:default-project', 'nodeId:node-1', 'nodeId:node-2', 'role:flow', 'connection:node-1->node-2'],
       },
       {
         type: 'NodesDisconnected',
-        payload: {sourceNodeId: 'node-1', targetNodeId: 'node-2'},
-        tags: ['nodeId:node-1', 'nodeId:node-2', 'connection:node-1->node-2'],
+        payload: {projectId: defaultProjectId, sourceNodeId: 'node-1', targetNodeId: 'node-2'},
+        tags: ['projectId:default-project', 'nodeId:node-1', 'nodeId:node-2', 'connection:node-1->node-2'],
       },
       {
         type: 'NodeRenamed',
-        payload: {nodeId: 'node-2', newName: 'Renamed node'},
-        tags: ['nodeId:node-2'],
+        payload: {projectId: defaultProjectId, nodeId: 'node-2', newName: 'Renamed node'},
+        tags: ['projectId:default-project', 'nodeId:node-2'],
       },
       {
         type: 'NodeTypeChanged',
-        payload: {nodeId: 'node-2', newType: 'cmd'},
-        tags: ['nodeId:node-2', 'type:cmd'],
+        payload: {projectId: defaultProjectId, nodeId: 'node-2', newType: 'cmd'},
+        tags: ['projectId:default-project', 'nodeId:node-2', 'type:cmd'],
       },
       {
         type: 'NodeRemoved',
-        payload: {nodeId: 'node-1'},
-        tags: ['nodeId:node-1'],
+        payload: {projectId: defaultProjectId, nodeId: 'node-1'},
+        tags: ['projectId:default-project', 'nodeId:node-1'],
       },
     ]);
     expect(model.getSnapshot()).toMatchObject({

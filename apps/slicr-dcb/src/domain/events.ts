@@ -29,11 +29,13 @@ export type NodePropertyExampleValues = {
 };
 
 export type NodeSchemaChanged = {
+  projectId: ProjectId,
   nodeId: NodeId,
   schema: NodePropertySchema[],
 };
 
 export type NodeExampleValuesChanged = {
+  projectId: ProjectId,
   nodeId: NodeId,
   exampleValues: NodePropertyExampleValues[],
 };
@@ -42,28 +44,34 @@ export type ProjectId = string;
 export type ChapterId = string;
 
 export type NodeAdded = {
+  projectId: ProjectId,
   nodeId: NodeId,
   type: NodeType,
   laneId: number,
   label: string,
 };
 export type NodeRenamed = {
+  projectId: ProjectId,
   nodeId: NodeId,
   newName: string
 };
 export type NodeRemoved = {
+  projectId: ProjectId,
   nodeId: NodeId
 };
 export type NodeTypeChanged = {
+  projectId: ProjectId,
   nodeId: NodeId,
   newType: NodeType
 };
 export type NodesConnected = {
+  projectId: ProjectId,
   sourceNodeId: NodeId,
   targetNodeId: NodeId,
   role: 'flow' | 'back-reference'
 };
 export type NodesDisconnected = {
+  projectId: ProjectId,
   sourceNodeId: NodeId,
   targetNodeId: NodeId
 };
@@ -101,64 +109,64 @@ export type DomainEvent =
   Event<'ChapterRenamed', ChapterRenamed>;
 
 export const Events = {
-  nodeAdded(nodeId: NodeId, type: NodeType, laneId: number, label?: string): Event<'NodeAdded', NodeAdded> {
+  nodeAdded(projectId: ProjectId, nodeId: NodeId, type: NodeType, laneId: number, label?: string): Event<'NodeAdded', NodeAdded> {
     return {
       type: 'NodeAdded',
-      payload: {nodeId, type, label: label ?? type, laneId},
-      tags: [`nodeId:${nodeId}`, `type:${type}`]
+      payload: {projectId, nodeId, type, label: label ?? type, laneId},
+      tags: [`projectId:${projectId}`, `nodeId:${nodeId}`, `type:${type}`]
     };
   },
-  nodeRenamed(nodeId: NodeId, newEventName: string): Event<'NodeRenamed', NodeRenamed> {
+  nodeRenamed(projectId: ProjectId, nodeId: NodeId, newEventName: string): Event<'NodeRenamed', NodeRenamed> {
     return {
       type: 'NodeRenamed',
-      payload: {nodeId, newName: newEventName},
-      tags: [`nodeId:${nodeId}`]
+      payload: {projectId, nodeId, newName: newEventName},
+      tags: [`projectId:${projectId}`, `nodeId:${nodeId}`]
     };
   },
-  nodeRemoved(nodeId: NodeId): Event<'NodeRemoved', NodeRemoved> {
+  nodeRemoved(projectId: ProjectId, nodeId: NodeId): Event<'NodeRemoved', NodeRemoved> {
     return {
       type: 'NodeRemoved',
-      payload: {nodeId},
-      tags: [`nodeId:${nodeId}`]
+      payload: {projectId, nodeId},
+      tags: [`projectId:${projectId}`, `nodeId:${nodeId}`]
     };
   },
-  nodeTypeChanged(nodeId: NodeId, newType: NodeType): Event<'NodeTypeChanged', NodeTypeChanged> {
+  nodeTypeChanged(projectId: ProjectId, nodeId: NodeId, newType: NodeType): Event<'NodeTypeChanged', NodeTypeChanged> {
     return {
       type: 'NodeTypeChanged',
-      payload: {nodeId, newType},
-      tags: [`nodeId:${nodeId}`, `type:${newType}`]
+      payload: {projectId, nodeId, newType},
+      tags: [`projectId:${projectId}`, `nodeId:${nodeId}`, `type:${newType}`]
     };
   },
-  nodeSchemaChanged(nodeId: NodeId, schema: NodePropertySchema[]): Event<'NodeSchemaChanged', NodeSchemaChanged> {
+  nodeSchemaChanged(projectId: ProjectId, nodeId: NodeId, schema: NodePropertySchema[]): Event<'NodeSchemaChanged', NodeSchemaChanged> {
     return {
       type: 'NodeSchemaChanged',
-      payload: {nodeId, schema},
-      tags: [`nodeId:${nodeId}`]
+      payload: {projectId, nodeId, schema},
+      tags: [`projectId:${projectId}`, `nodeId:${nodeId}`]
     };
   },
-  nodeExampleValuesChanged(nodeId: NodeId,
+  nodeExampleValuesChanged(projectId: ProjectId, nodeId: NodeId,
                            exampleValues: NodePropertyExampleValues[]): Event<'NodeExampleValuesChanged', NodeExampleValuesChanged> {
     return {
       type: 'NodeExampleValuesChanged',
-      payload: {nodeId, exampleValues},
-      tags: [`nodeId:${nodeId}`]
+      payload: {projectId, nodeId, exampleValues},
+      tags: [`projectId:${projectId}`, `nodeId:${nodeId}`]
     };
   },
-  nodesConnected(sourceNodeId: NodeId,
+  nodesConnected(projectId: ProjectId, sourceNodeId: NodeId,
                  targetNodeId: NodeId,
                  role?: 'flow' | 'back-reference'): Event<'NodesConnected', NodesConnected> {
     const defaultedRole = role ?? 'flow';
     return {
       type: 'NodesConnected',
-      payload: {sourceNodeId, targetNodeId, role: defaultedRole},
-      tags: [`nodeId:${sourceNodeId}`, `nodeId:${targetNodeId}`, `role:${defaultedRole}`]
+      payload: {projectId, sourceNodeId, targetNodeId, role: defaultedRole},
+      tags: [`projectId:${projectId}`, `nodeId:${sourceNodeId}`, `nodeId:${targetNodeId}`, `role:${defaultedRole}`, `connection:${sourceNodeId}->${targetNodeId}`]
     };
   },
-  nodesDisconnected(sourceNodeId: NodeId, targetNodeId: NodeId): Event<'NodesDisconnected', NodesDisconnected> {
+  nodesDisconnected(projectId: ProjectId, sourceNodeId: NodeId, targetNodeId: NodeId): Event<'NodesDisconnected', NodesDisconnected> {
     return {
       type: 'NodesDisconnected',
-      payload: {sourceNodeId, targetNodeId},
-      tags: [`nodeId:${sourceNodeId}`, `nodeId:${targetNodeId}`, `connection:${sourceNodeId}->${targetNodeId}`]
+      payload: {projectId, sourceNodeId, targetNodeId},
+      tags: [`projectId:${projectId}`, `nodeId:${sourceNodeId}`, `nodeId:${targetNodeId}`, `connection:${sourceNodeId}->${targetNodeId}`]
     };
   },
   projectAdded(projectId: ProjectId, name: string): Event<'ProjectAdded', ProjectAdded> {

@@ -5,14 +5,16 @@ import {MemoryStore} from '@slicr/event-sourcing';
 import {DomainEvent, Events} from '../events';
 import {GraphProjector} from './graphProjector';
 
+const projectId = 'project-1';
+
 describe('events project state', () => {
   it('empty store projects to empty model graph', () => {
     const store = MemoryStore.create<DomainEvent>();
     const projector = GraphProjector.create({store});
     const nodeId = uuid();
-    store.append(Events.nodeAdded(nodeId, 'cmd', 1, 'Command'));
+    store.append(Events.nodeAdded(projectId, nodeId, 'cmd', 1, 'Command'));
 
-    const model = projector.project();
+    const model = projector.project(projectId);
 
     expect(model.nodes)
       .toEqual([{
@@ -29,11 +31,11 @@ describe('events project state', () => {
     const commandId = uuid();
     const eventId = uuid();
     store.append([
-      Events.nodeAdded(commandId, 'cmd', 1, 'Command'),
-      Events.nodeAdded(eventId, 'evt', 2, 'Event')
+      Events.nodeAdded(projectId, commandId, 'cmd', 1, 'Command'),
+      Events.nodeAdded(projectId, eventId, 'evt', 2, 'Event')
     ]);
 
-    const model = projector.project();
+    const model = projector.project(projectId);
 
     expect(model.nodes)
       .toMatchObject([
@@ -44,21 +46,27 @@ describe('events project state', () => {
       .toEqual([]);
   });
 
-  it('connected nodes project to an edge', () => {
+  it('projects only the requested project graph events', () => {
     const store = MemoryStore.create<DomainEvent>();
     const projector = GraphProjector.create({store});
-    const commandId = uuid();
-    const eventId = uuid();
     store.append([
-      Events.nodeAdded(commandId, 'cmd', 0),
-      Events.nodeAdded(eventId, 'evt', 0),
-      Events.nodesConnected(commandId, eventId, 'flow')
+      Events.nodeAdded('project-1', 'shared-node', 'cmd', 0, 'Command'),
+      Events.nodeAdded('project-1', 'project-1-event', 'evt', 1, 'Event'),
+      Events.nodesConnected('project-1', 'shared-node', 'project-1-event', 'flow'),
+      Events.nodeAdded('project-2', 'shared-node', 'dm', 9, 'Other Project Node'),
+      Events.nodeAdded('project-2', 'project-2-event', 'evt', 9, 'Other Project Event'),
+      Events.nodesConnected('project-2', 'shared-node', 'project-2-event', 'back-reference'),
+      Events.nodeRenamed('project-2', 'shared-node', 'Renamed Elsewhere'),
     ]);
 
-    const model = projector.project();
+    const model = projector.project('project-1');
 
+    expect(model.nodes).toEqual([
+      {nodeId: 'shared-node', nodeType: 'cmd', laneId: 0, label: 'Command'},
+      {nodeId: 'project-1-event', nodeType: 'evt', laneId: 1, label: 'Event'},
+    ]);
     expect(model.edges)
-      .toEqual([{sourceNodeId: commandId, targetNodeId: eventId, role: 'flow'}]);
+      .toEqual([{sourceNodeId: 'shared-node', targetNodeId: 'project-1-event', role: 'flow'}]);
   });
 
   it('lanes are generated based on the node laneId', () => {
@@ -67,11 +75,11 @@ describe('events project state', () => {
     const commandId = uuid();
     const eventId = uuid();
     store.append([
-      Events.nodeAdded(commandId, 'cmd', 0),
-      Events.nodeAdded(eventId, 'evt', 1),
+      Events.nodeAdded(projectId, commandId, 'cmd', 0),
+      Events.nodeAdded(projectId, eventId, 'evt', 1),
     ]);
 
-    const model = projector.project();
+    const model = projector.project(projectId);
 
     expect(model.lanes)
       .toEqual([
@@ -85,11 +93,11 @@ describe('events project state', () => {
     const projector = GraphProjector.create({store});
     const commandId = uuid();
     store.append([
-      Events.nodeAdded(commandId, 'cmd', 0, 'Command'),
-      Events.nodeRenamed(commandId, 'Renamed Command'),
+      Events.nodeAdded(projectId, commandId, 'cmd', 0, 'Command'),
+      Events.nodeRenamed(projectId, commandId, 'Renamed Command'),
     ]);
 
-    const model = projector.project();
+    const model = projector.project(projectId);
 
     expect(model.nodes[0].label)
       .toEqual('Renamed Command');
@@ -100,28 +108,28 @@ describe('events project state', () => {
     const projector = GraphProjector.create({store});
 
     store.append([
-      Events.nodeAdded('kept-node', 'dm', 0, 'Kept'),
-      Events.nodeAdded('removed-node', 'dm', 0, 'Removed'),
-      Events.nodeSchemaChanged('kept-node', [
+      Events.nodeAdded(projectId, 'kept-node', 'dm', 0, 'Kept'),
+      Events.nodeAdded(projectId, 'removed-node', 'dm', 0, 'Removed'),
+      Events.nodeSchemaChanged(projectId, 'kept-node', [
         {propertyId: 'old-title', name: 'oldTitle', type: 'string'},
       ]),
-      Events.nodeExampleValuesChanged('kept-node', [
+      Events.nodeExampleValuesChanged(projectId, 'kept-node', [
         {propertyId: 'prop-title', scalarValue: 'Checkout started'},
       ]),
-      Events.nodeSchemaChanged('kept-node', [
+      Events.nodeSchemaChanged(projectId, 'kept-node', [
         {propertyId: 'prop-title', name: 'title', type: 'string', optional: true},
         {propertyId: 'prop-lines', name: 'lines', type: 'Object', list: true},
       ]),
-      Events.nodeExampleValuesChanged('removed-node', [
+      Events.nodeExampleValuesChanged(projectId, 'removed-node', [
         {propertyId: 'removed-prop', scalarValue: 'discard me'},
       ]),
-      Events.nodeSchemaChanged('removed-node', [
+      Events.nodeSchemaChanged(projectId, 'removed-node', [
         {propertyId: 'removed-prop', name: 'removed', type: 'string'},
       ]),
-      Events.nodeRemoved('removed-node'),
+      Events.nodeRemoved(projectId, 'removed-node'),
     ]);
 
-    const model = projector.project();
+    const model = projector.project(projectId);
 
     expect(model.nodeSchemas).toEqual({
       'kept-node': [
@@ -141,7 +149,7 @@ describe('events project state', () => {
 
   it('replays the complete graph event stream deterministically', () => {
     const emptyStore = MemoryStore.create<DomainEvent>();
-    expect(GraphProjector.create({store: emptyStore}).project())
+    expect(GraphProjector.create({store: emptyStore}).project(projectId))
       .toEqual({nodes: [], edges: [], lanes: [], nodeSchemas: {}, nodeExampleValues: {}});
 
     const store = MemoryStore.create<DomainEvent>();
@@ -152,24 +160,24 @@ describe('events project state', () => {
     const dataModelId = uuid();
     const missingId = uuid();
     store.append([
-      Events.nodeAdded(removedId, 'ui', 9, 'Removed'),
-      Events.nodeAdded(commandId, 'cmd', 3, 'Command'),
-      Events.nodeAdded(eventId, 'evt', 1, 'Event'),
-      Events.nodeAdded(dataModelId, 'dm', 3, 'Data'),
-      Events.nodesConnected(removedId, commandId, 'flow'),
-      Events.nodesConnected(commandId, eventId, 'flow'),
-      Events.nodesConnected(eventId, dataModelId, 'back-reference'),
-      Events.nodesConnected(commandId, missingId, 'flow'),
-      Events.nodeTypeChanged(commandId, 'processor'),
-      Events.nodeTypeChanged(missingId, 'rm'),
-      Events.nodesDisconnected(commandId, eventId),
-      Events.nodesDisconnected(missingId, eventId),
-      Events.nodeRemoved(removedId),
-      Events.nodeRemoved(missingId),
-      Events.nodeRenamed(missingId, 'Missing'),
+      Events.nodeAdded(projectId, removedId, 'ui', 9, 'Removed'),
+      Events.nodeAdded(projectId, commandId, 'cmd', 3, 'Command'),
+      Events.nodeAdded(projectId, eventId, 'evt', 1, 'Event'),
+      Events.nodeAdded(projectId, dataModelId, 'dm', 3, 'Data'),
+      Events.nodesConnected(projectId, removedId, commandId, 'flow'),
+      Events.nodesConnected(projectId, commandId, eventId, 'flow'),
+      Events.nodesConnected(projectId, eventId, dataModelId, 'back-reference'),
+      Events.nodesConnected(projectId, commandId, missingId, 'flow'),
+      Events.nodeTypeChanged(projectId, commandId, 'processor'),
+      Events.nodeTypeChanged(projectId, missingId, 'rm'),
+      Events.nodesDisconnected(projectId, commandId, eventId),
+      Events.nodesDisconnected(projectId, missingId, eventId),
+      Events.nodeRemoved(projectId, removedId),
+      Events.nodeRemoved(projectId, missingId),
+      Events.nodeRenamed(projectId, missingId, 'Missing'),
     ]);
 
-    const model = projector.project();
+    const model = projector.project(projectId);
 
     expect(model.nodes)
       .toEqual([
@@ -188,4 +196,3 @@ describe('events project state', () => {
       ]);
   });
 });
-

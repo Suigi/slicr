@@ -10,7 +10,7 @@ export class GraphProjector {
     return new GraphProjector(config.store ?? MemoryStore.create<DomainEvent>());
   }
 
-  public project(): ModelGraph {
+  public project(projectId: string): ModelGraph {
     const events = this.store.query(Query.where({
       types: [
         'NodeAdded',
@@ -21,7 +21,8 @@ export class GraphProjector {
         'NodeExampleValuesChanged',
         'NodesConnected',
         'NodesDisconnected',
-      ]
+      ],
+      tags: [`projectId:${projectId}`],
     }));
     const model: ModelGraph = {
       nodes: [],

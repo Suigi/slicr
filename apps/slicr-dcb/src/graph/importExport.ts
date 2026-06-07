@@ -1,6 +1,8 @@
 import {Events, type DomainEvent} from '../domain/events';
 import type {NodeType} from './types';
 
+const DEFAULT_PROJECT_ID = 'default-project';
+
 export type ImportEventsResult =
   | {ok: true, events: DomainEvent[]}
   | {ok: false, error: string};
@@ -69,33 +71,36 @@ function isEventPayload(type: DomainEvent['type'], payload: unknown): boolean {
   switch (type) {
     case 'NodeAdded':
       return (
+        typeof candidate.projectId === 'string' &&
         typeof candidate.nodeId === 'string' &&
         isNodeType(candidate.type) &&
         typeof candidate.laneId === 'number' &&
         typeof candidate.label === 'string'
       );
     case 'NodeRenamed':
-      return typeof candidate.nodeId === 'string' && typeof candidate.newName === 'string';
+      return typeof candidate.projectId === 'string' && typeof candidate.nodeId === 'string' && typeof candidate.newName === 'string';
     case 'NodeRemoved':
-      return typeof candidate.nodeId === 'string';
+      return typeof candidate.projectId === 'string' && typeof candidate.nodeId === 'string';
     case 'NodeTypeChanged':
-      return typeof candidate.nodeId === 'string' && isNodeType(candidate.newType);
+      return typeof candidate.projectId === 'string' && typeof candidate.nodeId === 'string' && isNodeType(candidate.newType);
     case 'NodeSchemaChanged':
-      return typeof candidate.nodeId === 'string' && Array.isArray(candidate.schema) && candidate.schema.every(isNodePropertySchema);
+      return typeof candidate.projectId === 'string' && typeof candidate.nodeId === 'string' && Array.isArray(candidate.schema) && candidate.schema.every(isNodePropertySchema);
     case 'NodeExampleValuesChanged':
       return (
+        typeof candidate.projectId === 'string' &&
         typeof candidate.nodeId === 'string' &&
         Array.isArray(candidate.exampleValues) &&
         candidate.exampleValues.every(isNodePropertyExampleValues)
       );
     case 'NodesConnected':
       return (
+        typeof candidate.projectId === 'string' &&
         typeof candidate.sourceNodeId === 'string' &&
         typeof candidate.targetNodeId === 'string' &&
         (candidate.role === 'flow' || candidate.role === 'back-reference')
       );
     case 'NodesDisconnected':
-      return typeof candidate.sourceNodeId === 'string' && typeof candidate.targetNodeId === 'string';
+      return typeof candidate.projectId === 'string' && typeof candidate.sourceNodeId === 'string' && typeof candidate.targetNodeId === 'string';
     case 'ProjectAdded':
       return typeof candidate.projectId === 'string' && typeof candidate.name === 'string';
     case 'ProjectRenamed':
@@ -237,10 +242,10 @@ function isNodeComplexExampleValue(value: unknown): boolean {
 function legacySnapshotToEvents(snapshot: LegacyGraphSnapshot): DomainEvent[] {
   const nodeIds = new Set(snapshot.nodes.map((node) => node.id));
   return [
-    ...snapshot.nodes.map((node) => Events.nodeAdded(node.id, node.type, legacyLaneOrder(node.laneId) ?? 0, node.label)),
+    ...snapshot.nodes.map((node) => Events.nodeAdded(DEFAULT_PROJECT_ID, node.id, node.type, legacyLaneOrder(node.laneId) ?? 0, node.label)),
     ...snapshot.edges
       .filter((edge) => nodeIds.has(edge.sourceId) && nodeIds.has(edge.targetId))
-      .map((edge) => Events.nodesConnected(edge.sourceId, edge.targetId, edge.role)),
+      .map((edge) => Events.nodesConnected(DEFAULT_PROJECT_ID, edge.sourceId, edge.targetId, edge.role)),
   ];
 }
 

@@ -9,6 +9,7 @@ import {Events} from './domain/events';
 
 const reactActEnvironment = globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean};
 reactActEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
+const defaultProjectId = 'default-project';
 
 async function flushRender() {
   await Promise.resolve();
@@ -46,11 +47,11 @@ describe('App import/export property event flow', () => {
   it('shows imported node property events in split schema and example editors in the focused node side panel', async () => {
     globalThis.indexedDB = undefined as unknown as typeof indexedDB;
     const importedEvents = [
-      Events.nodeAdded('node-1', 'evt', 0, 'Checkout Completed'),
-      Events.nodeSchemaChanged('node-1', [
+      Events.nodeAdded(defaultProjectId, 'node-1', 'evt', 0, 'Checkout Completed'),
+      Events.nodeSchemaChanged(defaultProjectId, 'node-1', [
         {propertyId: 'prop-title', name: 'title', type: 'string'},
       ]),
-      Events.nodeExampleValuesChanged('node-1', [
+      Events.nodeExampleValuesChanged(defaultProjectId, 'node-1', [
         {propertyId: 'prop-title', scalarValue: 'Hello world'},
       ]),
     ];
@@ -93,11 +94,11 @@ describe('App import/export property event flow', () => {
     vi.useFakeTimers();
     globalThis.indexedDB = undefined as unknown as typeof indexedDB;
     const importedEvents = [
-      Events.nodeAdded('node-1', 'evt', 0, 'Checkout Completed'),
-      Events.nodeSchemaChanged('node-1', [
+      Events.nodeAdded(defaultProjectId, 'node-1', 'evt', 0, 'Checkout Completed'),
+      Events.nodeSchemaChanged(defaultProjectId, 'node-1', [
         {propertyId: 'prop-title', name: 'title', type: 'string'},
       ]),
-      Events.nodeExampleValuesChanged('node-1', [
+      Events.nodeExampleValuesChanged(defaultProjectId, 'node-1', [
         {propertyId: 'prop-title', scalarValue: 'Hello world'},
       ]),
     ];
@@ -156,7 +157,7 @@ describe('App import/export property event flow', () => {
 
     expect(exportedSchemaEvents).toContainEqual(importedEvents[1]);
     expect(exportedExampleEvents.at(-1)).toEqual(
-      Events.nodeExampleValuesChanged('node-1', [
+      Events.nodeExampleValuesChanged(defaultProjectId, 'node-1', [
         {propertyId: 'prop-title', scalarValue: 'Updated title'},
       ]),
     );

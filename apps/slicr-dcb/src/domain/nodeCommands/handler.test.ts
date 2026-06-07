@@ -15,23 +15,25 @@ import {
 import {Events} from '../events';
 import {expectHandler} from '@slicr/event-sourcing/testing';
 
+const projectId = 'project-1';
+
 describe('commands project state', () => {
   it('adding Command node emits NodeAdded event', () => {
     const staticUuid = uuid();
 
     expectHandler(addNodeHandler(() => staticUuid))
       .given()
-      .when({nodeType: 'cmd', laneId: 2, label: 'Create Thing'})
-      .thenEmits(Events.nodeAdded(staticUuid, 'cmd', 2, 'Create Thing'));
+      .when({projectId, nodeType: 'cmd', laneId: 2, label: 'Create Thing'})
+      .thenEmits(Events.nodeAdded(projectId, staticUuid, 'cmd', 2, 'Create Thing'));
   });
 
   it('renaming Node emits NodeRenamed event', () => {
     const nodeId = uuid();
 
     expectHandler(renameNodeHandler)
-      .given(Events.nodeAdded(nodeId, 'evt', 0))
-      .when({nodeId, newName: 'New Event Name'})
-      .thenEmits(Events.nodeRenamed(nodeId, 'New Event Name'));
+      .given(Events.nodeAdded(projectId, nodeId, 'evt', 0))
+      .when({projectId, nodeId, newName: 'New Event Name'})
+      .thenEmits(Events.nodeRenamed(projectId, nodeId, 'New Event Name'));
   });
 
   it('throws when renaming a Node that does not exist', () => {
@@ -39,7 +41,7 @@ describe('commands project state', () => {
 
     expectHandler(renameNodeHandler)
       .given()
-      .when({nodeId, newName: 'New Event Name'})
+      .when({projectId, nodeId, newName: 'New Event Name'})
       .thenThrows(new Error(`Unknown nodeId ${nodeId}`));
   });
 
@@ -47,8 +49,8 @@ describe('commands project state', () => {
     const nodeId = uuid();
 
     expectHandler(renameNodeHandler)
-      .given(Events.nodeAdded(nodeId, 'evt', 0), Events.nodeRemoved(nodeId))
-      .when({nodeId, newName: 'New Event Name'})
+      .given(Events.nodeAdded(projectId, nodeId, 'evt', 0), Events.nodeRemoved(projectId, nodeId))
+      .when({projectId, nodeId, newName: 'New Event Name'})
       .thenThrows(new Error(`Unknown nodeId ${nodeId}`));
   });
 
@@ -56,9 +58,9 @@ describe('commands project state', () => {
     const nodeId = uuid();
 
     expectHandler(changeNodeTypeHandler)
-      .given(Events.nodeAdded(nodeId, 'evt', 0))
-      .when({nodeId, newType: 'dm'})
-      .thenEmits(Events.nodeTypeChanged(nodeId, 'dm'));
+      .given(Events.nodeAdded(projectId, nodeId, 'evt', 0))
+      .when({projectId, nodeId, newType: 'dm'})
+      .thenEmits(Events.nodeTypeChanged(projectId, nodeId, 'dm'));
   });
 
   it('changing node schema emits only when the schema differs for an existing node', () => {
@@ -67,13 +69,19 @@ describe('commands project state', () => {
     const changedSchema = [{propertyId: 'prop-total', name: 'total', type: 'number' as const}];
 
     expectHandler(changeNodeSchemaHandler)
-      .given(Events.nodeAdded(nodeId, 'evt', 0), Events.nodeSchemaChanged(nodeId, originalSchema))
-      .when({nodeId, schema: changedSchema})
-      .thenEmits(Events.nodeSchemaChanged(nodeId, changedSchema));
+      .given(
+        Events.nodeAdded(projectId, nodeId, 'evt', 0),
+        Events.nodeSchemaChanged(projectId, nodeId, originalSchema),
+      )
+      .when({projectId, nodeId, schema: changedSchema})
+      .thenEmits(Events.nodeSchemaChanged(projectId, nodeId, changedSchema));
 
     expectHandler(changeNodeSchemaHandler)
-      .given(Events.nodeAdded(nodeId, 'evt', 0), Events.nodeSchemaChanged(nodeId, changedSchema))
-      .when({nodeId, schema: changedSchema})
+      .given(
+        Events.nodeAdded(projectId, nodeId, 'evt', 0),
+        Events.nodeSchemaChanged(projectId, nodeId, changedSchema),
+      )
+      .when({projectId, nodeId, schema: changedSchema})
       .thenEmits();
   });
 
@@ -83,13 +91,19 @@ describe('commands project state', () => {
     const changedExamples = [{propertyId: 'prop-title', scalarValue: 'New title'}];
 
     expectHandler(changeNodeExampleValuesHandler)
-      .given(Events.nodeAdded(nodeId, 'evt', 0), Events.nodeExampleValuesChanged(nodeId, originalExamples))
-      .when({nodeId, exampleValues: changedExamples})
-      .thenEmits(Events.nodeExampleValuesChanged(nodeId, changedExamples));
+      .given(
+        Events.nodeAdded(projectId, nodeId, 'evt', 0),
+        Events.nodeExampleValuesChanged(projectId, nodeId, originalExamples),
+      )
+      .when({projectId, nodeId, exampleValues: changedExamples})
+      .thenEmits(Events.nodeExampleValuesChanged(projectId, nodeId, changedExamples));
 
     expectHandler(changeNodeExampleValuesHandler)
-      .given(Events.nodeAdded(nodeId, 'evt', 0), Events.nodeExampleValuesChanged(nodeId, changedExamples))
-      .when({nodeId, exampleValues: changedExamples})
+      .given(
+        Events.nodeAdded(projectId, nodeId, 'evt', 0),
+        Events.nodeExampleValuesChanged(projectId, nodeId, changedExamples),
+      )
+      .when({projectId, nodeId, exampleValues: changedExamples})
       .thenEmits();
   });
 
@@ -98,7 +112,7 @@ describe('commands project state', () => {
 
     expectHandler(changeNodeTypeHandler)
       .given()
-      .when({nodeId, newType: 'dm'})
+      .when({projectId, nodeId, newType: 'dm'})
       .thenThrows(new Error(`Unknown nodeId ${nodeId}`));
   });
 
@@ -106,8 +120,8 @@ describe('commands project state', () => {
     const nodeId = uuid();
 
     expectHandler(changeNodeTypeHandler)
-      .given(Events.nodeAdded(nodeId, 'evt', 0), Events.nodeRemoved(nodeId))
-      .when({nodeId, newType: 'dm'})
+      .given(Events.nodeAdded(projectId, nodeId, 'evt', 0), Events.nodeRemoved(projectId, nodeId))
+      .when({projectId, nodeId, newType: 'dm'})
       .thenThrows(new Error(`Unknown nodeId ${nodeId}`));
   });
 
@@ -115,9 +129,9 @@ describe('commands project state', () => {
     const nodeId = uuid();
 
     expectHandler(removeNodeHandler)
-      .given(Events.nodeAdded(nodeId, 'evt', 0))
-      .when({nodeId})
-      .thenEmits(Events.nodeRemoved(nodeId));
+      .given(Events.nodeAdded(projectId, nodeId, 'evt', 0))
+      .when({projectId, nodeId})
+      .thenEmits(Events.nodeRemoved(projectId, nodeId));
   });
 
   it('throws when removing a Node that does not exist', () => {
@@ -125,7 +139,7 @@ describe('commands project state', () => {
 
     expectHandler(removeNodeHandler)
       .given()
-      .when({nodeId})
+      .when({projectId, nodeId})
       .thenThrows(new Error(`Unknown nodeId ${nodeId}`));
   });
 
@@ -133,19 +147,26 @@ describe('commands project state', () => {
     const nodeId = uuid();
 
     expectHandler(removeNodeHandler)
-      .given(Events.nodeAdded(nodeId, 'evt', 0), Events.nodeRemoved(nodeId))
-      .when({nodeId})
+      .given(Events.nodeAdded(projectId, nodeId, 'evt', 0), Events.nodeRemoved(projectId, nodeId))
+      .when({projectId, nodeId})
       .thenThrows(new Error(`Unknown nodeId ${nodeId}`));
   });
 
-  it('connecting nodes emits NodesConnected for existing nodes', () => {
-    const sourceNodeId = uuid();
-    const targetNodeId = uuid();
+  it('connecting nodes only uses history from the requested project', () => {
+    const otherProjectId = 'project-2';
+    const sourceNodeId = 'shared-node-1';
+    const targetNodeId = 'shared-node-2';
 
     expectHandler(connectNodesHandler)
-      .given(Events.nodeAdded(sourceNodeId, 'cmd', 0), Events.nodeAdded(targetNodeId, 'evt', 1))
-      .when({sourceNodeId, targetNodeId, role: 'back-reference'})
-      .thenEmits(Events.nodesConnected(sourceNodeId, targetNodeId, 'back-reference'));
+      .given(
+        Events.nodeAdded(projectId, sourceNodeId, 'cmd', 0),
+        Events.nodeAdded(projectId, targetNodeId, 'evt', 1),
+        Events.nodeAdded(otherProjectId, sourceNodeId, 'cmd', 0),
+        Events.nodeAdded(otherProjectId, targetNodeId, 'evt', 1),
+        Events.nodeRemoved(otherProjectId, targetNodeId),
+      )
+      .when({projectId, sourceNodeId, targetNodeId, role: 'back-reference'})
+      .thenEmits(Events.nodesConnected(projectId, sourceNodeId, targetNodeId, 'back-reference'));
   });
 
   it('throws when connecting an unknown source node', () => {
@@ -153,8 +174,8 @@ describe('commands project state', () => {
     const targetNodeId = uuid();
 
     expectHandler(connectNodesHandler)
-      .given(Events.nodeAdded(targetNodeId, 'evt', 1))
-      .when({sourceNodeId, targetNodeId})
+      .given(Events.nodeAdded(projectId, targetNodeId, 'evt', 1))
+      .when({projectId, sourceNodeId, targetNodeId})
       .thenThrows(new Error(`Unknown nodeId ${sourceNodeId}`));
   });
 
@@ -163,8 +184,8 @@ describe('commands project state', () => {
     const targetNodeId = uuid();
 
     expectHandler(connectNodesHandler)
-      .given(Events.nodeAdded(sourceNodeId, 'cmd', 0))
-      .when({sourceNodeId, targetNodeId})
+      .given(Events.nodeAdded(projectId, sourceNodeId, 'cmd', 0))
+      .when({projectId, sourceNodeId, targetNodeId})
       .thenThrows(new Error(`Unknown nodeId ${targetNodeId}`));
   });
 
@@ -174,11 +195,11 @@ describe('commands project state', () => {
 
     expectHandler(connectNodesHandler)
       .given(
-        Events.nodeAdded(sourceNodeId, 'cmd', 0),
-        Events.nodeRemoved(sourceNodeId),
-        Events.nodeAdded(targetNodeId, 'evt', 1),
+        Events.nodeAdded(projectId, sourceNodeId, 'cmd', 0),
+        Events.nodeRemoved(projectId, sourceNodeId),
+        Events.nodeAdded(projectId, targetNodeId, 'evt', 1),
       )
-      .when({sourceNodeId, targetNodeId})
+      .when({projectId, sourceNodeId, targetNodeId})
       .thenThrows(new Error(`Unknown nodeId ${sourceNodeId}`));
   });
 
@@ -188,11 +209,11 @@ describe('commands project state', () => {
 
     expectHandler(connectNodesHandler)
       .given(
-        Events.nodeAdded(sourceNodeId, 'cmd', 0),
-        Events.nodeAdded(targetNodeId, 'evt', 1),
-        Events.nodeRemoved(targetNodeId),
+        Events.nodeAdded(projectId, sourceNodeId, 'cmd', 0),
+        Events.nodeAdded(projectId, targetNodeId, 'evt', 1),
+        Events.nodeRemoved(projectId, targetNodeId),
       )
-      .when({sourceNodeId, targetNodeId})
+      .when({projectId, sourceNodeId, targetNodeId})
       .thenThrows(new Error(`Unknown nodeId ${targetNodeId}`));
   });
 
@@ -200,8 +221,8 @@ describe('commands project state', () => {
     const nodeId = uuid();
 
     expectHandler(connectNodesHandler)
-      .given(Events.nodeAdded(nodeId, 'cmd', 0))
-      .when({sourceNodeId: nodeId, targetNodeId: nodeId})
+      .given(Events.nodeAdded(projectId, nodeId, 'cmd', 0))
+      .when({projectId, sourceNodeId: nodeId, targetNodeId: nodeId})
       .thenEmits();
   });
 
@@ -211,11 +232,11 @@ describe('commands project state', () => {
 
     expectHandler(connectNodesHandler)
       .given(
-        Events.nodeAdded(sourceNodeId, 'cmd', 0),
-        Events.nodeAdded(targetNodeId, 'evt', 1),
-        Events.nodesConnected(sourceNodeId, targetNodeId),
+        Events.nodeAdded(projectId, sourceNodeId, 'cmd', 0),
+        Events.nodeAdded(projectId, targetNodeId, 'evt', 1),
+        Events.nodesConnected(projectId, sourceNodeId, targetNodeId),
       )
-      .when({sourceNodeId, targetNodeId})
+      .when({projectId, sourceNodeId, targetNodeId})
       .thenEmits();
   });
 
@@ -225,13 +246,13 @@ describe('commands project state', () => {
 
     expectHandler(connectNodesHandler)
       .given(
-        Events.nodeAdded(sourceNodeId, 'cmd', 0),
-        Events.nodeAdded(targetNodeId, 'evt', 1),
-        Events.nodesConnected(sourceNodeId, targetNodeId),
-        Events.nodesDisconnected(sourceNodeId, targetNodeId),
+        Events.nodeAdded(projectId, sourceNodeId, 'cmd', 0),
+        Events.nodeAdded(projectId, targetNodeId, 'evt', 1),
+        Events.nodesConnected(projectId, sourceNodeId, targetNodeId),
+        Events.nodesDisconnected(projectId, sourceNodeId, targetNodeId),
       )
-      .when({sourceNodeId, targetNodeId})
-      .thenEmits(Events.nodesConnected(sourceNodeId, targetNodeId));
+      .when({projectId, sourceNodeId, targetNodeId})
+      .thenEmits(Events.nodesConnected(projectId, sourceNodeId, targetNodeId));
   });
 
   it('disconnecting an active connection emits NodesDisconnected', () => {
@@ -240,12 +261,12 @@ describe('commands project state', () => {
 
     expectHandler(disconnectNodesHandler)
       .given(
-        Events.nodeAdded(sourceNodeId, 'cmd', 0),
-        Events.nodeAdded(targetNodeId, 'evt', 1),
-        Events.nodesConnected(sourceNodeId, targetNodeId),
+        Events.nodeAdded(projectId, sourceNodeId, 'cmd', 0),
+        Events.nodeAdded(projectId, targetNodeId, 'evt', 1),
+        Events.nodesConnected(projectId, sourceNodeId, targetNodeId),
       )
-      .when({sourceNodeId, targetNodeId})
-      .thenEmits(Events.nodesDisconnected(sourceNodeId, targetNodeId));
+      .when({projectId, sourceNodeId, targetNodeId})
+      .thenEmits(Events.nodesDisconnected(projectId, sourceNodeId, targetNodeId));
   });
 
   it('disconnecting a missing connection emits no event', () => {
@@ -253,8 +274,8 @@ describe('commands project state', () => {
     const targetNodeId = uuid();
 
     expectHandler(disconnectNodesHandler)
-      .given(Events.nodeAdded(sourceNodeId, 'cmd', 0), Events.nodeAdded(targetNodeId, 'evt', 1))
-      .when({sourceNodeId, targetNodeId})
+      .given(Events.nodeAdded(projectId, sourceNodeId, 'cmd', 0), Events.nodeAdded(projectId, targetNodeId, 'evt', 1))
+      .when({projectId, sourceNodeId, targetNodeId})
       .thenEmits();
   });
 
@@ -264,12 +285,12 @@ describe('commands project state', () => {
 
     expectHandler(disconnectNodesHandler)
       .given(
-        Events.nodeAdded(sourceNodeId, 'cmd', 0),
-        Events.nodeAdded(targetNodeId, 'evt', 1),
-        Events.nodesConnected(sourceNodeId, targetNodeId),
-        Events.nodeRemoved(sourceNodeId),
+        Events.nodeAdded(projectId, sourceNodeId, 'cmd', 0),
+        Events.nodeAdded(projectId, targetNodeId, 'evt', 1),
+        Events.nodesConnected(projectId, sourceNodeId, targetNodeId),
+        Events.nodeRemoved(projectId, sourceNodeId),
       )
-      .when({sourceNodeId, targetNodeId})
+      .when({projectId, sourceNodeId, targetNodeId})
       .thenThrows(new Error(`Unknown nodeId ${sourceNodeId}`));
   });
 
@@ -279,12 +300,12 @@ describe('commands project state', () => {
 
     expectHandler(disconnectNodesHandler)
       .given(
-        Events.nodeAdded(sourceNodeId, 'cmd', 0),
-        Events.nodeAdded(targetNodeId, 'evt', 1),
-        Events.nodesConnected(sourceNodeId, targetNodeId),
-        Events.nodeRemoved(targetNodeId),
+        Events.nodeAdded(projectId, sourceNodeId, 'cmd', 0),
+        Events.nodeAdded(projectId, targetNodeId, 'evt', 1),
+        Events.nodesConnected(projectId, sourceNodeId, targetNodeId),
+        Events.nodeRemoved(projectId, targetNodeId),
       )
-      .when({sourceNodeId, targetNodeId})
+      .when({projectId, sourceNodeId, targetNodeId})
       .thenThrows(new Error(`Unknown nodeId ${targetNodeId}`));
   });
 
@@ -293,11 +314,11 @@ describe('commands project state', () => {
     const newNodeId = uuid();
 
     expectHandler(addConnectedNodeHandler(() => newNodeId))
-      .given(Events.nodeAdded(sourceNodeId, 'cmd', 0))
-      .when({sourceNodeId, nodeType: 'evt', laneId: 1, label: 'Thing Happened', role: 'back-reference'})
+      .given(Events.nodeAdded(projectId, sourceNodeId, 'cmd', 0))
+      .when({projectId, sourceNodeId, nodeType: 'evt', laneId: 1, label: 'Thing Happened', role: 'back-reference'})
       .thenEmits(
-        Events.nodeAdded(newNodeId, 'evt', 1, 'Thing Happened'),
-        Events.nodesConnected(sourceNodeId, newNodeId, 'back-reference'),
+        Events.nodeAdded(projectId, newNodeId, 'evt', 1, 'Thing Happened'),
+        Events.nodesConnected(projectId, sourceNodeId, newNodeId, 'back-reference'),
       );
   });
 
@@ -307,7 +328,7 @@ describe('commands project state', () => {
 
     expectHandler(addConnectedNodeHandler(() => newNodeId))
       .given()
-      .when({sourceNodeId, nodeType: 'evt', laneId: 1, label: 'Thing Happened'})
+      .when({projectId, sourceNodeId, nodeType: 'evt', laneId: 1, label: 'Thing Happened'})
       .thenThrows(new Error(`Unknown nodeId ${sourceNodeId}`));
   });
 
@@ -316,8 +337,8 @@ describe('commands project state', () => {
     const newNodeId = uuid();
 
     expectHandler(addConnectedNodeHandler(() => newNodeId))
-      .given(Events.nodeAdded(sourceNodeId, 'cmd', 0), Events.nodeRemoved(sourceNodeId))
-      .when({sourceNodeId, nodeType: 'evt', laneId: 1, label: 'Thing Happened'})
+      .given(Events.nodeAdded(projectId, sourceNodeId, 'cmd', 0), Events.nodeRemoved(projectId, sourceNodeId))
+      .when({projectId, sourceNodeId, nodeType: 'evt', laneId: 1, label: 'Thing Happened'})
       .thenThrows(new Error(`Unknown nodeId ${sourceNodeId}`));
   });
 
@@ -327,13 +348,14 @@ describe('commands project state', () => {
 
     expectHandler(addConnectedNodeHandler(() => newNodeId))
       .given(
-        Events.nodeAdded(sourceNodeId, 'cmd', 0),
-        Events.nodeRemoved(sourceNodeId),
-        Events.nodeAdded(sourceNodeId, 'cmd', 0))
-      .when({sourceNodeId, nodeType: 'evt', laneId: 1, label: 'Thing Happened'})
+        Events.nodeAdded(projectId, sourceNodeId, 'cmd', 0),
+        Events.nodeRemoved(projectId, sourceNodeId),
+        Events.nodeAdded(projectId, sourceNodeId, 'cmd', 0),
+      )
+      .when({projectId, sourceNodeId, nodeType: 'evt', laneId: 1, label: 'Thing Happened'})
       .thenEmits(
-        Events.nodeAdded(newNodeId, 'evt', 1, 'Thing Happened'),
-        Events.nodesConnected(sourceNodeId, newNodeId, 'flow'),
+        Events.nodeAdded(projectId, newNodeId, 'evt', 1, 'Thing Happened'),
+        Events.nodesConnected(projectId, sourceNodeId, newNodeId, 'flow'),
       );
   });
 });
