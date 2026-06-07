@@ -9,10 +9,11 @@ import {
 type NodeEditorProps = {
   properties: EditableProperty[];
   onChange: (properties: EditableProperty[]) => void;
-  focusedPropertyId?: string;
+  focusedPropertyId?: string | null;
+  onFocusedPropertyChange?: (propertyId: string | null) => void;
 };
 
-export function NodeEditor({properties, onChange}: NodeEditorProps) {
+export function NodeEditor({properties, onChange, focusedPropertyId, onFocusedPropertyChange}: NodeEditorProps) {
   const schema = useMemo(() => deriveNodePropertySchema(properties), [properties]);
   const exampleValues = useMemo(() => deriveNodePropertyExampleValues(properties), [properties]);
   const schemaEditorProperties = useMemo(() => mergeNodePropertyEditorProperties(schema, []), [schema]);
@@ -26,6 +27,8 @@ export function NodeEditor({properties, onChange}: NodeEditorProps) {
       <section className="node-editor-schema" aria-labelledby="node-editor-schema-heading">
         <SchemaEditor
           properties={schemaEditorProperties}
+          focusedPropertyId={focusedPropertyId}
+          onFocusedPropertyChange={onFocusedPropertyChange}
           onChange={(nextProperties) => {
             onChange(mergeNodePropertyEditorProperties(deriveNodePropertySchema(nextProperties), exampleValues));
           }}
@@ -37,6 +40,8 @@ export function NodeEditor({properties, onChange}: NodeEditorProps) {
         </h4>
         <ExampleValueEditor
           properties={exampleEditorProperties}
+          focusedPropertyId={focusedPropertyId}
+          onFocusedPropertyChange={onFocusedPropertyChange}
           onChange={(nextProperties) => {
             onChange(mergeNodePropertyEditorProperties(schema, deriveNodePropertyExampleValues(nextProperties)));
           }}

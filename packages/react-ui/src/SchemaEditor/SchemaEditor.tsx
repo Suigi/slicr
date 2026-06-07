@@ -6,6 +6,8 @@ type SchemaEditorProps = {
   showPropertyToolbar?: boolean;
   showExtendedPropertyToolbarControls?: boolean;
   showColumnHeaders?: boolean;
+  focusedPropertyId?: string | null;
+  onFocusedPropertyChange?: (propertyId: string | null) => void;
 };
 
 export function SchemaEditor({
@@ -14,11 +16,15 @@ export function SchemaEditor({
   showPropertyToolbar,
   showExtendedPropertyToolbarControls,
   showColumnHeaders,
+  focusedPropertyId,
+  onFocusedPropertyChange,
 }: SchemaEditorProps) {
   return (
     <PropertyEditorInternal
       properties={properties}
       onChange={onChange}
+      focusedPropertyId={focusedPropertyId}
+      onFocusedPropertyChange={onFocusedPropertyChange}
       options={{
         showPropertyToolbar: showPropertyToolbar ?? true,
         showExtendedPropertyToolbarControls: showExtendedPropertyToolbarControls ?? true,

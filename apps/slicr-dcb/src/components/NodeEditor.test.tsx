@@ -54,6 +54,45 @@ function renderControlledNodeEditor(initialProperties: EditableProperty[], onCha
   return {container, onChange};
 }
 
+function FocusSynchronizedNodeEditor({properties}: {properties: EditableProperty[]}) {
+  const [focusedPropertyId, setFocusedPropertyId] = React.useState<string | null>(null);
+
+  return (
+    <NodeEditor
+      properties={properties}
+      onChange={() => undefined}
+      focusedPropertyId={focusedPropertyId}
+      onFocusedPropertyChange={setFocusedPropertyId}
+    />
+  );
+}
+
+function renderFocusSynchronizedNodeEditor(properties: EditableProperty[]) {
+  const container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+
+  act(() => {
+    root?.render(<FocusSynchronizedNodeEditor properties={properties} />);
+  });
+
+  return {container};
+}
+
+function getDirectPropertyRows(section: HTMLElement) {
+  return [...section.querySelectorAll<HTMLElement>(':scope .property-editor > .property-editor-grid > .property-editor-row:not(.property-editor-template-row)')];
+}
+
+function getTopLevelPropertyRows(section: HTMLElement) {
+  const editor = section.querySelector<HTMLElement>(':scope > .property-editor');
+  return [...(editor?.querySelectorAll<HTMLElement>(':scope > .property-editor-grid > .property-editor-row:not(.property-editor-template-row)') ?? [])];
+}
+
+function getNestedPropertyRows(section: HTMLElement) {
+  const nestedEditor = section.querySelector<HTMLElement>('.property-editor-nested .property-editor');
+  return [...(nestedEditor?.querySelectorAll<HTMLElement>(':scope > .property-editor-grid > .property-editor-row:not(.property-editor-template-row)') ?? [])];
+}
+
 function setInputValue(input: HTMLInputElement, value: string) {
   act(() => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, value);
@@ -70,6 +109,84 @@ afterEach(() => {
 });
 
 describe('NodeEditor', () => {
+  it('highlights the matching example value row when a schema property receives focus', () => {
+    const properties: EditableProperty[] = [
+      {id: 'prop-title', name: 'title', type: 'string', example: 'Hello world'},
+      {id: 'prop-summary', name: 'summary', type: 'string', example: 'Short summary'},
+    ];
+    const {container} = renderFocusSynchronizedNodeEditor(properties);
+    const schemaSection = container.querySelector<HTMLElement>('.node-editor-schema');
+    const exampleSection = container.querySelector<HTMLElement>('.node-editor-example');
+    const schemaNameInput = schemaSection?.querySelector<HTMLInputElement>('input[value="title"]');
+
+    expect(schemaNameInput).toBeDefined();
+
+    act(() => {
+      schemaNameInput?.focus();
+    });
+
+    const exampleRows = getDirectPropertyRows(exampleSection!);
+    expect(exampleRows[0]?.classList.contains('property-editor-row-focused')).toBe(true);
+    expect(exampleRows[1]?.classList.contains('property-editor-row-focused')).toBe(false);
+  });
+
+  it('highlights the matching schema row when an example value property receives focus', () => {
+    const properties: EditableProperty[] = [
+      {id: 'prop-title', name: 'title', type: 'string', example: 'Hello world'},
+      {id: 'prop-summary', name: 'summary', type: 'string', example: 'Short summary'},
+    ];
+    const {container} = renderFocusSynchronizedNodeEditor(properties);
+    const schemaSection = container.querySelector<HTMLElement>('.node-editor-schema');
+    const exampleSection = container.querySelector<HTMLElement>('.node-editor-example');
+    const summaryExampleInput = exampleSection?.querySelector<HTMLInputElement>('input[value="Short summary"]');
+
+    expect(summaryExampleInput).toBeDefined();
+
+    act(() => {
+      summaryExampleInput?.focus();
+    });
+
+    const schemaRows = getDirectPropertyRows(schemaSection!);
+    expect(schemaRows[0]?.classList.contains('property-editor-row-focused')).toBe(false);
+    expect(schemaRows[1]?.classList.contains('property-editor-row-focused')).toBe(true);
+  });
+
+  it('highlights only the exact nested property row when a nested property receives focus', () => {
+    const properties: EditableProperty[] = [
+      {
+        id: 'prop-address',
+        name: 'address',
+        type: 'Object',
+        properties: [
+          {id: 'prop-street', name: 'street', type: 'string', example: 'Main St'},
+          {id: 'prop-city', name: 'city', type: 'string', example: 'Springfield'},
+        ],
+      },
+    ];
+    const {container} = renderFocusSynchronizedNodeEditor(properties);
+    const schemaSection = container.querySelector<HTMLElement>('.node-editor-schema');
+    const exampleSection = container.querySelector<HTMLElement>('.node-editor-example');
+    const schemaStreetInput = schemaSection?.querySelector<HTMLInputElement>('input[value="street"]');
+
+    expect(schemaStreetInput).toBeDefined();
+
+    act(() => {
+      schemaStreetInput?.focus();
+    });
+
+    const schemaTopLevelRows = getTopLevelPropertyRows(schemaSection!);
+    const schemaNestedRows = getNestedPropertyRows(schemaSection!);
+    const exampleTopLevelRows = getTopLevelPropertyRows(exampleSection!);
+    const exampleNestedRows = getNestedPropertyRows(exampleSection!);
+
+    expect(schemaTopLevelRows[0]?.classList.contains('property-editor-row-focused')).toBe(false);
+    expect(exampleTopLevelRows[0]?.classList.contains('property-editor-row-focused')).toBe(false);
+    expect(schemaNestedRows[0]?.classList.contains('property-editor-row-focused')).toBe(true);
+    expect(schemaNestedRows[1]?.classList.contains('property-editor-row-focused')).toBe(false);
+    expect(exampleNestedRows[0]?.classList.contains('property-editor-row-focused')).toBe(true);
+    expect(exampleNestedRows[1]?.classList.contains('property-editor-row-focused')).toBe(false);
+  });
+
   it('preserves example values when schema edits rename a property', () => {
     const properties: EditableProperty[] = [
       {id: 'prop-title', name: 'title', type: 'string', example: 'Hello world'},

@@ -127,6 +127,8 @@ type PropertyEditorInternalProps = {
   properties: EditableProperty[];
   onChange: (properties: EditableProperty[]) => void;
   options: PropertyEditorOptions;
+  focusedPropertyId?: string | null;
+  onFocusedPropertyChange?: (propertyId: string | null) => void;
 };
 
 export function PropertyEditor({
@@ -153,7 +155,7 @@ export function PropertyEditor({
   );
 }
 
-export function PropertyEditorInternal({ properties, onChange, options }: PropertyEditorInternalProps) {
+export function PropertyEditorInternal({ properties, onChange, options, focusedPropertyId, onFocusedPropertyChange }: PropertyEditorInternalProps) {
   const editorProperties = properties;
   const { showPropertyToolbar, showExtendedPropertyToolbarControls, showColumnHeaders, disableExampleValues, schemaOnly, valueOnly } = options;
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -542,6 +544,12 @@ export function PropertyEditorInternal({ properties, onChange, options }: Proper
     });
   };
 
+  const getPropertyRowClassName = (property: EditableProperty) => `property-editor-row${property.id === focusedPropertyId ? ' property-editor-row-focused' : ''}`;
+
+  const focusProperty = (property: EditableProperty) => {
+    onFocusedPropertyChange?.(property.id ?? null);
+  };
+
   const handlePropertyShortcut = (event: KeyboardEvent, index: number) => {
     if (focusAdjacentRowControl(event) || focusRelevantTemplateRow(event) || focusNextCell(event)) {
       return;
@@ -644,8 +652,9 @@ export function PropertyEditorInternal({ properties, onChange, options }: Proper
           editorProperties.map((property, index) => (
             <Fragment key={property.id}>
               <div
-                  className="property-editor-row"
+                  className={getPropertyRowClassName(property)}
                   role="row"
+                  onFocusCapture={() => focusProperty(property)}
                   onDragOver={(event) => event.preventDefault()}
                   onDrop={(event) => {
                     event.preventDefault();
@@ -832,6 +841,8 @@ export function PropertyEditorInternal({ properties, onChange, options }: Proper
                     properties={property.properties ?? []}
                     onChange={(nestedProperties) => updateNestedProperties(index, nestedProperties)}
                     options={createNestedPropertyEditorOptions(options, property)}
+                    focusedPropertyId={focusedPropertyId}
+                    onFocusedPropertyChange={onFocusedPropertyChange}
                   />
                 </div>
               ) : null}

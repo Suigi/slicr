@@ -3,6 +3,8 @@ import { PropertyEditorInternal, type EditableProperty } from '../PropertyEditor
 export type ExampleValueEditorProps = {
   properties: EditableProperty[];
   onChange: (properties: EditableProperty[]) => void;
+  focusedPropertyId?: string | null;
+  onFocusedPropertyChange?: (propertyId: string | null) => void;
 };
 
 function normalizeExampleValueProperty(property: EditableProperty): EditableProperty {
@@ -24,11 +26,13 @@ function normalizeExampleValueProperty(property: EditableProperty): EditableProp
   };
 }
 
-export function ExampleValueEditor({ properties, onChange }: ExampleValueEditorProps) {
+export function ExampleValueEditor({ properties, onChange, focusedPropertyId, onFocusedPropertyChange }: ExampleValueEditorProps) {
   return (
     <PropertyEditorInternal
       properties={properties.map(normalizeExampleValueProperty)}
       onChange={(nextProperties) => onChange(nextProperties.map(normalizeExampleValueProperty))}
+      focusedPropertyId={focusedPropertyId}
+      onFocusedPropertyChange={onFocusedPropertyChange}
       options={{
         showPropertyToolbar: false,
         showExtendedPropertyToolbarControls: false,
