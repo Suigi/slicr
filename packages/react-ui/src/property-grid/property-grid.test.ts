@@ -6,6 +6,7 @@ import './property-grid.js';
 
 type PropertyGridTestElement = HTMLElement & {
   properties: Record<string, unknown>;
+  focusedPropertyId: string | null;
 };
 
 function createPropertyGrid(properties: Record<string, unknown>, ariaLabel?: string) {
@@ -80,6 +81,35 @@ describe('property-grid custom element', () => {
     expect(text).toContain('Springfield');
   });
 
+  it('highlights only the nested object row matching focusedPropertyId', () => {
+    const element = createPropertyGrid({
+      address: {
+        id: 'address-id',
+        kind: 'object',
+        type: 'Address',
+        properties: {
+          street: { id: 'street-id', type: 'string', value: 'Fake Street 123' },
+          location: {
+            id: 'location-id',
+            kind: 'object',
+            type: 'Location',
+            properties: {
+              lat: { id: 'lat-id', type: 'number', value: 1 },
+            },
+          },
+        },
+      },
+    });
+
+    element.focusedPropertyId = 'location-id';
+
+    const highlightedRows = [...(element.shadowRoot?.querySelectorAll('.is-property-highlighted') ?? [])];
+
+    expect(highlightedRows).toHaveLength(1);
+    expect(highlightedRows[0]?.textContent).toContain('location');
+    expect(highlightedRows[0]?.classList.contains('nested-property-row')).toBe(true);
+  });
+
   it('renders table properties with headers and rows', () => {
     const element = createPropertyGrid({
       tags: {
@@ -103,6 +133,30 @@ describe('property-grid custom element', () => {
     expect(cells).toEqual(['nodeId', 'node-42', 'active', 'false']);
   });
 
+  it('highlights the table column matching focusedPropertyId', () => {
+    const element = createPropertyGrid({
+      columns: {
+        id: 'columns-id',
+        kind: 'table',
+        columns: [
+          { id: 'field-id', key: 'field-id', label: 'field', type: 'string' },
+          { id: 'label-id', key: 'label-id', label: 'label', type: 'string' },
+        ],
+        rows: [
+          { 'field-id': 'firstName', 'label-id': 'First name' },
+          { 'field-id': 'lastName', 'label-id': 'Last name' },
+        ],
+      },
+    });
+
+    element.focusedPropertyId = 'field-id';
+
+    const highlightedCells = [...(element.shadowRoot?.querySelectorAll('.table .is-property-highlighted') ?? [])];
+
+    expect(highlightedCells.map((cell) => cell.textContent)).toEqual(['field', 'firstName', 'lastName']);
+    expect(element.shadowRoot?.querySelector('th:nth-child(2)')?.classList.contains('is-property-highlighted')).toBe(false);
+  });
+
   it('renders empty object-list placeholder cells with property type styling', () => {
     const element = createPropertyGrid({
       items: {
@@ -124,6 +178,44 @@ describe('property-grid custom element', () => {
     expect(separatorSpans.map((span) => span?.textContent)).toEqual([':', ':']);
     expect(typeSpans.map((span) => span?.textContent)).toEqual(['string', 'number']);
     expect(typeSpans.every((span) => span?.classList.contains('field-type'))).toBe(true);
+  });
+
+  it('emits hovered scalar property changes and clears on panel leave', () => {
+    const element = createPropertyGrid({
+      title: { id: 'title-id', type: 'string', value: 'Hello' },
+    });
+    const hoveredPropertyIds: Array<string | null> = [];
+    element.addEventListener('property-grid-hovered-property-change', (event) => {
+      hoveredPropertyIds.push((event as CustomEvent<{ propertyId: string | null }>).detail.propertyId);
+    });
+
+    element.shadowRoot?.querySelector('.property-row')?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, composed: true }));
+    element.shadowRoot?.querySelector('.property-panel')?.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true, composed: true }));
+
+    expect(hoveredPropertyIds).toEqual(['title-id', null]);
+  });
+
+  it('emits nested table column property ids when columns are hovered', () => {
+    const element = createPropertyGrid({
+      columns: {
+        id: 'columns-id',
+        kind: 'table',
+        columns: [
+          { id: 'field-id', key: 'field-id', label: 'field', type: 'string' },
+          { id: 'label-id', key: 'label-id', label: 'label', type: 'string' },
+        ],
+        rows: [{ 'field-id': 'firstName', 'label-id': 'First name' }],
+      },
+    });
+    const hoveredPropertyIds: Array<string | null> = [];
+    element.addEventListener('property-grid-hovered-property-change', (event) => {
+      hoveredPropertyIds.push((event as CustomEvent<{ propertyId: string | null }>).detail.propertyId);
+    });
+
+    element.shadowRoot?.querySelector('.table-header th')?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, composed: true }));
+    element.shadowRoot?.querySelector('.table tbody td')?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, composed: true }));
+
+    expect(hoveredPropertyIds).toEqual(['field-id', 'field-id']);
   });
 
   it('updates rendered rows when the properties DOM property changes', () => {

@@ -203,6 +203,9 @@ export function App() {
   const [selectedPropertyGridMockupVariant, setSelectedPropertyGridMockupVariant] = useState(initialPropertyGridCardMockups[0]?.variant ?? '');
   const [nodeMeasurements, setNodeMeasurements] = useState<Record<string, NodeDimensions>>({});
   const [settledMeasurementKey, setSettledMeasurementKey] = useState('');
+  const [editorFocusedPropertyId, setEditorFocusedPropertyId] = useState<string | null>(null);
+  const [hoveredPropertyId, setHoveredPropertyId] = useState<string | null>(null);
+  const highlightedPropertyId = hoveredPropertyId ?? editorFocusedPropertyId;
   const selectedPropertyGridMockup =
     propertyGridMockups.find((mockup) => mockup.variant === selectedPropertyGridMockupVariant) ?? propertyGridMockups[0];
   const updateSelectedPropertyGridProperties = (properties: EditableProperty[]) => {
@@ -547,7 +550,12 @@ export function App() {
             <h3 id="node-detail-properties-heading" className="node-detail-properties-heading">
               Properties
             </h3>
-            <NodeEditor properties={focusedNodeProperties} onChange={updateFocusedNodeProperties} />
+            <NodeEditor
+              properties={focusedNodeProperties}
+              focusedPropertyId={highlightedPropertyId}
+              onFocusedPropertyChange={setEditorFocusedPropertyId}
+              onChange={updateFocusedNodeProperties}
+            />
           </section>
         </aside>
       ) : null}
@@ -616,6 +624,8 @@ export function App() {
             onSaveEditingNode={saveEditingNode}
             onCancelEditingFromKeyboard={cancelEditingFromKeyboard}
             onLabelBlur={handleLabelBlur}
+            focusedPropertyId={highlightedPropertyId}
+            onHoveredPropertyChange={setHoveredPropertyId}
           />
         ))}
         <section className="node-layout-mockups" aria-label="Node content layout mockups">

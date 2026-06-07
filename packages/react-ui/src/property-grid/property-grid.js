@@ -12,6 +12,7 @@ class PropertyGrid extends HTMLElement {
 
   #shadow;
   #properties = {};
+  #focusedPropertyId = null;
   #dragState = null;
 
   constructor() {
@@ -31,6 +32,8 @@ class PropertyGrid extends HTMLElement {
           --property-grid-table-header-text: var(--property-grid-muted-text);
           --property-grid-scrollbar-thumb: rgba(100, 116, 139, 0.35);
           --property-grid-scrollbar-thumb-hover: rgba(100, 116, 139, 0.55);
+          --property-grid-highlight-bg: rgba(250, 204, 21, 0.18);
+          --property-grid-highlight-ring: rgba(245, 158, 11, 0.45);
 
           display: block;
           color: var(--property-grid-text);
@@ -56,6 +59,11 @@ class PropertyGrid extends HTMLElement {
         .table-content-row,
         .property-row {
           background: var(--property-grid-row-bg);
+        }
+
+        .is-property-highlighted {
+          background: linear-gradient(var(--property-grid-highlight-bg), var(--property-grid-highlight-bg)), var(--property-grid-row-bg);
+          box-shadow: inset 0 0 0 2px var(--property-grid-highlight-ring);
         }
 
         .table-content-row:not(:last-child),
@@ -208,6 +216,10 @@ class PropertyGrid extends HTMLElement {
         </table>
       </div>
     `;
+
+    this.#shadow.querySelector(".property-panel")?.addEventListener("mouseleave", () => {
+      this.#emitHoveredPropertyChange(null);
+    });
   }
 
   get properties() {
@@ -216,6 +228,15 @@ class PropertyGrid extends HTMLElement {
 
   set properties(properties) {
     this.#properties = properties && typeof properties === "object" ? properties : {};
+    this.#render();
+  }
+
+  get focusedPropertyId() {
+    return this.#focusedPropertyId;
+  }
+
+  set focusedPropertyId(focusedPropertyId) {
+    this.#focusedPropertyId = focusedPropertyId ?? null;
     this.#render();
   }
 
@@ -239,7 +260,7 @@ class PropertyGrid extends HTMLElement {
   #renderPropertyRows(properties, rowClassName = "property-row") {
     return Object.entries(properties ?? {}).flatMap(([propertyName, property]) => {
       if (property?.kind === "object") {
-        const row = this.#createPropertyHeaderRow(propertyName, property.type ?? "Object", rowClassName);
+        const row = this.#createPropertyHeaderRow(propertyName, property.type ?? "Object", rowClassName, property.id);
         const contentRow = document.createElement("tr");
         contentRow.className = "table-content-row complex-property-content-row";
 
@@ -264,7 +285,7 @@ class PropertyGrid extends HTMLElement {
       }
 
       if (property?.kind === "table") {
-        const row = this.#createPropertyHeaderRow(propertyName, property.type ?? "Table", "property-row table-property-row");
+        const row = this.#createPropertyHeaderRow(propertyName, property.type ?? "Table", "property-row table-property-row", property.id);
         const contentRow = document.createElement("tr");
         contentRow.className = "table-content-row";
 
@@ -287,6 +308,8 @@ class PropertyGrid extends HTMLElement {
           const th = document.createElement("th");
           th.scope = "col";
           th.textContent = column.label ?? column.key;
+          this.#applyHighlight(th, column.id ?? column.key);
+          this.#wireHover(th, column.id ?? column.key);
           headerRow.append(th);
         }
         thead.append(headerRow);
@@ -300,6 +323,8 @@ class PropertyGrid extends HTMLElement {
           bodyRow.className = "table-row";
           for (const column of property.columns) {
             const td = document.createElement("td");
+            this.#applyHighlight(td, column.id ?? column.key);
+            this.#wireHover(td, column.id ?? column.key);
             const value = rowData[column.key];
             if (property.rows.length === 0 && column.type) {
               td.append(this.#createCell("span", "field-separator", ":"), document.createTextNode(" "), this.#createCell("span", "field-type", column.type));
@@ -321,6 +346,8 @@ class PropertyGrid extends HTMLElement {
 
       const row = document.createElement("tr");
       row.className = rowClassName;
+      this.#applyHighlight(row, property?.id);
+      this.#wireHover(row, property?.id);
 
       const nameCell = document.createElement("th");
       nameCell.scope = "row";
@@ -343,15 +370,37 @@ class PropertyGrid extends HTMLElement {
     });
   }
 
-  #createPropertyHeaderRow(propertyName, type, rowClassName) {
+  #createPropertyHeaderRow(propertyName, type, rowClassName, propertyId) {
     const row = document.createElement("tr");
     row.className = rowClassName;
+    this.#applyHighlight(row, propertyId);
+    this.#wireHover(row, propertyId);
     const nameCell = document.createElement("th");
     nameCell.scope = "row";
     nameCell.className = "property-name";
     nameCell.textContent = propertyName;
     row.append(nameCell, this.#createCell("td", "field-separator", ":"), this.#createCell("td", "field-type", type));
     return row;
+  }
+
+  #applyHighlight(element, propertyId) {
+    element.classList.toggle("is-property-highlighted", Boolean(propertyId && propertyId === this.#focusedPropertyId));
+  }
+
+  #wireHover(element, propertyId) {
+    if (!propertyId) return;
+
+    element.addEventListener("mouseover", () => {
+      this.#emitHoveredPropertyChange(propertyId);
+    });
+  }
+
+  #emitHoveredPropertyChange(propertyId) {
+    this.dispatchEvent(new CustomEvent("property-grid-hovered-property-change", {
+      bubbles: true,
+      composed: true,
+      detail: { propertyId }
+    }));
   }
 
   #createCell(tagName, className, text) {

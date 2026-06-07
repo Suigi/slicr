@@ -99,6 +99,48 @@ describe('GraphNodeView', () => {
     expect(html).toContain('property-grid');
   });
 
+  it('forwards property grid hover changes only from focused nodes and applies highlighted property id', async () => {
+    const onHoveredPropertyChange = vi.fn();
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(
+        createElement(GraphNodeView, {
+          ...baseProps,
+          properties,
+          focusedPropertyId: 'prop-title',
+          onHoveredPropertyChange,
+        }),
+      );
+    });
+
+    const focusedGrid = container.querySelector<HTMLElement & { focusedPropertyId?: string | null }>('property-grid.node-property-grid');
+    focusedGrid?.dispatchEvent(new CustomEvent('property-grid-hovered-property-change', { bubbles: true, composed: true, detail: { propertyId: 'prop-title' } }));
+
+    await act(async () => {
+      root?.render(
+        createElement(GraphNodeView, {
+          ...baseProps,
+          isFocused: false,
+          isMenuOpen: false,
+          isConnectingSource: false,
+          properties,
+          focusedPropertyId: 'prop-title',
+          onHoveredPropertyChange,
+        }),
+      );
+    });
+
+    const unfocusedGrid = container.querySelector<HTMLElement>('property-grid.node-property-grid');
+    unfocusedGrid?.dispatchEvent(new CustomEvent('property-grid-hovered-property-change', { bubbles: true, composed: true, detail: { propertyId: 'prop-title' } }));
+
+    expect(focusedGrid?.focusedPropertyId).toBe('prop-title');
+    expect(onHoveredPropertyChange).toHaveBeenCalledTimes(1);
+    expect(onHoveredPropertyChange).toHaveBeenCalledWith('prop-title');
+  });
+
   it('keeps focused interactive styling and click behavior by default', async () => {
     const onNodeClick = vi.fn();
     const onCloseOtherMenus = vi.fn();

@@ -25,6 +25,9 @@ export function NodeEditor({properties, onChange, focusedPropertyId, onFocusedPr
   return (
     <div className="node-editor">
       <section className="node-editor-schema" aria-labelledby="node-editor-schema-heading">
+        <h4 id="node-editor-schema-heading" className="node-editor-schema-heading">
+          Schema
+        </h4>
         <SchemaEditor
           properties={schemaEditorProperties}
           focusedPropertyId={focusedPropertyId}

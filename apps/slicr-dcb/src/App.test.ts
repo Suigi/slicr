@@ -165,6 +165,115 @@ describe('App', () => {
     expect(container.querySelector('.canvas .node-box-with-properties property-grid')).not.toBeNull();
   });
 
+  it('highlights matching schema and example rows when the focused node property grid reports hover', async () => {
+    graphModelMock.useGraphModel.mockReturnValue(createGraphModelMockValue({
+      focusedNodeProperties: [
+        {id: 'prop-title', name: 'title', type: 'string', example: 'Hello'},
+        {id: 'prop-summary', name: 'summary', type: 'string', example: 'Short'},
+      ],
+      nodePropertiesById: {
+        'node-1': [
+          {id: 'prop-title', name: 'title', type: 'string', example: 'Hello'},
+          {id: 'prop-summary', name: 'summary', type: 'string', example: 'Short'},
+        ],
+      },
+    }));
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(createElement(App));
+      await Promise.resolve();
+    });
+
+    const graphGrid = container.querySelector<HTMLElement>('.canvas .node-box-with-properties property-grid.node-property-grid');
+    await act(async () => {
+      graphGrid?.dispatchEvent(new CustomEvent('property-grid-hovered-property-change', { bubbles: true, composed: true, detail: { propertyId: 'prop-summary' } }));
+    });
+
+    const schemaRows = [...container.querySelectorAll<HTMLElement>('.node-detail-panel .node-editor-schema > .property-editor > .property-editor-grid > .property-editor-row:not(.property-editor-template-row)')];
+    const exampleRows = [...container.querySelectorAll<HTMLElement>('.node-detail-panel .node-editor-example > .property-editor > .property-editor-grid > .property-editor-row:not(.property-editor-template-row)')];
+
+    expect(schemaRows.map((row) => row.classList.contains('property-editor-row-focused'))).toEqual([false, true]);
+    expect(exampleRows.map((row) => row.classList.contains('property-editor-row-focused'))).toEqual([false, true]);
+  });
+
+  it('reverts editor highlights to the editor-focused property when focused node grid hover clears', async () => {
+    graphModelMock.useGraphModel.mockReturnValue(createGraphModelMockValue({
+      focusedNodeProperties: [
+        {id: 'prop-title', name: 'title', type: 'string', example: 'Hello'},
+        {id: 'prop-summary', name: 'summary', type: 'string', example: 'Short'},
+      ],
+      nodePropertiesById: {
+        'node-1': [
+          {id: 'prop-title', name: 'title', type: 'string', example: 'Hello'},
+          {id: 'prop-summary', name: 'summary', type: 'string', example: 'Short'},
+        ],
+      },
+    }));
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(createElement(App));
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      container?.querySelector<HTMLInputElement>('.node-detail-panel .node-editor-schema input[value="title"]')?.focus();
+    });
+
+    const graphGrid = container.querySelector<HTMLElement>('.canvas .node-box-with-properties property-grid.node-property-grid');
+    await act(async () => {
+      graphGrid?.dispatchEvent(new CustomEvent('property-grid-hovered-property-change', { bubbles: true, composed: true, detail: { propertyId: 'prop-summary' } }));
+    });
+    await act(async () => {
+      graphGrid?.dispatchEvent(new CustomEvent('property-grid-hovered-property-change', { bubbles: true, composed: true, detail: { propertyId: null } }));
+    });
+
+    const schemaRows = [...container.querySelectorAll<HTMLElement>('.node-detail-panel .node-editor-schema > .property-editor > .property-editor-grid > .property-editor-row:not(.property-editor-template-row)')];
+    const exampleRows = [...container.querySelectorAll<HTMLElement>('.node-detail-panel .node-editor-example > .property-editor > .property-editor-grid > .property-editor-row:not(.property-editor-template-row)')];
+
+    expect(schemaRows.map((row) => row.classList.contains('property-editor-row-focused'))).toEqual([true, false]);
+    expect(exampleRows.map((row) => row.classList.contains('property-editor-row-focused'))).toEqual([true, false]);
+  });
+
+  it('does not highlight focused-node editors when a non-focused node property grid reports hover', async () => {
+    graphModelMock.useGraphModel.mockReturnValue(createGraphModelMockValue({
+      nodes: [
+        { id: 'node-1', label: 'Focused', type: 'evt', laneId: 'lane-0', width: 160, height: 80 },
+        { id: 'node-2', label: 'Other', type: 'cmd', laneId: 'lane-0', width: 160, height: 80 },
+      ],
+      focusedNodeId: 'node-1',
+      focusedNodeProperties: [{id: 'prop-title', name: 'title', type: 'string', example: 'Hello'}],
+      nodePropertiesById: {
+        'node-1': [{id: 'prop-title', name: 'title', type: 'string', example: 'Hello'}],
+        'node-2': [{id: 'prop-other', name: 'other', type: 'string', example: 'Other'}],
+      },
+    }));
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(createElement(App));
+      await Promise.resolve();
+    });
+
+    const [, nonFocusedGrid] = [...container.querySelectorAll<HTMLElement>('.canvas .node-box-with-properties property-grid.node-property-grid')];
+    await act(async () => {
+      nonFocusedGrid?.dispatchEvent(new CustomEvent('property-grid-hovered-property-change', { bubbles: true, composed: true, detail: { propertyId: 'prop-title' } }));
+    });
+
+    const schemaRows = [...container.querySelectorAll<HTMLElement>('.node-detail-panel .node-editor-schema > .property-editor > .property-editor-grid > .property-editor-row:not(.property-editor-template-row)')];
+    const exampleRows = [...container.querySelectorAll<HTMLElement>('.node-detail-panel .node-editor-example > .property-editor > .property-editor-grid > .property-editor-row:not(.property-editor-template-row)')];
+
+    expect(schemaRows.map((row) => row.classList.contains('property-editor-row-focused'))).toEqual([false]);
+    expect(exampleRows.map((row) => row.classList.contains('property-editor-row-focused'))).toEqual([false]);
+  });
+
   it('does not start node title editing when Enter is pressed inside the property editor', async () => {
     const startEditingNode = vi.fn();
     graphModelMock.useGraphModel.mockReturnValue(createGraphModelMockValue({ startEditingNode }));

@@ -24,6 +24,8 @@ type GraphNodeViewProps = {
   draftLabel: string;
   connectionMenuItems: ConnectionMenuItem[];
   renderMode?: GraphNodeRenderMode;
+  focusedPropertyId?: string | null;
+  onHoveredPropertyChange?: (propertyId: string | null) => void;
   onNodeClick: (node: GraphNode) => void;
   onCloseOtherMenus: () => void;
   onToggleMenu: () => void;
@@ -58,6 +60,8 @@ export function GraphNodeView({
   draftLabel,
   connectionMenuItems,
   renderMode = 'interactive',
+  focusedPropertyId = null,
+  onHoveredPropertyChange,
   onNodeClick,
   onCloseOtherMenus,
   onToggleMenu,
@@ -150,7 +154,16 @@ export function GraphNodeView({
             </button>
           )}
         </div>
-        {hasProperties ? <PropertyGrid className="node-property-grid" properties={properties} style={propertyGridColorScheme} ariaLabel={`${node.label} properties`} /> : null}
+        {hasProperties ? (
+          <PropertyGrid
+            className="node-property-grid"
+            properties={properties}
+            focusedPropertyId={focusedPropertyId}
+            onHoveredPropertyChange={isFocused ? onHoveredPropertyChange : undefined}
+            style={propertyGridColorScheme}
+            ariaLabel={`${node.label} properties`}
+          />
+        ) : null}
       </div>
       {showTransientControls ? (
         <button

@@ -85,11 +85,12 @@ describe('PropertyGrid React wrapper', () => {
 
     expect(properties).toEqual({
       items: {
+        id: 'items-id',
         kind: 'table',
         type: 'Item[]',
         columns: [
-          { key: 'sku-id', label: 'sku', type: 'string' },
-          { key: 'quantity-id', label: 'quantity', type: 'number' },
+          { id: 'sku-id', key: 'sku-id', label: 'sku', type: 'string' },
+          { id: 'quantity-id', key: 'quantity-id', label: 'quantity', type: 'number' },
         ],
         rows: [
           { 'sku-id': 'ABC', 'quantity-id': 2 },
@@ -97,6 +98,46 @@ describe('PropertyGrid React wrapper', () => {
         ],
       },
     });
+  });
+
+  it('preserves editable property ids through normalization for highlighting', () => {
+    const properties = toPropertyGridProperties([
+      { id: 'title-id', name: 'title', kind: 'scalar', type: 'string', example: 'Hello' },
+      {
+        id: 'metadata-id',
+        name: 'metadata',
+        kind: 'object',
+        type: 'Metadata',
+        properties: [{ id: 'created-id', name: 'created', kind: 'scalar', type: 'string' }],
+      },
+      {
+        id: 'columns-id',
+        name: 'columns',
+        kind: 'object',
+        type: 'Column',
+        list: true,
+        properties: [{ id: 'field-id', name: 'field', kind: 'scalar', type: 'string' }],
+      },
+    ]);
+
+    expect(properties.title).toMatchObject({ id: 'title-id' });
+    expect(properties.metadata).toMatchObject({ id: 'metadata-id', kind: 'object' });
+    expect(properties.metadata.kind === 'object' ? properties.metadata.properties.created : undefined).toMatchObject({ id: 'created-id' });
+    expect(properties.columns).toMatchObject({ id: 'columns-id', kind: 'table' });
+    expect(properties.columns.kind === 'table' ? properties.columns.columns : undefined).toEqual([
+      { id: 'field-id', key: 'field-id', label: 'field', type: 'string' },
+    ]);
+  });
+
+  it('passes focusedPropertyId to the custom element and highlights the matching scalar row', () => {
+    const container = renderPropertyGrid(
+      <PropertyGrid properties={[{ id: 'title-id', name: 'title', kind: 'scalar', type: 'string', example: 'Hello' }]} focusedPropertyId="title-id" />,
+    );
+    const element = container.querySelector<PropertyGridElement>('property-grid');
+    const row = element?.shadowRoot?.querySelector('.property-row');
+
+    expect(element?.focusedPropertyId).toBe('title-id');
+    expect(row?.classList.contains('is-property-highlighted')).toBe(true);
   });
 
   it('renders editable object-list properties as tables', () => {

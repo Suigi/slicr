@@ -23,18 +23,21 @@ export type PropertyGridEditableProperty = {
 export type PropertyGridProperty = PropertyGridScalarProperty | PropertyGridObjectProperty | PropertyGridTableProperty;
 
 export type PropertyGridScalarProperty = {
+  id?: string;
   kind?: 'scalar';
   type: string;
   value?: PropertyGridPrimitiveValue;
 };
 
 export type PropertyGridObjectProperty = {
+  id?: string;
   kind: 'object';
   type?: string;
   properties: PropertyGridProperties;
 };
 
 export type PropertyGridTableProperty = {
+  id?: string;
   kind: 'table';
   type?: string;
   columns: readonly PropertyGridTableColumn[];
@@ -42,6 +45,7 @@ export type PropertyGridTableProperty = {
 };
 
 export type PropertyGridTableColumn = {
+  id?: string;
   key: string;
   label?: string;
   type?: string;
@@ -84,6 +88,7 @@ export function toPropertyGridProperties(properties: PropertyGridInputProperties
             const columns = nestedProperties
               .filter((nestedProperty) => nestedProperty.name.trim())
               .map((nestedProperty) => ({
+                id: nestedProperty.id,
                 key: nestedProperty.id ?? nestedProperty.name,
                 label: nestedProperty.name,
                 type: nestedProperty.type,
@@ -100,6 +105,7 @@ export function toPropertyGridProperties(properties: PropertyGridInputProperties
             return [
               property.name,
               {
+                id: property.id,
                 kind: 'table',
                 type: property.type === 'Object' ? 'Object[]' : `${property.type}[]`,
                 columns,
@@ -111,6 +117,7 @@ export function toPropertyGridProperties(properties: PropertyGridInputProperties
           return [
             property.name,
             {
+              id: property.id,
               kind: 'object',
               type: property.type,
               properties: toPropertyGridProperties(property.properties ?? []),
@@ -122,15 +129,16 @@ export function toPropertyGridProperties(properties: PropertyGridInputProperties
           return [
             property.name,
             {
+              id: property.id,
               kind: 'table',
               type: `${property.type}[]`,
-              columns: [{ key: 'value', label: property.name, type: property.type }],
+              columns: [{ id: property.id, key: 'value', label: property.name, type: property.type }],
               rows: rowsFor(property),
             },
           ];
         }
 
-        const scalarProperty: PropertyGridScalarProperty = { type: property.type };
+        const scalarProperty: PropertyGridScalarProperty = { id: property.id, type: property.type };
         if (hasScalarExample(property)) {
           scalarProperty.value = property.example;
         }
@@ -142,10 +150,14 @@ export function toPropertyGridProperties(properties: PropertyGridInputProperties
 
 export type PropertyGridElement = HTMLElement & {
   properties: PropertyGridProperties;
+  focusedPropertyId: string | null;
 };
+
+export type PropertyGridHoveredPropertyChangeEvent = CustomEvent<{ propertyId: string | null }>;
 
 type PropertyGridCustomElementProps = Omit<HTMLAttributes<PropertyGridElement>, 'children'> & {
   properties?: PropertyGridProperties;
+  focusedPropertyId?: string | null;
   'aria-label'?: string;
   ref?: React.Ref<PropertyGridElement>;
 };
@@ -161,9 +173,11 @@ declare module 'react' {
 export type PropertyGridProps = Omit<HTMLAttributes<PropertyGridElement>, 'children'> & {
   properties: PropertyGridInputProperties;
   ariaLabel?: string;
+  focusedPropertyId?: string | null;
+  onHoveredPropertyChange?: (propertyId: string | null) => void;
 };
 
-export function PropertyGrid({ properties, ariaLabel = 'Properties', ...elementProps }: PropertyGridProps) {
+export function PropertyGrid({ properties, ariaLabel = 'Properties', focusedPropertyId = null, onHoveredPropertyChange, ...elementProps }: PropertyGridProps) {
   const elementRef = useRef<PropertyGridElement>(null);
   const normalizedProperties = useMemo(() => toPropertyGridProperties(properties), [properties]);
 
@@ -172,6 +186,26 @@ export function PropertyGrid({ properties, ariaLabel = 'Properties', ...elementP
       elementRef.current.properties = normalizedProperties;
     }
   }, [normalizedProperties]);
+
+  useLayoutEffect(() => {
+    if (elementRef.current) {
+      elementRef.current.focusedPropertyId = focusedPropertyId;
+    }
+  }, [focusedPropertyId]);
+
+  useLayoutEffect(() => {
+    const element = elementRef.current;
+    if (!element || !onHoveredPropertyChange) {
+      return;
+    }
+
+    const handleHoveredPropertyChange = (event: Event) => {
+      onHoveredPropertyChange((event as PropertyGridHoveredPropertyChangeEvent).detail.propertyId);
+    };
+
+    element.addEventListener('property-grid-hovered-property-change', handleHoveredPropertyChange);
+    return () => element.removeEventListener('property-grid-hovered-property-change', handleHoveredPropertyChange);
+  }, [onHoveredPropertyChange]);
 
   return <property-grid {...elementProps} ref={elementRef} aria-label={ariaLabel} />;
 }
