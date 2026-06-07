@@ -75,4 +75,27 @@ describe('Events', () => {
       tags: ['nodeId:node-1', 'nodeId:node-2', 'connection:node-1->node-2'],
     });
   });
+
+  it('creates tagged workspace metadata events for projects and chapters', () => {
+    expect(Events.projectAdded('project-1', 'Checkout System')).toEqual({
+      type: 'ProjectAdded',
+      payload: {projectId: 'project-1', name: 'Checkout System'},
+      tags: ['projectId:project-1'],
+    });
+    expect(Events.projectRenamed('project-1', 'Renamed Project')).toEqual({
+      type: 'ProjectRenamed',
+      payload: {projectId: 'project-1', newName: 'Renamed Project'},
+      tags: ['projectId:project-1'],
+    });
+    expect(Events.chapterAdded('project-1', 'chapter-1', 'Overview')).toEqual({
+      type: 'ChapterAdded',
+      payload: {projectId: 'project-1', chapterId: 'chapter-1', title: 'Overview'},
+      tags: ['projectId:project-1', 'chapterId:chapter-1'],
+    });
+    expect(Events.chapterRenamed('project-1', 'chapter-1', 'Renamed Chapter')).toEqual({
+      type: 'ChapterRenamed',
+      payload: {projectId: 'project-1', chapterId: 'chapter-1', newTitle: 'Renamed Chapter'},
+      tags: ['projectId:project-1', 'chapterId:chapter-1'],
+    });
+  });
 });

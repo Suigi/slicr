@@ -52,7 +52,11 @@ function isKnownEventType(type: string): type is DomainEvent['type'] {
     type === 'NodeSchemaChanged' ||
     type === 'NodeExampleValuesChanged' ||
     type === 'NodesConnected' ||
-    type === 'NodesDisconnected'
+    type === 'NodesDisconnected' ||
+    type === 'ProjectAdded' ||
+    type === 'ProjectRenamed' ||
+    type === 'ChapterAdded' ||
+    type === 'ChapterRenamed'
   );
 }
 
@@ -92,6 +96,22 @@ function isEventPayload(type: DomainEvent['type'], payload: unknown): boolean {
       );
     case 'NodesDisconnected':
       return typeof candidate.sourceNodeId === 'string' && typeof candidate.targetNodeId === 'string';
+    case 'ProjectAdded':
+      return typeof candidate.projectId === 'string' && typeof candidate.name === 'string';
+    case 'ProjectRenamed':
+      return typeof candidate.projectId === 'string' && typeof candidate.newName === 'string';
+    case 'ChapterAdded':
+      return (
+        typeof candidate.projectId === 'string' &&
+        typeof candidate.chapterId === 'string' &&
+        typeof candidate.title === 'string'
+      );
+    case 'ChapterRenamed':
+      return (
+        typeof candidate.projectId === 'string' &&
+        typeof candidate.chapterId === 'string' &&
+        typeof candidate.newTitle === 'string'
+      );
   }
 }
 

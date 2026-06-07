@@ -20,11 +20,16 @@ function createStore(events: DomainEvent[] = []): AsyncGraphEventStore {
 }
 
 describe('createEventSourcedGraphModel', () => {
-  it('loads an empty event store as an empty renderer graph', async () => {
-    const model = createEventSourcedGraphModel({store: createStore()});
+  it('loads an empty event store by bootstrapping a default workspace while keeping the renderer graph empty', async () => {
+    const events: DomainEvent[] = [];
+    const model = createEventSourcedGraphModel({store: createStore(events)});
 
     await model.load();
 
+    expect(events).toEqual([
+      Events.projectAdded('default-project', 'Default Project'),
+      Events.chapterAdded('default-project', 'default-chapter', 'Chapter 1'),
+    ]);
     expect(model.getSnapshot()).toEqual({nodes: [], edges: [], lanes: [], nodeSchemas: {}, nodeExampleValues: {}});
   });
 
@@ -36,6 +41,8 @@ describe('createEventSourcedGraphModel', () => {
     await model.addNewSlice();
 
     expect(events).toEqual([
+      Events.projectAdded('default-project', 'Default Project'),
+      Events.chapterAdded('default-project', 'default-chapter', 'Chapter 1'),
       {
         type: 'NodeAdded',
         payload: {nodeId: 'node-1', type: 'ui', laneId: 0, label: 'Node 1'},
@@ -49,6 +56,15 @@ describe('createEventSourcedGraphModel', () => {
       nodeSchemas: {},
       nodeExampleValues: {},
     });
+  });
+
+  it('does not append default workspace events when the store is already non-empty', async () => {
+    const events: DomainEvent[] = [Events.projectAdded('project-1', 'Checkout System')];
+    const model = createEventSourcedGraphModel({store: createStore(events)});
+
+    await model.load();
+
+    expect(events).toEqual([Events.projectAdded('project-1', 'Checkout System')]);
   });
 
   it('persists changed node property schema and examples while skipping unchanged payloads', async () => {
@@ -87,6 +103,8 @@ describe('createEventSourcedGraphModel', () => {
     await model.deleteNode('node-1');
 
     expect(events.map((event) => event.type)).toEqual([
+      'ProjectAdded',
+      'ChapterAdded',
       'NodeAdded',
       'NodeAdded',
       'NodesConnected',
@@ -95,7 +113,7 @@ describe('createEventSourcedGraphModel', () => {
       'NodeTypeChanged',
       'NodeRemoved',
     ]);
-    expect(events.slice(2)).toEqual([
+    expect(events.slice(4)).toEqual([
       {
         type: 'NodesConnected',
         payload: {sourceNodeId: 'node-1', targetNodeId: 'node-2', role: 'flow'},

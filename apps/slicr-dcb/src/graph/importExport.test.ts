@@ -23,6 +23,17 @@ describe('import/export conversion utilities', () => {
     expect(parseImportEvents(JSON.stringify(events))).toEqual({ok: true, events});
   });
 
+  it('parses workspace metadata event arrays as replacement event streams', () => {
+    const events: DomainEvent[] = [
+      Events.projectAdded('project-1', 'Checkout System'),
+      Events.projectRenamed('project-1', 'Checkout Platform'),
+      Events.chapterAdded('project-1', 'chapter-1', 'Overview'),
+      Events.chapterRenamed('project-1', 'chapter-1', 'Project Overview'),
+    ];
+
+    expect(parseImportEvents(JSON.stringify(events))).toEqual({ok: true, events});
+  });
+
   it('accepts and serializes node property event streams with valid required payloads', () => {
     const importedEvents = [
       {

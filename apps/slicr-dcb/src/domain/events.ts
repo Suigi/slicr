@@ -38,6 +38,9 @@ export type NodeExampleValuesChanged = {
   exampleValues: NodePropertyExampleValues[],
 };
 
+export type ProjectId = string;
+export type ChapterId = string;
+
 export type NodeAdded = {
   nodeId: NodeId,
   type: NodeType,
@@ -64,6 +67,24 @@ export type NodesDisconnected = {
   sourceNodeId: NodeId,
   targetNodeId: NodeId
 };
+export type ProjectAdded = {
+  projectId: ProjectId,
+  name: string,
+};
+export type ProjectRenamed = {
+  projectId: ProjectId,
+  newName: string,
+};
+export type ChapterAdded = {
+  projectId: ProjectId,
+  chapterId: ChapterId,
+  title: string,
+};
+export type ChapterRenamed = {
+  projectId: ProjectId,
+  chapterId: ChapterId,
+  newTitle: string,
+};
 
 export type DomainEvent =
   Event<'NodeAdded', NodeAdded> |
@@ -73,8 +94,11 @@ export type DomainEvent =
   Event<'NodeSchemaChanged', NodeSchemaChanged> |
   Event<'NodeExampleValuesChanged', NodeExampleValuesChanged> |
   Event<'NodesConnected', NodesConnected> |
-  Event<'NodesDisconnected', NodesDisconnected>
-  ;
+  Event<'NodesDisconnected', NodesDisconnected> |
+  Event<'ProjectAdded', ProjectAdded> |
+  Event<'ProjectRenamed', ProjectRenamed> |
+  Event<'ChapterAdded', ChapterAdded> |
+  Event<'ChapterRenamed', ChapterRenamed>;
 
 export const Events = {
   nodeAdded(nodeId: NodeId, type: NodeType, laneId: number, label?: string): Event<'NodeAdded', NodeAdded> {
@@ -135,6 +159,34 @@ export const Events = {
       type: 'NodesDisconnected',
       payload: {sourceNodeId, targetNodeId},
       tags: [`nodeId:${sourceNodeId}`, `nodeId:${targetNodeId}`, `connection:${sourceNodeId}->${targetNodeId}`]
+    };
+  },
+  projectAdded(projectId: ProjectId, name: string): Event<'ProjectAdded', ProjectAdded> {
+    return {
+      type: 'ProjectAdded',
+      payload: {projectId, name},
+      tags: [`projectId:${projectId}`]
+    };
+  },
+  projectRenamed(projectId: ProjectId, newName: string): Event<'ProjectRenamed', ProjectRenamed> {
+    return {
+      type: 'ProjectRenamed',
+      payload: {projectId, newName},
+      tags: [`projectId:${projectId}`]
+    };
+  },
+  chapterAdded(projectId: ProjectId, chapterId: ChapterId, title: string): Event<'ChapterAdded', ChapterAdded> {
+    return {
+      type: 'ChapterAdded',
+      payload: {projectId, chapterId, title},
+      tags: [`projectId:${projectId}`, `chapterId:${chapterId}`]
+    };
+  },
+  chapterRenamed(projectId: ProjectId, chapterId: ChapterId, newTitle: string): Event<'ChapterRenamed', ChapterRenamed> {
+    return {
+      type: 'ChapterRenamed',
+      payload: {projectId, chapterId, newTitle},
+      tags: [`projectId:${projectId}`, `chapterId:${chapterId}`]
     };
   }
 };

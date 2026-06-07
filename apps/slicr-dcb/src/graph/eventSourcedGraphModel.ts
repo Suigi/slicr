@@ -11,6 +11,16 @@ import {GraphProjector} from '../domain/graphProjector/graphProjector';
 import {adaptModelGraphToRenderer, type RendererGraph} from './domainGraphAdapter';
 import type {NodeType} from './types';
 
+const DEFAULT_PROJECT_ID = 'default-project';
+const DEFAULT_PROJECT_NAME = 'Default Project';
+const DEFAULT_CHAPTER_ID = 'default-chapter';
+const DEFAULT_CHAPTER_TITLE = 'Chapter 1';
+
+const defaultWorkspaceEvents: DomainEvent[] = [
+  Events.projectAdded(DEFAULT_PROJECT_ID, DEFAULT_PROJECT_NAME),
+  Events.chapterAdded(DEFAULT_PROJECT_ID, DEFAULT_CHAPTER_ID, DEFAULT_CHAPTER_TITLE),
+];
+
 export type AsyncGraphEventStore = {
   append(events: DomainEvent | readonly DomainEvent[]): Promise<void>;
   readAll(): Promise<DomainEvent[]>;
@@ -64,7 +74,12 @@ export function createEventSourcedGraphModel(config: {store: AsyncGraphEventStor
 
   return {
     async load() {
-      return project(await config.store.readAll());
+      const storedEvents = await config.store.readAll();
+      if (storedEvents.length === 0) {
+        await config.store.append(defaultWorkspaceEvents);
+        return project(defaultWorkspaceEvents);
+      }
+      return project(storedEvents);
     },
     getSnapshot() {
       return snapshot;
