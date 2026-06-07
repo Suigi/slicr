@@ -53,14 +53,15 @@ export function PropertyEditor({
         showExtendedPropertyToolbarControls,
         showColumnHeaders,
         disableExampleValues,
+        schemaOnly: false,
       }}
     />
   );
 }
 
-function PropertyEditorInternal({ properties, onChange, options }: PropertyEditorInternalProps) {
+export function PropertyEditorInternal({ properties, onChange, options }: PropertyEditorInternalProps) {
   const editorProperties = properties;
-  const { showPropertyToolbar, showExtendedPropertyToolbarControls, showColumnHeaders, disableExampleValues } = options;
+  const { showPropertyToolbar, showExtendedPropertyToolbarControls, showColumnHeaders, disableExampleValues, schemaOnly } = options;
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [draggedExample, setDraggedExample] = useState<{ propertyIndex: number; exampleIndex: number } | null>(null);
   const [settingsIndex, setSettingsIndex] = useState<number | null>(null);
@@ -552,7 +553,7 @@ function PropertyEditorInternal({ properties, onChange, options }: PropertyEdito
                   <span>Example</span>
                   {property.type === 'Object' ? (
                     <div className="property-editor-example-hidden">{"{...}"}</div>
-                  ) : property.list || disableExampleValues ? (
+                  ) : property.list || disableExampleValues || schemaOnly ? (
                     <div className="property-editor-example-hidden">{"[...]"}</div>
                   ) : (
                     <input
@@ -659,7 +660,7 @@ function PropertyEditorInternal({ properties, onChange, options }: PropertyEdito
                 </div>
               ) : null}
 
-              {property.list ? (
+              {property.list && !schemaOnly ? (
                 <div className="property-editor-list-editor">
                   {property.type === 'Object' ? (
                     <div className="property-editor-list-table-wrap">
@@ -915,13 +916,17 @@ function PropertyEditorInternal({ properties, onChange, options }: PropertyEdito
 
           <label className="property-editor-field">
             <span>Example</span>
-            <input
-              type="text"
-              value=""
-              readOnly
-              tabIndex={-1}
-              aria-label="Example is available after adding the property"
-            />
+            {schemaOnly ? (
+              <div className="property-editor-example-hidden">{"[...]"}</div>
+            ) : (
+              <input
+                type="text"
+                value=""
+                readOnly
+                tabIndex={-1}
+                aria-label="Example is available after adding the property"
+              />
+            )}
           </label>
 
           <div className="property-editor-row-actions" aria-hidden="true" />

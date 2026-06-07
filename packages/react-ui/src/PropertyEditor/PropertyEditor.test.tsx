@@ -223,6 +223,7 @@ describe('PropertyEditor', () => {
           showExtendedPropertyToolbarControls: true,
           showColumnHeaders: true,
           disableExampleValues: false,
+          schemaOnly: false,
         },
         { list: true },
       ),
@@ -231,6 +232,7 @@ describe('PropertyEditor', () => {
       showExtendedPropertyToolbarControls: false,
       showColumnHeaders: false,
       disableExampleValues: true,
+      schemaOnly: false,
     });
   });
 
