@@ -222,6 +222,7 @@ export function App() {
     openNodeMenuId,
     connectingSourceNodeId,
     focusedNodeProperties = [],
+    nodePropertiesById = {},
     updateFocusedNodeProperties = () => {},
     setFocusedNodeId,
     setDraftLabel,
@@ -250,10 +251,13 @@ export function App() {
         return measuredDimensions
           ? {
               ...node,
-              width: Math.max(NODE_WIDTH, measuredDimensions.width),
+              width: NODE_WIDTH,
               height: Math.max(NODE_HEIGHT, measuredDimensions.height),
             }
-          : node;
+          : {
+              ...node,
+              width: NODE_WIDTH,
+            };
       }),
     [nodeMeasurements, nodes],
   );
@@ -307,8 +311,8 @@ export function App() {
     : [];
 
   const measurementStateKey = useMemo(
-    () => JSON.stringify({nodes, editingNodeId, draftLabel}),
-    [draftLabel, editingNodeId, nodes],
+    () => JSON.stringify({nodes, nodePropertiesById, editingNodeId, draftLabel}),
+    [draftLabel, editingNodeId, nodePropertiesById, nodes],
   );
   const isMeasurementSettled = settledMeasurementKey === measurementStateKey;
 
@@ -548,6 +552,7 @@ export function App() {
       ) : null}
       <NodeMeasureLayer
         nodes={renderedNodes}
+        nodePropertiesById={nodePropertiesById}
         editingNodeId={editingNodeId}
         draftLabel={draftLabel}
         containerRef={measurementLayerRef}
@@ -589,6 +594,7 @@ export function App() {
                   nodeType: connectedNode?.type ?? 'ui',
                 };
               })}
+            properties={nodePropertiesById[node.id] ?? []}
             onNodeClick={(clickedNode) => {
               if (connectingSourceNodeId) {
                 addConnection(connectingSourceNodeId, clickedNode.id);

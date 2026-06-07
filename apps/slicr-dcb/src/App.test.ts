@@ -70,6 +70,8 @@ describe('App', () => {
     draftLabel: '',
     openNodeMenuId: null,
     connectingSourceNodeId: null,
+    nodePropertiesById: {},
+    updateFocusedNodeProperties: vi.fn(),
     setFocusedNodeId: vi.fn(),
     setDraftLabel: vi.fn(),
     setOpenNodeMenuId: vi.fn(),
@@ -135,6 +137,25 @@ describe('App', () => {
     const propertyNameInput = container.querySelector<HTMLInputElement>('.property-editor-field input[placeholder="propertyName"]');
     expect(propertyNameInput?.value).toBe('title');
     expect([...container.querySelectorAll<HTMLInputElement>('input')].map((input) => input.value)).toContain('Hello');
+  });
+
+  it('renders property-grid content inside graph nodes when properties exist', async () => {
+    graphModelMock.useGraphModel.mockReturnValue(createGraphModelMockValue({
+      nodePropertiesById: {
+        'node-1': [{id: 'prop-title', name: 'title', type: 'string', example: 'Hello'}],
+      },
+    }));
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(createElement(App));
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('.canvas .node-box-with-properties')).not.toBeNull();
+    expect(container.querySelector('.canvas .node-box-with-properties property-grid')).not.toBeNull();
   });
 
   it('does not start node title editing when Enter is pressed inside the property editor', async () => {
@@ -232,7 +253,7 @@ describe('App', () => {
         expect.objectContaining({id: 'node-1', width: NODE_WIDTH, height: NODE_HEIGHT}),
       ]);
       expect(layoutLibMock.compactLayout.mock.calls[1]?.[0].nodes).toEqual([
-        expect.objectContaining({id: 'node-1', width: 312, height: 118}),
+        expect.objectContaining({id: 'node-1', width: NODE_WIDTH, height: 118}),
       ]);
     } finally {
       HTMLElement.prototype.getBoundingClientRect = originalGetBoundingClientRect;
@@ -339,10 +360,10 @@ describe('App', () => {
 
       expect(layoutLibMock.compactLayout).toHaveBeenCalledTimes(4);
       expect(layoutLibMock.compactLayout.mock.calls[2]?.[0].nodes).toEqual([
-        expect.objectContaining({id: 'node-1', width: 312, height: 118, label: 'Checkout Draft'}),
+        expect.objectContaining({id: 'node-1', width: NODE_WIDTH, height: 118, label: 'Checkout Draft'}),
       ]);
       expect(layoutLibMock.compactLayout.mock.calls[3]?.[0].nodes).toEqual([
-        expect.objectContaining({id: 'node-1', width: 420, height: 160, label: 'Checkout Draft'}),
+        expect.objectContaining({id: 'node-1', width: NODE_WIDTH, height: 160, label: 'Checkout Draft'}),
       ]);
     } finally {
       HTMLElement.prototype.getBoundingClientRect = originalGetBoundingClientRect;
@@ -415,7 +436,7 @@ describe('App', () => {
         expect.objectContaining({id: 'node-1', width: NODE_WIDTH, height: NODE_HEIGHT}),
       ]);
       expect(layoutLibMock.compactLayout.mock.calls[1]?.[0].nodes).toEqual([
-        expect.objectContaining({id: 'node-1', width: 312, height: 118}),
+        expect.objectContaining({id: 'node-1', width: NODE_WIDTH, height: 118}),
       ]);
     } finally {
       HTMLElement.prototype.getBoundingClientRect = originalGetBoundingClientRect;
@@ -561,7 +582,12 @@ describe('App', () => {
 
       expect(writeText).toHaveBeenCalledTimes(1);
       expect(writeText.mock.calls[0]?.[0]).toContain(
-        '{\n      id: "node-1",\n      laneId: "lane-0",\n      width: 312,\n      height: 118\n    }',
+        `{
+      id: "node-1",
+      laneId: "lane-0",
+      width: ${NODE_WIDTH},
+      height: 118
+    }`,
       );
     } finally {
       HTMLElement.prototype.getBoundingClientRect = originalGetBoundingClientRect;

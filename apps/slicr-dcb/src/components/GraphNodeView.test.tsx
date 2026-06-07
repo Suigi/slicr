@@ -39,6 +39,8 @@ const baseProps = {
   onLabelBlur: vi.fn(),
 };
 
+const properties = [{id: 'prop-title', name: 'title', type: 'string', example: 'Hello'}] as const;
+
 describe('GraphNodeView', () => {
   let container: HTMLDivElement | null = null;
   let root: Root | null = null;
@@ -62,6 +64,14 @@ describe('GraphNodeView', () => {
     expect(html).not.toContain('node-connecting-source');
   });
 
+  it('uses fixed node width in measurement mode for property nodes', () => {
+    const html = renderToStaticMarkup(createElement(GraphNodeView, {...baseProps, renderMode: 'measurement', properties}));
+
+    expect(html).toContain('width:230px');
+    expect(html).toContain('max-width:360px');
+    expect(html).not.toContain('width:max-content');
+  });
+
   it('does not trigger editing handlers in measurement mode', async () => {
     const onStartEditingNode = vi.fn();
     container = document.createElement('div');
@@ -78,6 +88,15 @@ describe('GraphNodeView', () => {
     labelButton?.dispatchEvent(new MouseEvent('dblclick', {bubbles: true}));
 
     expect(onStartEditingNode).not.toHaveBeenCalled();
+  });
+
+  it('renders a property-grid below the title when node properties exist', () => {
+    const html = renderToStaticMarkup(createElement(GraphNodeView, {...baseProps, properties}));
+
+    expect(html).toContain('node-box-with-properties');
+    expect(html).toContain('node-title-row');
+    expect(html).toContain('node-property-grid');
+    expect(html).toContain('property-grid');
   });
 
   it('keeps focused interactive styling and click behavior by default', async () => {

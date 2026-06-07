@@ -1,10 +1,12 @@
 import type {Ref} from 'react';
+import type {EditableProperty} from '@slicr/react-ui';
 import {DCB_NODE_MEASURE_CLASS} from '../nodeMeasurement';
 import type {GraphNode, RenderNode} from '../graph/types';
 import {GraphNodeView} from './GraphNodeView';
 
 type NodeMeasureLayerProps = {
   nodes: readonly RenderNode[];
+  nodePropertiesById?: Record<string, EditableProperty[]>;
   editingNodeId: string | null;
   draftLabel: string;
   containerRef?: Ref<HTMLDivElement>;
@@ -32,7 +34,7 @@ const noopLabelChange = (label: string) => {
   void label;
 };
 
-export function NodeMeasureLayer({nodes, editingNodeId, draftLabel, containerRef}: NodeMeasureLayerProps) {
+export function NodeMeasureLayer({nodes, nodePropertiesById = {}, editingNodeId, draftLabel, containerRef}: NodeMeasureLayerProps) {
   return (
     <div
       ref={containerRef}
@@ -50,6 +52,7 @@ export function NodeMeasureLayer({nodes, editingNodeId, draftLabel, containerRef
         >
           <GraphNodeView
             node={{...node, x: 0, y: 0}}
+            properties={nodePropertiesById[node.id] ?? []}
             isFocused={false}
             isEditing={node.id === editingNodeId}
             isMenuOpen={false}

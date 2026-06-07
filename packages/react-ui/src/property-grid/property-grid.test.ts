@@ -103,6 +103,29 @@ describe('property-grid custom element', () => {
     expect(cells).toEqual(['nodeId', 'node-42', 'active', 'false']);
   });
 
+  it('renders empty object-list placeholder cells with property type styling', () => {
+    const element = createPropertyGrid({
+      items: {
+        kind: 'table',
+        columns: [
+          { key: 'sku', type: 'string' },
+          { key: 'quantity', type: 'number' },
+        ],
+        rows: [],
+      },
+    });
+
+    const shadow = element.shadowRoot;
+    const placeholderCells = [...(shadow?.querySelectorAll('.table tbody td') ?? [])];
+    const typeSpans = placeholderCells.map((cell) => cell.querySelector('.field-type'));
+    const separatorSpans = placeholderCells.map((cell) => cell.querySelector('.field-separator'));
+
+    expect(placeholderCells.map((cell) => cell.textContent)).toEqual([': string', ': number']);
+    expect(separatorSpans.map((span) => span?.textContent)).toEqual([':', ':']);
+    expect(typeSpans.map((span) => span?.textContent)).toEqual(['string', 'number']);
+    expect(typeSpans.every((span) => span?.classList.contains('field-type'))).toBe(true);
+  });
+
   it('updates rendered rows when the properties DOM property changes', () => {
     const element = createPropertyGrid({
       before: { type: 'string' },

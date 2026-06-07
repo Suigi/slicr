@@ -530,14 +530,25 @@ export function useGraphModel() {
     };
   }, [flushPendingPropertyEdit]);
 
+  const nodePropertiesById = useMemo(
+    () =>
+      Object.fromEntries(
+        nodes.map((node) => [
+          node.id,
+          editorPropertiesById[node.id]
+            ?? mergeNodePropertyEditorProperties(nodeSchemas[node.id] ?? [], nodeExampleValues[node.id] ?? []),
+        ]),
+      ),
+    [editorPropertiesById, nodeExampleValues, nodeSchemas, nodes],
+  );
+
   const focusedNodeProperties = useMemo(() => {
     if (!focusedNodeId) {
       return [];
     }
 
-    return editorPropertiesById[focusedNodeId]
-      ?? mergeNodePropertyEditorProperties(nodeSchemas[focusedNodeId] ?? [], nodeExampleValues[focusedNodeId] ?? []);
-  }, [editorPropertiesById, focusedNodeId, nodeExampleValues, nodeSchemas]);
+    return nodePropertiesById[focusedNodeId] ?? [];
+  }, [focusedNodeId, nodePropertiesById]);
 
   const updateFocusedNodeProperties = useCallback((properties: EditableProperty[]) => {
     if (!focusedNodeId) {
@@ -558,6 +569,7 @@ export function useGraphModel() {
     lanes,
     focusedNodeId,
     focusedNodeProperties,
+    nodePropertiesById,
     editingNodeId,
     draftLabel,
     openNodeMenuId,

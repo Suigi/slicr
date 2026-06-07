@@ -196,6 +196,11 @@ class PropertyGrid extends HTMLElement {
         .table tbody tr:first-child td {
           border-top: 1px solid var(--property-grid-line);
         }
+
+        .table td .field-separator,
+        .table td .field-type {
+          padding: 0;
+        }
       </style>
       <div class="property-panel" part="panel">
         <table class="property-grid" part="grid">
@@ -287,12 +292,20 @@ class PropertyGrid extends HTMLElement {
         thead.append(headerRow);
 
         const tbody = document.createElement("tbody");
-        property.rows.forEach((rowData) => {
+        const rows = property.rows.length > 0
+          ? property.rows
+          : [Object.fromEntries(property.columns.map((column) => [column.key, column.type ? `: ${column.type}` : ""]))];
+        rows.forEach((rowData) => {
           const bodyRow = document.createElement("tr");
           bodyRow.className = "table-row";
           for (const column of property.columns) {
             const td = document.createElement("td");
-            td.textContent = formatPropertyValue(rowData[column.key]);
+            const value = rowData[column.key];
+            if (property.rows.length === 0 && column.type) {
+              td.append(this.#createCell("span", "field-separator", ":"), document.createTextNode(" "), this.#createCell("span", "field-type", column.type));
+            } else {
+              td.textContent = formatPropertyValue(value);
+            }
             bodyRow.append(td);
           }
           tbody.append(bodyRow);

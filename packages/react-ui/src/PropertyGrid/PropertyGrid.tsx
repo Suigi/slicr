@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type HTMLAttributes } from 'react';
+import { useLayoutEffect, useMemo, useRef, type HTMLAttributes } from 'react';
 
 import '../property-grid/property-grid.js';
 
@@ -167,7 +167,7 @@ export function PropertyGrid({ properties, ariaLabel = 'Properties', ...elementP
   const elementRef = useRef<PropertyGridElement>(null);
   const normalizedProperties = useMemo(() => toPropertyGridProperties(properties), [properties]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (elementRef.current) {
       elementRef.current.properties = normalizedProperties;
     }

@@ -47,7 +47,14 @@ describe('NodeMeasureLayer', () => {
     root = createRoot(container);
 
     await act(async () => {
-      root?.render(createElement(NodeMeasureLayer, {nodes, editingNodeId: null, draftLabel: ''}));
+      root?.render(
+        createElement(NodeMeasureLayer, {
+          nodes,
+          nodePropertiesById: { 'node-1': [{id: 'prop-title', name: 'title', type: 'string', example: 'Hello'}] },
+          editingNodeId: null,
+          draftLabel: '',
+        }),
+      );
     });
 
     const layer = container.querySelector<HTMLElement>('.node-measure-layer');
@@ -59,6 +66,7 @@ describe('NodeMeasureLayer', () => {
     expect(measurementTargets).toHaveLength(nodes.length);
     expect([...measurementTargets].map((target) => target.dataset.nodeId)).toEqual(nodes.map((node) => node.id));
     expect(measurementTargets[0]?.textContent).toContain('Checkout Completed');
+    expect(measurementTargets[0]?.querySelector('property-grid')).not.toBeNull();
     expect(measurementTargets[1]?.textContent).toContain('Read Model');
   });
 

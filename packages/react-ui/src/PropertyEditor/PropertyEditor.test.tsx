@@ -188,6 +188,32 @@ describe('PropertyEditor', () => {
     ]);
   });
 
+  it('shows a limited settings toolbar for nested object properties', () => {
+    const property: EditableProperty = {
+      id: 'item-id',
+      name: 'item',
+      type: 'Object',
+      properties: [{ id: 'sku-id', name: 'sku', type: 'string', example: 'ABC' }],
+    };
+    const { container } = renderPropertyEditor([property]);
+    const nestedEditor = container.querySelector<HTMLElement>('.property-editor-nested .property-editor');
+    const nestedSettingsButton = nestedEditor?.querySelector<HTMLButtonElement>('button[aria-label="Property settings"]');
+
+    expect(nestedSettingsButton).not.toBeNull();
+
+    click(nestedSettingsButton!);
+
+    const nestedToolbar = nestedEditor?.querySelector<HTMLElement>('.property-editor-toolbar');
+    const nestedToolbarText = nestedToolbar?.textContent ?? '';
+
+    expect(nestedToolbar).not.toBeNull();
+    expect(nestedToolbarText).toContain('List');
+    expect(nestedToolbarText).toContain('Optional');
+    expect(nestedToolbarText).not.toContain('Generated');
+    expect(nestedToolbarText).not.toContain('Tag');
+    expect(nestedToolbar?.querySelector('.property-editor-tag-name-input')).toBeNull();
+  });
+
   it('hides property toolbar, column headers, and editable examples when configured', () => {
     const { container } = renderPropertyEditor(
       [{ id: 'title-id', name: 'title', type: 'string', example: 'hello' }],

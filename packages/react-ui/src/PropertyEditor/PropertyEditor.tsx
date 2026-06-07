@@ -19,6 +19,7 @@ type PropertyEditorProps = {
   properties: EditableProperty[];
   onChange: (properties: EditableProperty[]) => void;
   showPropertyToolbar?: boolean;
+  showExtendedPropertyToolbarControls?: boolean;
   showColumnHeaders?: boolean;
   disableExampleValues?: boolean;
 };
@@ -36,6 +37,7 @@ export function PropertyEditor({
   properties,
   onChange,
   showPropertyToolbar = true,
+  showExtendedPropertyToolbarControls = true,
   showColumnHeaders = true,
   disableExampleValues = false,
 }: PropertyEditorProps) {
@@ -594,33 +596,37 @@ export function PropertyEditor({
                     />
                     Optional
                   </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={property.generated ?? false}
-                      onChange={(event) => updateProperty(index, { ...property, generated: event.target.checked })}
-                    />
-                    Generated
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={Boolean(property.tag)}
-                      onChange={(event) =>
-                        updateProperty(index, { ...property, tag: event.target.checked ? { name: property.tag?.name ?? '' } : undefined })
-                      }
-                    />
-                    Tag
-                  </label>
-                  <input
-                    type="text"
-                    className="property-editor-tag-name-input"
-                    value={property.tag?.name ?? ''}
-                    placeholder="tag name"
-                    disabled={!property.tag}
-                    aria-label="Tag name"
-                    onChange={(event) => updateProperty(index, { ...property, tag: { name: event.target.value } })}
-                  />
+                  {showExtendedPropertyToolbarControls ? (
+                    <>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={property.generated ?? false}
+                          onChange={(event) => updateProperty(index, { ...property, generated: event.target.checked })}
+                        />
+                        Generated
+                      </label>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(property.tag)}
+                          onChange={(event) =>
+                            updateProperty(index, { ...property, tag: event.target.checked ? { name: property.tag?.name ?? '' } : undefined })
+                          }
+                        />
+                        Tag
+                      </label>
+                      <input
+                        type="text"
+                        className="property-editor-tag-name-input"
+                        value={property.tag?.name ?? ''}
+                        placeholder="tag name"
+                        disabled={!property.tag}
+                        aria-label="Tag name"
+                        onChange={(event) => updateProperty(index, { ...property, tag: { name: event.target.value } })}
+                      />
+                    </>
+                  ) : null}
                 </div>
               ) : null}
 
@@ -629,7 +635,7 @@ export function PropertyEditor({
                   <PropertyEditor
                     properties={property.properties ?? []}
                     onChange={(nestedProperties) => updateNestedProperties(index, nestedProperties)}
-                    showPropertyToolbar={false}
+                    showExtendedPropertyToolbarControls={false}
                     showColumnHeaders={false}
                     disableExampleValues={property.list}
                   />

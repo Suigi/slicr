@@ -126,6 +126,30 @@ describe('PropertyGrid React wrapper', () => {
     expect(cells).toEqual(['ABC', '2']);
   });
 
+  it('renders nested property types when an editable object-list has no example rows', () => {
+    const container = renderPropertyGrid(
+      <PropertyGrid
+        properties={[
+          {
+            id: 'items-id',
+            name: 'items',
+            kind: 'object',
+            type: 'Item',
+            list: true,
+            properties: [
+              { id: 'sku-id', name: 'sku', kind: 'scalar', type: 'string' },
+              { id: 'quantity-id', name: 'quantity', kind: 'scalar', type: 'number' },
+            ],
+          },
+        ]}
+      />,
+    );
+    const element = container.querySelector<PropertyGridElement>('property-grid');
+    const cells = [...(element?.shadowRoot?.querySelectorAll('.table tbody td') ?? [])].map((cell) => cell.textContent);
+
+    expect(cells).toEqual([': string', ': number']);
+  });
+
   it('renders the type fallback for editable scalar properties with an empty example', () => {
     const container = renderPropertyGrid(<PropertyGrid properties={[{ id: 'title-id', name: 'title', type: 'string', example: '' }]} />);
     const element = container.querySelector<PropertyGridElement>('property-grid');
