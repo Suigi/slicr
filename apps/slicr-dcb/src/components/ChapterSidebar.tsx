@@ -1,5 +1,8 @@
 import {useEffect, useRef, useState} from 'react';
 import { SlicrIcon } from './SlicrIcon';
+import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
+import { faCheck } from '@fortawesome/free-solid-svg-icons';
+
 
 export type Chapter = {
   id: string;
@@ -94,9 +97,13 @@ export function ChapterSidebar({ chapters, activeChapterId, onSelectChapter, onC
       </nav>
       {isAddingChapter ? (
         <div className="chapter-sidebar-create">
+          <span className="chapter-nav-index chapter-sidebar-create-index" aria-hidden="true">
+            +
+          </span>
           <input
             ref={inputRef}
             type="text"
+            className="chapter-sidebar-create-input"
             value={chapterTitle}
             onChange={(event) => setChapterTitle(event.target.value)}
             onBlur={cancelChapterCreation}
@@ -118,7 +125,7 @@ export function ChapterSidebar({ chapters, activeChapterId, onSelectChapter, onC
             onMouseDown={(event) => event.preventDefault()}
             onClick={submitChapterCreation}
           >
-            ✓
+            <FontAwesomeIcon icon={faCheck} />
           </button>
         </div>
       ) : null}

@@ -4,6 +4,8 @@ import { NODE_MAX_WIDTH, NODE_WIDTH } from '../graph/constants';
 import { getSuccessorNodeType } from '../graph/graphUtils';
 import type { AddDirection, GraphNode, NodeType, RenderNode } from '../graph/types';
 import { NodeMenu } from './NodeMenu';
+import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
+import {faCog} from '@fortawesome/free-solid-svg-icons';
 
 type ConnectionMenuItem = {
   id: string;
@@ -176,9 +178,7 @@ export function GraphNodeView({
             onToggleMenu();
           }}
         >
-          <svg className="node-menu-icon" viewBox="0 0 512 512" aria-hidden="true" focusable="false">
-            <path d="M495.9 166.6c3.2 8.7 .5 18.4-6.4 24.6l-43.3 39.4c1.1 8.3 1.7 16.8 1.7 25.4s-.6 17.1-1.7 25.4l43.3 39.4c6.9 6.2 9.6 15.9 6.4 24.6-4.4 12-9.7 23.6-15.8 34.7l-4.7 8.1c-6.6 11-14 21.4-22.1 31.2-5.9 7.2-15.7 9.6-24.5 6.8l-55.7-17.7c-13.4 10.3-28.2 18.9-44 25.4l-12.5 57.1c-2 9.1-9 16.3-18.2 17.8-13.8 2.3-27.9 3.5-42.4 3.5s-28.6-1.2-42.4-3.5c-9.2-1.5-16.2-8.7-18.2-17.8l-12.5-57.1c-15.8-6.5-30.6-15.1-44-25.4l-55.7 17.7c-8.8 2.8-18.6 .3-24.5-6.8-8.1-9.8-15.5-20.2-22.1-31.2l-4.7-8.1c-6.1-11.1-11.4-22.7-15.8-34.7-3.2-8.7-.5-18.4 6.4-24.6l43.3-39.4c-1.1-8.3-1.7-16.8-1.7-25.4s.6-17.1 1.7-25.4L22.5 191.2c-6.9-6.2-9.6-15.9-6.4-24.6 4.4-12 9.7-23.6 15.8-34.7l4.7-8.1c6.6-11 14-21.4 22.1-31.2 5.9-7.2 15.7-9.6 24.5-6.8l55.7 17.7c13.4-10.3 28.2-18.9 44-25.4l12.5-57.1c2-9.1 9-16.3 18.2-17.8C227.4 1.2 241.5 0 256 0s28.6 1.2 42.4 3.5c9.2 1.5 16.2 8.7 18.2 17.8l12.5 57.1c15.8 6.5 30.6 15.1 44 25.4l55.7-17.7c8.8-2.8 18.6-.3 24.5 6.8 8.1 9.8 15.5 20.2 22.1 31.2l4.7 8.1c6.1 11.1 11.4 22.7 15.8 34.7zM256 336a80 80 0 1 0 0-160 80 80 0 1 0 0 160z" />
-          </svg>
+          <FontAwesomeIcon icon={faCog} className={"node-menu-icon"} />
         </button>
       ) : null}
       {showNodeMenu ? (

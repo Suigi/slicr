@@ -295,9 +295,59 @@ body {
   border-radius: 9px;
   background: #fff;
   color: #172033;
+  display: grid;
+  place-items: center;
   font: inherit;
   font-size: 22px;
   line-height: 1;
+  cursor: pointer;
+}
+
+.chapter-sidebar-create {
+  display: grid;
+  min-height: 48px;
+  grid-template-columns: 24px minmax(0, 1fr) 34px;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  border: 1px solid rgba(23, 32, 51, 0.12);
+  border-radius: 6px;
+  background: #fff;
+  color: #172033;
+  padding: 0 12px;
+}
+
+.chapter-sidebar-create-index {
+  color: #64748b;
+}
+
+.chapter-sidebar-create-input {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 650;
+  outline: none;
+  padding: 0;
+}
+
+.chapter-sidebar-create-confirm {
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(23, 32, 51, 0.12);
+  border-radius: 9px;
+  background: #fff;
+  color: #172033;
+  display: grid;
+  place-items: center;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.chapter-sidebar-create-confirm i {
+  font-size: 14px;
 }
 
 .chapter-nav {

@@ -175,6 +175,8 @@ describe('ChapterSidebar', () => {
       await Promise.resolve();
     });
 
+    expect(container?.querySelector('.chapter-sidebar-create-confirm svg')).not.toBeNull();
+
     await act(async () => {
       container?.querySelector<HTMLButtonElement>('.chapter-sidebar-create-confirm')?.click();
       await Promise.resolve();
