@@ -1,24 +1,25 @@
-# Task 005: Add project and chapter creation flows
+# Task 005: Add chapter creation flow
 
 Use the **pi-ptdd** skill for this task. Assume tasks 001 through 004 are complete.
 
 ## Goal
 
-Let users create projects and chapters from the UI, backed by workspace events and the existing active project/chapter graph scoping.
+Let users create a new chapter in the active project from the chapter sidebar, backed by workspace events and the existing active project/chapter graph scoping.
 
 At the end of this task:
 
-- users can create a new project
 - users can create a new chapter in the active project
-- newly created workspaces are immediately usable
+- the newly created chapter is selected immediately
+- the newly created chapter is usable for graph editing
 - tests pass
 
 ## Scope
 
-Implement creation only.
+Implement chapter creation only.
 
 Do **not** yet:
 
+- add project creation UI
 - add rename flows
 - add node-moving-between-chapters UI
 
@@ -27,7 +28,6 @@ Do **not** yet:
 - `apps/slicr-dcb/src/domain/events.ts`
 - workspace command/projection files from earlier tasks
 - `apps/slicr-dcb/src/App.tsx`
-- `apps/slicr-dcb/src/components/ProjectSwitcher.tsx`
 - `apps/slicr-dcb/src/components/ChapterSidebar.tsx`
 - `apps/slicr-dcb/src/graph/useGraphModel.ts`
 - `apps/slicr-dcb/src/App.test.ts`
@@ -39,20 +39,9 @@ Do **not** yet:
 
 Add command handling for:
 
-- `AddProject`
 - `AddChapter`
 
 Implementation details may vary, but behavior must be explicit and testable.
-
-### New project behavior
-
-Creating a project must leave the app in a usable state immediately.
-
-Recommended behavior:
-
-- create the project
-- create a default first chapter for that project in the same action or flow
-- select the new project and its initial chapter in the UI
 
 ### New chapter behavior
 
@@ -62,26 +51,36 @@ Creating a chapter should:
 - select it after creation
 - show an empty graph until the user adds nodes
 
-### UI
+### UI behavior
 
-- wire the existing chapter add button in `ChapterSidebar`
-- add a clear UI affordance for creating a project in or near `ProjectSwitcher`
-- avoid modal-heavy UX unless tests make it worthwhile; keep it simple and deterministic
+Wire the chapter add button in `ChapterSidebar` with this UX:
+
+- User clicks the `+` button.
+- An input box appears at the bottom of the chapter list.
+- The input contains the text `New Chapter`.
+- The input is focused and its text is fully selected so the name is easy to replace.
+- To the right of the input is a button with a green checkmark.
+- Clicking the checkmark button issues the `AddChapter` command.
+- Pressing `<Enter>` in the input issues the `AddChapter` command.
+- Pressing `<Escape>` removes the input and does not issue a command.
+- Blurring the input removes the input and does not issue a command.
 
 ## Acceptance criteria
 
-- A test proves creating a project adds it to the switcher.
-- A test proves creating a project also leaves it with a usable initial chapter.
-- A test proves creating a chapter adds it under the active project and selects it.
+- A test proves clicking the chapter `+` button shows the pre-selected `New Chapter` input.
+- A test proves clicking the green checkmark creates a chapter under the active project and selects it.
+- A test proves pressing `<Enter>` creates a chapter under the active project and selects it.
+- A test proves pressing `<Escape>` cancels chapter creation without issuing `AddChapter`.
+- A test proves blurring the input cancels chapter creation without issuing `AddChapter`.
 - A test proves adding a node after switching to a newly created chapter records that node in the active chapter.
-- Existing switching behavior continues to work.
+- Existing project/chapter switching behavior continues to work.
 
 ## PTDD notes
 
 - Work in `apps/slicr-dcb`.
 - Refresh `apps/slicr-dcb/test-list.md` for this task before the first iteration.
-- Start with domain-level creation behavior if you introduce commands/handlers.
-- Add only the smallest UI needed to make creation operable and testable.
+- Start with domain-level `AddChapter` behavior if the command/handler does not exist yet.
+- Add only the smallest UI needed to make chapter creation operable and testable.
 
 ## Suggested validation commands
 
@@ -92,4 +91,4 @@ Use focused Vitest commands during PTDD, then finish with:
 
 ## Done when
 
-Users can create projects and chapters from the app, and every newly created workspace is immediately usable without manual repair.
+Users can create a chapter from the sidebar, it becomes the selected active chapter, and it is immediately usable for graph edits.
