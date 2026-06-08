@@ -224,6 +224,7 @@ export function App() {
     replaceGraphEvents,
     revertToLastOkGraphModel,
     addNewSlice,
+    addProject,
     addChapter,
     startConnectingFromNode,
     cancelConnecting,
@@ -516,6 +517,7 @@ export function App() {
             setSelectedProjectId(projectId);
             setSelectedChapterId(null);
           }}
+          onAddProject={addProject}
         />
       }
       collapsedSidebarLabel={activeChapterName}
@@ -598,6 +600,9 @@ export function App() {
         ignorePanSelector=".node-box, .node-add-button, .node-menu-button, .node-menu, .node-label-input, .export-menu, .node-layout-mockups, .property-editor-example"
         onCanvasPointerDown={(event) => {
           if (event.target instanceof Element && !event.target.closest('.node-box')) {
+            if (document.activeElement instanceof HTMLElement && document.activeElement.matches('.project-switcher-option-add-input, .chapter-sidebar-create-input')) {
+              document.activeElement.blur();
+            }
             setFocusedNodeId(null);
             setOpenNodeMenuId(null);
             cancelConnecting();

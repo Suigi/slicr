@@ -387,6 +387,24 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
     })();
   }, [applyGraphModel, setFocusedNodeId, syncWorkspaceState]);
 
+  const addProject = useCallback(async (name: string) => {
+    const graphModel = await modelRef.current?.addProject(name);
+    if (!graphModel || !modelRef.current) {
+      return;
+    }
+
+    applyGraphModel(graphModel);
+    syncWorkspaceState();
+    setFocusedNodeId(graphModel.nodes[0]?.id ?? null);
+    setOpenNodeMenuId(null);
+    setConnectingSourceNodeId(null);
+    skipBlurSaveRef.current = false;
+    cancelEditRef.current = false;
+    setEditingNodeId(null);
+    setDraftLabel('');
+    setOriginalLabel('');
+  }, [applyGraphModel, setFocusedNodeId, syncWorkspaceState]);
+
   const addChapter = useCallback(async (title: string) => {
     const graphModel = await modelRef.current?.addChapter(title);
     if (!graphModel || !modelRef.current) {
@@ -678,6 +696,7 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
     replaceGraphEvents,
     revertToLastOkGraphModel,
     addNewSlice,
+    addProject,
     addChapter,
     startConnectingFromNode,
     cancelConnecting,

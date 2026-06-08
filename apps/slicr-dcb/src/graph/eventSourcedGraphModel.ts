@@ -54,6 +54,7 @@ export type EventSourcedGraphModel = {
   getScope(): {projectId: string; chapterId: string};
   readEvents(): Promise<DomainEvent[]>;
   addNewSlice(): Promise<RendererGraph>;
+  addProject(name: string): Promise<RendererGraph>;
   addChapter(title: string): Promise<RendererGraph>;
   addConnection(sourceNodeId: string, targetNodeId: string, role?: 'flow' | 'back-reference'): Promise<RendererGraph>;
   deleteConnection(edgeId: string): Promise<RendererGraph>;
@@ -178,6 +179,14 @@ export function createEventSourcedGraphModel(config: {store: AsyncGraphEventStor
       const newNodeNumber = snapshot.nodes.length + 1;
       const newNodeId = generateId();
       return appendAndProject(Events.nodeAdded(currentProjectId, currentChapterId, newNodeId, 'ui', 0, `Node ${newNodeNumber}`));
+    },
+    async addProject(name: string) {
+      const projectId = generateId();
+      const chapterId = generateId();
+      const projectAdded = Events.projectAdded(projectId, name);
+      const chapterAdded = Events.chapterAdded(projectId, chapterId, DEFAULT_CHAPTER_TITLE);
+      await config.store.append([projectAdded, chapterAdded]);
+      return project([...events, projectAdded, chapterAdded], {projectId, chapterId});
     },
     async addChapter(title: string) {
       const newChapterId = generateId();

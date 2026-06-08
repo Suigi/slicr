@@ -207,6 +207,168 @@ describe('App', () => {
     expect(chapterTitles).toEqual(['Overview', 'Cart Flow']);
   });
 
+  it('creates a project from the switcher modal and shows the new project in the switcher', async () => {
+    const addProject = vi.fn(async (name: string) => {
+      graphModelState = createGraphModelMockValue({
+        workspace: {
+          projects: [
+            {id: 'project-1', name: 'Checkout Platform'},
+            {id: 'project-2', name: 'Inventory System'},
+            {id: 'project-3', name},
+          ],
+          chaptersByProjectId: {
+            'project-1': [{id: 'chapter-1', title: 'Overview'}],
+            'project-2': [{id: 'chapter-2', title: 'Cart Flow'}],
+            'project-3': [{id: 'chapter-3', title: 'Chapter 1'}],
+          },
+        },
+        activeProjectId: 'project-3',
+        activeChapterId: 'chapter-3',
+        nodes: [],
+        edges: [],
+        lanes: [],
+        focusedNodeId: null,
+        addProject,
+      });
+    });
+    let graphModelState = createGraphModelMockValue({
+      workspace: {
+        projects: [
+          {id: 'project-1', name: 'Checkout Platform'},
+          {id: 'project-2', name: 'Inventory System'},
+        ],
+        chaptersByProjectId: {
+          'project-1': [{id: 'chapter-1', title: 'Overview'}],
+          'project-2': [{id: 'chapter-2', title: 'Cart Flow'}],
+        },
+      },
+      activeProjectId: 'project-1',
+      activeChapterId: 'chapter-1',
+      nodes: [],
+      edges: [],
+      lanes: [],
+      focusedNodeId: null,
+      addProject,
+    });
+
+    graphModelMock.useGraphModel.mockImplementation(() => graphModelState);
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(createElement(App));
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      container?.querySelector<HTMLButtonElement>('.project-switcher')?.click();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      [...container!.querySelectorAll<HTMLButtonElement>('.project-switcher-option')]
+        .find((button) => button.textContent === 'Add new Project ...')
+        ?.click();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      container?.querySelector<HTMLInputElement>('.project-switcher-option-add-input')?.focus();
+      container?.querySelector<HTMLButtonElement>('.project-switcher-option-add-confirm')?.click();
+      await Promise.resolve();
+    });
+
+    expect(addProject).toHaveBeenCalledWith('New Project');
+
+    await act(async () => {
+      root?.render(createElement(App));
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('.project-switcher-name')?.textContent).toBe('New Project');
+    expect(container.querySelector('.collapsed-sidebar-current-chapter')?.textContent).toBe('Chapter 1');
+  });
+
+  it('presses Enter in the New Project modal to create a project and show it in the switcher', async () => {
+    const addProject = vi.fn(async (name: string) => {
+      graphModelState = createGraphModelMockValue({
+        workspace: {
+          projects: [
+            {id: 'project-1', name: 'Checkout Platform'},
+            {id: 'project-2', name: 'Inventory System'},
+            {id: 'project-3', name},
+          ],
+          chaptersByProjectId: {
+            'project-1': [{id: 'chapter-1', title: 'Overview'}],
+            'project-2': [{id: 'chapter-2', title: 'Cart Flow'}],
+            'project-3': [{id: 'chapter-3', title: 'Chapter 1'}],
+          },
+        },
+        activeProjectId: 'project-3',
+        activeChapterId: 'chapter-3',
+        nodes: [],
+        edges: [],
+        lanes: [],
+        focusedNodeId: null,
+        addProject,
+      });
+    });
+    let graphModelState = createGraphModelMockValue({
+      workspace: {
+        projects: [
+          {id: 'project-1', name: 'Checkout Platform'},
+          {id: 'project-2', name: 'Inventory System'},
+        ],
+        chaptersByProjectId: {
+          'project-1': [{id: 'chapter-1', title: 'Overview'}],
+          'project-2': [{id: 'chapter-2', title: 'Cart Flow'}],
+        },
+      },
+      activeProjectId: 'project-1',
+      activeChapterId: 'chapter-1',
+      nodes: [],
+      edges: [],
+      lanes: [],
+      focusedNodeId: null,
+      addProject,
+    });
+
+    graphModelMock.useGraphModel.mockImplementation(() => graphModelState);
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(createElement(App));
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      container?.querySelector<HTMLButtonElement>('.project-switcher')?.click();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      [...container!.querySelectorAll<HTMLButtonElement>('.project-switcher-option')]
+        .find((button) => button.textContent === 'Add new Project ...')
+        ?.click();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      const input = container?.querySelector<HTMLInputElement>('.project-switcher-option-add-input');
+      input?.focus();
+      input?.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
+      await Promise.resolve();
+    });
+
+    expect(addProject).toHaveBeenCalledWith('New Project');
+
+    await act(async () => {
+      root?.render(createElement(App));
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector('.project-switcher-name')?.textContent).toBe('New Project');
+  });
+
   it('switches the visible graph slice when the project or chapter selection changes', async () => {
     graphModelMock.useGraphModel.mockImplementation(({activeProjectId, activeChapterId}: {activeProjectId?: string | null; activeChapterId?: string | null} = {}) => {
       const workspace = {

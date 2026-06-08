@@ -244,6 +244,37 @@ describe('createEventSourcedGraphModel', () => {
     expect(model.getSnapshot()).toEqual({nodes: [], edges: [], lanes: [], nodeSchemas: {}, nodeExampleValues: {}});
   });
 
+  it('creates a project with an initial chapter and scopes the model to it', async () => {
+    const events: DomainEvent[] = [
+      Events.projectAdded(defaultProjectId, 'Default Project'),
+      Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
+    ];
+    const model = createEventSourcedGraphModel({
+      store: createStore(events),
+      uuidGenerator: createIdGenerator(['generated-project-1', 'generated-chapter-1']),
+    });
+
+    await model.load({projectId: defaultProjectId, chapterId: 'default-chapter'});
+    await model.addProject('Checkout System');
+
+    expect(events.slice(-2)).toEqual([
+      Events.projectAdded('generated-project-1', 'Checkout System'),
+      Events.chapterAdded('generated-project-1', 'generated-chapter-1', 'Chapter 1'),
+    ]);
+    expect(model.getWorkspace()).toEqual({
+      projects: [
+        {id: defaultProjectId, name: 'Default Project'},
+        {id: 'generated-project-1', name: 'Checkout System'},
+      ],
+      chaptersByProjectId: {
+        [defaultProjectId]: [{id: 'default-chapter', title: 'Chapter 1'}],
+        'generated-project-1': [{id: 'generated-chapter-1', title: 'Chapter 1'}],
+      },
+    });
+    expect(model.getScope()).toEqual({projectId: 'generated-project-1', chapterId: 'generated-chapter-1'});
+    expect(model.getSnapshot()).toEqual({nodes: [], edges: [], lanes: [], nodeSchemas: {}, nodeExampleValues: {}});
+  });
+
   it('records new nodes in the chapter created most recently', async () => {
     const events: DomainEvent[] = [
       Events.projectAdded(defaultProjectId, 'Default Project'),
