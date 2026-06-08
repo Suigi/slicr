@@ -1,4 +1,5 @@
 import {AppendConditionFailedError, MemoryStore, Query, type AppendCondition} from '@slicr/event-sourcing';
+import {v4 as uuid} from 'uuid';
 
 import {Events, type DomainEvent} from '../domain/events';
 import {GraphProjector} from '../domain/graphProjector/graphProjector';
@@ -53,6 +54,7 @@ export type EventSourcedGraphModel = {
   getScope(): {projectId: string; chapterId: string};
   readEvents(): Promise<DomainEvent[]>;
   addNewSlice(): Promise<RendererGraph>;
+  addChapter(title: string): Promise<RendererGraph>;
   addConnection(sourceNodeId: string, targetNodeId: string, role?: 'flow' | 'back-reference'): Promise<RendererGraph>;
   deleteConnection(edgeId: string): Promise<RendererGraph>;
   addConnectedNode(command: {sourceNodeId: string; nodeType: NodeType; laneId: number; label: string; role?: 'flow' | 'back-reference'}): Promise<RendererGraph>;
@@ -115,7 +117,8 @@ async function ensureDefaultWorkspace(store: AsyncGraphEventStore) {
   }
 }
 
-export function createEventSourcedGraphModel(config: {store: AsyncGraphEventStore}): EventSourcedGraphModel {
+export function createEventSourcedGraphModel(config: {store: AsyncGraphEventStore, uuidGenerator?: () => string}): EventSourcedGraphModel {
+  const generateId = config.uuidGenerator ?? uuid;
   let snapshot: RendererGraph = {nodes: [], edges: [], lanes: [], nodeSchemas: {}, nodeExampleValues: {}};
   let workspace: WorkspaceProjection = projectWorkspace(defaultWorkspaceEvents);
   let currentProjectId = DEFAULT_PROJECT_ID;
@@ -172,9 +175,15 @@ export function createEventSourcedGraphModel(config: {store: AsyncGraphEventStor
       return config.store.readAll();
     },
     async addNewSlice() {
-      const newNodeNumber = Math.max(0, ...snapshot.nodes.map((node) => Number(node.id.replace('node-', '')) || 0)) + 1;
-      const newNodeId = `node-${newNodeNumber}`;
+      const newNodeNumber = snapshot.nodes.length + 1;
+      const newNodeId = generateId();
       return appendAndProject(Events.nodeAdded(currentProjectId, currentChapterId, newNodeId, 'ui', 0, `Node ${newNodeNumber}`));
+    },
+    async addChapter(title: string) {
+      const newChapterId = generateId();
+      const event = Events.chapterAdded(currentProjectId, newChapterId, title);
+      await config.store.append(event);
+      return project([...events, event], {projectId: currentProjectId, chapterId: newChapterId});
     },
     async addConnection(sourceNodeId: string, targetNodeId: string, role?: 'flow' | 'back-reference') {
       return appendAndProject(Events.nodesConnected(currentProjectId, sourceNodeId, targetNodeId, role));
@@ -187,8 +196,7 @@ export function createEventSourcedGraphModel(config: {store: AsyncGraphEventStor
       return appendAndProject(Events.nodesDisconnected(currentProjectId, edge.sourceId, edge.targetId));
     },
     async addConnectedNode(command: {sourceNodeId: string; nodeType: NodeType; laneId: number; label: string; role?: 'flow' | 'back-reference'}) {
-      const newNodeNumber = Math.max(0, ...snapshot.nodes.map((node) => Number(node.id.replace('node-', '')) || 0)) + 1;
-      const newNodeId = `node-${newNodeNumber}`;
+      const newNodeId = generateId();
       return appendAndProject([
         Events.nodeAdded(currentProjectId, currentChapterId, newNodeId, command.nodeType, command.laneId, command.label),
         Events.nodesConnected(currentProjectId, command.sourceNodeId, newNodeId, command.role),

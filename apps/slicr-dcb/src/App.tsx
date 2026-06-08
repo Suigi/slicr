@@ -224,6 +224,7 @@ export function App() {
     replaceGraphEvents,
     revertToLastOkGraphModel,
     addNewSlice,
+    addChapter,
     startConnectingFromNode,
     cancelConnecting,
     addConnection,
@@ -237,24 +238,29 @@ export function App() {
     handleLabelBlur,
   } = useGraphModel({activeProjectId: selectedProjectId, activeChapterId: selectedChapterId});
 
-  useEffect(() => {
-    if (!workspace.projects.length) {
-      return;
-    }
-
-    if (activeProjectId && selectedProjectId !== activeProjectId) {
-      setSelectedProjectId(activeProjectId);
-    }
-
-    if (activeChapterId && selectedChapterId !== activeChapterId) {
-      setSelectedChapterId(activeChapterId);
-    }
-  }, [activeChapterId, activeProjectId, selectedChapterId, selectedProjectId, workspace.projects.length]);
-
-  const effectiveProjectId = activeProjectId || selectedProjectId || workspace.projects[0]?.id || '';
+  const selectedProjectExists = workspace.projects.some((project) => project.id === selectedProjectId);
+  const resolvedProjectExists = workspace.projects.some((project) => project.id === activeProjectId);
+  const effectiveProjectId = selectedProjectExists
+    ? (selectedProjectId ?? '')
+    : resolvedProjectExists
+      ? activeProjectId
+      : (workspace.projects[0]?.id ?? '');
   const activeChapters = workspace.chaptersByProjectId[effectiveProjectId] ?? [];
-  const effectiveChapterId = activeChapterId || selectedChapterId || activeChapters[0]?.id || '';
+  const selectedChapterExists = activeChapters.some((chapter) => chapter.id === selectedChapterId);
+  const resolvedChapterExists = activeChapters.some((chapter) => chapter.id === activeChapterId);
+  const effectiveChapterId = selectedChapterExists
+    ? (selectedChapterId ?? '')
+    : resolvedChapterExists
+      ? activeChapterId
+      : (activeChapters[0]?.id ?? '');
   const activeChapterName = activeChapters.find((chapter) => chapter.id === effectiveChapterId)?.title ?? 'Untitled';
+
+  const handleAddChapter = async (title: string) => {
+    const newChapterId = await addChapter(title);
+    if (newChapterId) {
+      setSelectedChapterId(newChapterId);
+    }
+  };
 
   const layoutNodes = useMemo(
     () =>
@@ -521,6 +527,7 @@ export function App() {
           activeChapterId={effectiveChapterId}
           onSelectChapter={setSelectedChapterId}
           onCollapse={() => setIsSidebarOpen(false)}
+          onAddChapter={handleAddChapter}
         />
       }
     >

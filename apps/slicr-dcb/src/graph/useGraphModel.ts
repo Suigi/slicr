@@ -387,6 +387,26 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
     })();
   }, [applyGraphModel, setFocusedNodeId, syncWorkspaceState]);
 
+  const addChapter = useCallback(async (title: string) => {
+    const graphModel = await modelRef.current?.addChapter(title);
+    if (!graphModel || !modelRef.current) {
+      return undefined;
+    }
+
+    applyGraphModel(graphModel);
+    syncWorkspaceState();
+    setFocusedNodeId(graphModel.nodes[0]?.id ?? null);
+    setOpenNodeMenuId(null);
+    setConnectingSourceNodeId(null);
+    skipBlurSaveRef.current = false;
+    cancelEditRef.current = false;
+    setEditingNodeId(null);
+    setDraftLabel('');
+    setOriginalLabel('');
+
+    return modelRef.current.getScope().chapterId;
+  }, [applyGraphModel, setFocusedNodeId, syncWorkspaceState]);
+
   const startConnectingFromNode = useCallback((nodeId: string) => {
     setFocusedNodeId(nodeId);
     setOpenNodeMenuId(null);
@@ -442,8 +462,7 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
       const targetLaneOrder =
         direction === 'top' ? sourceLaneOrder - 1 : direction === 'bottom' ? sourceLaneOrder + 1 : sourceLaneOrder;
       const targetType = typeOverride ?? getSuccessorNodeType(sourceNode.type, direction);
-      const newNodeNumber = Math.max(0, ...nodes.map((node) => Number(node.id.replace('node-', '')) || 0)) + 1;
-      const label = `Node ${newNodeNumber}`;
+      const label = `Node ${nodes.length + 1}`;
 
       void (async () => {
         const graphModel = await modelRef.current?.addConnectedNode({
@@ -659,6 +678,7 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
     replaceGraphEvents,
     revertToLastOkGraphModel,
     addNewSlice,
+    addChapter,
     startConnectingFromNode,
     cancelConnecting,
     addConnection,

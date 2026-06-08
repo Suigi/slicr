@@ -7,6 +7,18 @@ import {NODE_HEIGHT, NODE_WIDTH} from './constants';
 
 const defaultProjectId = 'default-project';
 
+function createIdGenerator(ids: string[]) {
+  let index = 0;
+  return () => {
+    const nextId = ids[index];
+    if (nextId === undefined) {
+      throw new Error('No more generated ids available');
+    }
+    index += 1;
+    return nextId;
+  };
+}
+
 function createStore(events: DomainEvent[] = []): AsyncGraphEventStore {
   return {
     append: async (nextEvents, condition?: AppendCondition) => {
@@ -70,7 +82,7 @@ describe('createEventSourcedGraphModel', () => {
       Events.nodeAdded(defaultProjectId, 'default-chapter', 'node-1', 'ui', 0, 'Default Chapter Node'),
       Events.nodeAdded(defaultProjectId, 'chapter-2', 'node-2', 'evt', 1, 'Other Chapter Node'),
     ];
-    const model = createEventSourcedGraphModel({store: createStore(events)});
+    const model = createEventSourcedGraphModel({store: createStore(events), uuidGenerator: createIdGenerator(['generated-node-1'])});
 
     await model.load();
     await model.addNewSlice();
@@ -81,12 +93,12 @@ describe('createEventSourcedGraphModel', () => {
       Events.chapterAdded(defaultProjectId, 'chapter-2', 'Chapter 2'),
       Events.nodeAdded(defaultProjectId, 'default-chapter', 'node-1', 'ui', 0, 'Default Chapter Node'),
       Events.nodeAdded(defaultProjectId, 'chapter-2', 'node-2', 'evt', 1, 'Other Chapter Node'),
-      Events.nodeAdded(defaultProjectId, 'default-chapter', 'node-2', 'ui', 0, 'Node 2'),
+      Events.nodeAdded(defaultProjectId, 'default-chapter', 'generated-node-1', 'ui', 0, 'Node 2'),
     ]);
     expect(model.getSnapshot()).toEqual({
       nodes: [
         {id: 'node-1', label: 'Default Chapter Node', type: 'ui', laneId: 'lane-0', width: NODE_WIDTH, height: NODE_HEIGHT},
-        {id: 'node-2', label: 'Node 2', type: 'ui', laneId: 'lane-0', width: NODE_WIDTH, height: NODE_HEIGHT},
+        {id: 'generated-node-1', label: 'Node 2', type: 'ui', laneId: 'lane-0', width: NODE_WIDTH, height: NODE_HEIGHT},
       ],
       edges: [],
       lanes: [{id: 'lane-0', order: 0}],
@@ -191,20 +203,91 @@ describe('createEventSourcedGraphModel', () => {
       Events.chapterAdded('project-2', 'chapter-3', 'Stock Levels'),
       Events.nodeAdded('project-1', 'chapter-1', 'node-1', 'evt', 0, 'Overview Node'),
     ];
-    const model = createEventSourcedGraphModel({store: createStore(events)});
+    const model = createEventSourcedGraphModel({store: createStore(events), uuidGenerator: createIdGenerator(['generated-node-1'])});
 
     await model.load({projectId: 'project-2', chapterId: 'chapter-3'});
     await model.addNewSlice();
 
-    expect(events[events.length - 1]).toEqual(Events.nodeAdded('project-2', 'chapter-3', 'node-1', 'ui', 0, 'Node 1'));
+    expect(events[events.length - 1]).toEqual(Events.nodeAdded('project-2', 'chapter-3', 'generated-node-1', 'ui', 0, 'Node 1'));
     expect(model.getScope()).toEqual({projectId: 'project-2', chapterId: 'chapter-3'});
     expect(model.getSnapshot()).toEqual({
-      nodes: [{id: 'node-1', label: 'Node 1', type: 'ui', laneId: 'lane-0', width: NODE_WIDTH, height: NODE_HEIGHT}],
+      nodes: [{id: 'generated-node-1', label: 'Node 1', type: 'ui', laneId: 'lane-0', width: NODE_WIDTH, height: NODE_HEIGHT}],
       edges: [],
       lanes: [{id: 'lane-0', order: 0}],
       nodeSchemas: {},
       nodeExampleValues: {},
     });
+  });
+
+  it('adds a chapter to the active project and scopes the model to the new chapter', async () => {
+    const events: DomainEvent[] = [
+      Events.projectAdded(defaultProjectId, 'Default Project'),
+      Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
+      Events.projectAdded('project-2', 'Inventory System'),
+      Events.chapterAdded('project-2', 'chapter-3', 'Stock Levels'),
+    ];
+    const model = createEventSourcedGraphModel({store: createStore(events), uuidGenerator: createIdGenerator(['generated-chapter-1'])});
+
+    await model.load({projectId: defaultProjectId, chapterId: 'default-chapter'});
+    await model.addChapter('New Chapter');
+
+    const addedChapterEvent = events[events.length - 1];
+    expect(addedChapterEvent).toMatchObject({
+      type: 'ChapterAdded',
+      payload: {projectId: defaultProjectId, chapterId: 'generated-chapter-1', title: 'New Chapter'},
+    });
+    expect(model.getWorkspace().chaptersByProjectId[defaultProjectId]).toEqual([
+      {id: 'default-chapter', title: 'Chapter 1'},
+      {id: 'generated-chapter-1', title: 'New Chapter'},
+    ]);
+    expect(model.getScope()).toEqual({projectId: defaultProjectId, chapterId: 'generated-chapter-1'});
+    expect(model.getSnapshot()).toEqual({nodes: [], edges: [], lanes: [], nodeSchemas: {}, nodeExampleValues: {}});
+  });
+
+  it('records new nodes in the chapter created most recently', async () => {
+    const events: DomainEvent[] = [
+      Events.projectAdded(defaultProjectId, 'Default Project'),
+      Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
+    ];
+    const model = createEventSourcedGraphModel({store: createStore(events), uuidGenerator: createIdGenerator(['generated-chapter-1', 'generated-node-1'])});
+
+    await model.load({projectId: defaultProjectId, chapterId: 'default-chapter'});
+    await model.addChapter('Working Chapter');
+    await model.addNewSlice();
+
+    expect(events[events.length - 1]).toMatchObject({
+      type: 'NodeAdded',
+      payload: {projectId: defaultProjectId, chapterId: 'generated-chapter-1', nodeId: 'generated-node-1', label: 'Node 1'},
+    });
+    expect(model.getScope()).toEqual({projectId: defaultProjectId, chapterId: 'generated-chapter-1'});
+    expect(model.getSnapshot().nodes).toEqual([
+      {id: 'generated-node-1', label: 'Node 1', type: 'ui', laneId: 'lane-0', width: NODE_WIDTH, height: NODE_HEIGHT},
+    ]);
+  });
+
+  it('keeps each chapter node visible after switching back and forth between chapters', async () => {
+    const events: DomainEvent[] = [
+      Events.projectAdded(defaultProjectId, 'Default Project'),
+      Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
+    ];
+    const model = createEventSourcedGraphModel({store: createStore(events), uuidGenerator: createIdGenerator(['generated-node-1', 'generated-chapter-1', 'generated-node-2'])});
+
+    await model.load({projectId: defaultProjectId, chapterId: 'default-chapter'});
+    await model.addNewSlice();
+    await model.addChapter('Working Chapter');
+    await model.addNewSlice();
+
+    const workingChapterId = model.getScope().chapterId;
+
+    model.setScope({projectId: defaultProjectId, chapterId: 'default-chapter'});
+    expect(model.getSnapshot().nodes).toEqual([
+      {id: 'generated-node-1', label: 'Node 1', type: 'ui', laneId: 'lane-0', width: NODE_WIDTH, height: NODE_HEIGHT},
+    ]);
+
+    model.setScope({projectId: defaultProjectId, chapterId: workingChapterId});
+    expect(model.getSnapshot().nodes).toEqual([
+      {id: 'generated-node-2', label: 'Node 1', type: 'ui', laneId: 'lane-0', width: NODE_WIDTH, height: NODE_HEIGHT},
+    ]);
   });
 
   it('persists changed node property schema and examples while skipping unchanged payloads', async () => {
@@ -231,16 +314,16 @@ describe('createEventSourcedGraphModel', () => {
 
   it('records connect, disconnect, delete, rename, and type-change mutations as domain events', async () => {
     const events: DomainEvent[] = [];
-    const model = createEventSourcedGraphModel({store: createStore(events)});
+    const model = createEventSourcedGraphModel({store: createStore(events), uuidGenerator: createIdGenerator(['generated-node-1', 'generated-node-2'])});
     await model.load();
     await model.addNewSlice();
     await model.addNewSlice();
 
-    await model.addConnection('node-1', 'node-2');
-    await model.deleteConnection('edge-node-1-node-2');
-    await model.renameNode('node-2', 'Renamed node');
-    await model.setNodeType('node-2', 'cmd');
-    await model.deleteNode('node-1');
+    await model.addConnection('generated-node-1', 'generated-node-2');
+    await model.deleteConnection('edge-generated-node-1-generated-node-2');
+    await model.renameNode('generated-node-2', 'Renamed node');
+    await model.setNodeType('generated-node-2', 'cmd');
+    await model.deleteNode('generated-node-1');
 
     expect(events.map((event) => event.type)).toEqual([
       'ProjectAdded',
@@ -256,32 +339,32 @@ describe('createEventSourcedGraphModel', () => {
     expect(events.slice(4)).toEqual([
       {
         type: 'NodesConnected',
-        payload: {projectId: defaultProjectId, sourceNodeId: 'node-1', targetNodeId: 'node-2', role: 'flow'},
-        tags: ['projectId:default-project', 'nodeId:node-1', 'nodeId:node-2', 'role:flow', 'connection:node-1->node-2'],
+        payload: {projectId: defaultProjectId, sourceNodeId: 'generated-node-1', targetNodeId: 'generated-node-2', role: 'flow'},
+        tags: ['projectId:default-project', 'nodeId:generated-node-1', 'nodeId:generated-node-2', 'role:flow', 'connection:generated-node-1->generated-node-2'],
       },
       {
         type: 'NodesDisconnected',
-        payload: {projectId: defaultProjectId, sourceNodeId: 'node-1', targetNodeId: 'node-2'},
-        tags: ['projectId:default-project', 'nodeId:node-1', 'nodeId:node-2', 'connection:node-1->node-2'],
+        payload: {projectId: defaultProjectId, sourceNodeId: 'generated-node-1', targetNodeId: 'generated-node-2'},
+        tags: ['projectId:default-project', 'nodeId:generated-node-1', 'nodeId:generated-node-2', 'connection:generated-node-1->generated-node-2'],
       },
       {
         type: 'NodeRenamed',
-        payload: {projectId: defaultProjectId, nodeId: 'node-2', newName: 'Renamed node'},
-        tags: ['projectId:default-project', 'nodeId:node-2'],
+        payload: {projectId: defaultProjectId, nodeId: 'generated-node-2', newName: 'Renamed node'},
+        tags: ['projectId:default-project', 'nodeId:generated-node-2'],
       },
       {
         type: 'NodeTypeChanged',
-        payload: {projectId: defaultProjectId, nodeId: 'node-2', newType: 'cmd'},
-        tags: ['projectId:default-project', 'nodeId:node-2', 'type:cmd'],
+        payload: {projectId: defaultProjectId, nodeId: 'generated-node-2', newType: 'cmd'},
+        tags: ['projectId:default-project', 'nodeId:generated-node-2', 'type:cmd'],
       },
       {
         type: 'NodeRemoved',
-        payload: {projectId: defaultProjectId, nodeId: 'node-1'},
-        tags: ['projectId:default-project', 'nodeId:node-1'],
+        payload: {projectId: defaultProjectId, nodeId: 'generated-node-1'},
+        tags: ['projectId:default-project', 'nodeId:generated-node-1'],
       },
     ]);
     expect(model.getSnapshot()).toMatchObject({
-      nodes: [{id: 'node-2', label: 'Renamed node', type: 'cmd'}],
+      nodes: [{id: 'generated-node-2', label: 'Renamed node', type: 'cmd'}],
       edges: [],
       lanes: [{id: 'lane-0', order: 0}],
     });

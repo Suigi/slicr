@@ -1,3 +1,4 @@
+import {useEffect, useRef, useState} from 'react';
 import { SlicrIcon } from './SlicrIcon';
 
 export type Chapter = {
@@ -10,6 +11,7 @@ type ChapterSidebarProps = {
   activeChapterId: string;
   onSelectChapter: (chapterId: string) => void;
   onCollapse: () => void;
+  onAddChapter?: (title: string) => void | Promise<void>;
 };
 
 function CollapseSidebarIcon() {
@@ -29,7 +31,32 @@ function CollapseSidebarIcon() {
   );
 }
 
-export function ChapterSidebar({ chapters, activeChapterId, onSelectChapter, onCollapse }: ChapterSidebarProps) {
+export function ChapterSidebar({ chapters, activeChapterId, onSelectChapter, onCollapse, onAddChapter }: ChapterSidebarProps) {
+  const [isAddingChapter, setIsAddingChapter] = useState(false);
+  const [chapterTitle, setChapterTitle] = useState('New Chapter');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!isAddingChapter) {
+      return;
+    }
+
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, [isAddingChapter]);
+
+  const cancelChapterCreation = () => {
+    setIsAddingChapter(false);
+    setChapterTitle('New Chapter');
+  };
+
+  const submitChapterCreation = () => {
+    const title = chapterTitle.trim() || 'New Chapter';
+    setIsAddingChapter(false);
+    setChapterTitle('New Chapter');
+    onAddChapter?.(title);
+  };
+
   return (
     <aside className="chapter-sidebar" aria-label="Chapters">
       <div className="chapter-app-header">
@@ -45,7 +72,7 @@ export function ChapterSidebar({ chapters, activeChapterId, onSelectChapter, onC
       </div>
       <div className="chapter-sidebar-header">
         <h2>Chapters</h2>
-        <button type="button" className="chapter-sidebar-add" aria-label="Add chapter">
+        <button type="button" className="chapter-sidebar-add" aria-label="Add chapter" onClick={() => setIsAddingChapter(true)}>
           +
         </button>
       </div>
@@ -65,7 +92,36 @@ export function ChapterSidebar({ chapters, activeChapterId, onSelectChapter, onC
           );
         })}
       </nav>
-
+      {isAddingChapter ? (
+        <div className="chapter-sidebar-create">
+          <input
+            ref={inputRef}
+            type="text"
+            value={chapterTitle}
+            onChange={(event) => setChapterTitle(event.target.value)}
+            onBlur={cancelChapterCreation}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault();
+                submitChapterCreation();
+              }
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                cancelChapterCreation();
+              }
+            }}
+          />
+          <button
+            type="button"
+            className="chapter-sidebar-create-confirm"
+            aria-label="Create chapter"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={submitChapterCreation}
+          >
+            ✓
+          </button>
+        </div>
+      ) : null}
     </aside>
   );
 }
