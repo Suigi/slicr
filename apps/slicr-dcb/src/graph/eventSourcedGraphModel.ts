@@ -1,4 +1,4 @@
-import {MemoryStore} from '@slicr/event-sourcing';
+import {AppendConditionFailedError, MemoryStore, Query, type AppendCondition} from '@slicr/event-sourcing';
 
 import {Events, type DomainEvent} from '../domain/events';
 import {GraphProjector} from '../domain/graphProjector/graphProjector';
@@ -22,8 +22,16 @@ const defaultWorkspaceEvents: DomainEvent[] = [
   Events.chapterAdded(DEFAULT_PROJECT_ID, DEFAULT_CHAPTER_ID, DEFAULT_CHAPTER_TITLE),
 ];
 
+const defaultProjectBootstrapCondition: AppendCondition = {
+  failIfEventsMatch: Query.where({types: ['ProjectAdded'], tags: [`projectId:${DEFAULT_PROJECT_ID}`]}),
+};
+
+const defaultChapterBootstrapCondition: AppendCondition = {
+  failIfEventsMatch: Query.where({types: ['ChapterAdded'], tags: [`projectId:${DEFAULT_PROJECT_ID}`, `chapterId:${DEFAULT_CHAPTER_ID}`]}),
+};
+
 export type AsyncGraphEventStore = {
-  append(events: DomainEvent | readonly DomainEvent[]): Promise<void>;
+  append(events: DomainEvent | readonly DomainEvent[], condition?: AppendCondition): Promise<void>;
   readAll(): Promise<DomainEvent[]>;
   replace(events: readonly DomainEvent[]): Promise<void>;
   clear(): Promise<void>;
@@ -68,6 +76,45 @@ function resolveScope(workspace: WorkspaceProjection, scope: GraphModelScope) {
   return {projectId: resolvedProjectId, chapterId: resolvedChapterId};
 }
 
+async function appendBootstrapEvent(
+  store: AsyncGraphEventStore,
+  event: DomainEvent,
+  condition: AppendCondition,
+) {
+  try {
+    await store.append(event, condition);
+  } catch (error) {
+    if (!(error instanceof AppendConditionFailedError)) {
+      throw error;
+    }
+  }
+}
+
+async function ensureDefaultWorkspace(store: AsyncGraphEventStore) {
+  const existingEvents = await store.readAll();
+  const workspace = projectWorkspace(existingEvents);
+
+  const hasDefaultProject = workspace.projects.some((project) => project.id === DEFAULT_PROJECT_ID);
+  if (!hasDefaultProject) {
+    await appendBootstrapEvent(
+      store,
+      Events.projectAdded(DEFAULT_PROJECT_ID, DEFAULT_PROJECT_NAME),
+      defaultProjectBootstrapCondition,
+    );
+  }
+
+  const hasDefaultChapter = (workspace.chaptersByProjectId[DEFAULT_PROJECT_ID] ?? []).some(
+    (chapter) => chapter.id === DEFAULT_CHAPTER_ID,
+  );
+  if (!hasDefaultChapter) {
+    await appendBootstrapEvent(
+      store,
+      Events.chapterAdded(DEFAULT_PROJECT_ID, DEFAULT_CHAPTER_ID, DEFAULT_CHAPTER_TITLE),
+      defaultChapterBootstrapCondition,
+    );
+  }
+}
+
 export function createEventSourcedGraphModel(config: {store: AsyncGraphEventStore}): EventSourcedGraphModel {
   let snapshot: RendererGraph = {nodes: [], edges: [], lanes: [], nodeSchemas: {}, nodeExampleValues: {}};
   let workspace: WorkspaceProjection = projectWorkspace(defaultWorkspaceEvents);
@@ -106,12 +153,8 @@ export function createEventSourcedGraphModel(config: {store: AsyncGraphEventStor
 
   return {
     async load(scope = {}) {
-      const storedEvents = await config.store.readAll();
-      if (storedEvents.length === 0) {
-        await config.store.append(defaultWorkspaceEvents);
-        return project(defaultWorkspaceEvents, scope);
-      }
-      return project(storedEvents, scope);
+      await ensureDefaultWorkspace(config.store);
+      return project(await config.store.readAll(), scope);
     },
     setScope(scope) {
       return project(events, scope);

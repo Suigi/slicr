@@ -1,4 +1,4 @@
-import {IndexedDBEventStore} from '@slicr/event-sourcing';
+import {IndexedDBEventStore, IndexedDBSpecEventStore, type AppendCondition, type SpecEventStore} from '@slicr/event-sourcing';
 import type {EditableProperty} from '@slicr/react-ui';
 import type {EdgeInput, LaneInput} from 'layout-lib';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
@@ -31,7 +31,7 @@ const emptyWorkspace: WorkspaceProjection = {projects: [], chaptersByProjectId: 
 class InMemoryAsyncGraphEventStore implements AsyncGraphEventStore {
   private events: DomainEvent[] = [];
 
-  async append(events: DomainEvent | readonly DomainEvent[]) {
+  async append(events: DomainEvent | readonly DomainEvent[], _condition?: AppendCondition) {
     this.events.push(...(Array.isArray(events) ? events : [events]));
   }
 
@@ -48,15 +48,47 @@ class InMemoryAsyncGraphEventStore implements AsyncGraphEventStore {
   }
 }
 
+class IndexedDBAsyncGraphEventStore implements AsyncGraphEventStore {
+  constructor(
+    private readonly store: SpecEventStore<DomainEvent>,
+    private readonly mutableStore: Pick<IndexedDBEventStore<DomainEvent>, 'replace' | 'clear'>,
+  ) {}
+
+  async append(events: DomainEvent | readonly DomainEvent[], condition?: AppendCondition) {
+    const eventsToAppend = Array.isArray(events) ? events : [events];
+    await this.store.append(eventsToAppend, condition);
+  }
+
+  async readAll() {
+    return (await this.store.read()).map(({event}) => event);
+  }
+
+  replace(events: readonly DomainEvent[]) {
+    return this.mutableStore.replace(events);
+  }
+
+  clear() {
+    return this.mutableStore.clear();
+  }
+}
+
 async function createDefaultGraphEventStore(): Promise<AsyncGraphEventStore> {
   if (typeof indexedDB === 'undefined') {
     return new InMemoryAsyncGraphEventStore();
   }
 
-  return IndexedDBEventStore.create<DomainEvent>({
-    databaseName: EVENT_STORE_DATABASE_NAME,
-    streamName: EVENT_STORE_STREAM_NAME,
-  });
+  const [specStore, mutableStore] = await Promise.all([
+    IndexedDBSpecEventStore.create<DomainEvent>({
+      databaseName: EVENT_STORE_DATABASE_NAME,
+      streamName: EVENT_STORE_STREAM_NAME,
+    }),
+    IndexedDBEventStore.create<DomainEvent>({
+      databaseName: EVENT_STORE_DATABASE_NAME,
+      streamName: EVENT_STORE_STREAM_NAME,
+    }),
+  ]);
+
+  return new IndexedDBAsyncGraphEventStore(specStore, mutableStore);
 }
 
 export function storeLastOkGraphModel(model: StoredGraphModel) {

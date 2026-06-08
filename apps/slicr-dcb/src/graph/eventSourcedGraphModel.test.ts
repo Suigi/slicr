@@ -2,14 +2,41 @@ import {describe, expect, it} from 'vitest';
 
 import {createEventSourcedGraphModel, type AsyncGraphEventStore} from './eventSourcedGraphModel';
 import {Events, type DomainEvent} from '../domain/events';
+import {AppendConditionFailedError, type AppendCondition, type SequencedEvent} from '@slicr/event-sourcing';
 import {NODE_HEIGHT, NODE_WIDTH} from './constants';
 
 const defaultProjectId = 'default-project';
 
 function createStore(events: DomainEvent[] = []): AsyncGraphEventStore {
   return {
-    append: async (nextEvents) => {
-      events.push(...(Array.isArray(nextEvents) ? nextEvents : [nextEvents]));
+    append: async (nextEvents, condition?: AppendCondition) => {
+      const eventsToAppend = Array.isArray(nextEvents) ? nextEvents : [nextEvents];
+      if (condition) {
+        const conflictingEvents = events
+          .map((event, index) => ({position: index + 1, event}))
+          .filter(({position, event}) => {
+            if (condition.after !== undefined && position <= condition.after) {
+              return false;
+            }
+            if (condition.failIfEventsMatch.kind === 'none') {
+              return false;
+            }
+            if (condition.failIfEventsMatch.kind === 'all') {
+              return true;
+            }
+            return condition.failIfEventsMatch.items.some((queryItem) => {
+              const matchesType = queryItem.types === undefined || queryItem.types.includes(event.type);
+              const matchesTags = queryItem.tags === undefined || queryItem.tags.every((tag) => event.tags.includes(tag));
+              return matchesType && matchesTags;
+            });
+          });
+
+        if (conflictingEvents.length > 0) {
+          throw new AppendConditionFailedError(condition, conflictingEvents);
+        }
+      }
+
+      events.push(...eventsToAppend);
     },
     readAll: async () => [...events],
     replace: async (nextEvents) => {
@@ -68,13 +95,91 @@ describe('createEventSourcedGraphModel', () => {
     });
   });
 
-  it('does not append default workspace events when the store is already non-empty', async () => {
-    const events: DomainEvent[] = [Events.projectAdded('project-1', 'Checkout System')];
+  it('does not append duplicate default workspace events when the default workspace already exists', async () => {
+    const events: DomainEvent[] = [
+      Events.projectAdded(defaultProjectId, 'Default Project'),
+      Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
+      Events.projectAdded('project-1', 'Checkout System'),
+    ];
     const model = createEventSourcedGraphModel({store: createStore(events)});
 
     await model.load();
 
-    expect(events).toEqual([Events.projectAdded('project-1', 'Checkout System')]);
+    expect(events).toEqual([
+      Events.projectAdded(defaultProjectId, 'Default Project'),
+      Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
+      Events.projectAdded('project-1', 'Checkout System'),
+    ]);
+  });
+
+  it('appends default workspace bootstrap events only once across overlapping loads', async () => {
+    const events: DomainEvent[] = [];
+    const store = createStore(events);
+    const firstModel = createEventSourcedGraphModel({store});
+    const secondModel = createEventSourcedGraphModel({store});
+
+    await Promise.all([firstModel.load(), secondModel.load()]);
+
+    expect(events).toEqual([
+      Events.projectAdded(defaultProjectId, 'Default Project'),
+      Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
+    ]);
+  });
+
+  it('does not duplicate default bootstrap events across distinct store instances sharing the same backing storage', async () => {
+    const sequencedEvents: SequencedEvent<DomainEvent>[] = [];
+    const createSharedStore = (): AsyncGraphEventStore => ({
+      append: async (nextEvents, condition?: AppendCondition) => {
+        const appendedEvents = Array.isArray(nextEvents) ? nextEvents : [nextEvents];
+        const conflictingEvents = condition
+          ? sequencedEvents.filter(({position, event}) => {
+              if (condition.after !== undefined && position <= condition.after) {
+                return false;
+              }
+              if (condition.failIfEventsMatch.kind === 'none') {
+                return false;
+              }
+              if (condition.failIfEventsMatch.kind === 'all') {
+                return true;
+              }
+              return condition.failIfEventsMatch.items.some((queryItem) => {
+                const matchesType = queryItem.types === undefined || queryItem.types.includes(event.type);
+                const matchesTags = queryItem.tags === undefined || queryItem.tags.every((tag) => event.tags.includes(tag));
+                return matchesType && matchesTags;
+              });
+            })
+          : [];
+
+        if (condition && conflictingEvents.length > 0) {
+          throw new AppendConditionFailedError(condition, conflictingEvents);
+        }
+
+        const startingPosition = sequencedEvents.length > 0 ? sequencedEvents[sequencedEvents.length - 1].position : 0;
+        sequencedEvents.push(
+          ...appendedEvents.map((event, index) => ({position: startingPosition + index + 1, event})),
+        );
+      },
+      readAll: async () => sequencedEvents.map(({event}) => event),
+      replace: async (nextEvents) => {
+        sequencedEvents.splice(
+          0,
+          sequencedEvents.length,
+          ...nextEvents.map((event, index) => ({position: index + 1, event})),
+        );
+      },
+      clear: async () => {
+        sequencedEvents.splice(0, sequencedEvents.length);
+      },
+    });
+    const firstModel = createEventSourcedGraphModel({store: createSharedStore()});
+    const secondModel = createEventSourcedGraphModel({store: createSharedStore()});
+
+    await Promise.all([firstModel.load(), secondModel.load()]);
+
+    expect(sequencedEvents.map(({event}) => event)).toEqual([
+      Events.projectAdded(defaultProjectId, 'Default Project'),
+      Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
+    ]);
   });
 
   it('appends new graph events in the active project and chapter scope', async () => {
@@ -115,7 +220,7 @@ describe('createEventSourcedGraphModel', () => {
     await model.changeNodeExampleValues({nodeId: 'node-1', exampleValues});
     await model.changeNodeExampleValues({nodeId: 'node-1', exampleValues});
 
-    expect(events.slice(1)).toEqual([
+    expect(events.slice(3)).toEqual([
       Events.nodeSchemaChanged(defaultProjectId, 'node-1', schema),
       Events.nodeExampleValuesChanged(defaultProjectId, 'node-1', exampleValues),
     ]);
