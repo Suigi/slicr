@@ -12,6 +12,7 @@ import type {
   NodeLayout,
   Point,
 } from "./layout/types";
+import { snapAnchorToNode, snapNodeHorizontalAnchorX, snapToGrid } from "./playground/anchorSnap";
 import { createBaseEdgeOverride, type EdgeOverride } from "./playground/edgeOverrides";
 
 const app = document.querySelector<HTMLDivElement>("#app");
@@ -1255,12 +1256,20 @@ function handlePointerMove(event: PointerEvent) {
   );
   let renderedSourceAnchor = { ...edge.sourceAnchor };
   let renderedTargetAnchor = { ...edge.targetAnchor };
+  const sourceNode = derived.editableLayout.nodes.find((candidate) => candidate.id === edge.sourceId);
+  const targetNode = derived.editableLayout.nodes.find((candidate) => candidate.id === edge.targetId);
 
   if (segmentDrag.segmentIndex === 0 && nextPoints[0]) {
     renderedSourceAnchor = { ...renderedSourceAnchor, x: nextPoints[0].x, y: nextPoints[0].y };
+    if (sourceNode) {
+      renderedSourceAnchor = snapAnchorToNode(renderedSourceAnchor, sourceNode);
+    }
   }
   if (segmentDrag.segmentIndex === edge.points.length - 2 && nextPoints[nextPoints.length - 1]) {
     renderedTargetAnchor = { ...renderedTargetAnchor, x: nextPoints[nextPoints.length - 1].x, y: nextPoints[nextPoints.length - 1].y };
+    if (targetNode) {
+      renderedTargetAnchor = snapAnchorToNode(renderedTargetAnchor, targetNode);
+    }
   }
   if (nextPoints[0]) {
     nextPoints[0] = { x: renderedSourceAnchor.x, y: renderedSourceAnchor.y };
@@ -2862,16 +2871,7 @@ function applyOverrides(request: LayoutRequest, autoLayout: LayoutResult, playgr
 }
 
 function projectAnchorToNodeBorder(anchor: AnchorPoint, node: NodeLayout): AnchorPoint {
-  if (anchor.side === "top") {
-    return { ...anchor, x: clamp(anchor.x, node.x, node.x + node.width), y: node.y };
-  }
-  if (anchor.side === "right") {
-    return { ...anchor, x: node.x + node.width, y: clamp(anchor.y, node.y, node.y + node.height) };
-  }
-  if (anchor.side === "bottom") {
-    return { ...anchor, x: clamp(anchor.x, node.x, node.x + node.width), y: node.y + node.height };
-  }
-  return { ...anchor, x: node.x, y: clamp(anchor.y, node.y, node.y + node.height) };
+  return snapAnchorToNode(anchor, node);
 }
 
 function getNodeDelta(nodeId: string, previousNodes: Map<string, NodeLayout>, nextNodes: Map<string, NodeLayout>) {
@@ -2968,13 +2968,13 @@ function createAnchorFromNodePoint(node: NodeLayout, point: Point, ordinal: numb
   ];
   const nearest = distances.sort((left, right) => left.distance - right.distance)[0]?.side ?? "right";
   if (nearest === "top") {
-    return { x: snap(clamp(point.x, node.x, node.x + node.width)), y: node.y, side: nearest, ordinal };
+    return { x: snapNodeHorizontalAnchorX(node, point.x), y: node.y, side: nearest, ordinal };
   }
   if (nearest === "right") {
     return { x: node.x + node.width, y: snap(clamp(point.y, node.y, node.y + node.height)), side: nearest, ordinal };
   }
   if (nearest === "bottom") {
-    return { x: snap(clamp(point.x, node.x, node.x + node.width)), y: node.y + node.height, side: nearest, ordinal };
+    return { x: snapNodeHorizontalAnchorX(node, point.x), y: node.y + node.height, side: nearest, ordinal };
   }
   return { x: node.x, y: snap(clamp(point.y, node.y, node.y + node.height)), side: nearest, ordinal };
 }
@@ -3327,7 +3327,7 @@ function buildRoundedOrthogonalPath(points: Point[], radius: number) {
 }
 
 function snap(value: number) {
-  return Math.round(value / 10) * 10;
+  return snapToGrid(value);
 }
 
 function snapPoint(point: Point): Point {

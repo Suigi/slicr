@@ -396,11 +396,9 @@ export const compactLayout: LayoutApi = (request) => {
     );
     const sides = sideAssignmentForOrientation(orientation);
     sideAssignments.set(edge.id, sides);
-    addEdgeToAnchorBucket(sourceEdgeCountsByKey, edge.sourceId, sides.source, edge.id);
-    if (!isBackReferenceEdge(edge) || (sides.source !== "top" && sides.source !== "bottom")) {
-      addEdgeToAnchorBucket(sourceEdgesByKey, edge.sourceId, sides.source, edge.id);
-    }
-    addEdgeToAnchorBucket(targetEdgesByKey, edge.targetId, sides.target, edge.id);
+    addEdgeToAnchorBucket(sourceEdgeCountsByKey, edge.sourceId, sides.source, edge.id, edge, false);
+    addEdgeToAnchorBucket(sourceEdgesByKey, edge.sourceId, sides.source, edge.id, edge);
+    addEdgeToAnchorBucket(targetEdgesByKey, edge.targetId, sides.target, edge.id, edge);
   }
 
   assignTargetAnchorSlots({
@@ -532,6 +530,22 @@ export const compactLayout: LayoutApi = (request) => {
       const minX = Math.min(sourceAnchor.x, targetAnchor.x);
       const maxX = Math.max(sourceAnchor.x, targetAnchor.x);
       const baseRowY = resolveDownwardBaseRow(edge, sourceStub, targetAnchor, nodeLayouts);
+      const compactFanOutRowY = resolveCompactDownwardRowY({
+        edge,
+        sourceAnchor,
+        sourceStub,
+        targetAnchor,
+        baseRowY,
+        edges: request.edges,
+        sideAssignments,
+        sourceOrdinalByEdgeId,
+        targetOrdinalByEdgeId,
+        sourceCountByEdgeId,
+        targetRequestSlotByEdgeId,
+        nodeLayoutById,
+        laneOrderById,
+        nodeById,
+      });
       return {
         edge,
         index,
@@ -540,7 +554,7 @@ export const compactLayout: LayoutApi = (request) => {
         targetAnchor,
         minX,
         maxX,
-        baseRowY,
+        baseRowY: compactFanOutRowY,
         targetOrdinal: targetOrdinalByEdgeId.get(edge.id) ?? 0,
         targetCount: targetCountByEdgeId.get(edge.id) ?? 1,
       };
@@ -599,6 +613,19 @@ export const compactLayout: LayoutApi = (request) => {
     });
   }
 
+  assignCompactUpwardRows({
+    edges: request.edges,
+    sideAssignments,
+    sourceOrdinalByEdgeId,
+    targetOrdinalByEdgeId,
+    sourceCountByEdgeId,
+    targetRequestSlotByEdgeId,
+    upwardDetourPlanByEdgeId,
+    nodeLayoutById,
+    laneOrderById,
+    nodeById,
+  });
+
   const upwardBackReferenceRows = resolveUpwardBackReferenceRows({
     edges: request.edges,
     sideAssignments,
@@ -619,33 +646,51 @@ export const compactLayout: LayoutApi = (request) => {
       throw new Error(`Incomplete edge state for ${edge.id}.`);
     }
 
-    const sourceAnchor = createEdgeAnchor(edge, nodeSource, sides.source, sourceOrdinalByEdgeId.get(edge.id) ?? 0, "source");
-    const targetAnchorBase = resolveTargetAnchorBase(
-      edge,
-      createEdgeAnchor(edge, nodeTarget, sides.target, targetOrdinalByEdgeId.get(edge.id) ?? 0, "target"),
-      targetOrdinalByEdgeId,
-      targetRequestSlotByEdgeId,
-      deriveOrientation(
-        laneOrderById.get(nodeById.get(edge.sourceId)?.laneId ?? "") ?? 0,
-        laneOrderById.get(nodeById.get(edge.targetId)?.laneId ?? "") ?? 0,
-      ),
-    );
     const orientation = deriveOrientation(
       laneOrderById.get(nodeById.get(edge.sourceId)?.laneId ?? "") ?? 0,
       laneOrderById.get(nodeById.get(edge.targetId)?.laneId ?? "") ?? 0,
     );
+    let sourceAnchor = createEdgeAnchor(edge, nodeSource, sides.source, sourceOrdinalByEdgeId.get(edge.id) ?? 0, "source");
+    let targetAnchorBase = resolveTargetAnchorBase(
+      edge,
+      createEdgeAnchor(edge, nodeTarget, sides.target, targetOrdinalByEdgeId.get(edge.id) ?? 0, "target"),
+      targetOrdinalByEdgeId,
+      targetRequestSlotByEdgeId,
+      orientation,
+    );
     const targetRequestSlot = targetRequestSlotByEdgeId.get(edge.id) ?? 0;
+    const anchorPush = compactCrossingAnchorPush({
+      edge,
+      orientation,
+      sourceAnchor,
+      targetAnchor: targetAnchorBase,
+      sourceNode: nodeSource,
+      targetNode: nodeTarget,
+      edges: request.edges,
+      nodeById,
+      nodeLayoutById,
+      laneOrderById,
+    });
+    sourceAnchor = anchorPush.sourceAnchor;
+    targetAnchorBase = anchorPush.targetAnchor;
     const upwardPlan = {
       ...upwardDetourPlanByEdgeId.get(edge.id),
       ...(upwardBackReferenceRows.has(edge.id) ? { upRowY: upwardBackReferenceRows.get(edge.id) } : {}),
-      ...(orientation === "up" && sourceAnchor.side === "top" && targetAnchorBase.side === "bottom" && targetRequestSlot > 0 && !upwardBackReferenceRows.has(edge.id)
+      ...(orientation === "up" && sourceAnchor.side === "top" && targetAnchorBase.side === "bottom" && isBackReferenceEdge(edge) && hasTerminalMixedUpwardFanIn(edge.targetId, request.edges, nodeById, laneOrderById)
         ? {
-            upRowY:
-              isBackReferenceEdge(edge) && nodeSource.height > 56
-                ? targetAnchorBase.y + EDGE_STUB + targetRequestSlot * (UPWARD_REROUTE_SPACING * 2 - UPWARD_REROUTE_ENTRY_OFFSET)
-                : sourceAnchor.y -
-                  getCompactTopStubDistance(sourceAnchor, sourceCountByEdgeId.get(edge.id) ?? 1, nodeSource.height) -
-                  targetRequestSlot * UPWARD_REROUTE_SPACING,
+            upRowY: alignTallCompactTopRow(
+              sourceAnchor.y - getCompactTopStubDistance(sourceAnchor, sourceCountByEdgeId.get(edge.id) ?? 1, nodeSource.height),
+              nodeSource.height,
+            ) + sourceAnchor.ordinal * UPWARD_REROUTE_SPACING,
+          }
+        : {}),
+      ...(orientation === "up" && sourceAnchor.side === "top" && targetAnchorBase.side === "bottom" && targetRequestSlot > 0 && !upwardBackReferenceRows.has(edge.id) && isBackReferenceEdge(edge)
+        ? {
+            upRowY: nodeSource.height > 56
+              ? targetAnchorBase.y + EDGE_STUB + targetRequestSlot * (UPWARD_REROUTE_SPACING * 2 - UPWARD_REROUTE_ENTRY_OFFSET)
+              : sourceAnchor.y -
+                getCompactTopStubDistance(sourceAnchor, sourceCountByEdgeId.get(edge.id) ?? 1, nodeSource.height) -
+                targetRequestSlot * UPWARD_REROUTE_SPACING,
           }
         : {}),
     };
@@ -671,7 +716,7 @@ export const compactLayout: LayoutApi = (request) => {
       id: edge.id,
         sourceId: edge.sourceId,
         targetId: edge.targetId,
-        ...(edge.role === "back-reference" ? { role: edge.role } : {}),
+        ...(edge.role === "back-reference" && !request.edges.some((candidate) => candidate.targetId === edge.targetId && !isBackReferenceEdge(candidate)) ? { role: edge.role } : {}),
         sourceAnchor: normalizeCompactAnchorOrdinal(sourceAnchor),
         targetAnchor: normalizeCompactAnchorOrdinal(targetAnchor),
         points,
@@ -688,6 +733,328 @@ export const compactLayout: LayoutApi = (request) => {
     },
   };
 };
+
+function resolveCompactDownwardRowY(params: {
+  edge: EdgeInput;
+  sourceAnchor: AnchorPoint;
+  sourceStub: Point;
+  targetAnchor: AnchorPoint;
+  baseRowY: number;
+  edges: EdgeInput[];
+  sideAssignments: Map<string, EdgeSideAssignment>;
+  sourceOrdinalByEdgeId: Map<string, number>;
+  targetOrdinalByEdgeId: Map<string, number>;
+  sourceCountByEdgeId: Map<string, number>;
+  targetRequestSlotByEdgeId: Map<string, number>;
+  nodeLayoutById: Map<string, NodeLayout>;
+  laneOrderById: Map<string, number>;
+  nodeById: Map<string, NodeInput>;
+}) {
+  const {
+    edge,
+    sourceAnchor,
+    sourceStub,
+    targetAnchor,
+    baseRowY,
+    edges,
+    sideAssignments,
+    sourceOrdinalByEdgeId,
+    targetOrdinalByEdgeId,
+    sourceCountByEdgeId,
+    targetRequestSlotByEdgeId,
+    nodeLayoutById,
+    laneOrderById,
+    nodeById,
+  } = params;
+  if (sourceAnchor.x === targetAnchor.x) {
+    return baseRowY;
+  }
+
+  if (baseRowY === sourceStub.y) {
+    return baseRowY;
+  }
+
+  if (hasOutgoingTerminalBackReference(edge.targetId, edges, laneOrderById, nodeById)) {
+    return Math.ceil((baseRowY + UPWARD_REROUTE_SPACING) / UPWARD_REROUTE_SPACING) * UPWARD_REROUTE_SPACING;
+  }
+
+  if (hasOutgoingUpEdgeToSharedTarget(edge.targetId, edges, laneOrderById, nodeById)) {
+    return Math.max(
+      Math.ceil((baseRowY + UPWARD_REROUTE_SPACING) / UPWARD_REROUTE_SPACING) * UPWARD_REROUTE_SPACING,
+      Math.ceil((targetAnchor.y - getCompactInterLaneTrackDistance()) / UPWARD_REROUTE_SPACING) * UPWARD_REROUTE_SPACING,
+    );
+  }
+
+  const preferredRowY = Math.max(baseRowY, targetAnchor.y - getCompactInterLaneTrackDistance());
+  if (preferredRowY === baseRowY) {
+    return baseRowY;
+  }
+
+  const minX = Math.min(sourceAnchor.x, targetAnchor.x);
+  const maxX = Math.max(sourceAnchor.x, targetAnchor.x);
+  const conflictsWithBackReference = edges.some((backReferenceEdge) => {
+    if (!isBackReferenceEdge(backReferenceEdge) || backReferenceEdge.id === edge.id) {
+      return false;
+    }
+    const sourceNode = nodeById.get(backReferenceEdge.sourceId);
+    const targetNode = nodeById.get(backReferenceEdge.targetId);
+    const nodeSource = nodeLayoutById.get(backReferenceEdge.sourceId);
+    const nodeTarget = nodeLayoutById.get(backReferenceEdge.targetId);
+    const sides = sideAssignments.get(backReferenceEdge.id);
+    if (!sourceNode || !targetNode || !nodeSource || !nodeTarget || !sides) {
+      return false;
+    }
+    const orientation = deriveOrientation(
+      laneOrderById.get(sourceNode.laneId) ?? 0,
+      laneOrderById.get(targetNode.laneId) ?? 0,
+    );
+    if (orientation !== "up" || sides.source !== "top" || sides.target !== "bottom") {
+      return false;
+    }
+
+    const backReferenceSourceAnchor = createEdgeAnchor(
+      backReferenceEdge,
+      nodeSource,
+      sides.source,
+      sourceOrdinalByEdgeId.get(backReferenceEdge.id) ?? 0,
+      "source",
+    );
+    const backReferenceTargetAnchor = resolveTargetAnchorBase(
+      backReferenceEdge,
+      createEdgeAnchor(backReferenceEdge, nodeTarget, sides.target, targetOrdinalByEdgeId.get(backReferenceEdge.id) ?? 0, "target"),
+      targetOrdinalByEdgeId,
+      targetRequestSlotByEdgeId,
+      orientation,
+    );
+    const targetRequestSlot = targetRequestSlotByEdgeId.get(backReferenceEdge.id) ?? 0;
+    const backReferenceRowY = nodeSource.height > 56 && targetRequestSlot > 0
+      ? backReferenceTargetAnchor.y + EDGE_STUB + targetRequestSlot * (UPWARD_REROUTE_SPACING * 2 - UPWARD_REROUTE_ENTRY_OFFSET)
+      : backReferenceSourceAnchor.y -
+        getCompactTopStubDistance(backReferenceSourceAnchor, sourceCountByEdgeId.get(backReferenceEdge.id) ?? 1, nodeSource.height) -
+        targetRequestSlot * UPWARD_REROUTE_SPACING;
+    const backReferenceMinX = Math.min(backReferenceSourceAnchor.x, backReferenceTargetAnchor.x);
+    const backReferenceMaxX = Math.max(backReferenceSourceAnchor.x, backReferenceTargetAnchor.x);
+    return Math.abs(preferredRowY - backReferenceRowY) < UPWARD_REROUTE_SPACING &&
+      horizontalRangesOverlap(
+        minX - EDGE_STUB,
+        maxX + EDGE_STUB,
+        backReferenceMinX - EDGE_STUB,
+        backReferenceMaxX + EDGE_STUB,
+      );
+  });
+
+  return conflictsWithBackReference ? baseRowY : preferredRowY;
+}
+
+function compactCrossingAnchorPush(params: {
+  edge: EdgeInput;
+  orientation: EdgeOrientation;
+  sourceAnchor: AnchorPoint;
+  targetAnchor: AnchorPoint;
+  sourceNode: NodeLayout;
+  targetNode: NodeLayout;
+  edges: EdgeInput[];
+  nodeById: Map<string, NodeInput>;
+  nodeLayoutById: Map<string, NodeLayout>;
+  laneOrderById: Map<string, number>;
+}) {
+  const { edge, orientation, sourceAnchor, targetAnchor, sourceNode, targetNode, edges, nodeById, nodeLayoutById, laneOrderById } = params;
+  if (orientation === "up" && sourceAnchor.side === "top" && targetAnchor.side === "bottom" && hasTerminalMixedUpwardFanIn(edge.targetId, edges, nodeById, laneOrderById)) {
+    const orderedFanIn = upwardFanInEdges(edge.targetId, edges, nodeById, laneOrderById)
+      .sort((left, right) => {
+        const leftNode = nodeLayoutById.get(left.sourceId);
+        const rightNode = nodeLayoutById.get(right.sourceId);
+        return (leftNode ? leftNode.x + leftNode.width / 2 : 0) - (rightNode ? rightNode.x + rightNode.width / 2 : 0);
+      });
+    const slot = Math.max(0, orderedFanIn.findIndex((candidate) => candidate.id === edge.id));
+    const targetDirection = hasEarlierTerminalMixedUpwardFanInTarget(edge.targetId, edges, nodeById, nodeLayoutById, laneOrderById) ? -1 : 1;
+    return {
+      sourceAnchor: {
+        ...sourceAnchor,
+        x: sourceNode.x + sourceNode.width / 2 + VERTICAL_SOURCE_BIAS + sourceAnchor.ordinal * VERTICAL_ANCHOR_SPACING,
+      },
+      targetAnchor: {
+        ...targetAnchor,
+        x: targetNode.x + targetNode.width / 2 + targetDirection * EDGE_STUB + slot * VERTICAL_ANCHOR_SPACING,
+      },
+    };
+  }
+
+  if (orientation === "down" && targetAnchor.side === "top" && hasOutgoingTerminalBackReference(edge.targetId, edges, laneOrderById, nodeById)) {
+    return {
+      sourceAnchor,
+      targetAnchor: {
+        ...targetAnchor,
+        x: targetNode.x + targetNode.width / 2 - EDGE_STUB,
+      },
+    };
+  }
+
+  return { sourceAnchor, targetAnchor };
+}
+
+function hasOutgoingTerminalBackReference(nodeId: string, edges: EdgeInput[], laneOrderById: Map<string, number>, nodeById: Map<string, NodeInput>) {
+  return edges.some((edge) => {
+    if (edge.sourceId !== nodeId || !isBackReferenceEdge(edge)) {
+      return false;
+    }
+    const sourceNode = nodeById.get(edge.sourceId);
+    const targetNode = nodeById.get(edge.targetId);
+    if (!sourceNode || !targetNode) {
+      return false;
+    }
+    return deriveOrientation(laneOrderById.get(sourceNode.laneId) ?? 0, laneOrderById.get(targetNode.laneId) ?? 0) === "up" &&
+      !edges.some((candidate) => candidate.sourceId === edge.targetId);
+  });
+}
+
+function hasOutgoingUpEdgeToSharedTarget(nodeId: string, edges: EdgeInput[], laneOrderById: Map<string, number>, nodeById: Map<string, NodeInput>) {
+  return edges.some((edge) => {
+    if (edge.sourceId !== nodeId) {
+      return false;
+    }
+    const sourceNode = nodeById.get(edge.sourceId);
+    const targetNode = nodeById.get(edge.targetId);
+    if (!sourceNode || !targetNode) {
+      return false;
+    }
+    const orientation = deriveOrientation(laneOrderById.get(sourceNode.laneId) ?? 0, laneOrderById.get(targetNode.laneId) ?? 0);
+    const fanIn = upwardFanInEdges(edge.targetId, edges, nodeById, laneOrderById);
+    return orientation === "up" &&
+      fanIn.length > 1 &&
+      !(fanIn.some((candidate) => isBackReferenceEdge(candidate)) && fanIn.some((candidate) => !isBackReferenceEdge(candidate)));
+  });
+}
+
+function hasTerminalMixedUpwardFanIn(targetId: string, edges: EdgeInput[], nodeById: Map<string, NodeInput>, laneOrderById: Map<string, number>) {
+  const fanIn = upwardFanInEdges(targetId, edges, nodeById, laneOrderById);
+  return fanIn.some((edge) => isBackReferenceEdge(edge)) &&
+    fanIn.some((edge) => !isBackReferenceEdge(edge)) &&
+    !edges.some((edge) => edge.sourceId === targetId);
+}
+
+function hasEarlierTerminalMixedUpwardFanInTarget(
+  targetId: string,
+  edges: EdgeInput[],
+  nodeById: Map<string, NodeInput>,
+  nodeLayoutById: Map<string, NodeLayout>,
+  laneOrderById: Map<string, number>,
+) {
+  const target = nodeLayoutById.get(targetId);
+  if (!target) {
+    return false;
+  }
+  const sourceIds = new Set(upwardFanInEdges(targetId, edges, nodeById, laneOrderById).map((edge) => edge.sourceId));
+  return edges.some((edge) => {
+    if (edge.targetId === targetId || !sourceIds.has(edge.sourceId)) {
+      return false;
+    }
+    if (!hasTerminalMixedUpwardFanIn(edge.targetId, edges, nodeById, laneOrderById)) {
+      return false;
+    }
+    const candidateTarget = nodeLayoutById.get(edge.targetId);
+    return candidateTarget ? candidateTarget.x < target.x : false;
+  });
+}
+
+function upwardFanInEdges(targetId: string, edges: EdgeInput[], nodeById: Map<string, NodeInput>, laneOrderById: Map<string, number>) {
+  return edges.filter((edge) => {
+    if (edge.targetId !== targetId) {
+      return false;
+    }
+    const sourceNode = nodeById.get(edge.sourceId);
+    const targetNode = nodeById.get(edge.targetId);
+    if (!sourceNode || !targetNode) {
+      return false;
+    }
+    return deriveOrientation(laneOrderById.get(sourceNode.laneId) ?? 0, laneOrderById.get(targetNode.laneId) ?? 0) === "up";
+  });
+}
+
+function assignCompactUpwardRows(params: {
+  edges: EdgeInput[];
+  sideAssignments: Map<string, EdgeSideAssignment>;
+  sourceOrdinalByEdgeId: Map<string, number>;
+  targetOrdinalByEdgeId: Map<string, number>;
+  sourceCountByEdgeId: Map<string, number>;
+  targetRequestSlotByEdgeId: Map<string, number>;
+  upwardDetourPlanByEdgeId: Map<string, UpwardDetourPlan>;
+  nodeLayoutById: Map<string, NodeLayout>;
+  laneOrderById: Map<string, number>;
+  nodeById: Map<string, NodeInput>;
+}) {
+  const {
+    edges,
+    sideAssignments,
+    sourceOrdinalByEdgeId,
+    targetOrdinalByEdgeId,
+    sourceCountByEdgeId,
+    targetRequestSlotByEdgeId,
+    upwardDetourPlanByEdgeId,
+    nodeLayoutById,
+    laneOrderById,
+    nodeById,
+  } = params;
+  const assignedRows: Array<{ rowY: number; minX: number; maxX: number }> = [];
+
+  for (const edge of edges) {
+    if (isBackReferenceEdge(edge)) {
+      continue;
+    }
+    const sourceNode = nodeById.get(edge.sourceId);
+    const targetNode = nodeById.get(edge.targetId);
+    const nodeSource = nodeLayoutById.get(edge.sourceId);
+    const nodeTarget = nodeLayoutById.get(edge.targetId);
+    const sides = sideAssignments.get(edge.id);
+    if (!sourceNode || !targetNode || !nodeSource || !nodeTarget || !sides) {
+      continue;
+    }
+
+    const orientation = deriveOrientation(
+      laneOrderById.get(sourceNode.laneId) ?? 0,
+      laneOrderById.get(targetNode.laneId) ?? 0,
+    );
+    if (orientation !== "up" || sides.source !== "top" || sides.target !== "bottom") {
+      continue;
+    }
+
+    const sourceAnchor = createEdgeAnchor(edge, nodeSource, sides.source, sourceOrdinalByEdgeId.get(edge.id) ?? 0, "source");
+    const targetAnchor = resolveTargetAnchorBase(
+      edge,
+      createEdgeAnchor(edge, nodeTarget, sides.target, targetOrdinalByEdgeId.get(edge.id) ?? 0, "target"),
+      targetOrdinalByEdgeId,
+      targetRequestSlotByEdgeId,
+      orientation,
+    );
+    const rowY = compactUpwardBaseRowY(sourceAnchor, targetAnchor, sourceCountByEdgeId.get(edge.id) ?? 1, nodeSource.height);
+    const minX = Math.min(sourceAnchor.x, targetAnchor.x);
+    const maxX = Math.max(sourceAnchor.x, targetAnchor.x);
+    let assignedRowY = rowY;
+    while (assignedRows.some((assigned) => Math.abs(assigned.rowY - assignedRowY) < UPWARD_REROUTE_SPACING && horizontalRangesOverlap(minX, maxX, assigned.minX, assigned.maxX))) {
+      assignedRowY -= UPWARD_REROUTE_SPACING;
+    }
+
+    upwardDetourPlanByEdgeId.set(edge.id, {
+      ...upwardDetourPlanByEdgeId.get(edge.id),
+      upRowY: assignedRowY,
+    });
+    assignedRows.push({ rowY: assignedRowY, minX, maxX });
+  }
+}
+
+function compactUpwardBaseRowY(sourceAnchor: AnchorPoint, targetAnchor: AnchorPoint, sourceSideCount: number, sourceHeight: number) {
+  if (sourceAnchor.x === targetAnchor.x) {
+    return Math.max(90, targetAnchor.y + EDGE_STUB + (sourceSideCount - 1) * EDGE_STUB);
+  }
+  return alignTallCompactTopRow(
+    sourceAnchor.y - getCompactTopStubDistance(sourceAnchor, sourceSideCount, sourceHeight),
+    sourceHeight,
+  );
+}
+
+function getCompactInterLaneTrackDistance() {
+  return EDGE_STUB + 30;
+}
 
 function resolveUpwardBackReferenceRows(params: {
   edges: EdgeInput[];
@@ -1121,8 +1488,8 @@ function assignTargetAnchorSlots(params: {
       if (
         leftOrientation === "up" &&
         rightOrientation === "up" &&
-        (leftSide === "left" || leftSide === "right") &&
-        leftSide === rightSide
+        leftSide === rightSide &&
+        (leftSide === "left" || leftSide === "right" || leftSide === "bottom")
       ) {
         const leftSource = nodeLayoutById.get(leftEdge.sourceId);
         const rightSource = nodeLayoutById.get(rightEdge.sourceId);
@@ -1130,6 +1497,11 @@ function assignTargetAnchorSlots(params: {
           const leftPosition = leftSource.x + leftSource.width / 2;
           const rightPosition = rightSource.x + rightSource.width / 2;
           if (leftPosition !== rightPosition) {
+            if (leftSide === "bottom") {
+              return isBackReferenceEdge(leftEdge) && isBackReferenceEdge(rightEdge)
+                ? leftPosition - rightPosition
+                : rightPosition - leftPosition;
+            }
             return leftPosition - rightPosition;
           }
         }
@@ -1149,8 +1521,13 @@ function addEdgeToAnchorBucket(
   nodeId: string,
   side: AnchorSide,
   edgeId: string,
+  edge: EdgeInput,
+  separateVerticalRoles = true,
 ) {
-  const bucketKey = `${nodeId}:${side}`;
+  const verticalRoleKey = separateVerticalRoles && (side === "top" || side === "bottom")
+    ? `:${isBackReferenceEdge(edge) ? "back-reference" : "flow"}`
+    : "";
+  const bucketKey = `${nodeId}:${side}${verticalRoleKey}`;
   const bucket = edgeIdsByBucket.get(bucketKey) ?? [];
   bucket.push(edgeId);
   edgeIdsByBucket.set(bucketKey, bucket);
@@ -1229,6 +1606,17 @@ function assignAnchorOrdinals(params: {
           laneOrderById.get(nodeById.get(rightEdge.targetId)?.laneId ?? "") ?? 0,
         );
         if (leftOrientation === "up" && rightOrientation === "up") {
+          const leftSource = nodeLayoutById.get(leftEdge.sourceId);
+          const rightSource = nodeLayoutById.get(rightEdge.sourceId);
+          if (leftSource && rightSource) {
+            const leftPosition = leftSource.x + leftSource.width / 2;
+            const rightPosition = rightSource.x + rightSource.width / 2;
+            if (leftPosition !== rightPosition) {
+              return isBackReferenceEdge(leftEdge) && isBackReferenceEdge(rightEdge)
+                ? leftPosition - rightPosition
+                : rightPosition - leftPosition;
+            }
+          }
           return (edgeIndexById.get(leftId) ?? 0) - (edgeIndexById.get(rightId) ?? 0);
         }
       }
@@ -1432,9 +1820,11 @@ function routeOrthogonalEdge(
   }
   if (sourceAnchor.side === "top" && targetAnchor.side === "bottom") {
     const sourceNode = nodeLayouts.find((node) => node.id === edge.sourceId);
+    const sourceHeight = sourceNode?.height ?? 48;
+    const compactTopStubDistance = getCompactTopStubDistance(sourceAnchor, sourceSideCount, sourceHeight);
     const rowY = upwardDetourPlan?.upRowY ?? (sourceAnchor.x === targetAnchor.x
       ? Math.max(90, targetAnchor.y + EDGE_STUB + (sourceSideCount - 1) * EDGE_STUB)
-      : sourceAnchor.y - getCompactTopStubDistance(sourceAnchor, sourceSideCount, sourceNode?.height ?? 48));
+      : alignTallCompactTopRow(sourceAnchor.y - compactTopStubDistance, sourceHeight));
     return [
       { x: sourceAnchor.x, y: sourceAnchor.y },
       { x: sourceAnchor.x, y: rowY },
@@ -1475,11 +1865,24 @@ function getSourceStubDistance(sourceAnchor: AnchorPoint, sourceSideCount: numbe
 }
 
 function getCompactTopStubDistance(sourceAnchor: AnchorPoint, sourceSideCount: number, sourceHeight: number) {
-  const heightAdjustment = Math.max(0, sourceHeight - 56);
+  const heightAdjustment = Math.min(30, Math.max(0, sourceHeight - 56));
   if (sourceSideCount > 1) {
     return EDGE_STUB + (sourceSideCount - sourceAnchor.ordinal) * 10 + heightAdjustment;
   }
   return EDGE_STUB + heightAdjustment;
+}
+
+function alignTallCompactTopRow(rowY: number, sourceHeight: number) {
+  if (sourceHeight <= 48) {
+    return rowY;
+  }
+  if (sourceHeight <= 56) {
+    return Math.floor(rowY / UPWARD_REROUTE_SPACING) * UPWARD_REROUTE_SPACING;
+  }
+  if (sourceHeight <= 86) {
+    return rowY;
+  }
+  return Math.round(rowY / UPWARD_REROUTE_SPACING) * UPWARD_REROUTE_SPACING;
 }
 
 function offsetFromAnchor(anchor: AnchorPoint, distance: number): Point {
@@ -1551,7 +1954,9 @@ function resolveDownwardBaseRow(
     if (overlappingNodes.length === 0) {
       return rowY;
     }
-    rowY = Math.max(...overlappingNodes.map((node) => node.y + node.height)) + UPWARD_REROUTE_SPACING;
+    rowY = Math.ceil(
+      (Math.max(...overlappingNodes.map((node) => node.y + node.height)) + UPWARD_REROUTE_SPACING) / UPWARD_REROUTE_SPACING,
+    ) * UPWARD_REROUTE_SPACING;
   }
 }
 
