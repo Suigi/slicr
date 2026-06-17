@@ -9,8 +9,8 @@
       "import": "./src/index.ts"
     },
     "./testing": {
-      "types": "./src/testing/expectHandler.ts",
-      "import": "./src/testing/expectHandler.ts"
+      "types": "./src/testing/index.ts",
+      "import": "./src/testing/index.ts"
     },
     "./package.json": "./package.json"
   },

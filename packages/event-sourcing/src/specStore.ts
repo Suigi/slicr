@@ -6,6 +6,12 @@ export type SequencedEvent<E extends Event> = {
   readonly event: E;
 };
 
+export const SequencedEvent = {
+  wrap<E extends Event>(event: E, position: SequencePosition): SequencedEvent<E> {
+    return {position, event};
+  }
+};
+
 export type ReadOptions = {
   readonly from?: SequencePosition;
 };

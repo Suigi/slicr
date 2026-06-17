@@ -1,4 +1,4 @@
-import {Handler, Query, Store} from '@slicr/event-sourcing';
+import {Decider, Query} from '@slicr/event-sourcing';
 import {DomainEvent, Events, ProjectId} from '../events';
 import {v4 as uuid} from 'uuid';
 
@@ -35,41 +35,41 @@ const noOpAtom: Atom<unknown, void> = {
 
 const Atoms = {projectNames, noOp: noOpAtom};
 
+const addProjectDecider = (generateUuid: () => string): Decider<AddProjectCommand, DomainEvent, void> => ({
+  ...Atoms.noOp,
+  decide: (command) => {
+    const projectId = generateUuid();
+    const chapterId = generateUuid();
+    return [
+      Events.projectAdded(projectId, command.name),
+      Events.chapterAdded(projectId, chapterId, DEFAULT_CHAPTER_TITLE),
+    ];
+  }
+});
 
-export const handlers = (args: { generateUuid?: () => string } = {}) => {
+const renameProjectDecider: Decider<RenameProjectCommand, DomainEvent, Record<string,string>> = {
+  ...Atoms.projectNames,
+  decide: (command: RenameProjectCommand, decisionModel: Record<string, string>) => {
+    const currentProjectName = decisionModel[command.projectId];
+
+    if (currentProjectName === undefined) {
+      throw new Error(`Project with ID [${command.projectId}] not found`);
+    }
+
+    if (currentProjectName === command.name) {
+      return [];
+    }
+
+    return [
+      Events.projectRenamed(command.projectId, command.name),
+    ];
+  }
+};
+
+export const deciders = (args: { generateUuid?: () => string } = {}) => {
   const generateUuid = args.generateUuid ?? uuid;
   return {
-    renameProject: (store: Store<DomainEvent>) =>
-      Handler.create<RenameProjectCommand, DomainEvent, Record<ProjectId, string>>({
-        store,
-        ...Atoms.projectNames,
-        decide: (command, decisionModel) => {
-          const currentProjectName = decisionModel[command.projectId];
-          if (currentProjectName === undefined) {
-            throw new Error(`Project with ID [${command.projectId}] not found`);
-          }
-          if (currentProjectName !== command.name) {
-            return [
-              Events.projectRenamed(command.projectId, command.name),
-            ];
-          }
-          return [];
-        }
-      }),
-
-    addProject: (store: Store<DomainEvent>) =>
-      Handler.create<AddProjectCommand, DomainEvent, void>({
-        store,
-        ...Atoms.noOp,
-        decide: (command) => {
-          const projectId = generateUuid();
-          const chapterId = generateUuid();
-          return [
-            Events.projectAdded(projectId, command.name),
-            Events.chapterAdded(projectId, chapterId, DEFAULT_CHAPTER_TITLE),
-          ];
-        }
-      }),
-
+    addProject: addProjectDecider(generateUuid),
+    renameProject: renameProjectDecider,
   };
 };

@@ -1,4 +1,5 @@
 export * from './handler';
+export * from './deciders';
 export * from './indexedDBEventStore';
 export * from './indexedDBSpecEventStore';
 export * from './memoryStore/memoryStore';
@@ -6,3 +7,4 @@ export * from './memoryStore/specEventStore';
 export * from './query';
 export * from './specStore';
 export * from './types';
+export * from './deciders';
