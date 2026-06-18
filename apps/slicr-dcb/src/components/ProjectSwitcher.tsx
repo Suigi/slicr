@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState} from 'react';
 import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
-import {faCheck} from '@fortawesome/free-solid-svg-icons';
+import {faCheck, faEdit} from '@fortawesome/free-solid-svg-icons';
 
 export type Project = {
   id: string;
@@ -17,9 +17,11 @@ type ProjectSwitcherProps = {
 export function ProjectSwitcher({projects, activeProjectId, onSelectProject, onAddProject}: ProjectSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [projectToRename, setProjectToRename] = useState<{ projectId: string, newName: string } | null>(null);
   const [projectName, setProjectName] = useState('New Project');
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const renameInputRef = useRef<HTMLInputElement>(null);
   const activeProject = projects.find((project) => project.id === activeProjectId) ?? projects[0];
   const currentProjectName = activeProject?.name ?? 'Select project';
 
@@ -31,6 +33,15 @@ export function ProjectSwitcher({projects, activeProjectId, onSelectProject, onA
     inputRef.current?.focus();
     inputRef.current?.select();
   }, [isCreatingProject]);
+
+  useEffect(() => {
+    if (!projectToRename) {
+      return;
+    }
+
+    renameInputRef.current?.focus();
+    renameInputRef.current?.select();
+  }, [projectToRename]);
 
   useEffect(() => {
     if (!isOpen || isCreatingProject) {
@@ -58,6 +69,19 @@ export function ProjectSwitcher({projects, activeProjectId, onSelectProject, onA
     setIsOpen(false);
     setProjectName('New Project');
     void onAddProject?.(nextProjectName);
+  };
+
+  const startProjectRename = (projectId: string, projectName: string) => {
+    setProjectToRename({projectId, newName: projectName});
+  }
+
+  const closeProjectRename = () => {
+    setProjectToRename(null);
+  };
+
+  const submitProjectRename = () => {
+    // alert(`Renaming project to ${projectToRename?.newName}`);
+    closeProjectRename();
   };
 
   const startProjectCreation = () => {
@@ -95,25 +119,67 @@ export function ProjectSwitcher({projects, activeProjectId, onSelectProject, onA
       {isOpen ? (
         <div className="project-switcher-menu" role="listbox" aria-label="Projects">
           {projects.map((project) => {
-            const isSelected = project.id === activeProjectId;
-            return (
-              <button
-                key={project.id}
-                type="button"
-                className={`project-switcher-option${isSelected ? ' project-switcher-option-selected' : ''}`}
-                role="option"
-                aria-selected={isSelected}
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => {
-                  onSelectProject(project.id);
-                  setIsOpen(false);
-                }}
-              >
-                {project.name}
-              </button>
-            );
+            if (projectToRename && project.id === projectToRename.projectId) {
+              return (
+                <div className="project-switcher-item project-switcher-option project-switcher-inline-rename" role="option"
+                     key={`project-switcher-item${project.id}`}
+                     aria-selected="false">
+                  <input
+                    ref={renameInputRef}
+                    type="text"
+                    className="project-switcher-option-rename-input"
+                    value={projectToRename.newName}
+                    onChange={(event) => setProjectToRename({projectId: project.id, newName: event.target.value})}
+                    onBlur={closeProjectRename}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        submitProjectRename();
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="project-switcher-option-rename-confirm chapter-sidebar-create-confirm"
+                    aria-label="Rename project"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={submitProjectRename}
+                  >
+                    <FontAwesomeIcon icon={faCheck}/>
+                  </button>
+                </div>
+              );
+            } else {
+              const isSelected = project.id === activeProjectId;
+              return (
+                <div
+                  key={`project-switcher-item${project.id}`}
+                  className={`project-switcher-item${isSelected ? ' project-switcher-item-selected' : ''}`}>
+                  <button
+                    type="button"
+                    className={`project-switcher-option${isSelected ? ' project-switcher-option-selected' : ''}`}
+                    role="option"
+                    aria-selected={isSelected}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => {
+                      onSelectProject(project.id);
+                      setIsOpen(false);
+                    }}
+                  >
+                    {project.name}
+                  </button>
+                  <button
+                    className={'project-switcher-rename-button'}
+                    type="button"
+                    onClick={() => startProjectRename(project.id, project.name)}
+                  >
+                    <FontAwesomeIcon icon={faEdit}/>
+                  </button>
+                </div>
+              );
+            }
           })}
-          <div className="project-switcher-separator" aria-hidden="true" />
+          <div className="project-switcher-separator" aria-hidden="true"/>
           {isCreatingProject ? (
             <div className="project-switcher-option project-switcher-inline-create" role="option" aria-selected="false">
               <input
@@ -141,7 +207,7 @@ export function ProjectSwitcher({projects, activeProjectId, onSelectProject, onA
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={submitProjectCreation}
               >
-                <FontAwesomeIcon icon={faCheck} />
+                <FontAwesomeIcon icon={faCheck}/>
               </button>
             </div>
           ) : (

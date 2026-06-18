@@ -183,16 +183,31 @@ body {
   text-align: left;
 }
 
-.project-switcher-option:hover {
+.project-switcher-item {
+  display: flex;
+  align-items: center;
+  height: 38px;
+  border-radius: 8px;
+  margin-bottom: 2px;
+  padding-right: 6px;
+
+}
+
+.project-switcher-item .project-switcher-rename-button {
+  background: transparent;
+}
+
+.project-switcher-item:hover {
   background: rgba(37, 99, 235, 0.06);
 }
 
-.project-switcher-option-selected {
+.project-switcher-item-selected {
   background: #eaf1ff;
   color: #1d4ed8;
 }
 
-.project-switcher-inline-create {
+.project-switcher-inline-create,
+.project-switcher-inline-rename {
   display: flex;
   height: 38px;
   align-items: center;
@@ -205,7 +220,8 @@ body {
   background: transparent;
 }
 
-.project-switcher-option-add-input {
+.project-switcher-option-add-input,
+.project-switcher-option-rename-input {
   width: 0;
   min-width: 0;
   flex: 1 1 0;
@@ -373,7 +389,8 @@ body {
   padding: 0;
 }
 
-.chapter-sidebar-create-confirm {
+.chapter-sidebar-create-confirm,
+.project-switcher-rename-button {
   width: 34px;
   height: 34px;
   border: 1px solid rgba(23, 32, 51, 0.12);
