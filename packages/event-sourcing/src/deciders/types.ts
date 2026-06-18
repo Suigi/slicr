@@ -1,4 +1,4 @@
-import {Query} from '../query.ts';
+import {Query} from '../query';
 
 export type Decider<Command, Event, DecisionModel> = {
   query(command: Command): Query;

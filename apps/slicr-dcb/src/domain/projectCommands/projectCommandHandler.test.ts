@@ -14,7 +14,7 @@ describe('projectCommandHandler', () => {
       const uuids = ['my_project_id', 'my_chapter_id'];
       expectDecider(deciders({generateUuid: uuidStub(uuids)}).addProject)
         .given()
-        .when({name: 'my project'})
+        .when({type: 'AddProject', data: {name: 'my project'}})
         .thenEmits(
           Events.projectAdded('my_project_id', 'my project'),
           Events.chapterAdded('my_project_id', 'my_chapter_id', 'Chapter 1')
@@ -26,28 +26,28 @@ describe('projectCommandHandler', () => {
     it('given no project, throws', () => {
       expectDecider(deciders().renameProject)
         .given()
-        .when({projectId: '123', name: 'new name'})
+        .when({type: 'RenameProject', data: {projectId: '123', name: 'new name'}})
         .thenThrows(new Error('Project with ID [123] not found'));
     });
 
     it('given different project, throws', () => {
       expectDecider(deciders().renameProject)
         .given(Events.projectAdded('other project', 'IRRELEVANT PROJECT NAME'))
-        .when({projectId: 'my project', name: 'new name'})
+        .when({type: 'RenameProject', data: {projectId: 'my project', name: 'new name'}})
         .thenThrows(new Error('Project with ID [my project] not found'));
     });
 
     it('given existing project, emits projectRenamed', () => {
       expectDecider(deciders().renameProject)
         .given(Events.projectAdded('my project', 'IRRELEVANT PROJECT NAME'))
-        .when({projectId: 'my project', name: 'new name'})
+        .when({type: 'RenameProject', data: {projectId: 'my project', name: 'new name'}})
         .thenEmits(Events.projectRenamed('my project', 'new name'));
     });
 
     it('given existing project with same name, emits no events', () => {
       expectDecider(deciders().renameProject)
         .given(Events.projectAdded('my project', 'same name'))
-        .when({projectId: 'my project', name: 'same name'})
+        .when({type: 'RenameProject', data: {projectId: 'my project', name: 'same name'}})
         .thenEmits();
     });
 
@@ -57,7 +57,7 @@ describe('projectCommandHandler', () => {
           Events.projectAdded('my project', 'initial project name'),
           Events.projectRenamed('my project', 'new name')
         )
-        .when({projectId: 'my project', name: 'new name'})
+        .when({type: 'RenameProject', data: {projectId: 'my project', name: 'new name'}})
         .thenEmits();
     });
   });

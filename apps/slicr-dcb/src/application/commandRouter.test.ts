@@ -1,0 +1,71 @@
+import {describe, expect, it} from 'vitest';
+import {MemorySpecEventStore} from '@slicr/event-sourcing';
+import {createCommandRouter} from './commandRouter';
+import {Events, type DomainEvent} from '../domain/events';
+
+describe('commandRouter', () => {
+  it('routes AddProject and appends project events', async () => {
+    const store = MemorySpecEventStore.create<DomainEvent>();
+    const routeCommand = createCommandRouter({store});
+
+    await routeCommand({
+      type: 'AddProject',
+      data: {name: 'My project'},
+    });
+
+    const events = await store.read();
+
+    expect(events).toHaveLength(2);
+    expect(events[0]).toMatchObject({
+      position: 1,
+      event: {
+        type: 'ProjectAdded',
+        payload: {name: 'My project'},
+      },
+    });
+    expect(events[1]).toMatchObject({
+      position: 2,
+      event: {
+        type: 'ChapterAdded',
+        payload: {title: 'Chapter 1'},
+      },
+    });
+    expect(events[1]?.event.payload.projectId).toBe(events[0]?.event.payload.projectId);
+  });
+
+  it('routes RenameProject and appends ProjectRenamed', async () => {
+    const store = MemorySpecEventStore.create<DomainEvent>();
+    await store.append([
+      Events.projectAdded('project-1', 'Old name'),
+    ]);
+    const routeCommand = createCommandRouter({store});
+
+    await routeCommand({
+      type: 'RenameProject',
+      data: {
+        projectId: 'project-1',
+        name: 'New name',
+      },
+    });
+
+    await expect(store.read()).resolves.toEqual([
+      {
+        position: 1,
+        event: Events.projectAdded('project-1', 'Old name'),
+      },
+      {
+        position: 2,
+        event: Events.projectRenamed('project-1', 'New name'),
+      },
+    ]);
+  });
+
+  it('throws for unknown command type', async () => {
+    const routeCommand = createCommandRouter();
+
+    await expect(routeCommand({
+      type: 'UnknownCommand',
+      data: {},
+    })).rejects.toThrow('No command handler registered for command type UnknownCommand');
+  });
+});

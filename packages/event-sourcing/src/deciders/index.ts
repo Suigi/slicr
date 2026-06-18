@@ -1,8 +1,8 @@
-import type {Decider} from './types.ts';
-import type {Event} from '../types.ts';
-import type {SpecEventStore} from '../specStore.ts';
+import type {Decider} from './types';
+import type {Event} from '../types';
+import type {SpecEventStore} from '../specStore';
 
-export * from './types.ts';
+export * from './types';
 
 export async function handleCommand<Command, E extends Event, DecisionModel>(
   store: SpecEventStore<E>,

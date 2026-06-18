@@ -8,3 +8,4 @@ export * from './query';
 export * from './specStore';
 export * from './types';
 export * from './deciders';
+export * from './commands';
