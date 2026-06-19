@@ -190,26 +190,22 @@ export function createEventSourcedGraphModel(config: {
       return appendAndProject(Events.nodeAdded(currentProjectId, currentChapterId, newNodeId, 'ui', 0, `Node ${newNodeNumber}`));
     },
     async addProject(name: string) {
-      const previousEventCount = events.length;
-
       await routeCommand({
         type: 'AddProject',
         data: {name},
       });
 
       const nextEvents = await config.store.readAll();
-      const appendedEvents = nextEvents.slice(previousEventCount);
-      const projectAdded = appendedEvents.find((event) => event.type === 'ProjectAdded');
-      const chapterAdded = appendedEvents.find((event) => event.type === 'ChapterAdded');
+      const nextWorkspace = projectWorkspace(nextEvents);
+      const latestProjectId = nextWorkspace.latestProjectId;
+      const latestChapterId = latestProjectId
+        ? nextWorkspace.chaptersByProjectId[latestProjectId]?.[0]?.id
+        : undefined;
 
-      if (projectAdded && chapterAdded) {
-        return project(nextEvents, {
-          projectId: projectAdded.payload.projectId,
-          chapterId: chapterAdded.payload.chapterId,
-        });
-      }
-
-      return project(nextEvents);
+      return project(nextEvents, {
+        projectId: latestProjectId,
+        chapterId: latestChapterId,
+      });
     },
     async addChapter(title: string) {
       const newChapterId = generateId();

@@ -13,6 +13,7 @@ export type WorkspaceChapter = {
 export type WorkspaceProjection = {
   projects: WorkspaceProject[];
   chaptersByProjectId: Record<ProjectId, WorkspaceChapter[]>;
+  latestProjectId?: ProjectId;
 };
 
 export function projectWorkspace(events: readonly DomainEvent[]): WorkspaceProjection {
@@ -72,5 +73,6 @@ export function projectWorkspace(events: readonly DomainEvent[]): WorkspaceProje
         ];
       }),
     ),
+    latestProjectId: projectOrder[projectOrder.length - 1],
   };
 }

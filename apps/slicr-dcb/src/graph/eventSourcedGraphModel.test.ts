@@ -341,6 +341,7 @@ describe('createEventSourcedGraphModel', () => {
         [defaultProjectId]: [{id: 'default-chapter', title: 'Chapter 1'}],
         'generated-project-1': [{id: 'generated-chapter-1', title: 'Chapter 1'}],
       },
+      latestProjectId: 'generated-project-1',
     });
     expect(model.getScope()).toEqual({projectId: 'generated-project-1', chapterId: 'generated-chapter-1'});
     expect(model.getSnapshot()).toEqual({nodes: [], edges: [], lanes: [], nodeSchemas: {}, nodeExampleValues: {}});
