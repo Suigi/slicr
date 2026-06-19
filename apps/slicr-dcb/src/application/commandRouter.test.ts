@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {MemorySpecEventStore} from '@slicr/event-sourcing';
+import {AnyCommand, MemorySpecEventStore} from '@slicr/event-sourcing';
 import {createCommandRouter} from './commandRouter';
 import {Events, type DomainEvent} from '../domain/events';
 
@@ -61,7 +61,7 @@ describe('commandRouter', () => {
   });
 
   it('throws for unknown command type', async () => {
-    const routeCommand = createCommandRouter();
+    const routeCommand = createCommandRouter() as (command: AnyCommand) => Promise<void>;
 
     await expect(routeCommand({
       type: 'UnknownCommand',

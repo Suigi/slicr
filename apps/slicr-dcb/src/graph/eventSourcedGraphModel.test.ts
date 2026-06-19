@@ -2,7 +2,7 @@ import {describe, expect, it} from 'vitest';
 
 import {createEventSourcedGraphModel, type AsyncGraphEventStore} from './eventSourcedGraphModel';
 import {Events, type DomainEvent} from '../domain/events';
-import {AppendConditionFailedError, type AppendCondition, type SequencedEvent} from '@slicr/event-sourcing';
+import {AppendConditionFailedError, Query, type AppendCondition, type ReadOptions, type SequencedEvent, type SpecEventStore} from '@slicr/event-sourcing';
 import {NODE_HEIGHT, NODE_WIDTH} from './constants';
 
 const defaultProjectId = 'default-project';
@@ -19,36 +19,54 @@ function createIdGenerator(ids: string[]) {
   };
 }
 
-function createStore(events: DomainEvent[] = []): AsyncGraphEventStore {
-  return {
-    append: async (nextEvents, condition?: AppendCondition) => {
-      const eventsToAppend = Array.isArray(nextEvents) ? nextEvents : [nextEvents];
-      if (condition) {
-        const conflictingEvents = events
-          .map((event, index) => ({position: index + 1, event}))
-          .filter(({position, event}) => {
-            if (condition.after !== undefined && position <= condition.after) {
-              return false;
-            }
-            if (condition.failIfEventsMatch.kind === 'none') {
-              return false;
-            }
-            if (condition.failIfEventsMatch.kind === 'all') {
-              return true;
-            }
-            return condition.failIfEventsMatch.items.some((queryItem) => {
-              const matchesType = queryItem.types === undefined || queryItem.types.includes(event.type);
-              const matchesTags = queryItem.tags === undefined || queryItem.tags.every((tag) => event.tags.includes(tag));
-              return matchesType && matchesTags;
-            });
-          });
+function createStores(initialEvents: DomainEvent[] = []): {
+  events: DomainEvent[];
+  graphStore: AsyncGraphEventStore;
+  commandStore: SpecEventStore<DomainEvent>;
+} {
+  const events = [...initialEvents];
 
-        if (conflictingEvents.length > 0) {
-          throw new AppendConditionFailedError(condition, conflictingEvents);
-        }
+  const readSequencedEvents = (from?: number) => {
+    const sequencedEvents = events.map((event, index) => ({position: index + 1, event}));
+    return from === undefined
+      ? sequencedEvents
+      : sequencedEvents.filter((sequencedEvent) => sequencedEvent.position > from);
+  };
+
+  const matchesQuery = (query: Query, event: DomainEvent) => {
+    if (query.kind === 'none') {
+      return false;
+    }
+    if (query.kind === 'all') {
+      return true;
+    }
+    return query.items.some((queryItem) => {
+      const matchesType = queryItem.types === undefined || queryItem.types.includes(event.type);
+      const matchesTags = queryItem.tags === undefined || queryItem.tags.every((tag) => event.tags.includes(tag));
+      return matchesType && matchesTags;
+    });
+  };
+
+  const commandStore: SpecEventStore<DomainEvent> = {
+    append: async (nextEvents, condition?: AppendCondition) => {
+      const conflictingEvents = condition === undefined
+        ? []
+        : readSequencedEvents(condition.after).filter(({event}) => matchesQuery(condition.failIfEventsMatch, event));
+
+      if (condition !== undefined && conflictingEvents.length > 0) {
+        throw new AppendConditionFailedError(condition, conflictingEvents);
       }
 
-      events.push(...eventsToAppend);
+      events.push(...nextEvents);
+      return readSequencedEvents().slice(-nextEvents.length);
+    },
+    read: async (options: ReadOptions = {}) => readSequencedEvents(options.from),
+    query: async (query: Query, options: ReadOptions = {}) => readSequencedEvents(options.from).filter(({event}) => matchesQuery(query, event)),
+  };
+
+  const graphStore: AsyncGraphEventStore = {
+    append: async (nextEvents, condition?: AppendCondition) => {
+      await commandStore.append(Array.isArray(nextEvents) ? nextEvents : [nextEvents], condition);
     },
     readAll: async () => [...events],
     replace: async (nextEvents) => {
@@ -58,12 +76,25 @@ function createStore(events: DomainEvent[] = []): AsyncGraphEventStore {
       events.splice(0, events.length);
     },
   };
+
+  return {events, graphStore, commandStore};
+}
+
+function createModelContext(args: {events?: DomainEvent[]; ids?: string[]} = {}) {
+  const stores = createStores(args.events ?? []);
+  return {
+    ...stores,
+    model: createEventSourcedGraphModel({
+      store: stores.graphStore,
+      commandStore: stores.commandStore,
+      ...(args.ids ? {uuidGenerator: createIdGenerator(args.ids)} : {}),
+    }),
+  };
 }
 
 describe('createEventSourcedGraphModel', () => {
   it('loads an empty event store by bootstrapping a default workspace while keeping the renderer graph empty', async () => {
-    const events: DomainEvent[] = [];
-    const model = createEventSourcedGraphModel({store: createStore(events)});
+    const {events, model} = createModelContext();
 
     await model.load();
 
@@ -75,14 +106,16 @@ describe('createEventSourcedGraphModel', () => {
   });
 
   it('replays and appends graph events in the default chapter', async () => {
-    const events: DomainEvent[] = [
-      Events.projectAdded(defaultProjectId, 'Default Project'),
-      Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
-      Events.chapterAdded(defaultProjectId, 'chapter-2', 'Chapter 2'),
-      Events.nodeAdded(defaultProjectId, 'default-chapter', 'node-1', 'ui', 0, 'Default Chapter Node'),
-      Events.nodeAdded(defaultProjectId, 'chapter-2', 'node-2', 'evt', 1, 'Other Chapter Node'),
-    ];
-    const model = createEventSourcedGraphModel({store: createStore(events), uuidGenerator: createIdGenerator(['generated-node-1'])});
+    const {events, model} = createModelContext({
+      events: [
+        Events.projectAdded(defaultProjectId, 'Default Project'),
+        Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
+        Events.chapterAdded(defaultProjectId, 'chapter-2', 'Chapter 2'),
+        Events.nodeAdded(defaultProjectId, 'default-chapter', 'node-1', 'ui', 0, 'Default Chapter Node'),
+        Events.nodeAdded(defaultProjectId, 'chapter-2', 'node-2', 'evt', 1, 'Other Chapter Node'),
+      ],
+      ids: ['generated-node-1'],
+    });
 
     await model.load();
     await model.addNewSlice();
@@ -108,12 +141,13 @@ describe('createEventSourcedGraphModel', () => {
   });
 
   it('does not append duplicate default workspace events when the default workspace already exists', async () => {
-    const events: DomainEvent[] = [
-      Events.projectAdded(defaultProjectId, 'Default Project'),
-      Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
-      Events.projectAdded('project-1', 'Checkout System'),
-    ];
-    const model = createEventSourcedGraphModel({store: createStore(events)});
+    const {events, model} = createModelContext({
+      events: [
+        Events.projectAdded(defaultProjectId, 'Default Project'),
+        Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
+        Events.projectAdded('project-1', 'Checkout System'),
+      ],
+    });
 
     await model.load();
 
@@ -125,10 +159,9 @@ describe('createEventSourcedGraphModel', () => {
   });
 
   it('appends default workspace bootstrap events only once across overlapping loads', async () => {
-    const events: DomainEvent[] = [];
-    const store = createStore(events);
-    const firstModel = createEventSourcedGraphModel({store});
-    const secondModel = createEventSourcedGraphModel({store});
+    const {events, graphStore, commandStore} = createStores();
+    const firstModel = createEventSourcedGraphModel({store: graphStore, commandStore});
+    const secondModel = createEventSourcedGraphModel({store: graphStore, commandStore});
 
     await Promise.all([firstModel.load(), secondModel.load()]);
 
@@ -140,51 +173,86 @@ describe('createEventSourcedGraphModel', () => {
 
   it('does not duplicate default bootstrap events across distinct store instances sharing the same backing storage', async () => {
     const sequencedEvents: SequencedEvent<DomainEvent>[] = [];
-    const createSharedStore = (): AsyncGraphEventStore => ({
-      append: async (nextEvents, condition?: AppendCondition) => {
-        const appendedEvents = Array.isArray(nextEvents) ? nextEvents : [nextEvents];
-        const conflictingEvents = condition
-          ? sequencedEvents.filter(({position, event}) => {
-              if (condition.after !== undefined && position <= condition.after) {
-                return false;
-              }
-              if (condition.failIfEventsMatch.kind === 'none') {
-                return false;
-              }
-              if (condition.failIfEventsMatch.kind === 'all') {
-                return true;
-              }
-              return condition.failIfEventsMatch.items.some((queryItem) => {
-                const matchesType = queryItem.types === undefined || queryItem.types.includes(event.type);
-                const matchesTags = queryItem.tags === undefined || queryItem.tags.every((tag) => event.tags.includes(tag));
-                return matchesType && matchesTags;
-              });
-            })
-          : [];
+    const createSharedStores = () => {
+      const commandStore: SpecEventStore<DomainEvent> = {
+        append: async (nextEvents, condition?: AppendCondition) => {
+          const conflictingEvents = condition
+            ? sequencedEvents.filter(({position, event}) => {
+                if (condition.after !== undefined && position <= condition.after) {
+                  return false;
+                }
+                if (condition.failIfEventsMatch.kind === 'none') {
+                  return false;
+                }
+                if (condition.failIfEventsMatch.kind === 'all') {
+                  return true;
+                }
+                return condition.failIfEventsMatch.items.some((queryItem) => {
+                  const matchesType = queryItem.types === undefined || queryItem.types.includes(event.type);
+                  const matchesTags = queryItem.tags === undefined || queryItem.tags.every((tag) => event.tags.includes(tag));
+                  return matchesType && matchesTags;
+                });
+              })
+            : [];
 
-        if (condition && conflictingEvents.length > 0) {
-          throw new AppendConditionFailedError(condition, conflictingEvents);
-        }
+          if (condition && conflictingEvents.length > 0) {
+            throw new AppendConditionFailedError(condition, conflictingEvents);
+          }
 
-        const startingPosition = sequencedEvents.length > 0 ? sequencedEvents[sequencedEvents.length - 1].position : 0;
-        sequencedEvents.push(
-          ...appendedEvents.map((event, index) => ({position: startingPosition + index + 1, event})),
-        );
-      },
-      readAll: async () => sequencedEvents.map(({event}) => event),
-      replace: async (nextEvents) => {
-        sequencedEvents.splice(
-          0,
-          sequencedEvents.length,
-          ...nextEvents.map((event, index) => ({position: index + 1, event})),
-        );
-      },
-      clear: async () => {
-        sequencedEvents.splice(0, sequencedEvents.length);
-      },
-    });
-    const firstModel = createEventSourcedGraphModel({store: createSharedStore()});
-    const secondModel = createEventSourcedGraphModel({store: createSharedStore()});
+          const startingPosition = sequencedEvents.length > 0 ? sequencedEvents[sequencedEvents.length - 1].position : 0;
+          sequencedEvents.push(
+            ...nextEvents.map((event, index) => ({position: startingPosition + index + 1, event})),
+          );
+          return sequencedEvents.slice(-nextEvents.length);
+        },
+        read: async (options: ReadOptions = {}) => {
+          const from = options.from;
+          return from === undefined
+            ? [...sequencedEvents]
+            : sequencedEvents.filter((sequencedEvent) => sequencedEvent.position > from);
+        },
+        query: async (query: Query, options: ReadOptions = {}) => {
+          const from = options.from;
+          const eventsToQuery = from === undefined
+            ? sequencedEvents
+            : sequencedEvents.filter((sequencedEvent) => sequencedEvent.position > from);
+          if (query.kind === 'none') {
+            return [];
+          }
+          if (query.kind === 'all') {
+            return eventsToQuery;
+          }
+          return eventsToQuery.filter(({event}) => query.items.some((queryItem) => {
+            const matchesType = queryItem.types === undefined || queryItem.types.includes(event.type);
+            const matchesTags = queryItem.tags === undefined || queryItem.tags.every((tag) => event.tags.includes(tag));
+            return matchesType && matchesTags;
+          }));
+        },
+      };
+
+      const graphStore: AsyncGraphEventStore = {
+        append: async (nextEvents, condition?: AppendCondition) => {
+          await commandStore.append(Array.isArray(nextEvents) ? nextEvents : [nextEvents], condition);
+        },
+        readAll: async () => sequencedEvents.map(({event}) => event),
+        replace: async (nextEvents) => {
+          sequencedEvents.splice(
+            0,
+            sequencedEvents.length,
+            ...nextEvents.map((event, index) => ({position: index + 1, event})),
+          );
+        },
+        clear: async () => {
+          sequencedEvents.splice(0, sequencedEvents.length);
+        },
+      };
+
+      return {graphStore, commandStore};
+    };
+    const firstStores = createSharedStores();
+    const secondStores = createSharedStores();
+    const firstModel = createEventSourcedGraphModel({store: firstStores.graphStore, commandStore: firstStores.commandStore});
+    const secondModel = createEventSourcedGraphModel({store: secondStores.graphStore, commandStore: secondStores.commandStore});
 
     await Promise.all([firstModel.load(), secondModel.load()]);
 
@@ -195,15 +263,17 @@ describe('createEventSourcedGraphModel', () => {
   });
 
   it('appends new graph events in the active project and chapter scope', async () => {
-    const events: DomainEvent[] = [
-      Events.projectAdded('project-1', 'Checkout System'),
-      Events.chapterAdded('project-1', 'chapter-1', 'Overview'),
-      Events.chapterAdded('project-1', 'chapter-2', 'Cart Flow'),
-      Events.projectAdded('project-2', 'Inventory System'),
-      Events.chapterAdded('project-2', 'chapter-3', 'Stock Levels'),
-      Events.nodeAdded('project-1', 'chapter-1', 'node-1', 'evt', 0, 'Overview Node'),
-    ];
-    const model = createEventSourcedGraphModel({store: createStore(events), uuidGenerator: createIdGenerator(['generated-node-1'])});
+    const {events, model} = createModelContext({
+      events: [
+        Events.projectAdded('project-1', 'Checkout System'),
+        Events.chapterAdded('project-1', 'chapter-1', 'Overview'),
+        Events.chapterAdded('project-1', 'chapter-2', 'Cart Flow'),
+        Events.projectAdded('project-2', 'Inventory System'),
+        Events.chapterAdded('project-2', 'chapter-3', 'Stock Levels'),
+        Events.nodeAdded('project-1', 'chapter-1', 'node-1', 'evt', 0, 'Overview Node'),
+      ],
+      ids: ['generated-node-1'],
+    });
 
     await model.load({projectId: 'project-2', chapterId: 'chapter-3'});
     await model.addNewSlice();
@@ -220,13 +290,15 @@ describe('createEventSourcedGraphModel', () => {
   });
 
   it('adds a chapter to the active project and scopes the model to the new chapter', async () => {
-    const events: DomainEvent[] = [
-      Events.projectAdded(defaultProjectId, 'Default Project'),
-      Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
-      Events.projectAdded('project-2', 'Inventory System'),
-      Events.chapterAdded('project-2', 'chapter-3', 'Stock Levels'),
-    ];
-    const model = createEventSourcedGraphModel({store: createStore(events), uuidGenerator: createIdGenerator(['generated-chapter-1'])});
+    const {events, model} = createModelContext({
+      events: [
+        Events.projectAdded(defaultProjectId, 'Default Project'),
+        Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
+        Events.projectAdded('project-2', 'Inventory System'),
+        Events.chapterAdded('project-2', 'chapter-3', 'Stock Levels'),
+      ],
+      ids: ['generated-chapter-1'],
+    });
 
     await model.load({projectId: defaultProjectId, chapterId: 'default-chapter'});
     await model.addChapter('New Chapter');
@@ -245,13 +317,12 @@ describe('createEventSourcedGraphModel', () => {
   });
 
   it('creates a project with an initial chapter and scopes the model to it', async () => {
-    const events: DomainEvent[] = [
-      Events.projectAdded(defaultProjectId, 'Default Project'),
-      Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
-    ];
-    const model = createEventSourcedGraphModel({
-      store: createStore(events),
-      uuidGenerator: createIdGenerator(['generated-project-1', 'generated-chapter-1']),
+    const {events, model} = createModelContext({
+      events: [
+        Events.projectAdded(defaultProjectId, 'Default Project'),
+        Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
+      ],
+      ids: ['generated-project-1', 'generated-chapter-1'],
     });
 
     await model.load({projectId: defaultProjectId, chapterId: 'default-chapter'});
@@ -276,11 +347,13 @@ describe('createEventSourcedGraphModel', () => {
   });
 
   it('records new nodes in the chapter created most recently', async () => {
-    const events: DomainEvent[] = [
-      Events.projectAdded(defaultProjectId, 'Default Project'),
-      Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
-    ];
-    const model = createEventSourcedGraphModel({store: createStore(events), uuidGenerator: createIdGenerator(['generated-chapter-1', 'generated-node-1'])});
+    const {events, model} = createModelContext({
+      events: [
+        Events.projectAdded(defaultProjectId, 'Default Project'),
+        Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
+      ],
+      ids: ['generated-chapter-1', 'generated-node-1'],
+    });
 
     await model.load({projectId: defaultProjectId, chapterId: 'default-chapter'});
     await model.addChapter('Working Chapter');
@@ -297,11 +370,13 @@ describe('createEventSourcedGraphModel', () => {
   });
 
   it('keeps each chapter node visible after switching back and forth between chapters', async () => {
-    const events: DomainEvent[] = [
-      Events.projectAdded(defaultProjectId, 'Default Project'),
-      Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
-    ];
-    const model = createEventSourcedGraphModel({store: createStore(events), uuidGenerator: createIdGenerator(['generated-node-1', 'generated-chapter-1', 'generated-node-2'])});
+    const {model} = createModelContext({
+      events: [
+        Events.projectAdded(defaultProjectId, 'Default Project'),
+        Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
+      ],
+      ids: ['generated-node-1', 'generated-chapter-1', 'generated-node-2'],
+    });
 
     await model.load({projectId: defaultProjectId, chapterId: 'default-chapter'});
     await model.addNewSlice();
@@ -322,8 +397,9 @@ describe('createEventSourcedGraphModel', () => {
   });
 
   it('persists changed node property schema and examples while skipping unchanged payloads', async () => {
-    const events: DomainEvent[] = [Events.nodeAdded(defaultProjectId, 'default-chapter', 'node-1', 'evt', 0)];
-    const model = createEventSourcedGraphModel({store: createStore(events)});
+    const {events, model} = createModelContext({
+      events: [Events.nodeAdded(defaultProjectId, 'default-chapter', 'node-1', 'evt', 0)],
+    });
     await model.load();
 
     const schema = [{propertyId: 'prop-title', name: 'title', type: 'string' as const}];
@@ -344,8 +420,7 @@ describe('createEventSourcedGraphModel', () => {
   });
 
   it('records connect, disconnect, delete, rename, and type-change mutations as domain events', async () => {
-    const events: DomainEvent[] = [];
-    const model = createEventSourcedGraphModel({store: createStore(events), uuidGenerator: createIdGenerator(['generated-node-1', 'generated-node-2'])});
+    const {events, model} = createModelContext({ids: ['generated-node-1', 'generated-node-2']});
     await model.load();
     await model.addNewSlice();
     await model.addNewSlice();

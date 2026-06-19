@@ -1,6 +1,7 @@
-import {AppendConditionFailedError, MemoryStore, Query, type AppendCondition} from '@slicr/event-sourcing';
+import {AppendConditionFailedError, MemoryStore, Query, type AppendCondition, type SpecEventStore} from '@slicr/event-sourcing';
 import {v4 as uuid} from 'uuid';
 
+import {createCommandRouter} from '../application/commandRouter';
 import {Events, type DomainEvent} from '../domain/events';
 import {GraphProjector} from '../domain/graphProjector/graphProjector';
 import {
@@ -118,8 +119,16 @@ async function ensureDefaultWorkspace(store: AsyncGraphEventStore) {
   }
 }
 
-export function createEventSourcedGraphModel(config: {store: AsyncGraphEventStore, uuidGenerator?: () => string}): EventSourcedGraphModel {
+export function createEventSourcedGraphModel(config: {
+  store: AsyncGraphEventStore,
+  commandStore: SpecEventStore<DomainEvent>,
+  uuidGenerator?: () => string,
+}): EventSourcedGraphModel {
   const generateId = config.uuidGenerator ?? uuid;
+  const routeCommand = createCommandRouter({
+    store: config.commandStore,
+    generateUuid: generateId,
+  });
   let snapshot: RendererGraph = {nodes: [], edges: [], lanes: [], nodeSchemas: {}, nodeExampleValues: {}};
   let workspace: WorkspaceProjection = projectWorkspace(defaultWorkspaceEvents);
   let currentProjectId = DEFAULT_PROJECT_ID;
@@ -181,12 +190,26 @@ export function createEventSourcedGraphModel(config: {store: AsyncGraphEventStor
       return appendAndProject(Events.nodeAdded(currentProjectId, currentChapterId, newNodeId, 'ui', 0, `Node ${newNodeNumber}`));
     },
     async addProject(name: string) {
-      const projectId = generateId();
-      const chapterId = generateId();
-      const projectAdded = Events.projectAdded(projectId, name);
-      const chapterAdded = Events.chapterAdded(projectId, chapterId, DEFAULT_CHAPTER_TITLE);
-      await config.store.append([projectAdded, chapterAdded]);
-      return project([...events, projectAdded, chapterAdded], {projectId, chapterId});
+      const previousEventCount = events.length;
+
+      await routeCommand({
+        type: 'AddProject',
+        data: {name},
+      });
+
+      const nextEvents = await config.store.readAll();
+      const appendedEvents = nextEvents.slice(previousEventCount);
+      const projectAdded = appendedEvents.find((event) => event.type === 'ProjectAdded');
+      const chapterAdded = appendedEvents.find((event) => event.type === 'ChapterAdded');
+
+      if (projectAdded && chapterAdded) {
+        return project(nextEvents, {
+          projectId: projectAdded.payload.projectId,
+          chapterId: chapterAdded.payload.chapterId,
+        });
+      }
+
+      return project(nextEvents);
     },
     async addChapter(title: string) {
       const newChapterId = generateId();
