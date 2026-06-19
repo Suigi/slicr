@@ -18,6 +18,7 @@ type ProjectSwitcherProps = {
 export function ProjectSwitcher({projects, activeProjectId, onSelectProject, onAddProject, onRenameProject}: ProjectSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [isRenamingProject, setIsRenamingProject] = useState(false);
   const [projectToRename, setProjectToRename] = useState<{ projectId: string, newName: string } | null>(null);
   const [projectName, setProjectName] = useState('New Project');
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -36,13 +37,13 @@ export function ProjectSwitcher({projects, activeProjectId, onSelectProject, onA
   }, [isCreatingProject]);
 
   useEffect(() => {
-    if (!projectToRename) {
+    if (!isRenamingProject) {
       return;
     }
 
     renameInputRef.current?.focus();
     renameInputRef.current?.select();
-  }, [projectToRename]);
+  }, [isRenamingProject]);
 
   useEffect(() => {
     if (!isOpen || isCreatingProject) {
@@ -73,10 +74,12 @@ export function ProjectSwitcher({projects, activeProjectId, onSelectProject, onA
   };
 
   const startProjectRename = (projectId: string, projectName: string) => {
+    setIsRenamingProject(true);
     setProjectToRename({projectId, newName: projectName});
   }
 
   const closeProjectRename = () => {
+    setIsRenamingProject(false);
     setProjectToRename(null);
   };
 
