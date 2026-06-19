@@ -148,15 +148,6 @@ export function createEventSourcedGraphModel(config: {
     return snapshot;
   };
 
-  const appendAndProject = async (event: DomainEvent | readonly DomainEvent[]) => {
-    const appendedEvents = Array.isArray(event) ? event : [event];
-    if (appendedEvents.length === 0) {
-      return snapshot;
-    }
-    await config.store.append(appendedEvents);
-    return project([...events, ...appendedEvents], {projectId: currentProjectId, chapterId: currentChapterId});
-  };
-
   const appendAndRefreshProjection = async (
     event: DomainEvent | readonly DomainEvent[],
     scope: GraphModelScope = {projectId: currentProjectId, chapterId: currentChapterId},
@@ -169,7 +160,6 @@ export function createEventSourcedGraphModel(config: {
     await config.commandStore.append(appendedEvents);
     return project(await readAllEvents(), scope);
   };
-  void appendAndRefreshProjection;
 
   const decideWithCurrentEvents = <Command>(
     handlerFactory: (store: ReturnType<typeof MemoryStore.create<DomainEvent>>) => {handle(command: Command): DomainEvent[]},
@@ -203,7 +193,7 @@ export function createEventSourcedGraphModel(config: {
     async addNewSlice() {
       const newNodeNumber = snapshot.nodes.length + 1;
       const newNodeId = generateId();
-      return appendAndProject(Events.nodeAdded(currentProjectId, currentChapterId, newNodeId, 'ui', 0, `Node ${newNodeNumber}`));
+      return appendAndRefreshProjection(Events.nodeAdded(currentProjectId, currentChapterId, newNodeId, 'ui', 0, `Node ${newNodeNumber}`));
     },
     async addProject(name: string) {
       await routeCommand({
@@ -233,41 +223,42 @@ export function createEventSourcedGraphModel(config: {
     },
     async addChapter(title: string) {
       const newChapterId = generateId();
-      const event = Events.chapterAdded(currentProjectId, newChapterId, title);
-      await config.store.append(event);
-      return project([...events, event], {projectId: currentProjectId, chapterId: newChapterId});
+      return appendAndRefreshProjection(
+        Events.chapterAdded(currentProjectId, newChapterId, title),
+        {projectId: currentProjectId, chapterId: newChapterId},
+      );
     },
     async addConnection(sourceNodeId: string, targetNodeId: string, role?: 'flow' | 'back-reference') {
-      return appendAndProject(Events.nodesConnected(currentProjectId, sourceNodeId, targetNodeId, role));
+      return appendAndRefreshProjection(Events.nodesConnected(currentProjectId, sourceNodeId, targetNodeId, role));
     },
     async deleteConnection(edgeId: string) {
       const edge = snapshot.edges.find((candidate) => candidate.id === edgeId);
       if (!edge) {
         return snapshot;
       }
-      return appendAndProject(Events.nodesDisconnected(currentProjectId, edge.sourceId, edge.targetId));
+      return appendAndRefreshProjection(Events.nodesDisconnected(currentProjectId, edge.sourceId, edge.targetId));
     },
     async addConnectedNode(command: {sourceNodeId: string; nodeType: NodeType; laneId: number; label: string; role?: 'flow' | 'back-reference'}) {
       const newNodeId = generateId();
-      return appendAndProject([
+      return appendAndRefreshProjection([
         Events.nodeAdded(currentProjectId, currentChapterId, newNodeId, command.nodeType, command.laneId, command.label),
         Events.nodesConnected(currentProjectId, command.sourceNodeId, newNodeId, command.role),
       ]);
     },
     async renameNode(nodeId: string, newName: string) {
-      return appendAndProject(Events.nodeRenamed(currentProjectId, nodeId, newName));
+      return appendAndRefreshProjection(Events.nodeRenamed(currentProjectId, nodeId, newName));
     },
     async setNodeType(nodeId: string, type: NodeType) {
-      return appendAndProject(Events.nodeTypeChanged(currentProjectId, nodeId, type));
+      return appendAndRefreshProjection(Events.nodeTypeChanged(currentProjectId, nodeId, type));
     },
     async changeNodeSchema(command: ChangeNodeSchemaInput) {
-      return appendAndProject(decideWithCurrentEvents(changeNodeSchemaHandler, {...command, projectId: currentProjectId}));
+      return appendAndRefreshProjection(decideWithCurrentEvents(changeNodeSchemaHandler, {...command, projectId: currentProjectId}));
     },
     async changeNodeExampleValues(command: ChangeNodeExampleValuesInput) {
-      return appendAndProject(decideWithCurrentEvents(changeNodeExampleValuesHandler, {...command, projectId: currentProjectId}));
+      return appendAndRefreshProjection(decideWithCurrentEvents(changeNodeExampleValuesHandler, {...command, projectId: currentProjectId}));
     },
     async deleteNode(nodeId: string) {
-      return appendAndProject(Events.nodeRemoved(currentProjectId, nodeId));
+      return appendAndRefreshProjection(Events.nodeRemoved(currentProjectId, nodeId));
     },
     async replace(nextEvents: readonly DomainEvent[]) {
       await config.store.replace(nextEvents);

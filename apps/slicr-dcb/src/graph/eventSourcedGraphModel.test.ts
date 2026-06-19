@@ -398,6 +398,64 @@ describe('createEventSourcedGraphModel', () => {
     await expect(model.readEvents()).resolves.toEqual(events);
   });
 
+  it('refreshes the projection from the command store after adding a connection', async () => {
+    const {model, commandStore} = createModelContext({
+      events: [
+        Events.projectAdded(defaultProjectId, 'Default Project'),
+        Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
+        Events.nodeAdded(defaultProjectId, 'default-chapter', 'source-node', 'ui', 0, 'Source'),
+        Events.nodeAdded(defaultProjectId, 'default-chapter', 'target-node', 'ui', 0, 'Target'),
+      ],
+    });
+    let readCalls = 0;
+    const originalRead = commandStore.read.bind(commandStore);
+    commandStore.read = async (options = {}) => {
+      readCalls += 1;
+      return originalRead(options);
+    };
+
+    await model.load();
+    expect(readCalls).toBe(1);
+
+    await model.addConnection('source-node', 'target-node');
+
+    expect(readCalls).toBe(2);
+    expect(model.getSnapshot().edges).toEqual([
+      {
+        id: 'edge-source-node-target-node',
+        sourceId: 'source-node',
+        targetId: 'target-node',
+        role: 'flow',
+      },
+    ]);
+  });
+
+  it('refreshes the projection from the command store after deleting a connection', async () => {
+    const {model, commandStore} = createModelContext({
+      events: [
+        Events.projectAdded(defaultProjectId, 'Default Project'),
+        Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
+        Events.nodeAdded(defaultProjectId, 'default-chapter', 'source-node', 'ui', 0, 'Source'),
+        Events.nodeAdded(defaultProjectId, 'default-chapter', 'target-node', 'ui', 0, 'Target'),
+        Events.nodesConnected(defaultProjectId, 'source-node', 'target-node'),
+      ],
+    });
+    let readCalls = 0;
+    const originalRead = commandStore.read.bind(commandStore);
+    commandStore.read = async (options = {}) => {
+      readCalls += 1;
+      return originalRead(options);
+    };
+
+    await model.load();
+    expect(readCalls).toBe(1);
+
+    await model.deleteConnection('edge-source-node-target-node');
+
+    expect(readCalls).toBe(2);
+    expect(model.getSnapshot().edges).toEqual([]);
+  });
+
   it('records new nodes in the chapter created most recently', async () => {
     const {events, model} = createModelContext({
       events: [
