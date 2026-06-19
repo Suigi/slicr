@@ -56,6 +56,7 @@ export type EventSourcedGraphModel = {
   readEvents(): Promise<DomainEvent[]>;
   addNewSlice(): Promise<RendererGraph>;
   addProject(name: string): Promise<RendererGraph>;
+  renameProject(projectId: string, name: string): Promise<RendererGraph>;
   addChapter(title: string): Promise<RendererGraph>;
   addConnection(sourceNodeId: string, targetNodeId: string, role?: 'flow' | 'back-reference'): Promise<RendererGraph>;
   deleteConnection(edgeId: string): Promise<RendererGraph>;
@@ -206,6 +207,14 @@ export function createEventSourcedGraphModel(config: {
         projectId: latestProjectId,
         chapterId: latestChapterId,
       });
+    },
+    async renameProject(projectId: string, name: string) {
+      await routeCommand({
+        type: 'RenameProject',
+        data: {projectId, name},
+      });
+
+      return project(await config.store.readAll(), {projectId: currentProjectId, chapterId: currentChapterId});
     },
     async addChapter(title: string) {
       const newChapterId = generateId();

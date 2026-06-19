@@ -196,6 +196,46 @@ describe('ProjectSwitcher', () => {
     expect(container.querySelector('.project-switcher-option-add-confirm')).toBeNull();
   });
 
+  it('issues RenameProject when Enter is pressed in the inline project-name input', async () => {
+    const onSelectProject = vi.fn();
+    const onRenameProject = vi.fn();
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(
+        createElement(ProjectSwitcher, {
+          projects: [
+            {id: 'project-1', name: 'Checkout Platform'},
+            {id: 'project-2', name: 'Inventory System'},
+          ],
+          activeProjectId: 'project-1',
+          onSelectProject,
+          onRenameProject,
+        }),
+      );
+    });
+
+    await act(async () => {
+      container?.querySelector<HTMLButtonElement>('.project-switcher')?.click();
+    });
+    await act(async () => {
+      container?.querySelectorAll<HTMLButtonElement>('.project-switcher-rename-button')[1]?.click();
+    });
+    await act(async () => {
+      const input = container?.querySelector<HTMLInputElement>('.project-switcher-option-rename-input');
+      if (input) {
+        Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set?.call(input, 'Inventory Platform');
+        input.dispatchEvent(new Event('input', {bubbles: true}));
+        input.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
+      }
+    });
+
+    expect(onRenameProject).toHaveBeenCalledWith('project-2', 'Inventory Platform');
+    expect(container.querySelector('.project-switcher-option-rename-input')).toBeNull();
+  });
+
   it('issues AddProject when the inline checkmark button is clicked', async () => {
     const onSelectProject = vi.fn();
     const onAddProject = vi.fn();

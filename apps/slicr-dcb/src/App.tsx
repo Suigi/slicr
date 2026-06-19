@@ -225,6 +225,7 @@ export function App() {
     revertToLastOkGraphModel,
     addNewSlice,
     addProject,
+    renameProject,
     addChapter,
     startConnectingFromNode,
     cancelConnecting,
@@ -518,6 +519,7 @@ export function App() {
             setSelectedChapterId(null);
           }}
           onAddProject={addProject}
+          onRenameProject={renameProject}
         />
       }
       collapsedSidebarLabel={activeChapterName}

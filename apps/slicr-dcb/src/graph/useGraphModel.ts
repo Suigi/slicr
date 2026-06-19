@@ -434,6 +434,16 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
     setOriginalLabel('');
   }, [applyGraphModel, setFocusedNodeId, syncWorkspaceState]);
 
+  const renameProject = useCallback(async (projectId: string, name: string) => {
+    const graphModel = await modelRef.current?.renameProject(projectId, name);
+    if (!graphModel) {
+      return;
+    }
+
+    applyGraphModel(graphModel);
+    syncWorkspaceState();
+  }, [applyGraphModel, syncWorkspaceState]);
+
   const addChapter = useCallback(async (title: string) => {
     const graphModel = await modelRef.current?.addChapter(title);
     if (!graphModel || !modelRef.current) {
@@ -726,6 +736,7 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
     revertToLastOkGraphModel,
     addNewSlice,
     addProject,
+    renameProject,
     addChapter,
     startConnectingFromNode,
     cancelConnecting,

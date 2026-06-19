@@ -347,6 +347,27 @@ describe('createEventSourcedGraphModel', () => {
     expect(model.getSnapshot()).toEqual({nodes: [], edges: [], lanes: [], nodeSchemas: {}, nodeExampleValues: {}});
   });
 
+  it('renames a project through the command router and refreshes the workspace', async () => {
+    const {events, model} = createModelContext({
+      events: [
+        Events.projectAdded(defaultProjectId, 'Default Project'),
+        Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
+        Events.projectAdded('project-2', 'Inventory System'),
+        Events.chapterAdded('project-2', 'chapter-2', 'Stock Levels'),
+      ],
+    });
+
+    await model.load({projectId: 'project-2', chapterId: 'chapter-2'});
+    await model.renameProject('project-2', 'Inventory Platform');
+
+    expect(events[events.length - 1]).toEqual(Events.projectRenamed('project-2', 'Inventory Platform'));
+    expect(model.getWorkspace().projects).toEqual([
+      {id: defaultProjectId, name: 'Default Project'},
+      {id: 'project-2', name: 'Inventory Platform'},
+    ]);
+    expect(model.getScope()).toEqual({projectId: 'project-2', chapterId: 'chapter-2'});
+  });
+
   it('records new nodes in the chapter created most recently', async () => {
     const {events, model} = createModelContext({
       events: [

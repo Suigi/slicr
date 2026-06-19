@@ -12,9 +12,10 @@ type ProjectSwitcherProps = {
   activeProjectId: string;
   onSelectProject: (projectId: string) => void;
   onAddProject?: (name: string) => void | Promise<void>;
+  onRenameProject?: (projectId: string, name: string) => void | Promise<void>;
 };
 
-export function ProjectSwitcher({projects, activeProjectId, onSelectProject, onAddProject}: ProjectSwitcherProps) {
+export function ProjectSwitcher({projects, activeProjectId, onSelectProject, onAddProject, onRenameProject}: ProjectSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [projectToRename, setProjectToRename] = useState<{ projectId: string, newName: string } | null>(null);
@@ -80,8 +81,15 @@ export function ProjectSwitcher({projects, activeProjectId, onSelectProject, onA
   };
 
   const submitProjectRename = () => {
-    // alert(`Renaming project to ${projectToRename?.newName}`);
+    if (!projectToRename) {
+      return;
+    }
+
+    const nextProjectName = projectToRename.newName.trim();
     closeProjectRename();
+    if (nextProjectName) {
+      void onRenameProject?.(projectToRename.projectId, nextProjectName);
+    }
   };
 
   const startProjectCreation = () => {
