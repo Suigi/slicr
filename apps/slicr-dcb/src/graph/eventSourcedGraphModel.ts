@@ -130,6 +130,7 @@ export function createEventSourcedGraphModel(config: {
     store: config.commandStore,
     generateUuid: generateId,
   });
+  const readAllEvents = async () => (await config.commandStore.read()).map(({event}) => event);
   let snapshot: RendererGraph = {nodes: [], edges: [], lanes: [], nodeSchemas: {}, nodeExampleValues: {}};
   let workspace: WorkspaceProjection = projectWorkspace(defaultWorkspaceEvents);
   let currentProjectId = DEFAULT_PROJECT_ID;
@@ -156,6 +157,20 @@ export function createEventSourcedGraphModel(config: {
     return project([...events, ...appendedEvents], {projectId: currentProjectId, chapterId: currentChapterId});
   };
 
+  const appendAndRefreshProjection = async (
+    event: DomainEvent | readonly DomainEvent[],
+    scope: GraphModelScope = {projectId: currentProjectId, chapterId: currentChapterId},
+  ) => {
+    const appendedEvents = Array.isArray(event) ? event : [event];
+    if (appendedEvents.length === 0) {
+      return snapshot;
+    }
+
+    await config.commandStore.append(appendedEvents);
+    return project(await readAllEvents(), scope);
+  };
+  void appendAndRefreshProjection;
+
   const decideWithCurrentEvents = <Command>(
     handlerFactory: (store: ReturnType<typeof MemoryStore.create<DomainEvent>>) => {handle(command: Command): DomainEvent[]},
     command: Command,
@@ -168,7 +183,7 @@ export function createEventSourcedGraphModel(config: {
   return {
     async load(scope = {}) {
       await ensureDefaultWorkspace(config.store);
-      return project(await config.store.readAll(), scope);
+      return project(await readAllEvents(), scope);
     },
     setScope(scope) {
       return project(events, scope);
@@ -183,7 +198,7 @@ export function createEventSourcedGraphModel(config: {
       return {projectId: currentProjectId, chapterId: currentChapterId};
     },
     async readEvents() {
-      return config.store.readAll();
+      return readAllEvents();
     },
     async addNewSlice() {
       const newNodeNumber = snapshot.nodes.length + 1;
@@ -196,7 +211,7 @@ export function createEventSourcedGraphModel(config: {
         data: {name},
       });
 
-      const nextEvents = await config.store.readAll();
+      const nextEvents = await readAllEvents();
       const nextWorkspace = projectWorkspace(nextEvents);
       const latestProjectId = nextWorkspace.latestProjectId;
       const latestChapterId = latestProjectId
@@ -214,7 +229,7 @@ export function createEventSourcedGraphModel(config: {
         data: {projectId, name},
       });
 
-      return project(await config.store.readAll(), {projectId: currentProjectId, chapterId: currentChapterId});
+      return project(await readAllEvents(), {projectId: currentProjectId, chapterId: currentChapterId});
     },
     async addChapter(title: string) {
       const newChapterId = generateId();

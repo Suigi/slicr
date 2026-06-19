@@ -368,6 +368,36 @@ describe('createEventSourcedGraphModel', () => {
     expect(model.getScope()).toEqual({projectId: 'project-2', chapterId: 'chapter-2'});
   });
 
+  it('refreshes projections and reads events from the command store', async () => {
+    const {events, graphStore, model} = createModelContext({
+      events: [
+        Events.projectAdded(defaultProjectId, 'Default Project'),
+        Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
+        Events.projectAdded('project-2', 'Inventory System'),
+        Events.chapterAdded('project-2', 'chapter-2', 'Stock Levels'),
+      ],
+      ids: ['generated-project-1', 'generated-chapter-1'],
+    });
+    let readAllCalls = 0;
+    graphStore.readAll = async () => {
+      readAllCalls += 1;
+      if (readAllCalls === 1) {
+        return [...events];
+      }
+      throw new Error('graphStore.readAll must not be used for projection refresh');
+    };
+
+    await model.load({projectId: 'project-2', chapterId: 'chapter-2'});
+    expect(model.getWorkspace().projects).toContainEqual({id: 'project-2', name: 'Inventory System'});
+
+    await model.addProject('Checkout System');
+    expect(model.getScope()).toEqual({projectId: 'generated-project-1', chapterId: 'generated-chapter-1'});
+
+    await model.renameProject('project-2', 'Inventory Platform');
+    expect(model.getWorkspace().projects).toContainEqual({id: 'project-2', name: 'Inventory Platform'});
+    await expect(model.readEvents()).resolves.toEqual(events);
+  });
+
   it('records new nodes in the chapter created most recently', async () => {
     const {events, model} = createModelContext({
       events: [
