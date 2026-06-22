@@ -13,9 +13,7 @@ import {Events} from '../domain/events';
 import {GraphProjector} from '../domain/graphProjector/graphProjector';
 import {
   type ChangeNodeExampleValuesCommand as ScopedChangeNodeExampleValuesCommand,
-  changeNodeExampleValuesHandler,
   type ChangeNodeSchemaCommand as ScopedChangeNodeSchemaCommand,
-  changeNodeSchemaHandler,
 } from '../domain/nodeCommands/handler';
 import {projectWorkspace, type WorkspaceProjection} from '../domain/workspaceProjector';
 import {adaptModelGraphToRenderer, type RendererGraph} from './domainGraphAdapter';
@@ -162,30 +160,6 @@ export function createEventSourcedGraphModel(config: {
     memoryStore.append(events);
     snapshot = adaptModelGraphToRenderer(GraphProjector.create({store: memoryStore}).project(currentProjectId, currentChapterId));
     return snapshot;
-  };
-
-  const appendAndRefreshProjection = async (
-    event: DcbEvent | readonly DcbEvent[],
-    scope: GraphModelScope = {projectId: currentProjectId, chapterId: currentChapterId},
-  ) => {
-    const appendedEvents = Array.isArray(event) ? event : [event];
-    if (appendedEvents.length === 0) {
-      return snapshot;
-    }
-
-    await config.commandStore.append(appendedEvents);
-    return project(await readAllEvents(), scope);
-  };
-
-  const decideWithCurrentEvents = <Command>(
-    handlerFactory: (store: ReturnType<typeof MemoryStore.create<DcbEvent>>) => {
-      handle(command: Command): DcbEvent[]
-    },
-    command: Command,
-  ) => {
-    const memoryStore = MemoryStore.create<DcbEvent>();
-    memoryStore.append(events);
-    return handlerFactory(memoryStore).handle(command);
   };
 
   return {
@@ -338,16 +312,26 @@ export function createEventSourcedGraphModel(config: {
       return project(await readAllEvents(), {projectId: currentProjectId, chapterId: currentChapterId});
     },
     async changeNodeSchema(command: ChangeNodeSchemaInput) {
-      return appendAndRefreshProjection(decideWithCurrentEvents(changeNodeSchemaHandler, {
-        ...command,
-        projectId: currentProjectId
-      }));
+      await routeCommand({
+        type: 'ChangeNodeSchema',
+        data: {
+          projectId: currentProjectId,
+          nodeId: command.nodeId,
+          schema: command.schema,
+        }
+      })
+      return project(await readAllEvents(), {projectId: currentProjectId, chapterId: currentChapterId});
     },
     async changeNodeExampleValues(command: ChangeNodeExampleValuesInput) {
-      return appendAndRefreshProjection(decideWithCurrentEvents(changeNodeExampleValuesHandler, {
-        ...command,
-        projectId: currentProjectId
-      }));
+      await routeCommand({
+        type: 'ChangeNodeExampleValues',
+        data: {
+          projectId: currentProjectId,
+          nodeId: command.nodeId,
+          exampleValues: command.exampleValues,
+        }
+      });
+      return project(await readAllEvents(), {projectId: currentProjectId, chapterId: currentChapterId});
     },
     async deleteNode(nodeId: string) {
       await routeCommand({
