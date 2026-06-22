@@ -259,7 +259,16 @@ export function createEventSourcedGraphModel(config: {
       return project(events, {projectId: currentProjectId, chapterId: latestChapterId});
     },
     async addConnection(sourceNodeId: string, targetNodeId: string, role?: 'flow' | 'back-reference') {
-      return appendAndRefreshProjection(Events.nodesConnected(currentProjectId, sourceNodeId, targetNodeId, role));
+      await routeCommand({
+        type: 'ConnectNodes',
+        data: {
+          projectId: currentProjectId,
+          sourceNodeId,
+          targetNodeId,
+          role,
+        }
+      });
+      return project(await readAllEvents(), {projectId: currentProjectId, chapterId: currentChapterId});
     },
     async deleteConnection(edgeId: string) {
       const edge = snapshot.edges.find((candidate) => candidate.id === edgeId);
