@@ -1,12 +1,12 @@
 import {describe, expect, it} from 'vitest';
 
-import {createEventSourcedGraphModel, type AsyncGraphEventStore} from './eventSourcedGraphModel';
+import {type AsyncGraphEventStore, createEventSourcedGraphModel} from './eventSourcedGraphModel';
 import {Events,} from '../domain/events';
-import {type DcbEvent} from '../domain/eventSourcing';
 import {
-  AppendConditionFailedError,
-  Query,
   type AppendCondition,
+  AppendConditionFailedError,
+  type DcbEvent,
+  Query,
   type ReadOptions,
   type SequencedEvent,
   type SpecEventStore
@@ -101,15 +101,12 @@ function createModelContext(args: {events?: DcbEvent[]; ids?: string[]} = {}) {
 }
 
 describe('createEventSourcedGraphModel', () => {
-  it('loads an empty event store by bootstrapping a default workspace while keeping the renderer graph empty', async () => {
+  it('loads an empty event store without bootstrapping while keeping the renderer graph empty', async () => {
     const {events, model} = createModelContext();
 
     await model.load();
 
-    expect(events).toEqual([
-      Events.projectAdded(defaultProjectId, 'Default Project'),
-      Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
-    ]);
+    expect(events).toEqual([]);
     expect(model.getSnapshot()).toEqual({nodes: [], edges: [], lanes: [], nodeSchemas: {}, nodeExampleValues: {}});
   });
 
@@ -166,20 +163,17 @@ describe('createEventSourcedGraphModel', () => {
     ]);
   });
 
-  it('appends default workspace bootstrap events only once across overlapping loads', async () => {
+  it('does not append bootstrap events across overlapping loads', async () => {
     const {events, graphStore, commandStore} = createStores();
     const firstModel = createEventSourcedGraphModel({store: graphStore, commandStore});
     const secondModel = createEventSourcedGraphModel({store: graphStore, commandStore});
 
     await Promise.all([firstModel.load(), secondModel.load()]);
 
-    expect(events).toEqual([
-      Events.projectAdded(defaultProjectId, 'Default Project'),
-      Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
-    ]);
+    expect(events).toEqual([]);
   });
 
-  it('does not duplicate default bootstrap events across distinct store instances sharing the same backing storage', async () => {
+  it('does not append bootstrap events across distinct store instances sharing the same backing storage', async () => {
     const sequencedEvents: SequencedEvent<DcbEvent>[] = [];
     const createSharedStores = () => {
       const commandStore: SpecEventStore<DcbEvent> = {
@@ -264,10 +258,7 @@ describe('createEventSourcedGraphModel', () => {
 
     await Promise.all([firstModel.load(), secondModel.load()]);
 
-    expect(sequencedEvents.map(({event}) => event)).toEqual([
-      Events.projectAdded(defaultProjectId, 'Default Project'),
-      Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
-    ]);
+    expect(sequencedEvents.map(({event}) => event)).toEqual([]);
   });
 
   it('appends new graph events in the active project and chapter scope', async () => {
@@ -516,7 +507,11 @@ describe('createEventSourcedGraphModel', () => {
 
   it('persists changed node property schema and examples while skipping unchanged payloads', async () => {
     const {events, model} = createModelContext({
-      events: [Events.nodeAdded(defaultProjectId, 'default-chapter', 'node-1', 'evt', 0)],
+      events: [
+        Events.projectAdded(defaultProjectId, 'Default Project'),
+        Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
+        Events.nodeAdded(defaultProjectId, 'default-chapter', 'node-1', 'evt', 0),
+      ],
     });
     await model.load();
 
@@ -538,7 +533,13 @@ describe('createEventSourcedGraphModel', () => {
   });
 
   it('records connect, disconnect, delete, rename, and type-change mutations as domain events', async () => {
-    const {events, model} = createModelContext({ids: ['generated-node-1', 'generated-node-2']});
+    const {events, model} = createModelContext({
+      events: [
+        Events.projectAdded(defaultProjectId, 'Default Project'),
+        Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
+      ],
+      ids: ['generated-node-1', 'generated-node-2'],
+    });
     await model.load();
     await model.addNewSlice();
     await model.addNewSlice();

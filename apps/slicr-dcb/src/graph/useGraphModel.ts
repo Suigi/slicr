@@ -1,11 +1,11 @@
-import {IndexedDBEventStore, IndexedDBSpecEventStore, MemorySpecEventStore, Query, type AppendCondition, type ReadOptions, type SpecEventStore} from '../domain/eventSourcing';
 import type {EditableProperty} from '@slicr/react-ui';
 import type {EdgeInput, LaneInput} from 'layout-lib';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 
 import type {DcbEvent, NodePropertyExampleValues, NodePropertySchema} from '../domain/events';
 import type {WorkspaceProjection} from '../domain/workspaceProjector';
-import {createEventSourcedGraphModel, type AsyncGraphEventStore, type EventSourcedGraphModel} from './eventSourcedGraphModel';
+import {createGraphApplication} from '../application/createGraphApplication';
+import type {EventSourcedGraphModel} from './eventSourcedGraphModel';
 import {getLaneOrder, getSuccessorNodeType} from './graphUtils';
 import {
   deriveNodePropertyExampleValues,
@@ -23,99 +23,8 @@ export type StoredGraphModel = {
 };
 
 const LAST_OK_STORAGE_KEY = 'slicr-dcb.lastOkGraphModel.v1';
-const EVENT_STORE_DATABASE_NAME = 'slicr-dcb.events.v1';
-const EVENT_STORE_STREAM_NAME = 'graph';
 const emptyGraphModel: StoredGraphModel = {nodes: [], edges: [], lanes: []};
 const emptyWorkspace: WorkspaceProjection = {projects: [], chaptersByProjectId: {}};
-
-class InMemoryGraphEventStore implements SpecEventStore<DcbEvent> {
-  private store = MemorySpecEventStore.create<DcbEvent>();
-
-  append(events: readonly DcbEvent[], condition?: AppendCondition) {
-    return this.store.append(events, condition);
-  }
-
-  read(options?: ReadOptions) {
-    return this.store.read(options);
-  }
-
-  query(query: Query, options?: ReadOptions) {
-    return this.store.query(query, options);
-  }
-
-  async readAll() {
-    return (await this.store.read()).map(({event}) => event);
-  }
-
-  async replace(events: readonly DcbEvent[]) {
-    this.store = MemorySpecEventStore.create<DcbEvent>();
-    await this.store.append([...events]);
-  }
-
-  async clear() {
-    this.store = MemorySpecEventStore.create<DcbEvent>();
-  }
-}
-
-class IndexedDBAsyncGraphEventStore implements AsyncGraphEventStore {
-  constructor(
-    private readonly store: SpecEventStore<DcbEvent>,
-    private readonly mutableStore: Pick<IndexedDBEventStore<DcbEvent>, 'replace' | 'clear'>,
-  ) {}
-
-  async append(events: DcbEvent | readonly DcbEvent[], condition?: AppendCondition) {
-    const eventsToAppend = Array.isArray(events) ? events : [events];
-    await this.store.append(eventsToAppend, condition);
-  }
-
-  async readAll() {
-    return (await this.store.read()).map(({event}) => event);
-  }
-
-  replace(events: readonly DcbEvent[]) {
-    return this.mutableStore.replace(events);
-  }
-
-  clear() {
-    return this.mutableStore.clear();
-  }
-}
-
-async function createDefaultGraphEventStore(): Promise<{
-  graphStore: AsyncGraphEventStore;
-  commandStore: SpecEventStore<DcbEvent>;
-}> {
-  if (typeof indexedDB === 'undefined') {
-    const store = new InMemoryGraphEventStore();
-    return {
-      graphStore: {
-        append: async (events, condition) => {
-          await store.append(Array.isArray(events) ? events : [events], condition);
-        },
-        readAll: () => store.readAll(),
-        replace: (events) => store.replace(events),
-        clear: () => store.clear(),
-      },
-      commandStore: store,
-    };
-  }
-
-  const [specStore, mutableStore] = await Promise.all([
-    IndexedDBSpecEventStore.create<DcbEvent>({
-      databaseName: EVENT_STORE_DATABASE_NAME,
-      streamName: EVENT_STORE_STREAM_NAME,
-    }),
-    IndexedDBEventStore.create<DcbEvent>({
-      databaseName: EVENT_STORE_DATABASE_NAME,
-      streamName: EVENT_STORE_STREAM_NAME,
-    }),
-  ]);
-
-  return {
-    graphStore: new IndexedDBAsyncGraphEventStore(specStore, mutableStore),
-    commandStore: specStore,
-  };
-}
 
 export function storeLastOkGraphModel(model: StoredGraphModel) {
   if (typeof window === 'undefined') {
@@ -322,12 +231,7 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
     let cancelled = false;
 
     const loadModel = async () => {
-      const stores = await createDefaultGraphEventStore();
-      const model = createEventSourcedGraphModel({
-        store: stores.graphStore,
-        commandStore: stores.commandStore,
-      });
-      const graphModel = await model.load({
+      const {model, graphModel} = await createGraphApplication({
         projectId: scope.activeProjectId ?? undefined,
         chapterId: scope.activeChapterId ?? undefined,
       });

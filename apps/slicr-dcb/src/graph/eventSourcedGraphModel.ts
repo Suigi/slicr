@@ -1,15 +1,12 @@
 import {
   type AppendCondition,
-  AppendConditionFailedError,
   type DcbEvent,
   MemoryStore,
-  Query,
   type SpecEventStore
 } from '../domain/eventSourcing';
 import {v4 as uuid} from 'uuid';
 
 import {createCommandRouter} from '../application/commandRouter';
-import {Events} from '../domain/events';
 import {GraphProjector} from '../domain/graphProjector/graphProjector';
 import {projectWorkspace, type WorkspaceProjection} from '../domain/workspaceProjector';
 import {adaptModelGraphToRenderer, type RendererGraph} from './domainGraphAdapter';
@@ -17,25 +14,7 @@ import type {NodeType} from './types';
 import {ChangeNodeExampleValues, ChangeNodeSchema} from '../domain/graphCommands/commands';
 
 const DEFAULT_PROJECT_ID = 'default-project';
-const DEFAULT_PROJECT_NAME = 'Default Project';
-const DEFAULT_CHAPTER_ID = 'default-chapter';
-const DEFAULT_CHAPTER_TITLE = 'Chapter 1';
-
-const defaultWorkspaceEvents: DcbEvent[] = [
-  Events.projectAdded(DEFAULT_PROJECT_ID, DEFAULT_PROJECT_NAME),
-  Events.chapterAdded(DEFAULT_PROJECT_ID, DEFAULT_CHAPTER_ID, DEFAULT_CHAPTER_TITLE),
-];
-
-const defaultProjectBootstrapCondition: AppendCondition = {
-  failIfEventsMatch: Query.where({types: ['ProjectAdded'], tags: [`projectId:${DEFAULT_PROJECT_ID}`]}),
-};
-
-const defaultChapterBootstrapCondition: AppendCondition = {
-  failIfEventsMatch: Query.where({
-    types: ['ChapterAdded'],
-    tags: [`projectId:${DEFAULT_PROJECT_ID}`, `chapterId:${DEFAULT_CHAPTER_ID}`]
-  }),
-};
+const DEFAULT_CHAPTER_ID = 'default';
 
 export type AsyncGraphEventStore = {
   append(events: DcbEvent | readonly DcbEvent[], condition?: AppendCondition): Promise<void>;
@@ -92,45 +71,6 @@ function resolveScope(workspace: WorkspaceProjection, scope: GraphModelScope) {
   return {projectId: resolvedProjectId, chapterId: resolvedChapterId};
 }
 
-async function appendBootstrapEvent(
-  store: AsyncGraphEventStore,
-  event: DcbEvent,
-  condition: AppendCondition,
-) {
-  try {
-    await store.append(event, condition);
-  } catch (error) {
-    if (!(error instanceof AppendConditionFailedError)) {
-      throw error;
-    }
-  }
-}
-
-async function ensureDefaultWorkspace(store: AsyncGraphEventStore) {
-  const existingEvents = await store.readAll();
-  const workspace = projectWorkspace(existingEvents);
-
-  const hasDefaultProject = workspace.projects.some((project) => project.id === DEFAULT_PROJECT_ID);
-  if (!hasDefaultProject) {
-    await appendBootstrapEvent(
-      store,
-      Events.projectAdded(DEFAULT_PROJECT_ID, DEFAULT_PROJECT_NAME),
-      defaultProjectBootstrapCondition,
-    );
-  }
-
-  const hasDefaultChapter = (workspace.chaptersByProjectId[DEFAULT_PROJECT_ID] ?? []).some(
-    (chapter) => chapter.id === DEFAULT_CHAPTER_ID,
-  );
-  if (!hasDefaultChapter) {
-    await appendBootstrapEvent(
-      store,
-      Events.chapterAdded(DEFAULT_PROJECT_ID, DEFAULT_CHAPTER_ID, DEFAULT_CHAPTER_TITLE),
-      defaultChapterBootstrapCondition,
-    );
-  }
-}
-
 export function createEventSourcedGraphModel(config: {
   store: AsyncGraphEventStore,
   commandStore: SpecEventStore<DcbEvent>,
@@ -143,7 +83,7 @@ export function createEventSourcedGraphModel(config: {
   });
   const readAllEvents = async () => (await config.commandStore.read()).map(({event}) => event);
   let snapshot: RendererGraph = {nodes: [], edges: [], lanes: [], nodeSchemas: {}, nodeExampleValues: {}};
-  let workspace: WorkspaceProjection = projectWorkspace(defaultWorkspaceEvents);
+  let workspace: WorkspaceProjection = projectWorkspace([]);
   let currentProjectId = DEFAULT_PROJECT_ID;
   let currentChapterId = DEFAULT_CHAPTER_ID;
   let events: DcbEvent[] = [];
@@ -161,7 +101,6 @@ export function createEventSourcedGraphModel(config: {
 
   return {
     async load(scope = {}) {
-      await ensureDefaultWorkspace(config.store);
       return project(await readAllEvents(), scope);
     },
     setScope(scope) {
