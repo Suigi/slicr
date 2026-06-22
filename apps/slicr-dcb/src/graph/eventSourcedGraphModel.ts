@@ -275,7 +275,20 @@ export function createEventSourcedGraphModel(config: {
       if (!edge) {
         return snapshot;
       }
-      return appendAndRefreshProjection(Events.nodesDisconnected(currentProjectId, edge.sourceId, edge.targetId));
+
+      await routeCommand({
+        type: 'DisconnectNodes',
+        data: {
+          projectId: currentProjectId,
+          sourceNodeId: edge.sourceId,
+          targetNodeId: edge.targetId,
+        },
+      });
+
+      return project(await readAllEvents(), {
+        projectId: currentProjectId,
+        chapterId: currentChapterId,
+      });
     },
     async addConnectedNode(command: {
       sourceNodeId: string;
@@ -284,11 +297,23 @@ export function createEventSourcedGraphModel(config: {
       label: string;
       role?: 'flow' | 'back-reference'
     }) {
-      const newNodeId = generateId();
-      return appendAndRefreshProjection([
-        Events.nodeAdded(currentProjectId, currentChapterId, newNodeId, command.nodeType, command.laneId, command.label),
-        Events.nodesConnected(currentProjectId, command.sourceNodeId, newNodeId, command.role),
-      ]);
+      await routeCommand({
+        type: 'AddConnectedNode',
+        data: {
+          projectId: currentProjectId,
+          chapterId: currentChapterId,
+          sourceNodeId: command.sourceNodeId,
+          nodeType: command.nodeType,
+          laneId: command.laneId,
+          label: command.label,
+          role: command.role,
+        },
+      });
+
+      return project(await readAllEvents(), {
+        projectId: currentProjectId,
+        chapterId: currentChapterId,
+      });
     },
     async renameNode(nodeId: string, newName: string) {
       await routeCommand({
@@ -298,8 +323,8 @@ export function createEventSourcedGraphModel(config: {
           nodeId,
           newName,
         }
-      })
-      return project(await readAllEvents(), {projectId: currentProjectId, chapterId: currentChapterId})
+      });
+      return project(await readAllEvents(), {projectId: currentProjectId, chapterId: currentChapterId});
     },
     async setNodeType(nodeId: string, type: NodeType) {
       await routeCommand({
@@ -309,8 +334,8 @@ export function createEventSourcedGraphModel(config: {
           nodeId: nodeId,
           newType: type,
         }
-      })
-      return project(await readAllEvents(), {projectId: currentProjectId, chapterId: currentChapterId})
+      });
+      return project(await readAllEvents(), {projectId: currentProjectId, chapterId: currentChapterId});
     },
     async changeNodeSchema(command: ChangeNodeSchemaInput) {
       return appendAndRefreshProjection(decideWithCurrentEvents(changeNodeSchemaHandler, {
