@@ -1,25 +1,40 @@
-import {type DcbDecider, type DcbSpecStore, handleCommand, MemorySpecEventStore} from '../domain/eventSourcing';
-import {deciders} from '../domain/projectCommands/projectCommandHandler';
-import {AddProject, RenameProject} from '../domain/projectCommands/commands';
-
-export type SlicrCommand =
-  | AddProject
-  | RenameProject;
+import {
+  DcbAnyCommand,
+  type DcbDecider,
+  type DcbSpecStore,
+  handleCommand,
+  MemorySpecEventStore
+} from '../domain/eventSourcing';
+import {deciders as makeProjectDeciders} from '../domain/projectCommands/projectCommandHandler';
+import {deciders as makeGraphDeciders} from '../domain/graphCommands/deciders';
 
 export const createCommandRouter =
   (args: {
     store?: DcbSpecStore,
     generateUuid?: () => string,
   } = {}) => {
-    const projectDeciders = deciders({generateUuid: args.generateUuid});
-    const registry: Record<string, DcbDecider<SlicrCommand, unknown>> = {
+    const projectDeciders = makeProjectDeciders({generateUuid: args.generateUuid});
+    const graphDeciders = makeGraphDeciders({generateUuid: args.generateUuid});
+
+    const registry: Record<string, DcbDecider<DcbAnyCommand, unknown>> = {
       AddProject: projectDeciders.addProject,
       RenameProject: projectDeciders.renameProject,
+
+      AddChapter: graphDeciders.addChapter,
+      AddNode: graphDeciders.addNode,
+      AddConnectedNode: graphDeciders.addConnectedNode,
+      RenameNode: graphDeciders.renameNode,
+      ChangeNodeType: graphDeciders.changeNodeType,
+      DeleteNode: graphDeciders.deleteNode,
+      ChangeNodeSchema: graphDeciders.changeNodeSchema,
+      ChangeNodeExampleValues: graphDeciders.changeNodeExampleValues,
+      ConnectNodes: graphDeciders.connectNodes,
+      DisconnectNodes: graphDeciders.disconnectNodes,
     };
 
     const store = args.store ?? MemorySpecEventStore.create();
 
-    return async (command: SlicrCommand) => {
+    return async (command: DcbAnyCommand) => {
       const decider = registry[command.type];
 
       if (decider === undefined) {

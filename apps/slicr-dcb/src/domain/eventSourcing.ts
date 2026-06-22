@@ -9,6 +9,7 @@ import {
   MemorySpecEventStore,
   MemoryStore,
   Query,
+  rescopeAtom as rescopeGenericAtom,
 } from '@slicr/event-sourcing';
 import type {
   AnyCommand,
@@ -34,7 +35,7 @@ export type DcbStore = Store<DcbEvent>;
 export type DcbSpecStore = SpecEventStore<DcbEvent>;
 export type DcbAtom<Scope, Model> = Atom<DcbEvent, Scope, Model>;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type DcbAnyAtom = DcbAtom<any, any>;
+export type DcbAnyAtom = DcbAtom<any, any>;
 export type DcbDecider<CommandType, DecisionModel> = Decider<CommandType, DcbEvent, DecisionModel>;
 export type DcbSequencedEvent = SequencedEvent<DcbEvent>;
 export type DcbAppendCondition = AppendCondition;
@@ -44,5 +45,13 @@ export const combineAtoms = <AtomsToCombine extends Record<string, DcbAnyAtom>>(
   atoms: AtomsToCombine,
 ) => combineGenericAtoms(atoms);
 
+export const rescopeAtom = <OuterScope, InnerScope, Model>(
+  atom: DcbAtom<InnerScope, Model>,
+  scope: (outerScope: OuterScope) => InnerScope,
+): DcbAtom<OuterScope, Model> => rescopeGenericAtom(atom, scope);
+
 export {AppendConditionFailedError, Query, MemoryStore, MemorySpecEventStore, IndexedDBEventStore, IndexedDBSpecEventStore, bindAtom, handleCommand, Handler};
 export type {AnyCommand, AppendCondition, Atom, Command, Decider, Event, ReadOptions, SequencedEvent, SomeCommand, SpecEventStore, Store};
+
+export const bindAtomToCommand = (atom: DcbAnyAtom) => bindAtom(atom, (command:AnyCommand) => command.data);
+
