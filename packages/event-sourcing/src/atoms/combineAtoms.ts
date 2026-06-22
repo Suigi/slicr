@@ -1,9 +1,8 @@
 import {filterEventsByQuery} from '../queryMatcher';
 import {Query, type Query as QueryType} from '../query';
-import type {Event as EventBase} from '../types';
 import type {Atom} from './index';
 
-type AnyAtom = Atom<EventBase, any, any>;
+type AnyAtom = Atom<any, any, any>;
 
 export type EventOf<A> = A extends Atom<infer Event, any, any> ? Event : never;
 export type ScopeOf<A> = A extends Atom<any, infer Scope, any> ? Scope : never;
