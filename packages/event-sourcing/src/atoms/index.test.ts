@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {bindAtom, type Atom} from './index';
+import {type Atom, bindAtom} from './index';
 import {Query} from '../query';
 import type {Event} from '../types';
 
