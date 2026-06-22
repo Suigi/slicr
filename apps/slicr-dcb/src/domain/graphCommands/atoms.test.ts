@@ -157,4 +157,63 @@ describe('atoms', () => {
 
   });
 
+  describe('connectionExists', () => {
+    it('given no events, projects false', async () => {
+      const store = MemorySpecEventStore.create<DomainEvent>();
+      await store.append([]);
+
+      const projection = await evaluate(Atoms.connectionExists)(
+        store,
+        {
+          projectId: 'project-id',
+          sourceNodeId: 'source-node-id',
+          targetNodeId: 'target-node-id'
+        }
+      );
+
+      expect(projection)
+        .toEqual(false);
+    });
+
+    it('given connected nodes, projects true', async () => {
+      const store = MemorySpecEventStore.create<DomainEvent>();
+      await store.append([
+        Events.nodesConnected('project-id', 'source-node-id', 'target-node-id')
+      ]);
+
+      const projection = await evaluate(Atoms.connectionExists)(
+        store,
+        {
+          projectId: 'project-id',
+          sourceNodeId: 'source-node-id',
+          targetNodeId: 'target-node-id'
+        }
+      );
+
+      expect(projection)
+        .toEqual(true);
+    });
+
+    it('given connected and then disconnected nodes, project false', async () => {
+      const store = MemorySpecEventStore.create<DomainEvent>();
+      await store.append([
+        Events.nodesConnected('project-id', 'source-node-id', 'target-node-id'),
+        Events.nodesDisconnected('project-id', 'source-node-id', 'target-node-id'),
+      ]);
+
+      const projection = await evaluate(Atoms.connectionExists)(
+        store,
+        {
+          projectId: 'project-id',
+          sourceNodeId: 'source-node-id',
+          targetNodeId: 'target-node-id'
+        }
+      );
+
+      expect(projection)
+        .toEqual(false);
+    });
+
+  });
+
 });

@@ -57,9 +57,43 @@ const nodeExists: Atom<{
   },
 };
 
+const connectionExists: Atom<{
+  projectId: ProjectId,
+  sourceNodeId: NodeId,
+  targetNodeId: NodeId,
+}, boolean> = {
+  query: (scope) => Query.where({
+    types: ['NodesConnected', 'NodesDisconnected'],
+    tags: [
+      `projectId:${scope.projectId}`,
+      `nodeId:${scope.sourceNodeId}`,
+      `nodeId:${scope.targetNodeId}`,
+    ],
+  }),
+  project: (scope, events) => {
+    let connected = false;
+    events.forEach(event => {
+      if (event.type === 'NodesConnected' &&
+        event.payload.projectId === scope.projectId &&
+        event.payload.sourceNodeId === scope.sourceNodeId &&
+        event.payload.targetNodeId === scope.targetNodeId) {
+        connected = true;
+      }
+      if (event.type === 'NodesDisconnected' &&
+        event.payload.projectId === scope.projectId &&
+        event.payload.sourceNodeId === scope.sourceNodeId &&
+        event.payload.targetNodeId === scope.targetNodeId) {
+        connected = false;
+      }
+    });
+    return connected;
+  },
+};
+
 export const Atoms = {
   noOp,
   projectExists,
   chapterExists,
   nodeExists,
+  connectionExists,
 };
