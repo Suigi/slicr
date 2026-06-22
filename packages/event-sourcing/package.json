@@ -12,6 +12,10 @@
       "types": "./src/testing/index.ts",
       "import": "./src/testing/index.ts"
     },
+    "./atoms": {
+      "types": "./src/atoms/index.ts",
+      "import": "./src/atoms/index.ts"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {

@@ -1,36 +1,26 @@
-import {Query} from '@slicr/event-sourcing';
+import {type Atom, Query} from '@slicr/event-sourcing';
 import {ChapterId, DomainEvent, NodeId, NodePropertyExampleValues, NodePropertySchema, ProjectId} from '../events';
 
-export type Atom<Scope, Model> = {
-  query: (scope: Scope) => Query;
-  project: (scope: Scope, events: readonly DomainEvent[]) => Model;
-};
+export {bindAtom} from '@slicr/event-sourcing';
 
-export const bindAtom = <Command, Scope, Model>(
-  atom: Atom<Scope, Model>,
-  scope: (command: Command) => Scope,
-) => ({
-  query: (command: Command) => atom.query(scope(command)),
-  project: (command: Command, events: readonly DomainEvent[]) =>
-    atom.project(scope(command), events),
-});
+type DomainAtom<Scope, Model> = Atom<DomainEvent, Scope, Model>;
 
-const noOp: Atom<void, unknown> = {
+const noOp: DomainAtom<void, unknown> = {
   query: () => Query.none(),
   project: () => undefined,
 };
 
-const projectExists: Atom<{ projectId: ProjectId }, boolean> = {
+const projectExists: DomainAtom<{ projectId: ProjectId }, boolean> = {
   query: ({projectId}) => Query.where({types: ['ProjectAdded'], tags: [`projectId:${projectId}`]}),
   project: ({projectId}, events) => events.some(event => event.type === 'ProjectAdded' && event.payload.projectId === projectId),
 };
 
-const chapterExists: Atom<{ chapterId: ChapterId }, boolean> = {
+const chapterExists: DomainAtom<{ chapterId: ChapterId }, boolean> = {
   query: ({chapterId}) => Query.where({types: ['ChapterAdded'], tags: [`chapterId:${chapterId}`]}),
   project: ({chapterId}, events) => events.some(event => event.type === 'ChapterAdded' && event.payload.chapterId === chapterId),
 };
 
-const nodeExists: Atom<{
+const nodeExists: DomainAtom<{
   projectId: ProjectId,
   nodeId: NodeId
 }, boolean> = {
@@ -57,7 +47,7 @@ const nodeExists: Atom<{
   },
 };
 
-const connectionExists: Atom<{
+const connectionExists: DomainAtom<{
   projectId: ProjectId,
   sourceNodeId: NodeId,
   targetNodeId: NodeId,
@@ -89,7 +79,7 @@ const connectionExists: Atom<{
   },
 };
 
-const nodeSchema: Atom<
+const nodeSchema: DomainAtom<
   { projectId: ProjectId, nodeId: NodeId },
   NodePropertySchema[]
 > = {
@@ -110,7 +100,7 @@ const nodeSchema: Atom<
   }
 };
 
-const nodeExampleValues: Atom<
+const nodeExampleValues: DomainAtom<
   { projectId: ProjectId, nodeId: NodeId },
   NodePropertyExampleValues[]
 > = {

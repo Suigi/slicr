@@ -1,4 +1,5 @@
 export * from './handler';
+export * from './atoms';
 export * from './deciders';
 export * from './indexedDBEventStore';
 export * from './indexedDBSpecEventStore';
