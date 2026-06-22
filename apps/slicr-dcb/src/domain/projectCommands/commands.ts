@@ -10,3 +10,8 @@ export type RenameProject = Command<
   'RenameProject',
   { projectId: ProjectId, name: string }
 >;
+
+export type EnsureInitialWorkspace = Command<
+  'EnsureInitialWorkspace',
+  Record<string, never>
+>;

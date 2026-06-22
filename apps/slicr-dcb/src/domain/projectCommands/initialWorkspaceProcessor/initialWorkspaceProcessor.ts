@@ -1,25 +1,29 @@
-import {Handler, Query, Store} from '../../eventSourcing';
+import {type Decider, type DcbEvent, Query} from '../../eventSourcing';
 import {Events} from '../../events';
-import {type DcbEvent} from '../../eventSourcing';
 import {v4 as uuid} from 'uuid';
+import {type EnsureInitialWorkspace} from '../commands';
 
-export const initialWorkspaceProcessor = (args: {
+export const DEFAULT_PROJECT_NAME = 'Default Project';
+export const DEFAULT_CHAPTER_ID = 'default';
+export const DEFAULT_CHAPTER_TITLE = 'Chapter 1';
+
+export const initialWorkspaceDecider = (args: {
   generateUuid?: () => string
-} = {}) => (store: Store<DcbEvent>) => {
-  const generateUuid = args.generateUuid || uuid;
-  return Handler.create<void, DcbEvent, boolean>({
-    store,
+} = {}): Decider<EnsureInitialWorkspace, DcbEvent, boolean> => {
+  const generateUuid = args.generateUuid ?? uuid;
+  return {
     query: () => Query.where({types: ['ProjectAdded']}),
-    project: (events) => events.length === 0,
+    project: (_, events) => events.length === 0,
     decide: (_, isEmpty) => {
-      if (isEmpty) {
-        return [
-          Events.projectAdded(generateUuid(), 'Default Project'),
-          Events.chapterAdded(generateUuid(), 'default', 'Chapter 1'),
-        ];
-      } else {
+      if (!isEmpty) {
         return [];
       }
+
+      const projectId = generateUuid();
+      return [
+        Events.projectAdded(projectId, DEFAULT_PROJECT_NAME),
+        Events.chapterAdded(projectId, DEFAULT_CHAPTER_ID, DEFAULT_CHAPTER_TITLE),
+      ];
     }
-  });
+  };
 };

@@ -1,25 +1,23 @@
 import {describe, it} from 'vitest';
-import {expectHandler} from '@slicr/event-sourcing/testing';
+import {expectDecider} from '@slicr/event-sourcing/testing';
 import {Events} from '../../events';
-import {initialWorkspaceProcessor} from './initialWorkspaceProcessor';
+import {initialWorkspaceDecider} from './initialWorkspaceProcessor';
 
-describe('initialWorkspaceProcessor', () => {
-  it('given no events, emits default project and chapter', () => {
-    const uuids = ['project_id', 'chapter_id'];
-    const generateUuid = () => uuids.shift()!;
-    expectHandler(initialWorkspaceProcessor({generateUuid}))
+describe('initialWorkspaceDecider', () => {
+  it('given no project events, emits default project and chapter for the same project id', async () => {
+    await expectDecider(initialWorkspaceDecider({generateUuid: () => 'project_id'}))
       .given()
-      .when()
+      .when({type: 'EnsureInitialWorkspace', data: {}})
       .thenEmits(
         Events.projectAdded('project_id', 'Default Project'),
-        Events.chapterAdded('chapter_id', 'default', 'Chapter 1')
+        Events.chapterAdded('project_id', 'default', 'Chapter 1')
       );
   });
 
-  it('given existing project, emits no events', () => {
-    expectHandler(initialWorkspaceProcessor())
+  it('given existing project, emits no events', async () => {
+    await expectDecider(initialWorkspaceDecider())
       .given(Events.projectAdded('project_id', 'Existing Project'))
-      .when()
+      .when({type: 'EnsureInitialWorkspace', data: {}})
       .thenEmits();
   });
 });
