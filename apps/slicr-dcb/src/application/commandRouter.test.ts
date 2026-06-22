@@ -33,6 +33,27 @@ describe('commandRouter', () => {
     expect(events[1]?.event.payload.projectId).toBe(events[0]?.event.payload.projectId);
   });
 
+  it('routes EnsureInitialWorkspace and appends default project events', async () => {
+    const store = MemorySpecEventStore.create<DcbEvent>();
+    const routeCommand = createCommandRouter({store, generateUuid: () => 'project-1'});
+
+    await routeCommand({
+      type: 'EnsureInitialWorkspace',
+      data: {},
+    });
+
+    await expect(store.read()).resolves.toEqual([
+      {
+        position: 1,
+        event: Events.projectAdded('project-1', 'Default Project'),
+      },
+      {
+        position: 2,
+        event: Events.chapterAdded('project-1', 'default', 'Chapter 1'),
+      },
+    ]);
+  });
+
   it('routes RenameProject and appends ProjectRenamed', async () => {
     const store = MemorySpecEventStore.create<DcbEvent>();
     await store.append([

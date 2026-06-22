@@ -7,6 +7,7 @@ import {
 } from '../domain/eventSourcing';
 import {deciders as makeProjectDeciders} from '../domain/projectCommands/projectCommandHandler';
 import {deciders as makeGraphDeciders} from '../domain/graphCommands/deciders';
+import {initialWorkspaceDecider} from '../domain/projectCommands/initialWorkspaceProcessor/initialWorkspaceProcessor';
 
 export const createCommandRouter =
   (args: {
@@ -15,8 +16,11 @@ export const createCommandRouter =
   } = {}) => {
     const projectDeciders = makeProjectDeciders({generateUuid: args.generateUuid});
     const graphDeciders = makeGraphDeciders({generateUuid: args.generateUuid});
+    const initialWorkspace = initialWorkspaceDecider({generateUuid: args.generateUuid});
 
     const registry: Record<string, DcbDecider<DcbAnyCommand, unknown>> = {
+      EnsureInitialWorkspace: initialWorkspace,
+
       AddProject: projectDeciders.addProject,
       RenameProject: projectDeciders.renameProject,
 
