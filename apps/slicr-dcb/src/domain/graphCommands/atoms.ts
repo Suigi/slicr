@@ -6,7 +6,7 @@ export type Atom<Scope, Model> = {
   project: (scope: Scope, events: readonly DomainEvent[]) => Model;
 };
 
-export const scopeAtom = <Command, Scope, Model>(
+export const bindAtom = <Command, Scope, Model>(
   atom: Atom<Scope, Model>,
   scope: (command: Command) => Scope,
 ) => ({
