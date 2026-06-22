@@ -14,7 +14,7 @@ const createIncrementedEvent = (number: number): Events => {
 describe('DCB command handler', () => {
   const decider: Decider<{ incrementBy: number }, Events, { currentCount: number }> = {
     query: () => Query.where({types: ['incremented', 'reset']}),
-    project: (events) => {
+    project: (_, events) => {
       let currentCount = 0;
       events.forEach(event => {
         switch (event.type) {
@@ -75,7 +75,7 @@ describe('DCB command handler', () => {
 
     const query = decider.query(command);
     const sequencedEvents = await store.query(query);
-    const decisionModel = decider.project(sequencedEvents.map((event) => event.event));
+    const decisionModel = decider.project(command, sequencedEvents.map((event) => event.event));
     const eventsToEmit = decider.decide(command, decisionModel);
 
     // Emitting extra event between query and append

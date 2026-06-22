@@ -5,14 +5,14 @@ import {AddProject, RenameProject} from './commands';
 
 const DEFAULT_CHAPTER_TITLE = 'Chapter 1';
 
-type Atom<Inputs, Model> = {
-  query: (inputs: Inputs) => Query;
-  project: (events: readonly DomainEvent[]) => Model;
+type Atom<Scope, Model> = {
+  query: (scope: Scope) => Query;
+  project: (scope: Scope, events: readonly DomainEvent[]) => Model;
 };
 
 const projectNames: Atom<SomeCommand<{projectId:ProjectId}>, Record<ProjectId, string>> = {
   query: command => Query.where({tags: [`projectId:${command.data.projectId}`]}),
-  project: events => {
+  project: (_, events) => {
     const projectNames: Record<ProjectId, string> = {};
     events.forEach(event => {
       if (event.type === 'ProjectAdded') {

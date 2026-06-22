@@ -1,6 +1,8 @@
 import {type NodeType} from './graph';
 import {type Event} from '@slicr/event-sourcing';
 
+export type ProjectId = string;
+export type ChapterId = string;
 export type NodeId = string;
 export type NodePropertyId = string;
 
@@ -39,9 +41,6 @@ export type NodeExampleValuesChanged = {
   nodeId: NodeId,
   exampleValues: NodePropertyExampleValues[],
 };
-
-export type ProjectId = string;
-export type ChapterId = string;
 
 export type NodeAdded = {
   projectId: ProjectId,

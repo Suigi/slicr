@@ -12,7 +12,7 @@ export async function handleCommand<Command, E extends Event, DecisionModel>(
 
   const query = decider.query(command);
   const sequencedEvents = await store.query(query);
-  const decisionModel = decider.project(sequencedEvents.map((event) => event.event));
+  const decisionModel = decider.project(command, sequencedEvents.map((event) => event.event));
   const eventsToEmit = decider.decide(command, decisionModel);
   if (eventsToEmit.length === 0) {
     return [];

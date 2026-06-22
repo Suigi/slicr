@@ -15,7 +15,7 @@ const incrementedEvent = (counterId: string): CounterEvent => ({
 
 const incrementDecider: Decider<IncrementCounterCommand, CounterEvent, number> = {
   query: command => Query.where({tags: [`counterId:${command.counterId}`]}),
-  project: events => events.length,
+  project: (_, events) => events.length,
   decide: (command, currentCount) => {
     if (currentCount >= 1) {
       throw new Error(`Counter is at max value (${currentCount})`);
