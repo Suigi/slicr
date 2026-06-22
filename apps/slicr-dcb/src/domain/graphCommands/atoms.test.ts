@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import {Atom, Atoms} from './atoms';
 import {MemorySpecEventStore, Query, SpecEventStore} from '@slicr/event-sourcing';
-import {DomainEvent, Events, NodePropertySchema} from '../events';
+import {DomainEvent, Events, NodePropertyExampleValues, NodePropertySchema} from '../events';
 
 const evaluate = <Scope, Model>(atom: Atom<Scope, Model>) => async (store: SpecEventStore<DomainEvent>, scope: Scope): Promise<Model> => {
   const events = await store.query(atom.query(scope));
@@ -267,6 +267,60 @@ describe('atoms', () => {
 
       expect(projectedSchema)
         .toEqual(schema);
+    });
+  });
+
+  describe('nodeExampleValues', () => {
+    it('given no events, projects []', async () => {
+      const store = MemorySpecEventStore.create<DomainEvent>();
+
+      const projectedExampleValues = await evaluate(Atoms.nodeExampleValues)(
+        store,
+        {
+          projectId: 'project-id',
+          nodeId: 'node-id'
+        });
+
+      expect(projectedExampleValues)
+        .toEqual([]);
+    });
+
+    it('given node in wrong project, projects []', async () => {
+      const store = MemorySpecEventStore.create<DomainEvent>();
+      await store.append([
+        Events.nodeExampleValuesChanged('other-project-id', 'node-id', [])
+      ])
+
+      const projectedExampleValues = await evaluate(Atoms.nodeExampleValues)(
+        store,
+        {
+          projectId: 'project-id',
+          nodeId: 'node-id'
+        });
+
+      expect(projectedExampleValues)
+        .toEqual([]);
+    });
+
+    it('given node with example values, projects example values', async () => {
+      const store = MemorySpecEventStore.create<DomainEvent>();
+      const exampleValues: NodePropertyExampleValues[] = [{
+        propertyId: 'property-id',
+        scalarValue: 'example value'
+      }];
+      await store.append([
+        Events.nodeExampleValuesChanged('project-id', 'node-id', exampleValues)
+      ]);
+
+      const projectedExampleValues = await evaluate(Atoms.nodeExampleValues)(
+        store,
+        {
+          projectId: 'project-id',
+          nodeId: 'node-id'
+        });
+
+      expect(projectedExampleValues)
+        .toEqual(exampleValues);
     });
   });
 
