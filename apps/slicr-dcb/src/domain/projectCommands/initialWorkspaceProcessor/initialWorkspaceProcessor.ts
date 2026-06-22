@@ -1,12 +1,13 @@
 import {Handler, Query, Store} from '../../eventSourcing';
-import {DomainEvent, Events} from '../../events';
+import {Events} from '../../events';
+import {type DcbEvent} from '../../eventSourcing';
 import {v4 as uuid} from 'uuid';
 
 export const initialWorkspaceProcessor = (args: {
   generateUuid?: () => string
-} = {}) => (store: Store<DomainEvent>) => {
+} = {}) => (store: Store<DcbEvent>) => {
   const generateUuid = args.generateUuid || uuid;
-  return Handler.create<void, DomainEvent, boolean>({
+  return Handler.create<void, DcbEvent, boolean>({
     store,
     query: () => Query.where({types: ['ProjectAdded']}),
     project: (events) => events.length === 0,

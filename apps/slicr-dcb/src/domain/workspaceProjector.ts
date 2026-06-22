@@ -1,4 +1,4 @@
-import type {ChapterId, DomainEvent, ProjectId} from './events';
+import type {ChapterId, DcbEvent, ProjectId} from './events';
 
 export type WorkspaceProject = {
   id: ProjectId;
@@ -16,7 +16,7 @@ export type WorkspaceProjection = {
   latestProjectId?: ProjectId;
 };
 
-export function projectWorkspace(events: readonly DomainEvent[]): WorkspaceProjection {
+export function projectWorkspace(events: readonly DcbEvent[]): WorkspaceProjection {
   const projectOrder: ProjectId[] = [];
   const projectNames = new Map<ProjectId, string>();
   const chapterOrderByProjectId = new Map<ProjectId, ChapterId[]>();

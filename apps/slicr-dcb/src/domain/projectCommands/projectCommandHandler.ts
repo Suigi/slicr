@@ -1,5 +1,6 @@
 import {Decider, Query, SomeCommand} from '../eventSourcing';
-import {DomainEvent, Events, ProjectId} from '../events';
+import {Events, ProjectId} from '../events';
+import {type DcbEvent} from '../eventSourcing';
 import {v4 as uuid} from 'uuid';
 import {AddProject, RenameProject} from './commands';
 
@@ -7,7 +8,7 @@ const DEFAULT_CHAPTER_TITLE = 'Chapter 1';
 
 type Atom<Scope, Model> = {
   query: (scope: Scope) => Query;
-  project: (scope: Scope, events: readonly DomainEvent[]) => Model;
+  project: (scope: Scope, events: readonly DcbEvent[]) => Model;
 };
 
 const projectNames: Atom<SomeCommand<{projectId:ProjectId}>, Record<ProjectId, string>> = {
@@ -33,7 +34,7 @@ const noOpAtom: Atom<unknown, void> = {
 
 const Atoms = {projectNames, noOp: noOpAtom};
 
-const addProjectDecider = (generateUuid: () => string): Decider<AddProject, DomainEvent, void> => ({
+const addProjectDecider = (generateUuid: () => string): Decider<AddProject, DcbEvent, void> => ({
   ...Atoms.noOp,
   decide: (command) => {
     const projectId = generateUuid();
@@ -45,7 +46,7 @@ const addProjectDecider = (generateUuid: () => string): Decider<AddProject, Doma
   }
 });
 
-const renameProjectDecider: Decider<RenameProject, DomainEvent, Record<string,string>> = {
+const renameProjectDecider: Decider<RenameProject, DcbEvent, Record<string,string>> = {
   ...Atoms.projectNames,
   decide: (command: RenameProject, decisionModel: Record<string, string>) => {
     const currentProjectName = decisionModel[command.data.projectId];

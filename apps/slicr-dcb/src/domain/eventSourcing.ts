@@ -22,10 +22,9 @@ import type {
   SpecEventStore,
   Store,
 } from '@slicr/event-sourcing';
-import type {DomainEvent as AppDomainEvent} from './events';
+import type {DcbEvent as AppDcbEvent} from './events';
 
-export type DomainEvent = AppDomainEvent;
-export type DcbEvent = AppDomainEvent;
+export type DcbEvent = AppDcbEvent;
 
 export type DcbCommand<Type extends string, Data extends Record<string, unknown> = Record<string, unknown>> = Command<Type, Data>;
 export type DcbAnyCommand = AnyCommand;

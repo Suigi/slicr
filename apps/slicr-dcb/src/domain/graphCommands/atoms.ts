@@ -1,9 +1,9 @@
-import {type Atom, Query} from '../eventSourcing';
-import {ChapterId, DomainEvent, NodeId, NodePropertyExampleValues, NodePropertySchema, ProjectId} from '../events';
+import {type Atom, type DcbEvent, Query} from '../eventSourcing';
+import {ChapterId, NodeId, NodePropertyExampleValues, NodePropertySchema, ProjectId} from '../events';
 
 export {bindAtom} from '../eventSourcing';
 
-type DomainAtom<Scope, Model> = Atom<DomainEvent, Scope, Model>;
+type DomainAtom<Scope, Model> = Atom<DcbEvent, Scope, Model>;
 
 const noOp: DomainAtom<void, unknown> = {
   query: () => Query.none(),

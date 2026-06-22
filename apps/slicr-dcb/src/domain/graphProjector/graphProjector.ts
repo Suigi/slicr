@@ -1,5 +1,4 @@
-import {MemoryStore, Query, type DcbStore} from '../eventSourcing';
-import {DomainEvent} from '../events';
+import {type DcbEvent, type DcbStore, MemoryStore, Query} from '../eventSourcing';
 import {Edge, ModelGraph, NodeType} from '../graph';
 
 export class GraphProjector {
@@ -7,7 +6,7 @@ export class GraphProjector {
   }
 
   public static create(config: { store?: DcbStore } = {}): GraphProjector {
-    return new GraphProjector(config.store ?? MemoryStore.create<DomainEvent>());
+    return new GraphProjector(config.store ?? MemoryStore.create<DcbEvent>());
   }
 
   public project(projectId: string, chapterId?: string): ModelGraph {

@@ -2,14 +2,14 @@ import {v4 as uuid} from 'uuid';
 
 import {describe, expect, it} from 'vitest';
 import {MemoryStore} from '../eventSourcing';
-import {DomainEvent, Events} from '../events';
+import {DcbEvent, Events} from '../events';
 import {GraphProjector} from './graphProjector';
 
 const projectId = 'project-1';
 
 describe('events project state', () => {
   it('empty store projects to empty model graph', () => {
-    const store = MemoryStore.create<DomainEvent>();
+    const store = MemoryStore.create<DcbEvent>();
     const projector = GraphProjector.create({store});
     const nodeId = uuid();
     store.append(Events.nodeAdded(projectId, 'chapter-1', nodeId, 'cmd', 1, 'Command'));
@@ -26,7 +26,7 @@ describe('events project state', () => {
   });
 
   it('disconnected nodes project to nodes but not edges', () => {
-    const store = MemoryStore.create<DomainEvent>();
+    const store = MemoryStore.create<DcbEvent>();
     const projector = GraphProjector.create({store});
     const commandId = uuid();
     const eventId = uuid();
@@ -47,7 +47,7 @@ describe('events project state', () => {
   });
 
   it('projects only the requested project graph events', () => {
-    const store = MemoryStore.create<DomainEvent>();
+    const store = MemoryStore.create<DcbEvent>();
     const projector = GraphProjector.create({store});
     store.append([
       Events.nodeAdded('project-1', 'chapter-1', 'shared-node', 'cmd', 0, 'Command'),
@@ -70,7 +70,7 @@ describe('events project state', () => {
   });
 
   it('projects only nodes in the requested chapter', () => {
-    const store = MemoryStore.create<DomainEvent>();
+    const store = MemoryStore.create<DcbEvent>();
     const projector = GraphProjector.create({store});
     store.append([
       {
@@ -83,7 +83,7 @@ describe('events project state', () => {
         payload: {projectId, chapterId: 'chapter-2', nodeId: 'chapter-2-node', type: 'evt', laneId: 1, label: 'Chapter 2 Node'},
         tags: ['projectId:project-1', 'nodeId:chapter-2-node', 'type:evt'],
       },
-    ] as DomainEvent[]);
+    ] as DcbEvent[]);
 
     const model = projector.project(projectId, 'chapter-1');
 
@@ -93,7 +93,7 @@ describe('events project state', () => {
   });
 
   it('lanes are generated based on the node laneId', () => {
-    const store = MemoryStore.create<DomainEvent>();
+    const store = MemoryStore.create<DcbEvent>();
     const projector = GraphProjector.create({store});
     const commandId = uuid();
     const eventId = uuid();
@@ -112,7 +112,7 @@ describe('events project state', () => {
   });
 
   it('renamed nodes receive new label', () => {
-    const store = MemoryStore.create<DomainEvent>();
+    const store = MemoryStore.create<DcbEvent>();
     const projector = GraphProjector.create({store});
     const commandId = uuid();
     store.append([
@@ -127,7 +127,7 @@ describe('events project state', () => {
   });
 
   it('projects node property schema and examples independently', () => {
-    const store = MemoryStore.create<DomainEvent>();
+    const store = MemoryStore.create<DcbEvent>();
     const projector = GraphProjector.create({store});
 
     store.append([
@@ -171,7 +171,7 @@ describe('events project state', () => {
   });
 
   it('ignores schemas examples and edges for nodes outside the requested chapter', () => {
-    const store = MemoryStore.create<DomainEvent>();
+    const store = MemoryStore.create<DcbEvent>();
     const projector = GraphProjector.create({store});
 
     store.append([
@@ -198,7 +198,7 @@ describe('events project state', () => {
         {propertyId: 'prop-hidden', scalarValue: 'Hidden example'},
       ]),
       Events.nodesConnected(projectId, 'visible-node', 'hidden-node', 'flow'),
-    ] as DomainEvent[]);
+    ] as DcbEvent[]);
 
     const model = projector.project(projectId, 'chapter-1');
 
@@ -216,7 +216,7 @@ describe('events project state', () => {
   });
 
   it('projects nodes by their latest chapter membership', () => {
-    const store = MemoryStore.create<DomainEvent>();
+    const store = MemoryStore.create<DcbEvent>();
     const projector = GraphProjector.create({store});
 
     store.append([
@@ -253,11 +253,11 @@ describe('events project state', () => {
   });
 
   it('replays the complete graph event stream deterministically', () => {
-    const emptyStore = MemoryStore.create<DomainEvent>();
+    const emptyStore = MemoryStore.create<DcbEvent>();
     expect(GraphProjector.create({store: emptyStore}).project(projectId))
       .toEqual({nodes: [], edges: [], lanes: [], nodeSchemas: {}, nodeExampleValues: {}});
 
-    const store = MemoryStore.create<DomainEvent>();
+    const store = MemoryStore.create<DcbEvent>();
     const projector = GraphProjector.create({store});
     const removedId = uuid();
     const commandId = uuid();

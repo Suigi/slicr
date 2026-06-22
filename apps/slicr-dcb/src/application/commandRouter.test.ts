@@ -1,11 +1,11 @@
 import {describe, expect, it} from 'vitest';
-import {AnyCommand, MemorySpecEventStore} from '../domain/eventSourcing';
+import {AnyCommand, type DcbEvent, MemorySpecEventStore} from '../domain/eventSourcing';
 import {createCommandRouter} from './commandRouter';
-import {Events, type DomainEvent} from '../domain/events';
+import {Events,} from '../domain/events';
 
 describe('commandRouter', () => {
   it('routes AddProject and appends project events', async () => {
-    const store = MemorySpecEventStore.create<DomainEvent>();
+    const store = MemorySpecEventStore.create<DcbEvent>();
     const routeCommand = createCommandRouter({store});
 
     await routeCommand({
@@ -34,7 +34,7 @@ describe('commandRouter', () => {
   });
 
   it('routes RenameProject and appends ProjectRenamed', async () => {
-    const store = MemorySpecEventStore.create<DomainEvent>();
+    const store = MemorySpecEventStore.create<DcbEvent>();
     await store.append([
       Events.projectAdded('project-1', 'Old name'),
     ]);

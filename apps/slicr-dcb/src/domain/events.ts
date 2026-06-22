@@ -99,7 +99,7 @@ export type ChapterRenamed = {
   newTitle: string,
 };
 
-export type DomainEvent =
+export type DcbEvent =
   Event<'NodeAdded', NodeAdded> |
   Event<'NodeChapterChanged', NodeChapterChanged> |
   Event<'NodeRenamed', NodeRenamed> |
@@ -113,6 +113,7 @@ export type DomainEvent =
   Event<'ProjectRenamed', ProjectRenamed> |
   Event<'ChapterAdded', ChapterAdded> |
   Event<'ChapterRenamed', ChapterRenamed>;
+
 
 export const Events = {
   nodeAdded(projectId: ProjectId, chapterId: ChapterId, nodeId: NodeId, type: NodeType, laneId: number, label?: string): Event<'NodeAdded', NodeAdded> {

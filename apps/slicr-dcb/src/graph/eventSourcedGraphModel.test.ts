@@ -1,7 +1,8 @@
 import {describe, expect, it} from 'vitest';
 
 import {createEventSourcedGraphModel, type AsyncGraphEventStore} from './eventSourcedGraphModel';
-import {Events, type DomainEvent} from '../domain/events';
+import {Events,} from '../domain/events';
+import {type DcbEvent} from '../domain/eventSourcing';
 import {
   AppendConditionFailedError,
   Query,
@@ -26,10 +27,10 @@ function createIdGenerator(ids: string[]) {
   };
 }
 
-function createStores(initialEvents: DomainEvent[] = []): {
-  events: DomainEvent[];
+function createStores(initialEvents: DcbEvent[] = []): {
+  events: DcbEvent[];
   graphStore: AsyncGraphEventStore;
-  commandStore: SpecEventStore<DomainEvent>;
+  commandStore: SpecEventStore<DcbEvent>;
 } {
   const events = [...initialEvents];
 
@@ -40,7 +41,7 @@ function createStores(initialEvents: DomainEvent[] = []): {
       : sequencedEvents.filter((sequencedEvent) => sequencedEvent.position > from);
   };
 
-  const matchesQuery = (query: Query, event: DomainEvent) => {
+  const matchesQuery = (query: Query, event: DcbEvent) => {
     if (query.kind === 'none') {
       return false;
     }
@@ -54,7 +55,7 @@ function createStores(initialEvents: DomainEvent[] = []): {
     });
   };
 
-  const commandStore: SpecEventStore<DomainEvent> = {
+  const commandStore: SpecEventStore<DcbEvent> = {
     append: async (nextEvents, condition?: AppendCondition) => {
       const conflictingEvents = condition === undefined
         ? []
@@ -87,7 +88,7 @@ function createStores(initialEvents: DomainEvent[] = []): {
   return {events, graphStore, commandStore};
 }
 
-function createModelContext(args: {events?: DomainEvent[]; ids?: string[]} = {}) {
+function createModelContext(args: {events?: DcbEvent[]; ids?: string[]} = {}) {
   const stores = createStores(args.events ?? []);
   return {
     ...stores,
@@ -179,9 +180,9 @@ describe('createEventSourcedGraphModel', () => {
   });
 
   it('does not duplicate default bootstrap events across distinct store instances sharing the same backing storage', async () => {
-    const sequencedEvents: SequencedEvent<DomainEvent>[] = [];
+    const sequencedEvents: SequencedEvent<DcbEvent>[] = [];
     const createSharedStores = () => {
-      const commandStore: SpecEventStore<DomainEvent> = {
+      const commandStore: SpecEventStore<DcbEvent> = {
         append: async (nextEvents, condition?: AppendCondition) => {
           const conflictingEvents = condition
             ? sequencedEvents.filter(({position, event}) => {

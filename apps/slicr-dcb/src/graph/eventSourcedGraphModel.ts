@@ -8,7 +8,8 @@ import {
 import {v4 as uuid} from 'uuid';
 
 import {createCommandRouter} from '../application/commandRouter';
-import {Events, type DomainEvent} from '../domain/events';
+import {Events} from '../domain/events';
+import {type DcbEvent} from '../domain/eventSourcing';
 import {GraphProjector} from '../domain/graphProjector/graphProjector';
 import {
   changeNodeExampleValuesHandler,
@@ -25,7 +26,7 @@ const DEFAULT_PROJECT_NAME = 'Default Project';
 const DEFAULT_CHAPTER_ID = 'default-chapter';
 const DEFAULT_CHAPTER_TITLE = 'Chapter 1';
 
-const defaultWorkspaceEvents: DomainEvent[] = [
+const defaultWorkspaceEvents: DcbEvent[] = [
   Events.projectAdded(DEFAULT_PROJECT_ID, DEFAULT_PROJECT_NAME),
   Events.chapterAdded(DEFAULT_PROJECT_ID, DEFAULT_CHAPTER_ID, DEFAULT_CHAPTER_TITLE),
 ];
@@ -39,9 +40,9 @@ const defaultChapterBootstrapCondition: AppendCondition = {
 };
 
 export type AsyncGraphEventStore = {
-  append(events: DomainEvent | readonly DomainEvent[], condition?: AppendCondition): Promise<void>;
-  readAll(): Promise<DomainEvent[]>;
-  replace(events: readonly DomainEvent[]): Promise<void>;
+  append(events: DcbEvent | readonly DcbEvent[], condition?: AppendCondition): Promise<void>;
+  readAll(): Promise<DcbEvent[]>;
+  replace(events: readonly DcbEvent[]): Promise<void>;
   clear(): Promise<void>;
 };
 
@@ -59,7 +60,7 @@ export type EventSourcedGraphModel = {
   getSnapshot(): RendererGraph;
   getWorkspace(): WorkspaceProjection;
   getScope(): {projectId: string; chapterId: string};
-  readEvents(): Promise<DomainEvent[]>;
+  readEvents(): Promise<DcbEvent[]>;
   addNewSlice(): Promise<RendererGraph>;
   addProject(name: string): Promise<RendererGraph>;
   renameProject(projectId: string, name: string): Promise<RendererGraph>;
@@ -72,7 +73,7 @@ export type EventSourcedGraphModel = {
   changeNodeSchema(command: ChangeNodeSchemaInput): Promise<RendererGraph>;
   changeNodeExampleValues(command: ChangeNodeExampleValuesInput): Promise<RendererGraph>;
   deleteNode(nodeId: string): Promise<RendererGraph>;
-  replace(events: readonly DomainEvent[]): Promise<RendererGraph>;
+  replace(events: readonly DcbEvent[]): Promise<RendererGraph>;
 };
 
 function resolveScope(workspace: WorkspaceProjection, scope: GraphModelScope) {
@@ -89,7 +90,7 @@ function resolveScope(workspace: WorkspaceProjection, scope: GraphModelScope) {
 
 async function appendBootstrapEvent(
   store: AsyncGraphEventStore,
-  event: DomainEvent,
+  event: DcbEvent,
   condition: AppendCondition,
 ) {
   try {
@@ -128,7 +129,7 @@ async function ensureDefaultWorkspace(store: AsyncGraphEventStore) {
 
 export function createEventSourcedGraphModel(config: {
   store: AsyncGraphEventStore,
-  commandStore: SpecEventStore<DomainEvent>,
+  commandStore: SpecEventStore<DcbEvent>,
   uuidGenerator?: () => string,
 }): EventSourcedGraphModel {
   const generateId = config.uuidGenerator ?? uuid;
@@ -141,21 +142,21 @@ export function createEventSourcedGraphModel(config: {
   let workspace: WorkspaceProjection = projectWorkspace(defaultWorkspaceEvents);
   let currentProjectId = DEFAULT_PROJECT_ID;
   let currentChapterId = DEFAULT_CHAPTER_ID;
-  let events: DomainEvent[] = [];
+  let events: DcbEvent[] = [];
 
-  const project = (nextEvents: readonly DomainEvent[], scope: GraphModelScope = {}) => {
+  const project = (nextEvents: readonly DcbEvent[], scope: GraphModelScope = {}) => {
     events = [...nextEvents];
     workspace = projectWorkspace(events);
     ({projectId: currentProjectId, chapterId: currentChapterId} = resolveScope(workspace, scope));
 
-    const memoryStore = MemoryStore.create<DomainEvent>();
+    const memoryStore = MemoryStore.create<DcbEvent>();
     memoryStore.append(events);
     snapshot = adaptModelGraphToRenderer(GraphProjector.create({store: memoryStore}).project(currentProjectId, currentChapterId));
     return snapshot;
   };
 
   const appendAndRefreshProjection = async (
-    event: DomainEvent | readonly DomainEvent[],
+    event: DcbEvent | readonly DcbEvent[],
     scope: GraphModelScope = {projectId: currentProjectId, chapterId: currentChapterId},
   ) => {
     const appendedEvents = Array.isArray(event) ? event : [event];
@@ -168,10 +169,10 @@ export function createEventSourcedGraphModel(config: {
   };
 
   const decideWithCurrentEvents = <Command>(
-    handlerFactory: (store: ReturnType<typeof MemoryStore.create<DomainEvent>>) => {handle(command: Command): DomainEvent[]},
+    handlerFactory: (store: ReturnType<typeof MemoryStore.create<DcbEvent>>) => {handle(command: Command): DcbEvent[]},
     command: Command,
   ) => {
-    const memoryStore = MemoryStore.create<DomainEvent>();
+    const memoryStore = MemoryStore.create<DcbEvent>();
     memoryStore.append(events);
     return handlerFactory(memoryStore).handle(command);
   };
@@ -266,7 +267,7 @@ export function createEventSourcedGraphModel(config: {
     async deleteNode(nodeId: string) {
       return appendAndRefreshProjection(Events.nodeRemoved(currentProjectId, nodeId));
     },
-    async replace(nextEvents: readonly DomainEvent[]) {
+    async replace(nextEvents: readonly DcbEvent[]) {
       await config.store.replace(nextEvents);
       return project(nextEvents, {projectId: currentProjectId, chapterId: currentChapterId});
     },

@@ -3,7 +3,7 @@ import type {EditableProperty} from '@slicr/react-ui';
 import type {EdgeInput, LaneInput} from 'layout-lib';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 
-import type {DomainEvent, NodePropertyExampleValues, NodePropertySchema} from '../domain/events';
+import type {DcbEvent, NodePropertyExampleValues, NodePropertySchema} from '../domain/events';
 import type {WorkspaceProjection} from '../domain/workspaceProjector';
 import {createEventSourcedGraphModel, type AsyncGraphEventStore, type EventSourcedGraphModel} from './eventSourcedGraphModel';
 import {getLaneOrder, getSuccessorNodeType} from './graphUtils';
@@ -28,10 +28,10 @@ const EVENT_STORE_STREAM_NAME = 'graph';
 const emptyGraphModel: StoredGraphModel = {nodes: [], edges: [], lanes: []};
 const emptyWorkspace: WorkspaceProjection = {projects: [], chaptersByProjectId: {}};
 
-class InMemoryGraphEventStore implements SpecEventStore<DomainEvent> {
-  private store = MemorySpecEventStore.create<DomainEvent>();
+class InMemoryGraphEventStore implements SpecEventStore<DcbEvent> {
+  private store = MemorySpecEventStore.create<DcbEvent>();
 
-  append(events: readonly DomainEvent[], condition?: AppendCondition) {
+  append(events: readonly DcbEvent[], condition?: AppendCondition) {
     return this.store.append(events, condition);
   }
 
@@ -47,23 +47,23 @@ class InMemoryGraphEventStore implements SpecEventStore<DomainEvent> {
     return (await this.store.read()).map(({event}) => event);
   }
 
-  async replace(events: readonly DomainEvent[]) {
-    this.store = MemorySpecEventStore.create<DomainEvent>();
+  async replace(events: readonly DcbEvent[]) {
+    this.store = MemorySpecEventStore.create<DcbEvent>();
     await this.store.append([...events]);
   }
 
   async clear() {
-    this.store = MemorySpecEventStore.create<DomainEvent>();
+    this.store = MemorySpecEventStore.create<DcbEvent>();
   }
 }
 
 class IndexedDBAsyncGraphEventStore implements AsyncGraphEventStore {
   constructor(
-    private readonly store: SpecEventStore<DomainEvent>,
-    private readonly mutableStore: Pick<IndexedDBEventStore<DomainEvent>, 'replace' | 'clear'>,
+    private readonly store: SpecEventStore<DcbEvent>,
+    private readonly mutableStore: Pick<IndexedDBEventStore<DcbEvent>, 'replace' | 'clear'>,
   ) {}
 
-  async append(events: DomainEvent | readonly DomainEvent[], condition?: AppendCondition) {
+  async append(events: DcbEvent | readonly DcbEvent[], condition?: AppendCondition) {
     const eventsToAppend = Array.isArray(events) ? events : [events];
     await this.store.append(eventsToAppend, condition);
   }
@@ -72,7 +72,7 @@ class IndexedDBAsyncGraphEventStore implements AsyncGraphEventStore {
     return (await this.store.read()).map(({event}) => event);
   }
 
-  replace(events: readonly DomainEvent[]) {
+  replace(events: readonly DcbEvent[]) {
     return this.mutableStore.replace(events);
   }
 
@@ -83,7 +83,7 @@ class IndexedDBAsyncGraphEventStore implements AsyncGraphEventStore {
 
 async function createDefaultGraphEventStore(): Promise<{
   graphStore: AsyncGraphEventStore;
-  commandStore: SpecEventStore<DomainEvent>;
+  commandStore: SpecEventStore<DcbEvent>;
 }> {
   if (typeof indexedDB === 'undefined') {
     const store = new InMemoryGraphEventStore();
@@ -101,11 +101,11 @@ async function createDefaultGraphEventStore(): Promise<{
   }
 
   const [specStore, mutableStore] = await Promise.all([
-    IndexedDBSpecEventStore.create<DomainEvent>({
+    IndexedDBSpecEventStore.create<DcbEvent>({
       databaseName: EVENT_STORE_DATABASE_NAME,
       streamName: EVENT_STORE_STREAM_NAME,
     }),
-    IndexedDBEventStore.create<DomainEvent>({
+    IndexedDBEventStore.create<DcbEvent>({
       databaseName: EVENT_STORE_DATABASE_NAME,
       streamName: EVENT_STORE_STREAM_NAME,
     }),
@@ -374,7 +374,7 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
   const readGraphEvents = useCallback(async () => modelRef.current?.readEvents() ?? [], []);
 
   const replaceGraphEvents = useCallback(
-    async (events: readonly DomainEvent[]) => {
+    async (events: readonly DcbEvent[]) => {
       await flushPendingPropertyEdit();
       const graphModel = await modelRef.current?.replace(events);
       if (!graphModel) {

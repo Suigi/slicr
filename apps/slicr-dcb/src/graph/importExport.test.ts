@@ -1,13 +1,14 @@
 import {describe, expect, it} from 'vitest';
 
-import {Events, type DomainEvent} from '../domain/events';
+import {Events,} from '../domain/events';
+import {type DcbEvent} from '../domain/eventSourcing';
 import {parseImportEvents, serializeDomainEvents} from './importExport';
 
 const projectId = 'project-1';
 
 describe('import/export conversion utilities', () => {
   it('serializes ordered domain events for export', () => {
-    const events: DomainEvent[] = [
+    const events: DcbEvent[] = [
       Events.nodeAdded(projectId, 'chapter-1', 'node-1', 'ui', 0, 'Start'),
       Events.nodeRenamed(projectId, 'node-1', 'Renamed'),
       Events.nodesConnected(projectId, 'node-1', 'node-2', 'flow'),
@@ -17,7 +18,7 @@ describe('import/export conversion utilities', () => {
   });
 
   it('parses project-scoped graph event arrays and assigns the default project to legacy graph snapshots', () => {
-    const events: DomainEvent[] = [
+    const events: DcbEvent[] = [
       Events.nodeAdded(projectId, 'chapter-1', 'node-1', 'cmd', 1, 'Command'),
       Events.nodeTypeChanged(projectId, 'node-1', 'dm'),
     ];
@@ -46,7 +47,7 @@ describe('import/export conversion utilities', () => {
   });
 
   it('parses chapter-aware graph event arrays as replacement event streams', () => {
-    const events: DomainEvent[] = [
+    const events: DcbEvent[] = [
       Events.nodeAdded('project-1', 'chapter-1', 'node-1', 'cmd', 1, 'Command'),
       Events.nodeChapterChanged('project-1', 'node-1', 'chapter-2'),
     ];
@@ -98,7 +99,7 @@ describe('import/export conversion utilities', () => {
     ];
 
     expect(parseImportEvents(JSON.stringify(importedEvents))).toEqual({ok: true, events: importedEvents});
-    expect(JSON.parse(serializeDomainEvents(importedEvents as DomainEvent[]))).toEqual(importedEvents);
+    expect(JSON.parse(serializeDomainEvents(importedEvents as DcbEvent[]))).toEqual(importedEvents);
   });
 
   it('converts legacy graph snapshots into replacement event streams', () => {

@@ -1,6 +1,12 @@
-import {Handler, Query, Store, type Event} from '../eventSourcing';
+import {type DcbEvent, type Event, Handler, Query, Store} from '../eventSourcing';
 import {NodeType} from '../../graph/types';
-import {DomainEvent, Events, NodesConnected, NodesDisconnected, type NodePropertyExampleValues, type NodePropertySchema} from '../events';
+import {
+  Events,
+  type NodePropertyExampleValues,
+  type NodePropertySchema,
+  NodesConnected,
+  NodesDisconnected
+} from '../events';
 
 export type AddNodeCommand = { projectId: string, chapterId: string, nodeType: NodeType, laneId: number, label: string };
 export type RenameNodeCommand = { projectId: string, nodeId: string, newName: string };
@@ -36,7 +42,7 @@ type NodeExampleValuesDecisionModel = {
   exampleValues: NodePropertyExampleValues[];
 };
 
-function nodeExists(events: readonly DomainEvent[]) {
+function nodeExists(events: readonly DcbEvent[]) {
   let exists = false;
   for (const event of events) {
     if (event.type === 'NodeAdded') {
@@ -71,13 +77,13 @@ function connectionTags(projectId: string, sourceNodeId: string, targetNodeId: s
   return [projectTag(projectId), `connection:${sourceNodeId}->${targetNodeId}`];
 }
 
-function isProjectEvent(projectId: string, event: DomainEvent) {
+function isProjectEvent(projectId: string, event: DcbEvent) {
   return event.tags.includes(projectTag(projectId));
 }
 
 export const addNodeHandler =
-  (uuidGenerator: () => string) => (store: Store<DomainEvent>) =>
-    Handler.create<AddNodeCommand, DomainEvent, void>({
+  (uuidGenerator: () => string) => (store: Store<DcbEvent>) =>
+    Handler.create<AddNodeCommand, DcbEvent, void>({
       store,
       query: () => Query.none(),
       project: () => undefined,
@@ -87,8 +93,8 @@ export const addNodeHandler =
     });
 
 export const addConnectedNodeHandler =
-  (uuidGenerator: () => string) => (store: Store<DomainEvent>) =>
-    Handler.create<AddConnectedNodeCommand, DomainEvent, boolean>({
+  (uuidGenerator: () => string) => (store: Store<DcbEvent>) =>
+    Handler.create<AddConnectedNodeCommand, DcbEvent, boolean>({
       store,
       query: command => Query.where({tags: nodeTags(command.projectId, command.sourceNodeId)}),
       project: events => nodeExists(events),
@@ -103,8 +109,8 @@ export const addConnectedNodeHandler =
     });
 
 export const renameNodeHandler =
-  (store: Store<DomainEvent>) =>
-    Handler.create<RenameNodeCommand, DomainEvent, boolean>({
+  (store: Store<DcbEvent>) =>
+    Handler.create<RenameNodeCommand, DcbEvent, boolean>({
       store,
       query: command => Query.where({tags: nodeTags(command.projectId, command.nodeId)}),
       project: events => nodeExists(events),
@@ -115,8 +121,8 @@ export const renameNodeHandler =
     });
 
 export const changeNodeTypeHandler =
-  (store: Store<DomainEvent>) =>
-    Handler.create<ChangeNodeTypeCommand, DomainEvent, boolean>({
+  (store: Store<DcbEvent>) =>
+    Handler.create<ChangeNodeTypeCommand, DcbEvent, boolean>({
       store,
       query: command => Query.where({tags: nodeTags(command.projectId, command.nodeId)}),
       project: events => nodeExists(events),
@@ -127,8 +133,8 @@ export const changeNodeTypeHandler =
     });
 
 export const changeNodeSchemaHandler =
-  (store: Store<DomainEvent>) =>
-    Handler.create<ChangeNodeSchemaCommand, DomainEvent, NodeSchemaDecisionModel>({
+  (store: Store<DcbEvent>) =>
+    Handler.create<ChangeNodeSchemaCommand, DcbEvent, NodeSchemaDecisionModel>({
       store,
       query: command => Query.where({tags: nodeTags(command.projectId, command.nodeId)}),
       project: events => ({
@@ -150,8 +156,8 @@ export const changeNodeSchemaHandler =
     });
 
 export const changeNodeExampleValuesHandler =
-  (store: Store<DomainEvent>) =>
-    Handler.create<ChangeNodeExampleValuesCommand, DomainEvent, NodeExampleValuesDecisionModel>({
+  (store: Store<DcbEvent>) =>
+    Handler.create<ChangeNodeExampleValuesCommand, DcbEvent, NodeExampleValuesDecisionModel>({
       store,
       query: command => Query.where({tags: nodeTags(command.projectId, command.nodeId)}),
       project: events => ({
@@ -173,8 +179,8 @@ export const changeNodeExampleValuesHandler =
     });
 
 export const removeNodeHandler =
-  (store: Store<DomainEvent>) =>
-    Handler.create<RemoveNodeCommand, DomainEvent, boolean>({
+  (store: Store<DcbEvent>) =>
+    Handler.create<RemoveNodeCommand, DcbEvent, boolean>({
       store,
       query: command => Query.where({tags: nodeTags(command.projectId, command.nodeId)}),
       project: events => nodeExists(events),
@@ -184,7 +190,7 @@ export const removeNodeHandler =
       }
     });
 
-function connectionExists(events: readonly DomainEvent[], sourceNodeId: string, targetNodeId: string) {
+function connectionExists(events: readonly DcbEvent[], sourceNodeId: string, targetNodeId: string) {
   const isMatch = (event: (Event<'NodesConnected', NodesConnected>|Event<'NodesDisconnected', NodesDisconnected>)) => {
     return event.payload.sourceNodeId === sourceNodeId && event.payload.targetNodeId === targetNodeId;
   };
@@ -208,8 +214,8 @@ function connectionExists(events: readonly DomainEvent[], sourceNodeId: string, 
 }
 
 export const connectNodesHandler =
-  (store: Store<DomainEvent>) =>
-    Handler.create<ConnectNodesCommand, DomainEvent, ConnectionDecisionModel>({
+  (store: Store<DcbEvent>) =>
+    Handler.create<ConnectNodesCommand, DcbEvent, ConnectionDecisionModel>({
       store,
       query: command => Query.anyOf(
         {tags: nodeTags(command.projectId, command.sourceNodeId)},
@@ -232,8 +238,8 @@ export const connectNodesHandler =
     });
 
 export const disconnectNodesHandler =
-  (store: Store<DomainEvent>) =>
-    Handler.create<DisconnectNodesCommand, DomainEvent, ConnectionDecisionModel>({
+  (store: Store<DcbEvent>) =>
+    Handler.create<DisconnectNodesCommand, DcbEvent, ConnectionDecisionModel>({
       store,
       query: command => Query.anyOf(
         {tags: nodeTags(command.projectId, command.sourceNodeId)},

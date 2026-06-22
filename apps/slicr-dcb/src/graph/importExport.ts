@@ -1,14 +1,15 @@
-import {Events, type DomainEvent} from '../domain/events';
+import {Events} from '../domain/events';
+import {type DcbEvent} from '../domain/eventSourcing';
 import type {NodeType} from './types';
 
 const DEFAULT_PROJECT_ID = 'default-project';
 const DEFAULT_CHAPTER_ID = 'default-chapter';
 
 export type ImportEventsResult =
-  | {ok: true, events: DomainEvent[]}
+  | {ok: true, events: DcbEvent[]}
   | {ok: false, error: string};
 
-export function serializeDomainEvents(events: readonly DomainEvent[]): string {
+export function serializeDomainEvents(events: readonly DcbEvent[]): string {
   return JSON.stringify(events);
 }
 
@@ -31,22 +32,22 @@ export function parseImportEvents(input: string): ImportEventsResult {
   return {ok: false, error: 'Import must be an exported event array or a legacy graph snapshot.'};
 }
 
-function isDomainEvent(event: unknown): event is DomainEvent {
+function isDomainEvent(event: unknown): event is DcbEvent {
   if (!event || typeof event !== 'object') {
     return false;
   }
 
-  const candidate = event as Partial<DomainEvent>;
+  const candidate = event as Partial<DcbEvent>;
   return (
     typeof candidate.type === 'string' &&
     isKnownEventType(candidate.type) &&
     isEventPayload(candidate.type, candidate.payload) &&
     Array.isArray(candidate.tags) &&
-    candidate.tags.every((tag) => typeof tag === 'string')
+    candidate.tags.every((tag: unknown) => typeof tag === 'string')
   );
 }
 
-function isKnownEventType(type: string): type is DomainEvent['type'] {
+function isKnownEventType(type: string): type is DcbEvent['type'] {
   return (
     type === 'NodeAdded' ||
     type === 'NodeChapterChanged' ||
@@ -64,7 +65,7 @@ function isKnownEventType(type: string): type is DomainEvent['type'] {
   );
 }
 
-function isEventPayload(type: DomainEvent['type'], payload: unknown): boolean {
+function isEventPayload(type: DcbEvent['type'], payload: unknown): boolean {
   if (!payload || typeof payload !== 'object') {
     return false;
   }
@@ -122,6 +123,8 @@ function isEventPayload(type: DomainEvent['type'], payload: unknown): boolean {
         typeof candidate.chapterId === 'string' &&
         typeof candidate.newTitle === 'string'
       );
+    default:
+      return false;
   }
 }
 
@@ -244,7 +247,7 @@ function isNodeComplexExampleValue(value: unknown): boolean {
   ));
 }
 
-function legacySnapshotToEvents(snapshot: LegacyGraphSnapshot): DomainEvent[] {
+function legacySnapshotToEvents(snapshot: LegacyGraphSnapshot): DcbEvent[] {
   const nodeIds = new Set(snapshot.nodes.map((node) => node.id));
   return [
     ...snapshot.nodes.map((node) => Events.nodeAdded(DEFAULT_PROJECT_ID, DEFAULT_CHAPTER_ID, node.id, node.type, legacyLaneOrder(node.laneId) ?? 0, node.label)),
