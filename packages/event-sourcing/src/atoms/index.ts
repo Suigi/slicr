@@ -3,6 +3,7 @@ import type {Query} from '../query';
 import type {Event as EventBase} from '../types';
 
 export * from './combineAtoms';
+export * from './rescopeAtom';
 
 export type Atom<Event extends EventBase, Scope, Model> = {
   query: (scope: Scope) => Query;
