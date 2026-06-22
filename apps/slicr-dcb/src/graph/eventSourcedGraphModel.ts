@@ -11,13 +11,10 @@ import {v4 as uuid} from 'uuid';
 import {createCommandRouter} from '../application/commandRouter';
 import {Events} from '../domain/events';
 import {GraphProjector} from '../domain/graphProjector/graphProjector';
-import {
-  type ChangeNodeExampleValuesCommand as ScopedChangeNodeExampleValuesCommand,
-  type ChangeNodeSchemaCommand as ScopedChangeNodeSchemaCommand,
-} from '../domain/nodeCommands/handler';
 import {projectWorkspace, type WorkspaceProjection} from '../domain/workspaceProjector';
 import {adaptModelGraphToRenderer, type RendererGraph} from './domainGraphAdapter';
 import type {NodeType} from './types';
+import {ChangeNodeExampleValues, ChangeNodeSchema} from '../domain/graphCommands/commands';
 
 const DEFAULT_PROJECT_ID = 'default-project';
 const DEFAULT_PROJECT_NAME = 'Default Project';
@@ -47,8 +44,8 @@ export type AsyncGraphEventStore = {
   clear(): Promise<void>;
 };
 
-type ChangeNodeSchemaInput = Omit<ScopedChangeNodeSchemaCommand, 'projectId'>;
-type ChangeNodeExampleValuesInput = Omit<ScopedChangeNodeExampleValuesCommand, 'projectId'>;
+type ChangeNodeSchemaInput = Omit<ChangeNodeSchema['data'], 'projectId'>;
+type ChangeNodeExampleValuesInput = Omit<ChangeNodeExampleValues['data'], 'projectId'>;
 
 export type GraphModelScope = {
   projectId?: string;
