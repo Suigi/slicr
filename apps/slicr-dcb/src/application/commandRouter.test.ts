@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {AnyCommand, MemorySpecEventStore} from '@slicr/event-sourcing';
+import {AnyCommand, MemorySpecEventStore} from '../domain/eventSourcing';
 import {createCommandRouter} from './commandRouter';
 import {Events, type DomainEvent} from '../domain/events';
 

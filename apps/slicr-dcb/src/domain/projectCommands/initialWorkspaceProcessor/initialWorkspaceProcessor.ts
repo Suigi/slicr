@@ -1,4 +1,4 @@
-import {Handler, Query, Store} from '@slicr/event-sourcing';
+import {Handler, Query, Store} from '../../eventSourcing';
 import {DomainEvent, Events} from '../../events';
 import {v4 as uuid} from 'uuid';
 

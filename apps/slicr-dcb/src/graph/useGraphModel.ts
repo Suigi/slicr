@@ -1,4 +1,4 @@
-import {IndexedDBEventStore, IndexedDBSpecEventStore, MemorySpecEventStore, type AppendCondition, type ReadOptions, type SpecEventStore} from '@slicr/event-sourcing';
+import {IndexedDBEventStore, IndexedDBSpecEventStore, MemorySpecEventStore, Query, type AppendCondition, type ReadOptions, type SpecEventStore} from '../domain/eventSourcing';
 import type {EditableProperty} from '@slicr/react-ui';
 import type {EdgeInput, LaneInput} from 'layout-lib';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
@@ -39,7 +39,7 @@ class InMemoryGraphEventStore implements SpecEventStore<DomainEvent> {
     return this.store.read(options);
   }
 
-  query(query: import('@slicr/event-sourcing').Query, options?: ReadOptions) {
+  query(query: Query, options?: ReadOptions) {
     return this.store.query(query, options);
   }
 

@@ -1,7 +1,7 @@
 import {v4 as uuid} from 'uuid';
 
 import {describe, expect, it} from 'vitest';
-import {MemoryStore} from '@slicr/event-sourcing';
+import {MemoryStore} from '../eventSourcing';
 import {DomainEvent, Events} from '../events';
 import {GraphProjector} from './graphProjector';
 

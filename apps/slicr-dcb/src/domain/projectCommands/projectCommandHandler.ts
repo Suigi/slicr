@@ -1,4 +1,4 @@
-import {Decider, Query, SomeCommand} from '@slicr/event-sourcing';
+import {Decider, Query, SomeCommand} from '../eventSourcing';
 import {DomainEvent, Events, ProjectId} from '../events';
 import {v4 as uuid} from 'uuid';
 import {AddProject, RenameProject} from './commands';

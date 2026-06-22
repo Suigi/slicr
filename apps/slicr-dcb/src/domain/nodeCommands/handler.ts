@@ -1,4 +1,4 @@
-import {Handler, Query, Store, type Event} from '@slicr/event-sourcing';
+import {Handler, Query, Store, type Event} from '../eventSourcing';
 import {NodeType} from '../../graph/types';
 import {DomainEvent, Events, NodesConnected, NodesDisconnected, type NodePropertyExampleValues, type NodePropertySchema} from '../events';
 

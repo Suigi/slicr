@@ -1,4 +1,4 @@
-import {Command} from '@slicr/event-sourcing';
+import {Command} from '../eventSourcing';
 import {ProjectId} from '../events';
 
 export type AddProject = Command<

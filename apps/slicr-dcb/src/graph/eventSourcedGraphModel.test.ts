@@ -2,7 +2,14 @@ import {describe, expect, it} from 'vitest';
 
 import {createEventSourcedGraphModel, type AsyncGraphEventStore} from './eventSourcedGraphModel';
 import {Events, type DomainEvent} from '../domain/events';
-import {AppendConditionFailedError, Query, type AppendCondition, type ReadOptions, type SequencedEvent, type SpecEventStore} from '@slicr/event-sourcing';
+import {
+  AppendConditionFailedError,
+  Query,
+  type AppendCondition,
+  type ReadOptions,
+  type SequencedEvent,
+  type SpecEventStore
+} from '../domain/eventSourcing';
 import {NODE_HEIGHT, NODE_WIDTH} from './constants';
 
 const defaultProjectId = 'default-project';

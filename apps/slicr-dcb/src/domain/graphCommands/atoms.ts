@@ -1,7 +1,7 @@
-import {type Atom, Query} from '@slicr/event-sourcing';
+import {type Atom, Query} from '../eventSourcing';
 import {ChapterId, DomainEvent, NodeId, NodePropertyExampleValues, NodePropertySchema, ProjectId} from '../events';
 
-export {bindAtom} from '@slicr/event-sourcing';
+export {bindAtom} from '../eventSourcing';
 
 type DomainAtom<Scope, Model> = Atom<DomainEvent, Scope, Model>;
 

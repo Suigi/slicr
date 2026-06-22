@@ -1,6 +1,5 @@
-import {Decider, handleCommand, MemorySpecEventStore, SpecEventStore} from '@slicr/event-sourcing';
+import {type DcbDecider, type DcbSpecStore, handleCommand, MemorySpecEventStore} from '../domain/eventSourcing';
 import {deciders} from '../domain/projectCommands/projectCommandHandler';
-import {DomainEvent} from '../domain/events';
 import {AddProject, RenameProject} from '../domain/projectCommands/commands';
 
 export type SlicrCommand =
@@ -9,11 +8,11 @@ export type SlicrCommand =
 
 export const createCommandRouter =
   (args: {
-    store?: SpecEventStore<DomainEvent>,
+    store?: DcbSpecStore,
     generateUuid?: () => string,
   } = {}) => {
     const projectDeciders = deciders({generateUuid: args.generateUuid});
-    const registry: Record<string, Decider<SlicrCommand, DomainEvent, unknown>> = {
+    const registry: Record<string, DcbDecider<SlicrCommand, unknown>> = {
       AddProject: projectDeciders.addProject,
       RenameProject: projectDeciders.renameProject,
     };

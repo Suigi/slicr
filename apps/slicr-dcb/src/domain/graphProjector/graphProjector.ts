@@ -1,12 +1,12 @@
-import {MemoryStore, Query, Store} from '@slicr/event-sourcing';
+import {MemoryStore, Query, type DcbStore} from '../eventSourcing';
 import {DomainEvent} from '../events';
 import {Edge, ModelGraph, NodeType} from '../graph';
 
 export class GraphProjector {
-  private constructor(private readonly store: Store<DomainEvent>) {
+  private constructor(private readonly store: DcbStore) {
   }
 
-  public static create(config: { store?: Store<DomainEvent> } = {}): GraphProjector {
+  public static create(config: { store?: DcbStore } = {}): GraphProjector {
     return new GraphProjector(config.store ?? MemoryStore.create<DomainEvent>());
   }
 

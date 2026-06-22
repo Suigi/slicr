@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {Atoms} from './atoms';
-import {type Atom, MemorySpecEventStore, Query, SpecEventStore} from '@slicr/event-sourcing';
+import {type Atom, MemorySpecEventStore, Query, SpecEventStore} from '../eventSourcing';
 import {DomainEvent, Events, NodePropertyExampleValues, NodePropertySchema} from '../events';
 
 const evaluate = <Scope, Model>(atom: Atom<DomainEvent, Scope, Model>) => async (store: SpecEventStore<DomainEvent>, scope: Scope): Promise<Model> => {

@@ -1,5 +1,5 @@
 import {type NodeType} from './graph';
-import {type Event} from '@slicr/event-sourcing';
+import {type Event} from './eventSourcing';
 
 export type ProjectId = string;
 export type ChapterId = string;

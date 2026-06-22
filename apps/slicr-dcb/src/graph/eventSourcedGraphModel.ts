@@ -1,4 +1,10 @@
-import {AppendConditionFailedError, MemoryStore, Query, type AppendCondition, type SpecEventStore} from '@slicr/event-sourcing';
+import {
+  AppendConditionFailedError,
+  MemoryStore,
+  Query,
+  type AppendCondition,
+  type SpecEventStore
+} from '../domain/eventSourcing';
 import {v4 as uuid} from 'uuid';
 
 import {createCommandRouter} from '../application/commandRouter';
