@@ -316,7 +316,14 @@ export function createEventSourcedGraphModel(config: {
       }));
     },
     async deleteNode(nodeId: string) {
-      return appendAndRefreshProjection(Events.nodeRemoved(currentProjectId, nodeId));
+      await routeCommand({
+        type: 'DeleteNode',
+        data: {
+          projectId: currentProjectId,
+          nodeId,
+        }
+      });
+      return project(await readAllEvents(), {projectId: currentProjectId, chapterId: currentChapterId});
     },
     async replace(nextEvents: readonly DcbEvent[]) {
       await config.store.replace(nextEvents);
