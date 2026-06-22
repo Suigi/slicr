@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import {Atom, Atoms} from './atoms';
 import {MemorySpecEventStore, Query, SpecEventStore} from '@slicr/event-sourcing';
-import {DomainEvent, Events} from '../events';
+import {DomainEvent, Events, NodePropertySchema} from '../events';
 
 const evaluate = <Scope, Model>(atom: Atom<Scope, Model>) => async (store: SpecEventStore<DomainEvent>, scope: Scope): Promise<Model> => {
   const events = await store.query(atom.query(scope));
@@ -213,7 +213,61 @@ describe('atoms', () => {
       expect(projection)
         .toEqual(false);
     });
+  });
 
+  describe('nodeSchema', () => {
+    it('given no events, projects []', async () => {
+      const store = MemorySpecEventStore.create<DomainEvent>();
+
+      const projectedSchema = await evaluate(Atoms.nodeSchema)(
+        store,
+        {
+          projectId: 'project-id',
+          nodeId: 'node-id'
+        });
+
+      expect(projectedSchema)
+        .toEqual([]);
+    });
+
+    it('given node in wrong project, projects []', async () => {
+      const store = MemorySpecEventStore.create<DomainEvent>();
+      await store.append([
+        Events.nodeSchemaChanged('other-project-id', 'node-id', [])
+      ])
+
+      const projectedSchema = await evaluate(Atoms.nodeSchema)(
+        store,
+        {
+          projectId: 'project-id',
+          nodeId: 'node-id'
+        });
+
+      expect(projectedSchema)
+        .toEqual([]);
+    });
+
+    it('given node with schema, projects schema', async () => {
+      const store = MemorySpecEventStore.create<DomainEvent>();
+      const schema: NodePropertySchema[] = [{
+        name: 'property-name',
+        propertyId: 'property-id',
+        type: 'string'
+      }];
+      await store.append([
+        Events.nodeSchemaChanged('project-id', 'node-id', schema)
+      ]);
+
+      const projectedSchema = await evaluate(Atoms.nodeSchema)(
+        store,
+        {
+          projectId: 'project-id',
+          nodeId: 'node-id'
+        });
+
+      expect(projectedSchema)
+        .toEqual(schema);
+    });
   });
 
 });

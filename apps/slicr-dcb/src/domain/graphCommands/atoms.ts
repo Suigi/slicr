@@ -1,5 +1,5 @@
 import {Query} from '@slicr/event-sourcing';
-import {ChapterId, DomainEvent, NodeId, ProjectId} from '../events';
+import {ChapterId, DomainEvent, NodeId, NodePropertySchema, ProjectId} from '../events';
 
 export type Atom<Scope, Model> = {
   query: (scope: Scope) => Query;
@@ -90,10 +90,32 @@ const connectionExists: Atom<{
   },
 };
 
+const nodeSchema: Atom<
+  { projectId: ProjectId, nodeId: NodeId },
+  NodePropertySchema[]
+> = {
+  query: (scope) => Query.where({
+    types: ['NodeSchemaChanged'],
+    tags: [`projectId:${scope.projectId}`, `nodeId:${scope.nodeId}`]
+  }),
+  project: (scope, events) => {
+    let schema: NodePropertySchema[] = [];
+    events.forEach(event => {
+      if (event.type === 'NodeSchemaChanged' &&
+        event.payload.projectId === scope.projectId &&
+        event.payload.nodeId === scope.nodeId) {
+        schema = event.payload.schema;
+      }
+    });
+    return schema;
+  }
+};
+
 export const Atoms = {
   noOp,
   projectExists,
   chapterExists,
   nodeExists,
   connectionExists,
+  nodeSchema,
 };
