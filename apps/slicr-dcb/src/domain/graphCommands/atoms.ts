@@ -66,8 +66,7 @@ const connectionExists: Atom<{
     types: ['NodesConnected', 'NodesDisconnected'],
     tags: [
       `projectId:${scope.projectId}`,
-      `nodeId:${scope.sourceNodeId}`,
-      `nodeId:${scope.targetNodeId}`,
+      `connection:${scope.sourceNodeId}->${scope.targetNodeId}`,
     ],
   }),
   project: (scope, events) => {
