@@ -282,7 +282,15 @@ export function createEventSourcedGraphModel(config: {
       ]);
     },
     async renameNode(nodeId: string, newName: string) {
-      return appendAndRefreshProjection(Events.nodeRenamed(currentProjectId, nodeId, newName));
+      await routeCommand({
+        type: 'RenameNode',
+        data: {
+          projectId: currentProjectId,
+          nodeId,
+          newName,
+        }
+      })
+      return project(await readAllEvents(), {projectId: currentProjectId, chapterId: currentChapterId})
     },
     async setNodeType(nodeId: string, type: NodeType) {
       return appendAndRefreshProjection(Events.nodeTypeChanged(currentProjectId, nodeId, type));
