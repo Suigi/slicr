@@ -293,7 +293,15 @@ export function createEventSourcedGraphModel(config: {
       return project(await readAllEvents(), {projectId: currentProjectId, chapterId: currentChapterId})
     },
     async setNodeType(nodeId: string, type: NodeType) {
-      return appendAndRefreshProjection(Events.nodeTypeChanged(currentProjectId, nodeId, type));
+      await routeCommand({
+        type: 'ChangeNodeType',
+        data: {
+          projectId: currentProjectId,
+          nodeId: nodeId,
+          newType: type,
+        }
+      })
+      return project(await readAllEvents(), {projectId: currentProjectId, chapterId: currentChapterId})
     },
     async changeNodeSchema(command: ChangeNodeSchemaInput) {
       return appendAndRefreshProjection(decideWithCurrentEvents(changeNodeSchemaHandler, {
