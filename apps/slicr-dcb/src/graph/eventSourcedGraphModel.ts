@@ -1,21 +1,21 @@
 import {
+  type AppendCondition,
   AppendConditionFailedError,
+  type DcbEvent,
   MemoryStore,
   Query,
-  type AppendCondition,
   type SpecEventStore
 } from '../domain/eventSourcing';
 import {v4 as uuid} from 'uuid';
 
 import {createCommandRouter} from '../application/commandRouter';
 import {Events} from '../domain/events';
-import {type DcbEvent} from '../domain/eventSourcing';
 import {GraphProjector} from '../domain/graphProjector/graphProjector';
 import {
-  changeNodeExampleValuesHandler,
-  changeNodeSchemaHandler,
   type ChangeNodeExampleValuesCommand as ScopedChangeNodeExampleValuesCommand,
+  changeNodeExampleValuesHandler,
   type ChangeNodeSchemaCommand as ScopedChangeNodeSchemaCommand,
+  changeNodeSchemaHandler,
 } from '../domain/nodeCommands/handler';
 import {projectWorkspace, type WorkspaceProjection} from '../domain/workspaceProjector';
 import {adaptModelGraphToRenderer, type RendererGraph} from './domainGraphAdapter';
@@ -229,11 +229,14 @@ export function createEventSourcedGraphModel(config: {
       return project(await readAllEvents(), {projectId: currentProjectId, chapterId: currentChapterId});
     },
     async addChapter(title: string) {
-      const newChapterId = generateId();
-      return appendAndRefreshProjection(
-        Events.chapterAdded(currentProjectId, newChapterId, title),
-        {projectId: currentProjectId, chapterId: newChapterId},
-      );
+      await routeCommand({
+        type: 'AddChapter',
+        data: {projectId: currentProjectId, title},
+      });
+      const events = await readAllEvents();
+      const workspace = projectWorkspace(events);
+      const latestChapterId = workspace.chaptersByProjectId[currentProjectId]?.at(-1)?.id;
+      return project( events, {projectId: currentProjectId, chapterId: latestChapterId});
     },
     async addConnection(sourceNodeId: string, targetNodeId: string, role?: 'flow' | 'back-reference') {
       return appendAndRefreshProjection(Events.nodesConnected(currentProjectId, sourceNodeId, targetNodeId, role));
