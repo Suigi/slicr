@@ -10,7 +10,7 @@ describe('initialWorkspaceDecider', () => {
       .when({type: 'EnsureInitialWorkspace', data: {}})
       .thenEmits(
         Events.projectAdded('project_id', 'Default Project'),
-        Events.chapterAdded('project_id', 'default', 'Chapter 1')
+        Events.chapterAdded('project_id', 'default-chapter', 'Chapter 1')
       );
   });
 

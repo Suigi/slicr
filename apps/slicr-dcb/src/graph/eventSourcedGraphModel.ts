@@ -14,7 +14,7 @@ import type {NodeType} from './types';
 import {ChangeNodeExampleValues, ChangeNodeSchema} from '../domain/graphCommands/commands';
 
 const DEFAULT_PROJECT_ID = 'default-project';
-const DEFAULT_CHAPTER_ID = 'default';
+const DEFAULT_CHAPTER_ID = 'default-chapter';
 
 export type AsyncGraphEventStore = {
   append(events: DcbEvent | readonly DcbEvent[], condition?: AppendCondition): Promise<void>;

@@ -16,7 +16,7 @@ describe('ensureInitialWorkspace', () => {
       },
       {
         position: 2,
-        event: Events.chapterAdded('project-1', 'default', 'Chapter 1'),
+        event: Events.chapterAdded('project-1', 'default-chapter', 'Chapter 1'),
       },
     ]);
   });

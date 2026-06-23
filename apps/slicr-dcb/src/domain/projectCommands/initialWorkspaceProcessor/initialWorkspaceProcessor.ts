@@ -4,7 +4,7 @@ import {v4 as uuid} from 'uuid';
 import {type EnsureInitialWorkspace} from '../commands';
 
 export const DEFAULT_PROJECT_NAME = 'Default Project';
-export const DEFAULT_CHAPTER_ID = 'default';
+export const DEFAULT_CHAPTER_ID = 'default-chapter';
 export const DEFAULT_CHAPTER_TITLE = 'Chapter 1';
 
 export const initialWorkspaceDecider = (args: {
