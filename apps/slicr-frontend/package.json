@@ -9,6 +9,7 @@
     "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:llm": "vitest run --reporter=vitest-llm-reporter",
     "test:watch": "vitest",
     "grammar:build": "lezer-generator src/slicr.grammar -o src/slicr.parser.ts --typeScript",
     "lint": "eslint .",

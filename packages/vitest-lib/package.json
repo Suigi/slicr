@@ -20,12 +20,14 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:llm": "vitest run --reporter=vitest-llm-reporter"
   },
   "devDependencies": {
     "@types/node": "^24.12.4",
     "typescript": "~5.9.3",
     "vite": "^8.0.16",
-    "vitest": "^4.0.18"
+    "vitest": "^4.0.18",
+    "vitest-llm-reporter": "^1.2.2"
   }
 }

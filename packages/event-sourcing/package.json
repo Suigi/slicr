@@ -21,6 +21,7 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
+    "test:llm": "vitest run --reporter=vitest-llm-reporter",
     "test:mutation": "stryker run",
     "test:mutation:vitest": "vitest run --config vitest.config.ts && vitest run --config vitest.browser.config.ts",
     "test:browser": "vitest run --config vitest.browser.config.ts",
@@ -37,6 +38,7 @@
     "playwright": "^1.58.2",
     "typescript": "^5.6.3",
     "typescript-eslint": "^8.57.2",
-    "vitest": "^4.0.18"
+    "vitest": "^4.0.18",
+    "vitest-llm-reporter": "^1.2.2"
   }
 }

@@ -13,6 +13,7 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
+    "test:llm": "vitest run --reporter=vitest-llm-reporter",
     "test:browser": "vitest run --project browser --passWithNoTests",
     "test:watch": "vitest"
   },
@@ -28,6 +29,7 @@
     "playwright": "^1.60.0",
     "typescript": "^5.6.3",
     "vite": "^8.0.16",
-    "vitest": "^4.1.1"
+    "vitest": "^4.1.1",
+    "vitest-llm-reporter": "^1.2.2"
   }
 }
