@@ -1,6 +1,7 @@
 import {describe, expect, it} from 'vitest';
 
-import {type AsyncGraphEventStore, createEventSourcedGraphModel} from './eventSourcedGraphModel';
+import {createEventSourcedGraphModel} from './eventSourcedGraphModel';
+import type {AsyncGraphEventStore} from '../application/eventBackup';
 import {Events,} from '../domain/events';
 import {
   type AppendCondition,
@@ -77,7 +78,7 @@ function createStores(initialEvents: DcbEvent[] = []): {
       await commandStore.append(Array.isArray(nextEvents) ? nextEvents : [nextEvents], condition);
     },
     readAll: async () => [...events],
-    replace: async (nextEvents) => {
+    restoreBackup: async (nextEvents) => {
       events.splice(0, events.length, ...nextEvents);
     },
     clear: async () => {
@@ -93,7 +94,6 @@ function createModelContext(args: {events?: DcbEvent[]; ids?: string[]} = {}) {
   return {
     ...stores,
     model: createEventSourcedGraphModel({
-      store: stores.graphStore,
       commandStore: stores.commandStore,
       ...(args.ids ? {uuidGenerator: createIdGenerator(args.ids)} : {}),
     }),
@@ -164,9 +164,9 @@ describe('createEventSourcedGraphModel', () => {
   });
 
   it('does not append bootstrap events across overlapping loads', async () => {
-    const {events, graphStore, commandStore} = createStores();
-    const firstModel = createEventSourcedGraphModel({store: graphStore, commandStore});
-    const secondModel = createEventSourcedGraphModel({store: graphStore, commandStore});
+    const {events, commandStore} = createStores();
+    const firstModel = createEventSourcedGraphModel({commandStore});
+    const secondModel = createEventSourcedGraphModel({commandStore});
 
     await Promise.all([firstModel.load(), secondModel.load()]);
 
@@ -237,7 +237,7 @@ describe('createEventSourcedGraphModel', () => {
           await commandStore.append(Array.isArray(nextEvents) ? nextEvents : [nextEvents], condition);
         },
         readAll: async () => sequencedEvents.map(({event}) => event),
-        replace: async (nextEvents) => {
+        restoreBackup: async (nextEvents) => {
           sequencedEvents.splice(
             0,
             sequencedEvents.length,
@@ -253,8 +253,8 @@ describe('createEventSourcedGraphModel', () => {
     };
     const firstStores = createSharedStores();
     const secondStores = createSharedStores();
-    const firstModel = createEventSourcedGraphModel({store: firstStores.graphStore, commandStore: firstStores.commandStore});
-    const secondModel = createEventSourcedGraphModel({store: secondStores.graphStore, commandStore: secondStores.commandStore});
+    const firstModel = createEventSourcedGraphModel({commandStore: firstStores.commandStore});
+    const secondModel = createEventSourcedGraphModel({commandStore: secondStores.commandStore});
 
     await Promise.all([firstModel.load(), secondModel.load()]);
 
@@ -394,7 +394,6 @@ describe('createEventSourcedGraphModel', () => {
 
     await model.renameProject('project-2', 'Inventory Platform');
     expect(model.getWorkspace().projects).toContainEqual({id: 'project-2', name: 'Inventory Platform'});
-    await expect(model.readEvents()).resolves.toEqual(events);
   });
 
   it('refreshes the projection from the command store after adding a connection', async () => {

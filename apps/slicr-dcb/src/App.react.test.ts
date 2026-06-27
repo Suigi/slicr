@@ -6,6 +6,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
 const graphModelMock = vi.hoisted(() => ({
   useGraphModel: vi.fn(),
+  useEventBackup: vi.fn(),
 }));
 
 const layoutLibMock = vi.hoisted(() => ({
@@ -17,6 +18,7 @@ vi.mock('./graph/useGraphModel', async () => {
   return {
     ...actual,
     useGraphModel: graphModelMock.useGraphModel,
+    useEventBackup: graphModelMock.useEventBackup,
   };
 });
 
@@ -34,6 +36,10 @@ describe('App', () => {
   let container: HTMLDivElement | null = null;
 
   beforeEach(() => {
+    graphModelMock.useEventBackup.mockReturnValue({
+      readBackupEvents: vi.fn(),
+      restoreBackup: vi.fn(),
+    });
     layoutLibMock.compactLayout.mockImplementation(
       ({nodes, lanes}: {nodes: Array<{id: string; width: number; height: number}>; lanes?: Array<{id: string; order: number}>}) => ({
         ok: true,
@@ -54,6 +60,7 @@ describe('App', () => {
     container?.remove();
     container = null;
     graphModelMock.useGraphModel.mockReset();
+    graphModelMock.useEventBackup.mockReset();
     layoutLibMock.compactLayout.mockReset();
   });
 
@@ -75,8 +82,7 @@ describe('App', () => {
     setFocusedNodeId: vi.fn(),
     setDraftLabel: vi.fn(),
     setOpenNodeMenuId: vi.fn(),
-    readGraphEvents: vi.fn(),
-    replaceGraphEvents: vi.fn(),
+    reload: vi.fn(),
     revertToLastOkGraphModel: vi.fn(),
     addNewSlice: vi.fn(),
     startConnectingFromNode: vi.fn(),
@@ -985,6 +991,137 @@ describe('App', () => {
     }
   });
 
+  it('backup button writes a version 1 event backup to clipboard', async () => {
+    const event = {type: 'ProjectAdded', payload: {projectId: 'project-1', name: 'Checkout'}, tags: ['projectId:project-1']};
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    graphModelMock.useGraphModel.mockReturnValue(createGraphModelMockValue());
+    graphModelMock.useEventBackup.mockReturnValue({
+      readBackupEvents: vi.fn().mockResolvedValue([event]),
+      restoreBackup: vi.fn(),
+    });
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {writeText},
+    });
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(createElement(App));
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      container?.querySelector<HTMLButtonElement>('button[title="Copy full event backup to clipboard"]')?.click();
+      await Promise.resolve();
+    });
+
+    expect(writeText).toHaveBeenCalledWith(JSON.stringify({version: 1, events: [event]}));
+  });
+
+  it('restore cancellation does not restore or reload', async () => {
+    const event = {type: 'ProjectAdded', payload: {projectId: 'project-1', name: 'Checkout'}, tags: ['projectId:project-1']};
+    const restoreBackup = vi.fn();
+    const reload = vi.fn();
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    graphModelMock.useGraphModel.mockReturnValue(createGraphModelMockValue({reload}));
+    graphModelMock.useEventBackup.mockReturnValue({
+      readBackupEvents: vi.fn(),
+      restoreBackup,
+    });
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {readText: vi.fn().mockResolvedValue(JSON.stringify({version: 1, events: [event]}))},
+    });
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(createElement(App));
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      container?.querySelector<HTMLButtonElement>('button[title="Restore full event backup from clipboard"]')?.click();
+      await Promise.resolve();
+    });
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(restoreBackup).not.toHaveBeenCalled();
+    expect(reload).not.toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  it('invalid backup shows an alert and does not restore', async () => {
+    const restoreBackup = vi.fn();
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => undefined);
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    graphModelMock.useGraphModel.mockReturnValue(createGraphModelMockValue());
+    graphModelMock.useEventBackup.mockReturnValue({
+      readBackupEvents: vi.fn(),
+      restoreBackup,
+    });
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {readText: vi.fn().mockResolvedValue(JSON.stringify([{type: 'ProjectAdded', payload: {}, tags: []}]))},
+    });
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(createElement(App));
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      container?.querySelector<HTMLButtonElement>('button[title="Restore full event backup from clipboard"]')?.click();
+      await Promise.resolve();
+    });
+
+    expect(alertSpy).toHaveBeenCalledWith(expect.stringContaining('bare event array'));
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(restoreBackup).not.toHaveBeenCalled();
+    alertSpy.mockRestore();
+    confirmSpy.mockRestore();
+  });
+
+  it('restore button reads a version 1 backup, restores, and reloads the graph preserving scope', async () => {
+    const event = {type: 'ProjectAdded', payload: {projectId: 'project-1', name: 'Checkout'}, tags: ['projectId:project-1']};
+    const restoreBackup = vi.fn().mockResolvedValue(undefined);
+    const reload = vi.fn().mockResolvedValue(undefined);
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    graphModelMock.useGraphModel.mockReturnValue(createGraphModelMockValue({reload}));
+    graphModelMock.useEventBackup.mockReturnValue({
+      readBackupEvents: vi.fn(),
+      restoreBackup,
+    });
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {readText: vi.fn().mockResolvedValue(JSON.stringify({version: 1, events: [event]}))},
+    });
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+
+    await act(async () => {
+      root?.render(createElement(App));
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      container?.querySelector<HTMLButtonElement>('button[title="Restore full event backup from clipboard"]')?.click();
+      await Promise.resolve();
+    });
+
+    expect(confirmSpy).toHaveBeenCalledWith('Restore backup? This will replace all local event data.');
+    expect(restoreBackup).toHaveBeenCalledWith([event]);
+    expect(reload).toHaveBeenCalledWith({preserveScope: true});
+    confirmSpy.mockRestore();
+  });
+
   it('blocks visual graph export until measurement settles after a graph change', async () => {
     const originalGetBoundingClientRect = HTMLElement.prototype.getBoundingClientRect;
     const originalQueueMicrotask = globalThis.queueMicrotask;
@@ -1047,13 +1184,6 @@ describe('App', () => {
       });
 
       await act(async () => {
-        const exportMenuButton = [...container!.querySelectorAll<HTMLButtonElement>('button')].find(
-          (button) => button.textContent === 'Export ▾',
-        );
-        exportMenuButton?.click();
-      });
-
-      await act(async () => {
         const exportVisualGraphButton = [...container!.querySelectorAll<HTMLButtonElement>('button')].find(
           (button) => button.textContent === 'Export layout-lib vitest case',
         );
@@ -1106,13 +1236,6 @@ describe('App', () => {
       await act(async () => {
         root?.render(createElement(App));
         await Promise.resolve();
-      });
-
-      await act(async () => {
-        const exportMenuButton = [...container!.querySelectorAll<HTMLButtonElement>('button')].find(
-          (button) => button.textContent === 'Export ▾',
-        );
-        exportMenuButton?.click();
       });
 
       await act(async () => {

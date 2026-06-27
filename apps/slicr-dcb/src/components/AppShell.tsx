@@ -7,6 +7,7 @@ type AppShellProps = {
   collapsedSidebarLabel: string;
   isSidebarOpen: boolean;
   onExpandSidebar: () => void;
+  topbarActions?: ReactNode;
   children: ReactNode;
 };
 
@@ -16,6 +17,7 @@ export function AppShell({
   collapsedSidebarLabel,
   isSidebarOpen,
   onExpandSidebar,
+  topbarActions,
   children,
 }: AppShellProps) {
   return (
@@ -38,6 +40,7 @@ export function AppShell({
         <header className="app-topbar">
           {projectSwitcher}
           <div className="app-topbar-spacer" />
+          {topbarActions ? <div className="app-topbar-actions">{topbarActions}</div> : null}
         </header>
         <main className="app-main">{children}</main>
       </div>

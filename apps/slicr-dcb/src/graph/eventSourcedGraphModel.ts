@@ -1,5 +1,4 @@
 import {
-  type AppendCondition,
   type DcbEvent,
   MemoryStore,
   type SpecEventStore
@@ -16,13 +15,6 @@ import {ChangeNodeExampleValues, ChangeNodeSchema} from '../domain/graphCommands
 const DEFAULT_PROJECT_ID = 'default-project';
 const DEFAULT_CHAPTER_ID = 'default-chapter';
 
-export type AsyncGraphEventStore = {
-  append(events: DcbEvent | readonly DcbEvent[], condition?: AppendCondition): Promise<void>;
-  readAll(): Promise<DcbEvent[]>;
-  replace(events: readonly DcbEvent[]): Promise<void>;
-  clear(): Promise<void>;
-};
-
 type ChangeNodeSchemaInput = Omit<ChangeNodeSchema['data'], 'projectId'>;
 type ChangeNodeExampleValuesInput = Omit<ChangeNodeExampleValues['data'], 'projectId'>;
 
@@ -37,7 +29,6 @@ export type EventSourcedGraphModel = {
   getSnapshot(): RendererGraph;
   getWorkspace(): WorkspaceProjection;
   getScope(): { projectId: string; chapterId: string };
-  readEvents(): Promise<DcbEvent[]>;
   addNewSlice(): Promise<RendererGraph>;
   addProject(name: string): Promise<RendererGraph>;
   renameProject(projectId: string, name: string): Promise<RendererGraph>;
@@ -56,7 +47,6 @@ export type EventSourcedGraphModel = {
   changeNodeSchema(command: ChangeNodeSchemaInput): Promise<RendererGraph>;
   changeNodeExampleValues(command: ChangeNodeExampleValuesInput): Promise<RendererGraph>;
   deleteNode(nodeId: string): Promise<RendererGraph>;
-  replace(events: readonly DcbEvent[]): Promise<RendererGraph>;
 };
 
 function resolveScope(workspace: WorkspaceProjection, scope: GraphModelScope) {
@@ -72,7 +62,6 @@ function resolveScope(workspace: WorkspaceProjection, scope: GraphModelScope) {
 }
 
 export function createEventSourcedGraphModel(config: {
-  store: AsyncGraphEventStore,
   commandStore: SpecEventStore<DcbEvent>,
   uuidGenerator?: () => string,
 }): EventSourcedGraphModel {
@@ -114,9 +103,6 @@ export function createEventSourcedGraphModel(config: {
     },
     getScope() {
       return {projectId: currentProjectId, chapterId: currentChapterId};
-    },
-    async readEvents() {
-      return readAllEvents();
     },
     async addNewSlice() {
       const newNodeNumber = snapshot.nodes.length + 1;
@@ -278,10 +264,6 @@ export function createEventSourcedGraphModel(config: {
         }
       });
       return project(await readAllEvents(), {projectId: currentProjectId, chapterId: currentChapterId});
-    },
-    async replace(nextEvents: readonly DcbEvent[]) {
-      await config.store.replace(nextEvents);
-      return project(nextEvents, {projectId: currentProjectId, chapterId: currentChapterId});
     },
   };
 }

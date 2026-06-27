@@ -1,35 +1,76 @@
-import {Events} from '../domain/events';
-import {type DcbEvent} from '../domain/eventSourcing';
-import type {NodeType} from './types';
+import type {AppendCondition, DcbEvent, SpecEventStore} from '../domain/eventSourcing';
+import type {NodeType} from '../graph/types';
 
-const DEFAULT_PROJECT_ID = 'default-project';
-const DEFAULT_CHAPTER_ID = 'default-chapter';
+export type AsyncGraphEventStore = {
+  append(events: DcbEvent | readonly DcbEvent[], condition?: AppendCondition): Promise<void>;
+  readAll(): Promise<DcbEvent[]>;
+  restoreBackup(events: readonly DcbEvent[]): Promise<void>;
+  clear(): Promise<void>;
+};
 
-export type ImportEventsResult =
-  | {ok: true, events: DcbEvent[]}
-  | {ok: false, error: string};
+export type EventBackupService = {
+  readBackupEvents(): Promise<DcbEvent[]>;
+  restoreBackup(events: readonly DcbEvent[]): Promise<void>;
+};
 
-export function serializeDomainEvents(events: readonly DcbEvent[]): string {
-  return JSON.stringify(events);
+export type EventBackupV1 = {
+  version: 1;
+  events: DcbEvent[];
+};
+
+export type ParseEventBackupResult =
+  | {ok: true; events: DcbEvent[]}
+  | {ok: false; error: string};
+
+export function createEventBackupService(args: {
+  store: SpecEventStore<DcbEvent>;
+  adminStore: AsyncGraphEventStore;
+}): EventBackupService {
+  return {
+    async readBackupEvents() {
+      return (await args.store.read()).map(({event}) => event);
+    },
+    async restoreBackup(events: readonly DcbEvent[]) {
+      await args.adminStore.restoreBackup(events);
+    },
+  };
 }
 
-export function parseImportEvents(input: string): ImportEventsResult {
+export function serializeEventBackup(events: readonly DcbEvent[]): string {
+  return JSON.stringify({version: 1, events});
+}
+
+export function parseEventBackup(input: string): ParseEventBackupResult {
   let parsed: unknown;
   try {
     parsed = JSON.parse(input);
   } catch {
-    return {ok: false, error: 'Import must be valid JSON.'};
+    return {ok: false, error: 'Backup must be valid JSON.'};
   }
 
-  if (Array.isArray(parsed) && parsed.every(isDomainEvent)) {
-    return {ok: true, events: parsed};
+  if (Array.isArray(parsed)) {
+    return {ok: false, error: 'Backup must use the version 1 event-backup format, not a bare event array.'};
   }
 
-  if (isLegacyGraphSnapshot(parsed)) {
-    return {ok: true, events: legacySnapshotToEvents(parsed)};
+  if (!parsed || typeof parsed !== 'object') {
+    return {ok: false, error: 'Backup must be an object with version 1 metadata and events.'};
   }
 
-  return {ok: false, error: 'Import must be an exported event array or a legacy graph snapshot.'};
+  const candidate = parsed as Partial<EventBackupV1> & Record<string, unknown>;
+  if (candidate.version !== 1) {
+    return {ok: false, error: 'Backup version is unsupported. Expected version 1.'};
+  }
+
+  if (!Array.isArray(candidate.events)) {
+    return {ok: false, error: 'Backup version 1 must include an events array.'};
+  }
+
+  const invalidIndex = candidate.events.findIndex((event) => !isDomainEvent(event));
+  if (invalidIndex >= 0) {
+    return {ok: false, error: `Backup contains an invalid event at index ${invalidIndex}.`};
+  }
+
+  return {ok: true, events: candidate.events};
 }
 
 function isDomainEvent(event: unknown): event is DcbEvent {
@@ -112,82 +153,12 @@ function isEventPayload(type: DcbEvent['type'], payload: unknown): boolean {
     case 'ProjectRenamed':
       return typeof candidate.projectId === 'string' && typeof candidate.newName === 'string';
     case 'ChapterAdded':
-      return (
-        typeof candidate.projectId === 'string' &&
-        typeof candidate.chapterId === 'string' &&
-        typeof candidate.title === 'string'
-      );
+      return typeof candidate.projectId === 'string' && typeof candidate.chapterId === 'string' && typeof candidate.title === 'string';
     case 'ChapterRenamed':
-      return (
-        typeof candidate.projectId === 'string' &&
-        typeof candidate.chapterId === 'string' &&
-        typeof candidate.newTitle === 'string'
-      );
+      return typeof candidate.projectId === 'string' && typeof candidate.chapterId === 'string' && typeof candidate.newTitle === 'string';
     default:
       return false;
   }
-}
-
-type LegacyGraphSnapshot = {
-  nodes: LegacyGraphNode[];
-  edges: LegacyEdge[];
-  lanes: unknown[];
-};
-
-type LegacyGraphNode = {
-  id: string;
-  label: string;
-  type: NodeType;
-  laneId: string;
-};
-
-type LegacyEdge = {
-  sourceId: string;
-  targetId: string;
-  role?: 'flow' | 'back-reference';
-};
-
-function isLegacyGraphSnapshot(snapshot: unknown): snapshot is LegacyGraphSnapshot {
-  if (!snapshot || typeof snapshot !== 'object') {
-    return false;
-  }
-
-  const candidate = snapshot as Partial<LegacyGraphSnapshot>;
-  return (
-    Array.isArray(candidate.nodes) &&
-    candidate.nodes.every(isLegacyGraphNode) &&
-    Array.isArray(candidate.edges) &&
-    candidate.edges.every(isLegacyEdge) &&
-    Array.isArray(candidate.lanes)
-  );
-}
-
-function isLegacyGraphNode(node: unknown): node is LegacyGraphNode {
-  if (!node || typeof node !== 'object') {
-    return false;
-  }
-
-  const candidate = node as Partial<LegacyGraphNode>;
-  return (
-    typeof candidate.id === 'string' &&
-    typeof candidate.label === 'string' &&
-    isNodeType(candidate.type) &&
-    typeof candidate.laneId === 'string' &&
-    legacyLaneOrder(candidate.laneId) !== null
-  );
-}
-
-function isLegacyEdge(edge: unknown): edge is LegacyEdge {
-  if (!edge || typeof edge !== 'object') {
-    return false;
-  }
-
-  const candidate = edge as Partial<LegacyEdge>;
-  return (
-    typeof candidate.sourceId === 'string' &&
-    typeof candidate.targetId === 'string' &&
-    (candidate.role === undefined || candidate.role === 'flow' || candidate.role === 'back-reference')
-  );
 }
 
 function isNodeType(type: unknown): type is NodeType {
@@ -245,19 +216,4 @@ function isNodeComplexExampleValue(value: unknown): boolean {
   return Object.values(value).every((nestedValue) => (
     isNodeExamplePrimitive(nestedValue) || isNodeComplexExampleValue(nestedValue)
   ));
-}
-
-function legacySnapshotToEvents(snapshot: LegacyGraphSnapshot): DcbEvent[] {
-  const nodeIds = new Set(snapshot.nodes.map((node) => node.id));
-  return [
-    ...snapshot.nodes.map((node) => Events.nodeAdded(DEFAULT_PROJECT_ID, DEFAULT_CHAPTER_ID, node.id, node.type, legacyLaneOrder(node.laneId) ?? 0, node.label)),
-    ...snapshot.edges
-      .filter((edge) => nodeIds.has(edge.sourceId) && nodeIds.has(edge.targetId))
-      .map((edge) => Events.nodesConnected(DEFAULT_PROJECT_ID, edge.sourceId, edge.targetId, edge.role)),
-  ];
-}
-
-function legacyLaneOrder(laneId: string): number | null {
-  const match = /^lane-(\d+)$/.exec(laneId);
-  return match ? Number(match[1]) : null;
 }

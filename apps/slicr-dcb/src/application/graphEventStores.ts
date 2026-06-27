@@ -8,7 +8,7 @@ import {
   type SpecEventStore,
 } from '@slicr/event-sourcing';
 import type {DcbEvent} from '../domain/events';
-import type {AsyncGraphEventStore} from '../graph/eventSourcedGraphModel';
+import type {AsyncGraphEventStore} from './eventBackup';
 
 const EVENT_STORE_DATABASE_NAME = 'slicr-dcb.events.v1';
 const EVENT_STORE_STREAM_NAME = 'graph';
@@ -32,7 +32,7 @@ class InMemoryGraphEventStore implements SpecEventStore<DcbEvent> {
     return (await this.store.read()).map(({event}) => event);
   }
 
-  async replace(events: readonly DcbEvent[]) {
+  async restoreBackup(events: readonly DcbEvent[]) {
     this.store = MemorySpecEventStore.create<DcbEvent>();
     await this.store.append([...events]);
   }
@@ -57,7 +57,7 @@ class IndexedDBAsyncGraphEventStore implements AsyncGraphEventStore {
     return (await this.store.read()).map(({event}) => event);
   }
 
-  replace(events: readonly DcbEvent[]) {
+  restoreBackup(events: readonly DcbEvent[]) {
     return this.mutableStore.replace(events);
   }
 
@@ -78,7 +78,7 @@ export async function createDefaultGraphEventStore(): Promise<{
           await store.append(Array.isArray(events) ? events : [events], condition);
         },
         readAll: () => store.readAll(),
-        replace: (events) => store.replace(events),
+        restoreBackup: (events) => store.restoreBackup(events),
         clear: () => store.clear(),
       },
       commandStore: store,

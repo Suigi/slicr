@@ -5,7 +5,8 @@ import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import type {DcbEvent, NodePropertyExampleValues, NodePropertySchema} from '../domain/events';
 import type {WorkspaceProjection} from '../domain/workspaceProjector';
 import {createGraphApplication} from '../application/createGraphApplication';
-import type {EventSourcedGraphModel} from './eventSourcedGraphModel';
+import type {EventBackupService} from '../application/eventBackup';
+import type {EventSourcedGraphModel, GraphModelScope} from './eventSourcedGraphModel';
 import {getLaneOrder, getSuccessorNodeType} from './graphUtils';
 import {
   deriveNodePropertyExampleValues,
@@ -25,6 +26,46 @@ export type StoredGraphModel = {
 const LAST_OK_STORAGE_KEY = 'slicr-dcb.lastOkGraphModel.v1';
 const emptyGraphModel: StoredGraphModel = {nodes: [], edges: [], lanes: []};
 const emptyWorkspace: WorkspaceProjection = {projects: [], chaptersByProjectId: {}};
+
+type GraphApplication = Awaited<ReturnType<typeof createGraphApplication>>;
+let graphApplicationPromise: Promise<GraphApplication> | null = null;
+
+function loadGraphApplication(scope: GraphModelScope = {}) {
+  graphApplicationPromise ??= createGraphApplication(scope);
+  return graphApplicationPromise;
+}
+
+export function useEventBackup() {
+  const serviceRef = useRef<EventBackupService | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void loadGraphApplication().then((application) => {
+      if (!cancelled) {
+        serviceRef.current = application.eventBackup;
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const readBackupEvents = useCallback(async () => {
+    const service = serviceRef.current ?? (await loadGraphApplication()).eventBackup;
+    serviceRef.current = service;
+    return service.readBackupEvents();
+  }, []);
+
+  const restoreBackup = useCallback(async (events: readonly DcbEvent[]) => {
+    const service = serviceRef.current ?? (await loadGraphApplication()).eventBackup;
+    serviceRef.current = service;
+    await service.restoreBackup(events);
+  }, []);
+
+  return {readBackupEvents, restoreBackup};
+}
 
 export function storeLastOkGraphModel(model: StoredGraphModel) {
   if (typeof window === 'undefined') {
@@ -231,7 +272,12 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
     let cancelled = false;
 
     const loadModel = async () => {
-      const {model, graphModel} = await createGraphApplication({
+      const application = await loadGraphApplication({
+        projectId: scope.activeProjectId ?? undefined,
+        chapterId: scope.activeChapterId ?? undefined,
+      });
+      const {model} = application;
+      const graphModel = await model.load({
         projectId: scope.activeProjectId ?? undefined,
         chapterId: scope.activeChapterId ?? undefined,
       });
@@ -275,12 +321,18 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
     resetTransientState();
   }, [applyGraphModel, resetTransientState, scope.activeChapterId, scope.activeProjectId, setFocusedNodeId, syncWorkspaceState]);
 
-  const readGraphEvents = useCallback(async () => modelRef.current?.readEvents() ?? [], []);
-
-  const replaceGraphEvents = useCallback(
-    async (events: readonly DcbEvent[]) => {
+  const reload = useCallback(
+    async (options: {preserveScope?: boolean} = {}) => {
       await flushPendingPropertyEdit();
-      const graphModel = await modelRef.current?.replace(events);
+      const currentScope = modelRef.current?.getScope();
+      const graphModel = await modelRef.current?.load(
+        options.preserveScope && currentScope
+          ? currentScope
+          : {
+              projectId: scope.activeProjectId ?? undefined,
+              chapterId: scope.activeChapterId ?? undefined,
+            },
+      );
       if (!graphModel) {
         return;
       }
@@ -290,7 +342,7 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
       setFocusedNodeId(graphModel.nodes[0]?.id ?? null);
       resetTransientState();
     },
-    [applyGraphModel, flushPendingPropertyEdit, resetTransientState, setFocusedNodeId, syncWorkspaceState],
+    [applyGraphModel, flushPendingPropertyEdit, resetTransientState, scope.activeChapterId, scope.activeProjectId, setFocusedNodeId, syncWorkspaceState],
   );
 
   const revertToLastOkGraphModel = useCallback(() => {
@@ -635,8 +687,7 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
     setDraftLabel,
     setOpenNodeMenuId,
     replaceGraphModel,
-    readGraphEvents,
-    replaceGraphEvents,
+    reload,
     revertToLastOkGraphModel,
     addNewSlice,
     addProject,

@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperti
 import { InfiniteCanvas, PointyCardTags, PropertyEditor, PropertyGrid, type EditableProperty, type InfiniteCanvasHandle } from '@slicr/react-ui';
 import { compactLayout } from 'layout-lib';
 import { AppShell } from './components/AppShell';
+import { BackupRestoreButtons } from './components/BackupRestoreButtons';
 import { ChapterSidebar } from './components/ChapterSidebar';
 import { EdgeLayer } from './components/EdgeLayer';
 import { GraphNodeView } from './components/GraphNodeView';
@@ -14,8 +15,8 @@ import {
   getKeyboardSuccessorDirection,
   getKeyboardSuccessorNodeType,
 } from './graph/graphUtils';
-import {parseImportEvents, serializeDomainEvents} from './graph/importExport';
-import { storeLastOkGraphModel, useGraphModel } from './graph/useGraphModel';
+import {parseEventBackup, serializeEventBackup} from './application/eventBackup';
+import { storeLastOkGraphModel, useEventBackup, useGraphModel } from './graph/useGraphModel';
 import {serializeVisualGraphAcceptanceTest} from './graph/visualGraphExport';
 import type { RenderNode } from './graph/types';
 import {measureNodeDimensions, type NodeDimensions} from './nodeMeasurement';
@@ -185,7 +186,6 @@ export function App() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [propertyGridMockups, setPropertyGridMockups] = useState<PropertyGridCardMockup[]>(initialPropertyGridCardMockups);
   const [selectedPropertyGridMockupVariant, setSelectedPropertyGridMockupVariant] = useState(initialPropertyGridCardMockups[0]?.variant ?? '');
   const [nodeMeasurements, setNodeMeasurements] = useState<Record<string, NodeDimensions>>({});
@@ -220,8 +220,7 @@ export function App() {
     setFocusedNodeId,
     setDraftLabel,
     setOpenNodeMenuId,
-    readGraphEvents,
-    replaceGraphEvents,
+    reload,
     revertToLastOkGraphModel,
     addNewSlice,
     addProject,
@@ -239,6 +238,7 @@ export function App() {
     cancelEditingFromKeyboard,
     handleLabelBlur,
   } = useGraphModel({activeProjectId: selectedProjectId, activeChapterId: selectedChapterId});
+  const eventBackup = useEventBackup();
 
   const selectedProjectExists = workspace.projects.some((project) => project.id === selectedProjectId);
   const resolvedProjectExists = workspace.projects.some((project) => project.id === activeProjectId);
@@ -367,21 +367,23 @@ export function App() {
     setHoveredPropertyId(null);
   }, [focusedNodeId]);
 
-  const exportCurrentEvents = async () => {
-    await navigator.clipboard.writeText(serializeDomainEvents(await readGraphEvents()));
-    setIsExportMenuOpen(false);
+  const backupEventsToClipboard = async () => {
+    try {
+      const events = await eventBackup.readBackupEvents();
+      await navigator.clipboard.writeText(serializeEventBackup(events));
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Backup failed.');
+    }
   };
 
   const exportCurrentVisualGraph = async () => {
     if (!isMeasurementSettled) {
       window.alert('Cannot export a visual graph until measurement and layout have settled.');
-      setIsExportMenuOpen(false);
       return;
     }
 
     if (!layoutResult.ok) {
       window.alert('Cannot export a visual graph while layout is invalid.');
-      setIsExportMenuOpen(false);
       return;
     }
 
@@ -395,18 +397,26 @@ export function App() {
         result: layoutResult.result,
       }),
     );
-    setIsExportMenuOpen(false);
   };
 
-  const importGraphModelFromClipboard = async () => {
+  const restoreBackupFromClipboard = async () => {
     const clipboardText = await navigator.clipboard.readText();
-    const importResult = parseImportEvents(clipboardText);
-    if (!importResult.ok) {
-      window.alert(importResult.error);
+    const restoreResult = parseEventBackup(clipboardText);
+    if (!restoreResult.ok) {
+      window.alert(restoreResult.error);
       return;
     }
 
-    await replaceGraphEvents(importResult.events);
+    if (!window.confirm('Restore backup? This will replace all local event data.')) {
+      return;
+    }
+
+    try {
+      await eventBackup.restoreBackup(restoreResult.events);
+      await reload({preserveScope: true});
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Restore failed.');
+    }
   };
 
   useEffect(() => {
@@ -534,37 +544,22 @@ export function App() {
           onAddChapter={handleAddChapter}
         />
       }
+      topbarActions={
+        <BackupRestoreButtons
+          onBackup={() => void backupEventsToClipboard()}
+          onRestore={() => void restoreBackupFromClipboard()}
+        />
+      }
     >
       <div className="graph-workspace" data-measurement-settled={isMeasurementSettled ? 'true' : 'false'}>
         <div className="overlay-actions">
-        <button type="button" className="new-slice-button" onClick={addNewSlice}>
-          + New Slice
-        </button>
-        <div className="export-menu-container">
-          <button
-            type="button"
-            className="overlay-action-button"
-            aria-haspopup="menu"
-            aria-expanded={isExportMenuOpen}
-            onClick={() => setIsExportMenuOpen((isOpen) => !isOpen)}
-          >
-            Export ▾
+          <button type="button" className="new-slice-button" onClick={addNewSlice}>
+            + New Slice
           </button>
-          {isExportMenuOpen ? (
-            <div className="export-menu" role="menu">
-              <button type="button" role="menuitem" onClick={() => void exportCurrentEvents()}>
-                Export events
-              </button>
-              <button type="button" role="menuitem" onClick={() => void exportCurrentVisualGraph()}>
-                Export layout-lib vitest case
-              </button>
-            </div>
-          ) : null}
+          <button type="button" className="overlay-action-button" onClick={() => void exportCurrentVisualGraph()}>
+            Export layout-lib vitest case
+          </button>
         </div>
-        <button type="button" className="overlay-action-button" onClick={() => void importGraphModelFromClipboard()}>
-          Import
-        </button>
-      </div>
       {connectingSourceNode ? (
         <div className="connect-mode-status">
           Select a target node to connect from “{connectingSourceNode.label}”. Esc to cancel.
@@ -730,8 +725,8 @@ export function App() {
               <button type="button" onClick={revertToLastOkGraphModel}>
                 Revert to last valid model
               </button>
-              <button type="button" onClick={() => void exportCurrentEvents()}>
-                Copy current model
+              <button type="button" onClick={() => void backupEventsToClipboard()}>
+                Copy event backup
               </button>
             </div>
           </div>
