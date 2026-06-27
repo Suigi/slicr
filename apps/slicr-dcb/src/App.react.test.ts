@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import {act, createElement} from 'react';
+import {act, createElement, useState} from 'react';
 import {createRoot, type Root} from 'react-dom/client';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
@@ -88,8 +88,11 @@ describe('App', () => {
     openNodeMenuId: null,
     connectingSourceNodeId: null,
     nodePropertiesById: {},
+    highlightedPropertyId: null,
     updateFocusedNodeProperties: vi.fn(),
     setFocusedNodeId: vi.fn(),
+    setEditorFocusedPropertyId: vi.fn(),
+    setHoveredPropertyId: vi.fn(),
     setDraftLabel: vi.fn(),
     setOpenNodeMenuId: vi.fn(),
     reload: vi.fn(),
@@ -108,6 +111,20 @@ describe('App', () => {
     handleLabelBlur: vi.fn(),
     ...overrides,
   });
+
+  const mockUseGraphModelWithFocusState = (overrides: Record<string, unknown> = {}) => {
+    graphModelMock.useGraphModel.mockImplementation(() => {
+      const [editorFocusedPropertyId, setEditorFocusedPropertyId] = useState<string | null>(null);
+      const [hoveredPropertyId, setHoveredPropertyId] = useState<string | null>(null);
+
+      return createGraphModelMockValue({
+        ...overrides,
+        highlightedPropertyId: hoveredPropertyId ?? editorFocusedPropertyId,
+        setEditorFocusedPropertyId,
+        setHoveredPropertyId,
+      });
+    });
+  };
 
   it('opens a right side panel showing the focused node title with schema and example editors', async () => {
     graphModelMock.useGraphModel.mockReturnValue(createGraphModelMockValue());
@@ -492,7 +509,7 @@ describe('App', () => {
   });
 
   it('highlights matching schema and example rows when the focused node property grid reports hover', async () => {
-    graphModelMock.useGraphModel.mockReturnValue(createGraphModelMockValue({
+    mockUseGraphModelWithFocusState({
       focusedNodeProperties: [
         {id: 'prop-title', name: 'title', type: 'string', example: 'Hello'},
         {id: 'prop-summary', name: 'summary', type: 'string', example: 'Short'},
@@ -503,7 +520,7 @@ describe('App', () => {
           {id: 'prop-summary', name: 'summary', type: 'string', example: 'Short'},
         ],
       },
-    }));
+    });
     container = document.createElement('div');
     document.body.append(container);
     root = createRoot(container);
@@ -526,7 +543,7 @@ describe('App', () => {
   });
 
   it('reverts editor highlights to the editor-focused property when focused node grid hover clears', async () => {
-    graphModelMock.useGraphModel.mockReturnValue(createGraphModelMockValue({
+    mockUseGraphModelWithFocusState({
       focusedNodeProperties: [
         {id: 'prop-title', name: 'title', type: 'string', example: 'Hello'},
         {id: 'prop-summary', name: 'summary', type: 'string', example: 'Short'},
@@ -537,7 +554,7 @@ describe('App', () => {
           {id: 'prop-summary', name: 'summary', type: 'string', example: 'Short'},
         ],
       },
-    }));
+    });
     container = document.createElement('div');
     document.body.append(container);
     root = createRoot(container);
@@ -653,7 +670,7 @@ describe('App', () => {
   });
 
   it('highlights the matching example-value table column when the focused node property grid hovers an object-list child property', async () => {
-    graphModelMock.useGraphModel.mockReturnValue(createGraphModelMockValue({
+    mockUseGraphModelWithFocusState({
       focusedNodeProperties: [
         {
           id: 'prop-columns',
@@ -688,7 +705,7 @@ describe('App', () => {
           },
         ],
       },
-    }));
+    });
     container = document.createElement('div');
     document.body.append(container);
     root = createRoot(container);
