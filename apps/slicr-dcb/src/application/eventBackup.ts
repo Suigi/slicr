@@ -9,8 +9,8 @@ export type AsyncGraphEventStore = {
 };
 
 export type EventBackupService = {
-  readBackupEvents(): Promise<DcbEvent[]>;
-  restoreBackup(events: readonly DcbEvent[]): Promise<void>;
+  backupText(): Promise<string>;
+  restoreFrom(backup: string): Promise<void>;
 };
 
 export type EventBackupV1 = {
@@ -27,11 +27,17 @@ export function createEventBackupService(args: {
   adminStore: AsyncGraphEventStore;
 }): EventBackupService {
   return {
-    async readBackupEvents() {
-      return (await args.store.read()).map(({event}) => event);
+    async backupText() {
+      const events = (await args.store.read()).map(({event}) => event);
+      return serializeEventBackup(events);
     },
-    async restoreBackup(events: readonly DcbEvent[]) {
-      await args.adminStore.restoreBackup(events);
+    async restoreFrom(backup: string) {
+      const result = parseEventBackup(backup);
+      if (!result.ok) {
+        throw new Error(result.error);
+      }
+
+      await args.adminStore.restoreBackup(result.events);
     },
   };
 }

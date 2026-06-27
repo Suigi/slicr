@@ -2,11 +2,10 @@ import type {EditableProperty} from '@slicr/react-ui';
 import type {EdgeInput, LaneInput} from 'layout-lib';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 
-import type {DcbEvent, NodePropertyExampleValues, NodePropertySchema} from '../domain/events';
+import type {NodePropertyExampleValues, NodePropertySchema} from '../domain/events';
 import type {WorkspaceProjection} from '../domain/workspaceProjector';
-import {createGraphApplication} from '../application/createGraphApplication';
-import type {EventBackupService} from '../application/eventBackup';
-import type {EventSourcedGraphModel, GraphModelScope} from './eventSourcedGraphModel';
+import {loadGraphApplication} from '../application/graphApplicationLoader';
+import type {EventSourcedGraphModel} from './eventSourcedGraphModel';
 import {getLaneOrder, getSuccessorNodeType} from './graphUtils';
 import {
   deriveNodePropertyExampleValues,
@@ -27,45 +26,6 @@ const LAST_OK_STORAGE_KEY = 'slicr-dcb.lastOkGraphModel.v1';
 const emptyGraphModel: StoredGraphModel = {nodes: [], edges: [], lanes: []};
 const emptyWorkspace: WorkspaceProjection = {projects: [], chaptersByProjectId: {}};
 
-type GraphApplication = Awaited<ReturnType<typeof createGraphApplication>>;
-let graphApplicationPromise: Promise<GraphApplication> | null = null;
-
-function loadGraphApplication(scope: GraphModelScope = {}) {
-  graphApplicationPromise ??= createGraphApplication(scope);
-  return graphApplicationPromise;
-}
-
-export function useEventBackup() {
-  const serviceRef = useRef<EventBackupService | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    void loadGraphApplication().then((application) => {
-      if (!cancelled) {
-        serviceRef.current = application.eventBackup;
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const readBackupEvents = useCallback(async () => {
-    const service = serviceRef.current ?? (await loadGraphApplication()).eventBackup;
-    serviceRef.current = service;
-    return service.readBackupEvents();
-  }, []);
-
-  const restoreBackup = useCallback(async (events: readonly DcbEvent[]) => {
-    const service = serviceRef.current ?? (await loadGraphApplication()).eventBackup;
-    serviceRef.current = service;
-    await service.restoreBackup(events);
-  }, []);
-
-  return {readBackupEvents, restoreBackup};
-}
 
 export function storeLastOkGraphModel(model: StoredGraphModel) {
   if (typeof window === 'undefined') {

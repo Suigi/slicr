@@ -15,8 +15,8 @@ import {
   getKeyboardSuccessorDirection,
   getKeyboardSuccessorNodeType,
 } from './graph/graphUtils';
-import {parseEventBackup, serializeEventBackup} from './application/eventBackup';
-import { storeLastOkGraphModel, useEventBackup, useGraphModel } from './graph/useGraphModel';
+import { useEventBackup } from './application/useEventBackup';
+import { storeLastOkGraphModel, useGraphModel } from './graph/useGraphModel';
 import {serializeVisualGraphAcceptanceTest} from './graph/visualGraphExport';
 import type { RenderNode } from './graph/types';
 import {measureNodeDimensions, type NodeDimensions} from './nodeMeasurement';
@@ -369,8 +369,8 @@ export function App() {
 
   const backupEventsToClipboard = async () => {
     try {
-      const events = await eventBackup.readBackupEvents();
-      await navigator.clipboard.writeText(serializeEventBackup(events));
+      const text = await eventBackup.backupText();
+      await navigator.clipboard.writeText(text);
     } catch (error) {
       window.alert(error instanceof Error ? error.message : 'Backup failed.');
     }
@@ -401,18 +401,13 @@ export function App() {
 
   const restoreBackupFromClipboard = async () => {
     const clipboardText = await navigator.clipboard.readText();
-    const restoreResult = parseEventBackup(clipboardText);
-    if (!restoreResult.ok) {
-      window.alert(restoreResult.error);
-      return;
-    }
 
     if (!window.confirm('Restore backup? This will replace all local event data.')) {
       return;
     }
 
     try {
-      await eventBackup.restoreBackup(restoreResult.events);
+      await eventBackup.restoreFrom(clipboardText);
       await reload({preserveScope: true});
     } catch (error) {
       window.alert(error instanceof Error ? error.message : 'Restore failed.');

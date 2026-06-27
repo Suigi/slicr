@@ -6,6 +6,9 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
 const graphModelMock = vi.hoisted(() => ({
   useGraphModel: vi.fn(),
+}));
+
+const eventBackupMock = vi.hoisted(() => ({
   useEventBackup: vi.fn(),
 }));
 
@@ -18,7 +21,14 @@ vi.mock('./graph/useGraphModel', async () => {
   return {
     ...actual,
     useGraphModel: graphModelMock.useGraphModel,
-    useEventBackup: graphModelMock.useEventBackup,
+  };
+});
+
+vi.mock('./application/useEventBackup', async () => {
+  const actual = await vi.importActual<typeof import('./application/useEventBackup')>('./application/useEventBackup');
+  return {
+    ...actual,
+    useEventBackup: eventBackupMock.useEventBackup,
   };
 });
 
@@ -36,9 +46,9 @@ describe('App', () => {
   let container: HTMLDivElement | null = null;
 
   beforeEach(() => {
-    graphModelMock.useEventBackup.mockReturnValue({
-      readBackupEvents: vi.fn(),
-      restoreBackup: vi.fn(),
+    eventBackupMock.useEventBackup.mockReturnValue({
+      backupText: vi.fn(),
+      restoreFrom: vi.fn(),
     });
     layoutLibMock.compactLayout.mockImplementation(
       ({nodes, lanes}: {nodes: Array<{id: string; width: number; height: number}>; lanes?: Array<{id: string; order: number}>}) => ({
@@ -60,7 +70,7 @@ describe('App', () => {
     container?.remove();
     container = null;
     graphModelMock.useGraphModel.mockReset();
-    graphModelMock.useEventBackup.mockReset();
+    eventBackupMock.useEventBackup.mockReset();
     layoutLibMock.compactLayout.mockReset();
   });
 
@@ -991,13 +1001,13 @@ describe('App', () => {
     }
   });
 
-  it('backup button writes a version 1 event backup to clipboard', async () => {
-    const event = {type: 'ProjectAdded', payload: {projectId: 'project-1', name: 'Checkout'}, tags: ['projectId:project-1']};
+  it('backup button writes the backup text returned by the hook', async () => {
+    const backupText = JSON.stringify({version: 1, events: [{type: 'ProjectAdded', payload: {projectId: 'project-1', name: 'Checkout'}, tags: ['projectId:project-1']} ]});
     const writeText = vi.fn().mockResolvedValue(undefined);
     graphModelMock.useGraphModel.mockReturnValue(createGraphModelMockValue());
-    graphModelMock.useEventBackup.mockReturnValue({
-      readBackupEvents: vi.fn().mockResolvedValue([event]),
-      restoreBackup: vi.fn(),
+    eventBackupMock.useEventBackup.mockReturnValue({
+      backupText: vi.fn().mockResolvedValue(backupText),
+      restoreFrom: vi.fn(),
     });
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
@@ -1017,22 +1027,21 @@ describe('App', () => {
       await Promise.resolve();
     });
 
-    expect(writeText).toHaveBeenCalledWith(JSON.stringify({version: 1, events: [event]}));
+    expect(writeText).toHaveBeenCalledWith(backupText);
   });
 
   it('restore cancellation does not restore or reload', async () => {
-    const event = {type: 'ProjectAdded', payload: {projectId: 'project-1', name: 'Checkout'}, tags: ['projectId:project-1']};
-    const restoreBackup = vi.fn();
+    const restoreFrom = vi.fn();
     const reload = vi.fn();
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
     graphModelMock.useGraphModel.mockReturnValue(createGraphModelMockValue({reload}));
-    graphModelMock.useEventBackup.mockReturnValue({
-      readBackupEvents: vi.fn(),
-      restoreBackup,
+    eventBackupMock.useEventBackup.mockReturnValue({
+      backupText: vi.fn(),
+      restoreFrom,
     });
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
-      value: {readText: vi.fn().mockResolvedValue(JSON.stringify({version: 1, events: [event]}))},
+      value: {readText: vi.fn().mockResolvedValue(JSON.stringify({version: 1, events: [{type: 'ProjectAdded', payload: {projectId: 'project-1', name: 'Checkout'}, tags: ['projectId:project-1']}]}))},
     });
     container = document.createElement('div');
     document.body.append(container);
@@ -1049,23 +1058,24 @@ describe('App', () => {
     });
 
     expect(confirmSpy).toHaveBeenCalled();
-    expect(restoreBackup).not.toHaveBeenCalled();
+    expect(restoreFrom).not.toHaveBeenCalled();
     expect(reload).not.toHaveBeenCalled();
     confirmSpy.mockRestore();
   });
 
   it('invalid backup shows an alert and does not restore', async () => {
-    const restoreBackup = vi.fn();
+    const restoreFrom = vi.fn().mockRejectedValue(new Error('Backup must be valid JSON.'));
     const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => undefined);
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     graphModelMock.useGraphModel.mockReturnValue(createGraphModelMockValue());
-    graphModelMock.useEventBackup.mockReturnValue({
-      readBackupEvents: vi.fn(),
-      restoreBackup,
+    eventBackupMock.useEventBackup.mockReturnValue({
+      backupText: vi.fn(),
+      restoreFrom,
     });
+    const invalidBackupText = JSON.stringify([{type: 'ProjectAdded', payload: {}, tags: []}]);
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
-      value: {readText: vi.fn().mockResolvedValue(JSON.stringify([{type: 'ProjectAdded', payload: {}, tags: []}]))},
+      value: {readText: vi.fn().mockResolvedValue(invalidBackupText)},
     });
     container = document.createElement('div');
     document.body.append(container);
@@ -1081,26 +1091,26 @@ describe('App', () => {
       await Promise.resolve();
     });
 
-    expect(alertSpy).toHaveBeenCalledWith(expect.stringContaining('bare event array'));
-    expect(confirmSpy).not.toHaveBeenCalled();
-    expect(restoreBackup).not.toHaveBeenCalled();
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(alertSpy).toHaveBeenCalledWith('Backup must be valid JSON.');
+    expect(restoreFrom).toHaveBeenCalledWith(invalidBackupText);
     alertSpy.mockRestore();
     confirmSpy.mockRestore();
   });
 
   it('restore button reads a version 1 backup, restores, and reloads the graph preserving scope', async () => {
-    const event = {type: 'ProjectAdded', payload: {projectId: 'project-1', name: 'Checkout'}, tags: ['projectId:project-1']};
-    const restoreBackup = vi.fn().mockResolvedValue(undefined);
+    const backupText = JSON.stringify({version: 1, events: [{type: 'ProjectAdded', payload: {projectId: 'project-1', name: 'Checkout'}, tags: ['projectId:project-1']}]});
+    const restoreFrom = vi.fn().mockResolvedValue(undefined);
     const reload = vi.fn().mockResolvedValue(undefined);
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     graphModelMock.useGraphModel.mockReturnValue(createGraphModelMockValue({reload}));
-    graphModelMock.useEventBackup.mockReturnValue({
-      readBackupEvents: vi.fn(),
-      restoreBackup,
+    eventBackupMock.useEventBackup.mockReturnValue({
+      backupText: vi.fn(),
+      restoreFrom,
     });
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
-      value: {readText: vi.fn().mockResolvedValue(JSON.stringify({version: 1, events: [event]}))},
+      value: {readText: vi.fn().mockResolvedValue(backupText)},
     });
     container = document.createElement('div');
     document.body.append(container);
@@ -1117,7 +1127,7 @@ describe('App', () => {
     });
 
     expect(confirmSpy).toHaveBeenCalledWith('Restore backup? This will replace all local event data.');
-    expect(restoreBackup).toHaveBeenCalledWith([event]);
+    expect(restoreFrom).toHaveBeenCalledWith(backupText);
     expect(reload).toHaveBeenCalledWith({preserveScope: true});
     confirmSpy.mockRestore();
   });
