@@ -477,6 +477,26 @@ describe('createEventSourcedGraphModel', () => {
     ]);
   });
 
+  it('refreshes from the command store when switching scope', async () => {
+    const {commandStore, model} = createModelContext({
+      events: [
+        Events.projectAdded(defaultProjectId, 'Default Project'),
+        Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
+        Events.chapterAdded(defaultProjectId, 'chapter-2', 'Chapter 2'),
+      ],
+    });
+
+    await model.load({projectId: defaultProjectId, chapterId: 'default-chapter'});
+    await commandStore.append([
+      Events.nodeAdded(defaultProjectId, 'chapter-2', 'node-added-after-load', 'evt', 1, 'Fresh Event'),
+    ]);
+
+    const graph = await model.setScope({projectId: defaultProjectId, chapterId: 'chapter-2'});
+
+    expect(graph.nodes.map((node) => node.id)).toEqual(['node-added-after-load']);
+    expect(model.getSnapshot().nodes.map((node) => node.id)).toEqual(['node-added-after-load']);
+  });
+
   it('keeps each chapter node visible after switching back and forth between chapters', async () => {
     const {model} = createModelContext({
       events: [
@@ -493,12 +513,12 @@ describe('createEventSourcedGraphModel', () => {
 
     const workingChapterId = model.getScope().chapterId;
 
-    model.setScope({projectId: defaultProjectId, chapterId: 'default-chapter'});
+    await model.setScope({projectId: defaultProjectId, chapterId: 'default-chapter'});
     expect(model.getSnapshot().nodes).toEqual([
       {id: 'generated-node-1', label: 'Node 1', type: 'ui', laneId: 'lane-0', width: NODE_WIDTH, height: NODE_HEIGHT},
     ]);
 
-    model.setScope({projectId: defaultProjectId, chapterId: workingChapterId});
+    await model.setScope({projectId: defaultProjectId, chapterId: workingChapterId});
     expect(model.getSnapshot().nodes).toEqual([
       {id: 'generated-node-2', label: 'Node 1', type: 'ui', laneId: 'lane-0', width: NODE_WIDTH, height: NODE_HEIGHT},
     ]);

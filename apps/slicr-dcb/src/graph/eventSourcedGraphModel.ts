@@ -25,7 +25,7 @@ export type GraphModelScope = {
 
 export type EventSourcedGraphModel = {
   load(scope?: GraphModelScope): Promise<RendererGraph>;
-  setScope(scope: GraphModelScope): RendererGraph;
+  setScope(scope: GraphModelScope): Promise<RendererGraph>;
   getSnapshot(): RendererGraph;
   getWorkspace(): WorkspaceProjection;
   getScope(): { projectId: string; chapterId: string };
@@ -75,15 +75,13 @@ export function createEventSourcedGraphModel(config: {
   let workspace: WorkspaceProjection = projectWorkspace([]);
   let currentProjectId = DEFAULT_PROJECT_ID;
   let currentChapterId = DEFAULT_CHAPTER_ID;
-  let events: DcbEvent[] = [];
 
-  const project = (nextEvents: readonly DcbEvent[], scope: GraphModelScope = {}) => {
-    events = [...nextEvents];
+  const project = (events: readonly DcbEvent[], scope: GraphModelScope = {}) => {
     workspace = projectWorkspace(events);
     ({projectId: currentProjectId, chapterId: currentChapterId} = resolveScope(workspace, scope));
 
     const memoryStore = MemoryStore.create<DcbEvent>();
-    memoryStore.append(events);
+    memoryStore.append([...events]);
     snapshot = adaptModelGraphToRenderer(GraphProjector.create({store: memoryStore}).project(currentProjectId, currentChapterId));
     return snapshot;
   };
@@ -92,8 +90,8 @@ export function createEventSourcedGraphModel(config: {
     async load(scope = {}) {
       return project(await readAllEvents(), scope);
     },
-    setScope(scope) {
-      return project(events, scope);
+    async setScope(scope) {
+      return project(await readAllEvents(), scope);
     },
     getSnapshot() {
       return snapshot;

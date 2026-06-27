@@ -295,14 +295,26 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
       return;
     }
 
-    const graphModel = modelRef.current.setScope({
-      projectId: scope.activeProjectId ?? undefined,
-      chapterId: scope.activeChapterId ?? undefined,
-    });
-    applyGraphModel(graphModel);
-    syncWorkspaceState();
-    setFocusedNodeId(graphModel.nodes[0]?.id ?? null);
-    resetTransientState();
+    let cancelled = false;
+    const updateScope = async () => {
+      const graphModel = await modelRef.current?.setScope({
+        projectId: scope.activeProjectId ?? undefined,
+        chapterId: scope.activeChapterId ?? undefined,
+      });
+      if (!graphModel || cancelled) {
+        return;
+      }
+
+      applyGraphModel(graphModel);
+      syncWorkspaceState();
+      setFocusedNodeId(graphModel.nodes[0]?.id ?? null);
+      resetTransientState();
+    };
+
+    void updateScope();
+    return () => {
+      cancelled = true;
+    };
   }, [applyGraphModel, resetTransientState, scope.activeChapterId, scope.activeProjectId, setFocusedNodeId, syncWorkspaceState]);
 
   const reload = useCallback(
