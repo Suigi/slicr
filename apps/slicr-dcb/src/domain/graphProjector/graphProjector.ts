@@ -105,11 +105,10 @@ export class GraphProjector {
     }
 
     const visibleNodes = Array.from(nodesById.values())
-      .filter(node => node.exists && (!chapterId || node.chapterId === chapterId))
-      .map(({chapterId: _chapterId, exists: _exists, ...node}) => node);
+      .filter(node => node.exists && (!chapterId || node.chapterId === chapterId));
     const visibleNodeIds = new Set(visibleNodes.map(node => node.nodeId));
 
-    const model: ModelGraph = {
+    return {
       nodes: visibleNodes,
       edges: Array.from(edgesByConnection.values()).filter(edge =>
         edge.sourceNodeId !== edge.targetNodeId &&
@@ -126,7 +125,5 @@ export class GraphProjector {
         Array.from(nodeExampleValues.entries()).filter(([nodeId]) => visibleNodeIds.has(nodeId))
       ),
     };
-
-    return model;
   }
 }
