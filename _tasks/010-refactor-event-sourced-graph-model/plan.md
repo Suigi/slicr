@@ -230,7 +230,7 @@ Acceptance criteria:
 
 After the main graph-model migration, audit the codebase against `_knowledge/event-sourcing-separation.md` for concerns outside the immediate `eventSourcedGraphModel.ts` refactor.
 
-### UI / React imports [PRODUCTION DONE; TEST AUDIT OPEN]
+### UI / React imports [DONE]
 
 React-facing code should render projections and issue commands only.
 
@@ -250,7 +250,8 @@ Likely areas to check:
 Current status:
 
 - Production React/UI code does not construct domain events or import event-sourcing primitives directly.
-- Some React/integration tests still use `Events.*` fixtures. This is acceptable where the test is explicitly about event-log backup/restore, but should be audited so ordinary UI tests are not coupled to domain event internals unnecessarily.
+- React component tests do not use domain events or event-store primitives.
+- `App.backupRestore.integration.test.tsx` uses `Events.*` fixtures intentionally because full event-log backup/restore is the behavior under test; this is acceptable and not ordinary UI setup coupling.
 
 Acceptance criteria:
 
