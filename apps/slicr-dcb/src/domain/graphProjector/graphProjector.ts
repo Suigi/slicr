@@ -25,7 +25,14 @@ export class GraphProjector {
       tags: [`projectId:${projectId}`],
     }));
 
-    const nodesById = new Map<string, {nodeId: string, nodeType: NodeType, laneId: number, label: string, chapterId: string, exists: boolean}>();
+    const nodesById = new Map<string, {
+      nodeId: string,
+      nodeType: NodeType,
+      laneId: number,
+      label: string,
+      chapterId: string,
+      exists: boolean
+    }>();
     const nodeSchemas = new Map<string, ModelGraph['nodeSchemas'][string]>();
     const nodeExampleValues = new Map<string, ModelGraph['nodeExampleValues'][string]>();
     const edgesByConnection = new Map<string, Edge>();
@@ -105,7 +112,8 @@ export class GraphProjector {
     }
 
     const visibleNodes = Array.from(nodesById.values())
-      .filter(node => node.exists && (!chapterId || node.chapterId === chapterId));
+      .filter(node => node.exists && (!chapterId || node.chapterId === chapterId))
+      .map(({chapterId: _chapterId, exists: _exists, ...node}) => node);
     const visibleNodeIds = new Set(visibleNodes.map(node => node.nodeId));
 
     return {

@@ -46,6 +46,12 @@ export default tseslint.config(
             'Do not use Query.all() in production code. Use Query.where(...) or Query.anyOf(...). Query.all() is only allowed in tests.',
         },
       ],
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          ignoreRestSiblings: true
+        }
+      ]
     },
   },
   {
