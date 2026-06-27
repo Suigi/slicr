@@ -190,9 +190,6 @@ export function App() {
   const [selectedPropertyGridMockupVariant, setSelectedPropertyGridMockupVariant] = useState(initialPropertyGridCardMockups[0]?.variant ?? '');
   const [nodeMeasurements, setNodeMeasurements] = useState<Record<string, NodeDimensions>>({});
   const [settledMeasurementKey, setSettledMeasurementKey] = useState('');
-  const [editorFocusedPropertyId, setEditorFocusedPropertyId] = useState<string | null>(null);
-  const [hoveredPropertyId, setHoveredPropertyId] = useState<string | null>(null);
-  const highlightedPropertyId = hoveredPropertyId ?? editorFocusedPropertyId;
   const selectedPropertyGridMockup =
     propertyGridMockups.find((mockup) => mockup.variant === selectedPropertyGridMockupVariant) ?? propertyGridMockups[0];
   const updateSelectedPropertyGridProperties = (properties: EditableProperty[]) => {
@@ -210,6 +207,7 @@ export function App() {
     edges,
     lanes,
     focusedNodeId,
+    highlightedPropertyId,
     editingNodeId,
     draftLabel,
     openNodeMenuId,
@@ -218,6 +216,8 @@ export function App() {
     nodePropertiesById = {},
     updateFocusedNodeProperties = () => {},
     setFocusedNodeId,
+    setEditorFocusedPropertyId,
+    setHoveredPropertyId,
     setDraftLabel,
     setOpenNodeMenuId,
     reload,
@@ -361,11 +361,6 @@ export function App() {
   const connectingSourceNode = connectingSourceNodeId
     ? nodes.find((node) => node.id === connectingSourceNodeId)
     : undefined;
-
-  useEffect(() => {
-    setEditorFocusedPropertyId(null);
-    setHoveredPropertyId(null);
-  }, [focusedNodeId]);
 
   const backupEventsToClipboard = async () => {
     try {

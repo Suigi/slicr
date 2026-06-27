@@ -141,6 +141,12 @@ function wouldCreateCycle(edges: EdgeInput[], sourceNodeId: string, targetNodeId
   return false;
 }
 
+type GraphFocusState = {
+  nodeId: string | null;
+  editorFocusedPropertyId: string | null;
+  hoveredPropertyId: string | null;
+};
+
 export function useGraphModel(scope: {activeProjectId?: string | null; activeChapterId?: string | null} = {}) {
   const skipBlurSaveRef = useRef(false);
   const cancelEditRef = useRef(false);
@@ -157,7 +163,13 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
   const [nodeSchemas, setNodeSchemas] = useState<Record<string, NodePropertySchema[]>>({});
   const [nodeExampleValues, setNodeExampleValues] = useState<Record<string, NodePropertyExampleValues[]>>({});
   const [editorPropertiesById, setEditorPropertiesById] = useState<Record<string, EditableProperty[]>>({});
-  const [focusedNodeId, setFocusedNodeIdState] = useState<string | null>(null);
+  const [focus, setFocus] = useState<GraphFocusState>({
+    nodeId: null,
+    editorFocusedPropertyId: null,
+    hoveredPropertyId: null,
+  });
+  const focusedNodeId = focus.nodeId;
+  const highlightedPropertyId = focus.hoveredPropertyId ?? focus.editorFocusedPropertyId;
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [draftLabel, setDraftLabel] = useState('');
   const [originalLabel, setOriginalLabel] = useState('');
@@ -199,7 +211,7 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
     graphModel = await modelRef.current.changeNodeExampleValues({nodeId: pendingEdit.nodeId, exampleValues});
     applyGraphModel(graphModel);
     syncWorkspaceState();
-    setFocusedNodeIdState((currentFocusedNodeId) => currentFocusedNodeId);
+    setFocus((currentFocus) => currentFocus);
   }, [applyGraphModel, syncWorkspaceState]);
 
   const schedulePropertyEditFlush = useCallback(() => {
@@ -215,8 +227,20 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
     if (pendingPropertyEditRef.current && pendingPropertyEditRef.current.nodeId !== nodeId) {
       void flushPendingPropertyEdit();
     }
-    setFocusedNodeIdState(nodeId);
+    setFocus({
+      nodeId,
+      editorFocusedPropertyId: null,
+      hoveredPropertyId: null,
+    });
   }, [flushPendingPropertyEdit]);
+
+  const setEditorFocusedPropertyId = useCallback((propertyId: string | null) => {
+    setFocus((currentFocus) => ({...currentFocus, editorFocusedPropertyId: propertyId}));
+  }, []);
+
+  const setHoveredPropertyId = useCallback((propertyId: string | null) => {
+    setFocus((currentFocus) => ({...currentFocus, hoveredPropertyId: propertyId}));
+  }, []);
 
   const resetTransientState = useCallback(() => {
     setEditingNodeId(null);
@@ -636,6 +660,9 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
     edges,
     lanes,
     focusedNodeId,
+    editorFocusedPropertyId: focus.editorFocusedPropertyId,
+    hoveredPropertyId: focus.hoveredPropertyId,
+    highlightedPropertyId,
     focusedNodeProperties,
     nodePropertiesById,
     editingNodeId,
@@ -644,6 +671,8 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
     connectingSourceNodeId,
     updateFocusedNodeProperties,
     setFocusedNodeId,
+    setEditorFocusedPropertyId,
+    setHoveredPropertyId,
     setDraftLabel,
     setOpenNodeMenuId,
     replaceGraphModel,
