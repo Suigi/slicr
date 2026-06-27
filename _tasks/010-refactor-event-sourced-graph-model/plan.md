@@ -230,7 +230,7 @@ Acceptance criteria:
 
 After the main graph-model migration, audit the codebase against `_knowledge/event-sourcing-separation.md` for concerns outside the immediate `eventSourcedGraphModel.ts` refactor.
 
-### UI / React imports [DONE for production code; tests still use events as fixtures]
+### UI / React imports [PRODUCTION DONE; TEST AUDIT OPEN]
 
 React-facing code should render projections and issue commands only.
 
@@ -247,11 +247,17 @@ Likely areas to check:
 - import/export UI integration paths
 - component tests that may be over-coupled to domain events
 
+Current status:
+
+- Production React/UI code does not construct domain events or import event-sourcing primitives directly.
+- Some React/integration tests still use `Events.*` fixtures. This is acceptable where the test is explicitly about event-log backup/restore, but should be audited so ordinary UI tests are not coupled to domain event internals unnecessarily.
+
 Acceptance criteria:
 
 - React components do not construct domain events.
 - React components do not read from or append to event stores.
 - React components invoke application/model command functions and render projections/read models.
+- React-facing tests only use domain event fixtures where event-log behavior is the subject of the test; otherwise prefer UI/application APIs or read-model fixtures.
 
 ### Projection/read-model ownership [OPEN]
 
@@ -287,7 +293,7 @@ Acceptance criteria:
 - Router/handler tests prove appends use DCB append conditions through `handleCommand`.
 - Queries are narrow enough to avoid unnecessary conflicts, but broad enough to protect invariants.
 
-### Import/export and admin separation [MOSTLY DONE]
+### Import/export and admin separation [DONE]
 
 `replace` / `clear` style operations should be treated as admin/import-export orchestration, not normal application command handling.
 
@@ -296,10 +302,7 @@ Current status:
 - Backup/restore orchestration lives in `application/eventBackup.ts`.
 - `eventSourcedGraphModel.ts` no longer exposes backup/restore APIs.
 - Normal command paths do not depend on admin-store capabilities.
-
-Remaining cleanup:
-
-- Narrow/rename the `AsyncGraphEventStore` backup dependency so the event-backup service only sees restore/admin operations it actually uses.
+- The backup service depends on a narrowed `EventBackupAdminStore` abstraction that exposes only `restoreBackup(...)`.
 
 ### Bootstrap ownership [DONE]
 

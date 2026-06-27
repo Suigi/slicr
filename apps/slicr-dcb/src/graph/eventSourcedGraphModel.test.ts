@@ -1,7 +1,6 @@
 import {describe, expect, it} from 'vitest';
 
 import {createEventSourcedGraphModel} from './eventSourcedGraphModel';
-import type {AsyncGraphEventStore} from '../application/eventBackup';
 import {Events,} from '../domain/events';
 import {
   type AppendCondition,
@@ -30,7 +29,6 @@ function createIdGenerator(ids: string[]) {
 
 function createStores(initialEvents: DcbEvent[] = []): {
   events: DcbEvent[];
-  graphStore: AsyncGraphEventStore;
   commandStore: SpecEventStore<DcbEvent>;
 } {
   const events = [...initialEvents];
@@ -73,20 +71,7 @@ function createStores(initialEvents: DcbEvent[] = []): {
     query: async (query: Query, options: ReadOptions = {}) => readSequencedEvents(options.from).filter(({event}) => matchesQuery(query, event)),
   };
 
-  const graphStore: AsyncGraphEventStore = {
-    append: async (nextEvents, condition?: AppendCondition) => {
-      await commandStore.append(Array.isArray(nextEvents) ? nextEvents : [nextEvents], condition);
-    },
-    readAll: async () => [...events],
-    restoreBackup: async (nextEvents) => {
-      events.splice(0, events.length, ...nextEvents);
-    },
-    clear: async () => {
-      events.splice(0, events.length);
-    },
-  };
-
-  return {events, graphStore, commandStore};
+  return {events, commandStore};
 }
 
 function createModelContext(args: {events?: DcbEvent[]; ids?: string[]} = {}) {
@@ -232,24 +217,7 @@ describe('createEventSourcedGraphModel', () => {
         },
       };
 
-      const graphStore: AsyncGraphEventStore = {
-        append: async (nextEvents, condition?: AppendCondition) => {
-          await commandStore.append(Array.isArray(nextEvents) ? nextEvents : [nextEvents], condition);
-        },
-        readAll: async () => sequencedEvents.map(({event}) => event),
-        restoreBackup: async (nextEvents) => {
-          sequencedEvents.splice(
-            0,
-            sequencedEvents.length,
-            ...nextEvents.map((event, index) => ({position: index + 1, event})),
-          );
-        },
-        clear: async () => {
-          sequencedEvents.splice(0, sequencedEvents.length);
-        },
-      };
-
-      return {graphStore, commandStore};
+      return {commandStore};
     };
     const firstStores = createSharedStores();
     const secondStores = createSharedStores();
@@ -367,8 +335,8 @@ describe('createEventSourcedGraphModel', () => {
     expect(model.getScope()).toEqual({projectId: 'project-2', chapterId: 'chapter-2'});
   });
 
-  it('refreshes projections and reads events from the command store', async () => {
-    const {events, graphStore, model} = createModelContext({
+  it('refreshes projections after project commands', async () => {
+    const {model} = createModelContext({
       events: [
         Events.projectAdded(defaultProjectId, 'Default Project'),
         Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
@@ -377,14 +345,6 @@ describe('createEventSourcedGraphModel', () => {
       ],
       ids: ['generated-project-1', 'generated-chapter-1'],
     });
-    let readAllCalls = 0;
-    graphStore.readAll = async () => {
-      readAllCalls += 1;
-      if (readAllCalls === 1) {
-        return [...events];
-      }
-      throw new Error('graphStore.readAll must not be used for projection refresh');
-    };
 
     await model.load({projectId: 'project-2', chapterId: 'chapter-2'});
     expect(model.getWorkspace().projects).toContainEqual({id: 'project-2', name: 'Inventory System'});

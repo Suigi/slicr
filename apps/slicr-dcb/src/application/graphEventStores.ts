@@ -8,7 +8,7 @@ import {
   type SpecEventStore,
 } from '@slicr/event-sourcing';
 import type {DcbEvent} from '../domain/events';
-import type {AsyncGraphEventStore} from './eventBackup';
+import type {EventBackupAdminStore} from './eventBackup';
 
 const EVENT_STORE_DATABASE_NAME = 'slicr-dcb.events.v1';
 const EVENT_STORE_STREAM_NAME = 'graph';
@@ -42,44 +42,25 @@ class InMemoryGraphEventStore implements SpecEventStore<DcbEvent> {
   }
 }
 
-class IndexedDBAsyncGraphEventStore implements AsyncGraphEventStore {
+class IndexedDBEventBackupAdminStore implements EventBackupAdminStore {
   constructor(
-    private readonly store: SpecEventStore<DcbEvent>,
-    private readonly mutableStore: Pick<IndexedDBEventStore<DcbEvent>, 'replace' | 'clear'>,
+    private readonly mutableStore: Pick<IndexedDBEventStore<DcbEvent>, 'replace'>,
   ) {}
-
-  async append(events: DcbEvent | readonly DcbEvent[], condition?: AppendCondition) {
-    const eventsToAppend = Array.isArray(events) ? events : [events];
-    await this.store.append(eventsToAppend, condition);
-  }
-
-  async readAll() {
-    return (await this.store.read()).map(({event}) => event);
-  }
 
   restoreBackup(events: readonly DcbEvent[]) {
     return this.mutableStore.replace(events);
   }
-
-  clear() {
-    return this.mutableStore.clear();
-  }
 }
 
 export async function createDefaultGraphEventStore(): Promise<{
-  graphStore: AsyncGraphEventStore;
+  graphStore: EventBackupAdminStore;
   commandStore: SpecEventStore<DcbEvent>;
 }> {
   if (typeof indexedDB === 'undefined') {
     const store = new InMemoryGraphEventStore();
     return {
       graphStore: {
-        append: async (events, condition) => {
-          await store.append(Array.isArray(events) ? events : [events], condition);
-        },
-        readAll: () => store.readAll(),
         restoreBackup: (events) => store.restoreBackup(events),
-        clear: () => store.clear(),
       },
       commandStore: store,
     };
@@ -97,7 +78,7 @@ export async function createDefaultGraphEventStore(): Promise<{
   ]);
 
   return {
-    graphStore: new IndexedDBAsyncGraphEventStore(specStore, mutableStore),
+    graphStore: new IndexedDBEventBackupAdminStore(mutableStore),
     commandStore: specStore,
   };
 }

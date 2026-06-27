@@ -7,4 +7,5 @@
 - Making `setScope(scope)` async allowed it to refresh from the canonical command store and remove the local `DcbEvent[]` cache from `eventSourcedGraphModel.ts`.
 - Moving backup/restore into `application/eventBackup.ts` keeps React responsible for clipboard/confirmation orchestration and keeps graph-model APIs focused on graph projections and graph commands.
 - Production React code currently avoids direct event-sourcing primitives; event fixtures remain in tests and are acceptable unless a test becomes over-coupled to implementation details.
-- The remaining separation risks are mostly second-order: projection/read-model ownership around the temporary projection `MemoryStore`, narrowing the admin backup store abstraction, and auditing DCB query scopes for each decider.
+- Narrowing backup restore behind `EventBackupAdminStore` made the admin boundary clearer: command paths use `SpecEventStore`, while backup restore only receives `restoreBackup(...)` and cannot append/read/clear through the normal application path.
+- The remaining separation risks are mostly second-order: projection/read-model ownership around the temporary projection `MemoryStore`, UI/React test fixture coupling, and auditing DCB query scopes for each decider.

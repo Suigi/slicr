@@ -2,7 +2,7 @@ import {describe, expect, it} from 'vitest';
 
 import {Events} from '../domain/events';
 import {type DcbEvent, MemorySpecEventStore} from '../domain/eventSourcing';
-import {createEventBackupService, parseEventBackup, serializeEventBackup, type AsyncGraphEventStore} from './eventBackup';
+import {createEventBackupService, parseEventBackup, serializeEventBackup, type EventBackupAdminStore} from './eventBackup';
 
 const events: DcbEvent[] = [
   Events.projectAdded('project-1', 'Checkout System'),
@@ -93,12 +93,9 @@ describe('event backup', () => {
   });
 });
 
-function createAdminStore(overrides: Partial<AsyncGraphEventStore> = {}): AsyncGraphEventStore {
+function createAdminStore(overrides: Partial<EventBackupAdminStore> = {}): EventBackupAdminStore {
   return {
-    append: async () => undefined,
-    readAll: async () => [],
     restoreBackup: async () => undefined,
-    clear: async () => undefined,
     ...overrides,
   };
 }

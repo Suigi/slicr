@@ -1,11 +1,8 @@
-import type {AppendCondition, DcbEvent, SpecEventStore} from '../domain/eventSourcing';
+import type {DcbEvent, SpecEventStore} from '../domain/eventSourcing';
 import type {NodeType} from '../graph/types';
 
-export type AsyncGraphEventStore = {
-  append(events: DcbEvent | readonly DcbEvent[], condition?: AppendCondition): Promise<void>;
-  readAll(): Promise<DcbEvent[]>;
+export type EventBackupAdminStore = {
   restoreBackup(events: readonly DcbEvent[]): Promise<void>;
-  clear(): Promise<void>;
 };
 
 export type EventBackupService = {
@@ -24,7 +21,7 @@ export type ParseEventBackupResult =
 
 export function createEventBackupService(args: {
   store: SpecEventStore<DcbEvent>;
-  adminStore: AsyncGraphEventStore;
+  adminStore: EventBackupAdminStore;
 }): EventBackupService {
   return {
     async backupText() {
