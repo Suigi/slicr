@@ -77,6 +77,23 @@ describe('graphCommands deciders', () => {
         );
     });
 
+    it('throws when the source node is in a different chapter', async () => {
+      await expectDecider(deciders({generateUuid: () => 'node-2'}).addConnectedNode)
+        .given(Events.nodeAdded(projectId, 'chapter-1', 'node-1', 'cmd', 0))
+        .when({
+          type: 'AddConnectedNode',
+          data: {
+            projectId,
+            chapterId: 'chapter-2',
+            sourceNodeId: 'node-1',
+            nodeType: 'evt',
+            laneId: 1,
+            label: 'Thing Happened'
+          }
+        })
+        .thenThrows(new Error('Node [node-1] is not in chapter [chapter-2]'));
+    });
+
     it('throws when the source node does not exist', async () => {
       await expectDecider(deciders({generateUuid: () => 'node-2'}).addConnectedNode)
         .given()

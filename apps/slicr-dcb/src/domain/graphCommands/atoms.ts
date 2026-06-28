@@ -51,6 +51,47 @@ const nodeExists: DomainAtom<{
   },
 };
 
+const nodeChapter: DomainAtom<{
+  projectId: ProjectId,
+  nodeId: NodeId,
+}, {
+  nodeExists: boolean,
+  chapterId?: ChapterId,
+}> = {
+  query: ({projectId, nodeId}) => Query.where({
+    types: ['NodeAdded', 'NodeChapterChanged', 'NodeRemoved'],
+    tags: [`projectId:${projectId}`, `nodeId:${nodeId}`],
+  }),
+  project: ({projectId, nodeId}, events) => {
+    const model: {nodeExists: boolean, chapterId?: ChapterId} = {
+      nodeExists: false,
+      chapterId: undefined,
+    };
+
+    events.forEach(event => {
+      if (event.payload.projectId !== projectId) {
+        return;
+      }
+
+      if (event.type === 'NodeAdded' && event.payload.nodeId === nodeId) {
+        model.nodeExists = true;
+        model.chapterId = event.payload.chapterId;
+      }
+
+      if (event.type === 'NodeChapterChanged' && event.payload.nodeId === nodeId) {
+        model.chapterId = event.payload.chapterId;
+      }
+
+      if (event.type === 'NodeRemoved' && event.payload.nodeId === nodeId) {
+        model.nodeExists = false;
+        model.chapterId = undefined;
+      }
+    });
+
+    return model;
+  },
+};
+
 const connectionExists: DomainAtom<{
   projectId: ProjectId,
   sourceNodeId: NodeId,
@@ -130,6 +171,7 @@ export const Atoms = {
   projectExists,
   chapterExists,
   nodeExists,
+  nodeChapter,
   connectionExists,
   nodeSchema,
   nodeExampleValues,

@@ -60,7 +60,10 @@ describe('atoms', () => {
     it('given no events, projects false', async () => {
       const store = MemorySpecEventStore.create<DcbEvent>();
 
-      const projection = await (evaluate(Atoms.chapterExists)(store, {projectId: 'my-project-id', chapterId: 'my-chapter-id'}));
+      const projection = await (evaluate(Atoms.chapterExists)(store, {
+        projectId: 'my-project-id',
+        chapterId: 'my-chapter-id'
+      }));
 
       expect(projection)
         .toEqual(false);
@@ -70,7 +73,10 @@ describe('atoms', () => {
       const store = MemorySpecEventStore.create<DcbEvent>();
       await store.append([Events.chapterAdded('unrelated-project-id', 'my-chapter-id', 'IRRELEVANT CHAPTER TITLE')]);
 
-      const projection = await (evaluate(Atoms.chapterExists)(store, {projectId: 'my-project-id', chapterId: 'my-chapter-id'}));
+      const projection = await (evaluate(Atoms.chapterExists)(store, {
+        projectId: 'my-project-id',
+        chapterId: 'my-chapter-id'
+      }));
 
       expect(projection)
         .toEqual(false);
@@ -80,7 +86,10 @@ describe('atoms', () => {
       const store = MemorySpecEventStore.create<DcbEvent>();
       await store.append([Events.chapterAdded('my-project-id', 'my-chapter-id', 'IRRELEVANT CHAPTER TITLE')]);
 
-      const projection = await (evaluate(Atoms.chapterExists)(store, {projectId: 'my-project-id', chapterId: 'my-chapter-id'}));
+      const projection = await (evaluate(Atoms.chapterExists)(store, {
+        projectId: 'my-project-id',
+        chapterId: 'my-chapter-id'
+      }));
 
       expect(projection)
         .toEqual(true);
@@ -155,6 +164,80 @@ describe('atoms', () => {
         .toEqual(false);
     });
 
+  });
+
+  describe('nodeChapter', () => {
+    it('given no events, projects false/undefined', async () => {
+      const store = MemorySpecEventStore.create<DcbEvent>();
+      await store.append([]);
+
+      const projection = await evaluate(Atoms.nodeChapter)(
+        store,
+        {
+          projectId: 'project-id',
+          nodeId: 'source-node-id',
+        }
+      );
+
+      expect(projection)
+        .toEqual({nodeExists: false, chapterId: undefined});
+    });
+
+    it('given node exists, projects true/<chapter-id>', async () => {
+      const store = MemorySpecEventStore.create<DcbEvent>();
+      await store.append([
+        Events.nodeAdded('project-id', 'node-chapter-id', 'source-node-id', 'evt', 0),
+      ]);
+
+      const projection = await evaluate(Atoms.nodeChapter)(
+        store,
+        {
+          projectId: 'project-id',
+          nodeId: 'source-node-id',
+        }
+      );
+
+      expect(projection)
+        .toEqual({nodeExists: true, chapterId: 'node-chapter-id'});
+    });
+
+    it('given node was moved, projects true/<new-chapter-id>', async () => {
+      const store = MemorySpecEventStore.create<DcbEvent>();
+      await store.append([
+        Events.nodeAdded('project-id', 'node-chapter-id', 'source-node-id', 'evt', 0),
+        Events.nodeChapterChanged('project-id', 'source-node-id', 'new-chapter-id'),
+      ]);
+
+      const projection = await evaluate(Atoms.nodeChapter)(
+        store,
+        {
+          projectId: 'project-id',
+          nodeId: 'source-node-id',
+        }
+      );
+
+      expect(projection)
+        .toEqual({nodeExists: true, chapterId: 'new-chapter-id'});
+    });
+
+    it('given node was removed, projects false/undefined', async () => {
+      const store = MemorySpecEventStore.create<DcbEvent>();
+      await store.append([
+        Events.nodeAdded('project-id', 'node-chapter-id', 'source-node-id', 'evt', 0),
+        Events.nodeRemoved('project-id', 'source-node-id'),
+      ]);
+
+      const projection = await evaluate(Atoms.nodeChapter)(
+        store,
+        {
+          projectId: 'project-id',
+          nodeId: 'source-node-id',
+        }
+      );
+
+      expect(projection)
+        .toEqual({nodeExists: false, chapterId: undefined});
+    });
   });
 
   describe('connectionExists', () => {
@@ -234,7 +317,7 @@ describe('atoms', () => {
       const store = MemorySpecEventStore.create<DcbEvent>();
       await store.append([
         Events.nodeSchemaChanged('other-project-id', 'node-id', [])
-      ])
+      ]);
 
       const projectedSchema = await evaluate(Atoms.nodeSchema)(
         store,
@@ -289,7 +372,7 @@ describe('atoms', () => {
       const store = MemorySpecEventStore.create<DcbEvent>();
       await store.append([
         Events.nodeExampleValuesChanged('other-project-id', 'node-id', [])
-      ])
+      ]);
 
       const projectedExampleValues = await evaluate(Atoms.nodeExampleValues)(
         store,

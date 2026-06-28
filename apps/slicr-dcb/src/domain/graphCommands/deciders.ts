@@ -1,7 +1,7 @@
 import {bindAtomToCommand, combineAtoms, type DcbEvent, type Decider, rescopeAtom} from '../eventSourcing';
 import {v4 as uuid} from 'uuid';
 
-import {Events, NodeId, type NodePropertyExampleValues, type NodePropertySchema, ProjectId} from '../events';
+import {ChapterId, Events, NodeId, type NodePropertyExampleValues, type NodePropertySchema, ProjectId} from '../events';
 import {
   type AddChapter,
   type AddConnectedNode,
@@ -42,17 +42,23 @@ const addNodeDecider = (generateUuid: () => string): Decider<AddNode, DcbEvent, 
   },
 });
 
-const addConnectedNodeDecider = (generateUuid: () => string): Decider<AddConnectedNode, DcbEvent, boolean> => ({
+const addConnectedNodeDecider = (generateUuid: () => string): Decider<AddConnectedNode, DcbEvent, {
+  nodeExists: boolean,
+  chapterId?: ChapterId,
+}> => ({
   ...bindAtom(
-    Atoms.nodeExists,
+    Atoms.nodeChapter,
     command => ({
       projectId: command.data.projectId,
       nodeId: command.data.sourceNodeId,
     })
   ),
-  decide: (command, sourceNodeExists) => {
-    if (!sourceNodeExists) {
+  decide: (command, sourceNode) => {
+    if (!sourceNode.nodeExists) {
       throw new Error(`Unknown nodeId ${command.data.sourceNodeId}`);
+    }
+    if (sourceNode.chapterId !== command.data.chapterId) {
+      throw new Error(`Node [${command.data.sourceNodeId}] is not in chapter [${command.data.chapterId}]`);
     }
 
     const newNodeId = generateUuid();
