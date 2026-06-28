@@ -228,6 +228,39 @@ describe('graphCommands deciders', () => {
         .when({type: 'ConnectNodes', data: {projectId, sourceNodeId: 'node-1', targetNodeId: 'node-1'}})
         .thenEmits();
     });
+
+    it('emits no event when the connection already exists', async () => {
+      await expectDecider(deciders().connectNodes)
+        .given(
+          Events.nodeAdded(projectId, 'chapter-1', 'node-1', 'cmd', 0),
+          Events.nodeAdded(projectId, 'chapter-1', 'node-2', 'evt', 1),
+          Events.nodesConnected(projectId, 'node-1', 'node-2'),
+        )
+        .when({type: 'ConnectNodes', data: {projectId, sourceNodeId: 'node-1', targetNodeId: 'node-2'}})
+        .thenEmits();
+    });
+
+    it('throws when the source node was removed', async () => {
+      await expectDecider(deciders().connectNodes)
+        .given(
+          Events.nodeAdded(projectId, 'chapter-1', 'node-1', 'cmd', 0),
+          Events.nodeAdded(projectId, 'chapter-1', 'node-2', 'evt', 1),
+          Events.nodeRemoved(projectId, 'node-1'),
+        )
+        .when({type: 'ConnectNodes', data: {projectId, sourceNodeId: 'node-1', targetNodeId: 'node-2'}})
+        .thenThrows(new Error('Unknown nodeId node-1'));
+    });
+
+    it('throws when the target node was removed', async () => {
+      await expectDecider(deciders().connectNodes)
+        .given(
+          Events.nodeAdded(projectId, 'chapter-1', 'node-1', 'cmd', 0),
+          Events.nodeAdded(projectId, 'chapter-1', 'node-2', 'evt', 1),
+          Events.nodeRemoved(projectId, 'node-2'),
+        )
+        .when({type: 'ConnectNodes', data: {projectId, sourceNodeId: 'node-1', targetNodeId: 'node-2'}})
+        .thenThrows(new Error('Unknown nodeId node-2'));
+    });
   });
 
   describe('disconnectNodes', () => {
@@ -250,6 +283,30 @@ describe('graphCommands deciders', () => {
         )
         .when({type: 'DisconnectNodes', data: {projectId, sourceNodeId: 'node-1', targetNodeId: 'node-2'}})
         .thenEmits();
+    });
+
+    it('throws when the source node was removed', async () => {
+      await expectDecider(deciders().disconnectNodes)
+        .given(
+          Events.nodeAdded(projectId, 'chapter-1', 'node-1', 'cmd', 0),
+          Events.nodeAdded(projectId, 'chapter-1', 'node-2', 'evt', 1),
+          Events.nodesConnected(projectId, 'node-1', 'node-2'),
+          Events.nodeRemoved(projectId, 'node-1'),
+        )
+        .when({type: 'DisconnectNodes', data: {projectId, sourceNodeId: 'node-1', targetNodeId: 'node-2'}})
+        .thenThrows(new Error('Unknown nodeId node-1'));
+    });
+
+    it('throws when the target node was removed', async () => {
+      await expectDecider(deciders().disconnectNodes)
+        .given(
+          Events.nodeAdded(projectId, 'chapter-1', 'node-1', 'cmd', 0),
+          Events.nodeAdded(projectId, 'chapter-1', 'node-2', 'evt', 1),
+          Events.nodesConnected(projectId, 'node-1', 'node-2'),
+          Events.nodeRemoved(projectId, 'node-2'),
+        )
+        .when({type: 'DisconnectNodes', data: {projectId, sourceNodeId: 'node-1', targetNodeId: 'node-2'}})
+        .thenThrows(new Error('Unknown nodeId node-2'));
     });
   });
 });
