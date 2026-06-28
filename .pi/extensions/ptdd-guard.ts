@@ -49,7 +49,7 @@ const phaseLabel: Record<GuardPhase, string> = {
   "unexpected-result": "unexpected",
 };
 
-const testCommandPattern = /(^|\s)(\.\/scripts\/test\.sh|npm\s+run\s+test|npm\s+test|vitest)(\s|$)/;
+const testCommandPattern = /(^|\s)(\.\/scripts\/test\.sh|npm\s+run\s+test|npm\s+test|vitest|test:llm)(\s|$)/;
 const allowedBeforeRedPattern = /(\.test\.|\.spec\.|test-list\.md$|ptdd-log\.md$|_tasks\/|\.agents\/skills\/|\.pi\/extensions\/)/;
 
 function resetIteration() {
