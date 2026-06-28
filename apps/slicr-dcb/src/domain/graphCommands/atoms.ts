@@ -1,4 +1,5 @@
 import {type Atom, type DcbEvent, Query} from '../eventSourcing';
+import type {NodeType} from '../../graph/types';
 import {ChapterId, NodeId, NodePropertyExampleValues, NodePropertySchema, ProjectId} from '../events';
 
 export {bindAtom} from '../eventSourcing';
@@ -48,6 +49,88 @@ const nodeExists: DomainAtom<{
       }
     });
     return nodeExists;
+  },
+};
+
+const nodeName: DomainAtom<{
+  projectId: ProjectId,
+  nodeId: NodeId,
+}, {
+  nodeExists: boolean,
+  name?: string,
+}> = {
+  query: ({projectId, nodeId}) => Query.where({
+    types: ['NodeAdded', 'NodeRenamed', 'NodeRemoved'],
+    tags: [`projectId:${projectId}`, `nodeId:${nodeId}`],
+  }),
+  project: ({projectId, nodeId}, events) => {
+    const model: {nodeExists: boolean, name?: string} = {
+      nodeExists: false,
+      name: undefined,
+    };
+
+    events.forEach(event => {
+      if (event.payload.projectId !== projectId) {
+        return;
+      }
+
+      if (event.type === 'NodeAdded' && event.payload.nodeId === nodeId) {
+        model.nodeExists = true;
+        model.name = event.payload.label;
+      }
+
+      if (event.type === 'NodeRenamed' && event.payload.nodeId === nodeId) {
+        model.name = event.payload.newName;
+      }
+
+      if (event.type === 'NodeRemoved' && event.payload.nodeId === nodeId) {
+        model.nodeExists = false;
+        model.name = undefined;
+      }
+    });
+
+    return model;
+  },
+};
+
+const nodeType: DomainAtom<{
+  projectId: ProjectId,
+  nodeId: NodeId,
+}, {
+  nodeExists: boolean,
+  type?: NodeType,
+}> = {
+  query: ({projectId, nodeId}) => Query.where({
+    types: ['NodeAdded', 'NodeTypeChanged', 'NodeRemoved'],
+    tags: [`projectId:${projectId}`, `nodeId:${nodeId}`],
+  }),
+  project: ({projectId, nodeId}, events) => {
+    const model: {nodeExists: boolean, type?: NodeType} = {
+      nodeExists: false,
+      type: undefined,
+    };
+
+    events.forEach(event => {
+      if (event.payload.projectId !== projectId) {
+        return;
+      }
+
+      if (event.type === 'NodeAdded' && event.payload.nodeId === nodeId) {
+        model.nodeExists = true;
+        model.type = event.payload.type;
+      }
+
+      if (event.type === 'NodeTypeChanged' && event.payload.nodeId === nodeId) {
+        model.type = event.payload.newType;
+      }
+
+      if (event.type === 'NodeRemoved' && event.payload.nodeId === nodeId) {
+        model.nodeExists = false;
+        model.type = undefined;
+      }
+    });
+
+    return model;
   },
 };
 
@@ -171,6 +254,8 @@ export const Atoms = {
   projectExists,
   chapterExists,
   nodeExists,
+  nodeName,
+  nodeType,
   nodeChapter,
   connectionExists,
   nodeSchema,

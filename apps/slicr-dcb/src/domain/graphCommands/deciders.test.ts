@@ -132,6 +132,23 @@ describe('graphCommands deciders', () => {
         .thenEmits(Events.nodeRenamed(projectId, 'node-1', 'New Event Name'));
     });
 
+    it('emits no event when renaming to the current node name', async () => {
+      await expectDecider(deciders().renameNode)
+        .given(Events.nodeAdded(projectId, 'chapter-1', 'node-1', 'evt', 0, 'Current Event Name'))
+        .when({type: 'RenameNode', data: {projectId, nodeId: 'node-1', newName: 'Current Event Name'}})
+        .thenEmits();
+    });
+
+    it('emits no event when renaming to the latest renamed node name', async () => {
+      await expectDecider(deciders().renameNode)
+        .given(
+          Events.nodeAdded(projectId, 'chapter-1', 'node-1', 'evt', 0, 'Initial Event Name'),
+          Events.nodeRenamed(projectId, 'node-1', 'Current Event Name'),
+        )
+        .when({type: 'RenameNode', data: {projectId, nodeId: 'node-1', newName: 'Current Event Name'}})
+        .thenEmits();
+    });
+
     it('throws when the node does not exist', async () => {
       await expectDecider(deciders().renameNode)
         .given()
@@ -158,6 +175,23 @@ describe('graphCommands deciders', () => {
         .given(Events.nodeAdded(projectId, 'chapter-1', 'node-1', 'evt', 0))
         .when({type: 'ChangeNodeType', data: {projectId, nodeId: 'node-1', newType: 'dm'}})
         .thenEmits(Events.nodeTypeChanged(projectId, 'node-1', 'dm'));
+    });
+
+    it('emits no event when changing to the current node type', async () => {
+      await expectDecider(deciders().changeNodeType)
+        .given(Events.nodeAdded(projectId, 'chapter-1', 'node-1', 'evt', 0))
+        .when({type: 'ChangeNodeType', data: {projectId, nodeId: 'node-1', newType: 'evt'}})
+        .thenEmits();
+    });
+
+    it('emits no event when changing to the latest changed node type', async () => {
+      await expectDecider(deciders().changeNodeType)
+        .given(
+          Events.nodeAdded(projectId, 'chapter-1', 'node-1', 'evt', 0),
+          Events.nodeTypeChanged(projectId, 'node-1', 'dm'),
+        )
+        .when({type: 'ChangeNodeType', data: {projectId, nodeId: 'node-1', newType: 'dm'}})
+        .thenEmits();
     });
   });
 
