@@ -1,5 +1,5 @@
 import {describe, it} from 'vitest';
-import {expectDecider} from '@slicr/event-sourcing/testing';
+import {expectDecider, expectQuery} from '@slicr/event-sourcing/testing';
 
 import {Events} from '../events';
 import {deciders} from './deciders';
@@ -113,6 +113,18 @@ describe('graphCommands deciders', () => {
   });
 
   describe('renameNode', () => {
+    it('queries node rename events for the DCB guard', () => {
+      const query = deciders().renameNode.query({
+        type: 'RenameNode',
+        data: {projectId, nodeId: 'node-1', newName: 'New Event Name'},
+      });
+
+      expectQuery(query)
+        .toMatchEvent(Events.nodeAdded(projectId, 'chapter-1', 'node-1', 'evt', 0))
+        .toMatchEvent(Events.nodeRemoved(projectId, 'node-1'))
+        .toMatchEvent(Events.nodeRenamed(projectId, 'node-1', 'Intermittent Rename'));
+    });
+
     it('emits NodeRenamed for an existing node', async () => {
       await expectDecider(deciders().renameNode)
         .given(Events.nodeAdded(projectId, 'chapter-1', 'node-1', 'evt', 0))
@@ -129,6 +141,18 @@ describe('graphCommands deciders', () => {
   });
 
   describe('changeNodeType', () => {
+    it('queries node type change events for the DCB guard', () => {
+      const query = deciders().changeNodeType.query({
+        type: 'ChangeNodeType',
+        data: {projectId, nodeId: 'node-1', newType: 'dm'},
+      });
+
+      expectQuery(query)
+        .toMatchEvent(Events.nodeAdded(projectId, 'chapter-1', 'node-1', 'evt', 0))
+        .toMatchEvent(Events.nodeRemoved(projectId, 'node-1'))
+        .toMatchEvent(Events.nodeTypeChanged(projectId, 'node-1', 'processor'));
+    });
+
     it('emits NodeTypeChanged for an existing node', async () => {
       await expectDecider(deciders().changeNodeType)
         .given(Events.nodeAdded(projectId, 'chapter-1', 'node-1', 'evt', 0))

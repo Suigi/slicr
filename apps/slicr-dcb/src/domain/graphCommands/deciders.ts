@@ -1,4 +1,4 @@
-import {bindAtomToCommand, combineAtoms, type DcbEvent, type Decider, rescopeAtom} from '../eventSourcing';
+import {bindAtomToCommand, combineAtoms, type DcbAtom, type DcbEvent, type Decider, Query, rescopeAtom} from '../eventSourcing';
 import {v4 as uuid} from 'uuid';
 
 import {ChapterId, Events, NodeId, type NodePropertyExampleValues, type NodePropertySchema, ProjectId} from '../events';
@@ -69,8 +69,16 @@ const addConnectedNodeDecider = (generateUuid: () => string): Decider<AddConnect
   },
 });
 
+const nodeExistsGuardingRenames: DcbAtom<{projectId: ProjectId, nodeId: NodeId}, boolean> = {
+  query: (scope) => Query.where({
+    types: ['NodeAdded', 'NodeRemoved', 'NodeRenamed'],
+    tags: [`projectId:${scope.projectId}`, `nodeId:${scope.nodeId}`],
+  }),
+  project: Atoms.nodeExists.project,
+};
+
 const renameNodeDecider: Decider<RenameNode, DcbEvent, boolean> = {
-  ...bindAtomToCommand(Atoms.nodeExists),
+  ...bindAtomToCommand(nodeExistsGuardingRenames),
   decide: (command, nodeExists) => {
     if (!nodeExists) {
       throw new Error(`Unknown nodeId ${command.data.nodeId}`);
@@ -80,8 +88,16 @@ const renameNodeDecider: Decider<RenameNode, DcbEvent, boolean> = {
   },
 };
 
+const nodeExistsGuardingTypeChanges: DcbAtom<{projectId: ProjectId, nodeId: NodeId}, boolean> = {
+  query: (scope) => Query.where({
+    types: ['NodeAdded', 'NodeRemoved', 'NodeTypeChanged'],
+    tags: [`projectId:${scope.projectId}`, `nodeId:${scope.nodeId}`],
+  }),
+  project: Atoms.nodeExists.project,
+};
+
 const changeNodeTypeDecider: Decider<ChangeNodeType, DcbEvent, boolean> = {
-  ...bindAtomToCommand(Atoms.nodeExists),
+  ...bindAtomToCommand(nodeExistsGuardingTypeChanges),
   decide: (command, nodeExists) => {
     if (!nodeExists) {
       throw new Error(`Unknown nodeId ${command.data.nodeId}`);
