@@ -1,12 +1,11 @@
 import {
   type DcbEvent,
-  MemoryStore,
   type SpecEventStore
 } from '../domain/eventSourcing';
 import {v4 as uuid} from 'uuid';
 
 import {createCommandRouter} from '../application/commandRouter';
-import {GraphProjector} from '../domain/graphProjector/graphProjector';
+import {projectGraph} from '../domain/graphProjector/graphProjector';
 import {projectWorkspace, type WorkspaceProjection} from '../domain/workspaceProjector';
 import {adaptModelGraphToRenderer, type RendererGraph} from './domainGraphAdapter';
 import type {NodeType} from './types';
@@ -80,9 +79,7 @@ export function createEventSourcedGraphModel(config: {
     workspace = projectWorkspace(events);
     ({projectId: currentProjectId, chapterId: currentChapterId} = resolveScope(workspace, scope));
 
-    const memoryStore = MemoryStore.create<DcbEvent>();
-    memoryStore.append([...events]);
-    snapshot = adaptModelGraphToRenderer(GraphProjector.create({store: memoryStore}).project(currentProjectId, currentChapterId));
+    snapshot = adaptModelGraphToRenderer(projectGraph(events, currentProjectId, currentChapterId));
     return snapshot;
   };
 

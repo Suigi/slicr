@@ -3,7 +3,7 @@ import {v4 as uuid} from 'uuid';
 import {describe, expect, it} from 'vitest';
 import {MemoryStore} from '../eventSourcing';
 import {DcbEvent, Events} from '../events';
-import {GraphProjector} from './graphProjector';
+import {GraphProjector, projectGraph} from './graphProjector';
 
 const projectId = 'project-1';
 
@@ -299,5 +299,46 @@ describe('events project state', () => {
         {id: 'lane-1', order: 1},
         {id: 'lane-3', order: 3},
       ]);
+  });
+
+  it('projects canonical event arrays without a store wrapper', () => {
+    const removedId = uuid();
+    const commandId = uuid();
+    const eventId = uuid();
+    const dataModelId = uuid();
+    const movingId = uuid();
+
+    const model = projectGraph([
+      Events.nodeAdded(projectId, 'chapter-1', removedId, 'ui', 9, 'Removed'),
+      Events.nodeAdded(projectId, 'chapter-1', commandId, 'cmd', 3, 'Command'),
+      Events.nodeAdded(projectId, 'chapter-1', eventId, 'evt', 1, 'Event'),
+      Events.nodeAdded(projectId, 'chapter-1', dataModelId, 'dm', 3, 'Data'),
+      Events.nodeAdded(projectId, 'chapter-1', movingId, 'rm', 2, 'Moving'),
+      Events.nodesConnected(projectId, removedId, commandId, 'flow'),
+      Events.nodesConnected(projectId, commandId, eventId, 'flow'),
+      Events.nodesConnected(projectId, eventId, dataModelId, 'back-reference'),
+      Events.nodeTypeChanged(projectId, commandId, 'processor'),
+      Events.nodeChapterChanged(projectId, movingId, 'chapter-2'),
+      Events.nodesDisconnected(projectId, commandId, eventId),
+      Events.nodeRemoved(projectId, removedId),
+      Events.nodeRenamed(projectId, removedId, 'Missing'),
+    ], projectId, 'chapter-1');
+
+    expect(model).toEqual({
+      nodes: [
+        {nodeId: commandId, nodeType: 'processor', laneId: 3, label: 'Command'},
+        {nodeId: eventId, nodeType: 'evt', laneId: 1, label: 'Event'},
+        {nodeId: dataModelId, nodeType: 'dm', laneId: 3, label: 'Data'},
+      ],
+      edges: [
+        {sourceNodeId: eventId, targetNodeId: dataModelId, role: 'back-reference'},
+      ],
+      lanes: [
+        {id: 'lane-1', order: 1},
+        {id: 'lane-3', order: 3},
+      ],
+      nodeSchemas: {},
+      nodeExampleValues: {},
+    });
   });
 });

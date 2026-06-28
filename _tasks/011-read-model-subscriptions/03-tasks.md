@@ -21,7 +21,7 @@ Add any learnings about the project overall to the documents in the `./_knowledg
 
 ## Task 1: Extract pure graph projection
 ### Status
-[started]
+[done]
 
 ### Description
 Refactor graph projection so application code can derive a model graph directly from canonical event arrays without creating a temporary `MemoryStore`. Keep behavior equivalent to the current `GraphProjector` semantics and preserve chapter-scoped filtering.

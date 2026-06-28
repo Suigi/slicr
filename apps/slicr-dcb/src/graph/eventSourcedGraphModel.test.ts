@@ -1,4 +1,4 @@
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it, vi} from 'vitest';
 
 import {createEventSourcedGraphModel} from './eventSourcedGraphModel';
 import {Events,} from '../domain/events';
@@ -6,6 +6,7 @@ import {
   type AppendCondition,
   AppendConditionFailedError,
   type DcbEvent,
+  MemoryStore,
   Query,
   type ReadOptions,
   type SequencedEvent,
@@ -455,6 +456,48 @@ describe('createEventSourcedGraphModel', () => {
 
     expect(graph.nodes.map((node) => node.id)).toEqual(['node-added-after-load']);
     expect(model.getSnapshot().nodes.map((node) => node.id)).toEqual(['node-added-after-load']);
+  });
+
+  it('loads and scopes without constructing a temporary projection MemoryStore', async () => {
+    const memoryStoreCreateSpy = vi.spyOn(MemoryStore, 'create')
+      .mockImplementation(() => {
+        throw new Error('projection MemoryStore should not be created');
+      });
+    const {model} = createModelContext({
+      events: [
+        Events.projectAdded(defaultProjectId, 'Default Project'),
+        Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
+        Events.chapterAdded(defaultProjectId, 'chapter-2', 'Chapter 2'),
+        Events.nodeAdded(defaultProjectId, 'default-chapter', 'node-1', 'ui', 0, 'Default Chapter Node'),
+        Events.nodeAdded(defaultProjectId, 'chapter-2', 'node-2', 'evt', 1, 'Other Chapter Node'),
+      ],
+    });
+
+    try {
+      await expect(model.load({projectId: defaultProjectId, chapterId: 'default-chapter'}))
+        .resolves.toEqual({
+          nodes: [
+            {id: 'node-1', label: 'Default Chapter Node', type: 'ui', laneId: 'lane-0', width: NODE_WIDTH, height: NODE_HEIGHT},
+          ],
+          edges: [],
+          lanes: [{id: 'lane-0', order: 0}],
+          nodeSchemas: {},
+          nodeExampleValues: {},
+        });
+      await expect(model.setScope({projectId: defaultProjectId, chapterId: 'chapter-2'}))
+        .resolves.toEqual({
+          nodes: [
+            {id: 'node-2', label: 'Other Chapter Node', type: 'evt', laneId: 'lane-1', width: NODE_WIDTH, height: NODE_HEIGHT},
+          ],
+          edges: [],
+          lanes: [{id: 'lane-1', order: 1}],
+          nodeSchemas: {},
+          nodeExampleValues: {},
+        });
+      expect(memoryStoreCreateSpy).not.toHaveBeenCalled();
+    } finally {
+      memoryStoreCreateSpy.mockRestore();
+    }
   });
 
   it('keeps each chapter node visible after switching back and forth between chapters', async () => {
