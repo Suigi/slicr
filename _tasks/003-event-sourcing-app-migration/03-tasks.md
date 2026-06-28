@@ -18,7 +18,7 @@ Agents must update the task file as they work: set a task to `[started]` immedia
 ## Learnings
 
 Add feature learnings to [05-learnings.md](./05-learnings.md).
-Add project-wide learnings to the documents in `./knowledge` if applicable.
+Add project-wide learnings to the documents in `./_knowledge` if applicable.
 
 ## Task 1: Complete graph domain events and commands
 ### Status

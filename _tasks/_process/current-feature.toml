@@ -1,4 +1,4 @@
-feature_dir = "_tasks/005-dcb-node-size-measurement"
-phase = "complete"
-current_task = ""
-status = "done"
+feature_dir = "_tasks/011-read-model-subscriptions"
+phase = "implementation"
+current_task = "Task 1"
+status = "active"

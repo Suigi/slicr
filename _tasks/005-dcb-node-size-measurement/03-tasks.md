@@ -18,7 +18,7 @@ Agents must update the task file as they work: set a task to `[started]` immedia
 ## Learnings
 
 Add any learnings about the feature to ./05-learnings.md.
-Add any learnings about the project overall to the documents in the ./knowledge directory.
+Add any learnings about the project overall to the documents in the ./_knowledge directory.
 
 ## Task 1: Add node measurement utility
 ### Status
