@@ -12,7 +12,10 @@ type Atom<Scope, Model> = {
 };
 
 const projectNames: Atom<SomeCommand<{projectId:ProjectId}>, Record<ProjectId, string>> = {
-  query: command => Query.where({tags: [`projectId:${command.data.projectId}`]}),
+  query: command => Query.where({
+    types: ['ProjectAdded', 'ProjectRenamed'],
+    tags: [`projectId:${command.data.projectId}`],
+  }),
   project: (_, events) => {
     const projectNames: Record<ProjectId, string> = {};
     events.forEach(event => {

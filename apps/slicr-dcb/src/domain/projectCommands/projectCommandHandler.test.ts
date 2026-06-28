@@ -1,5 +1,5 @@
 import {describe, it} from 'vitest';
-import {expectDecider} from '@slicr/event-sourcing/testing';
+import {expectDecider, expectQuery} from '@slicr/event-sourcing/testing';
 import {deciders} from './projectCommandHandler';
 import {Events} from '../events';
 
@@ -23,6 +23,19 @@ describe('projectCommandHandler', () => {
   });
 
   describe('renameProject', () => {
+    it('queries only project name events for the DCB guard', () => {
+      const query = deciders().renameProject.query({
+        type: 'RenameProject',
+        data: {projectId: 'my project', name: 'new name'},
+      });
+
+      expectQuery(query)
+        .toMatchEvent(Events.projectAdded('my project', 'initial name'))
+        .toMatchEvent(Events.projectRenamed('my project', 'new name'))
+        .not.toMatchEvent(Events.chapterAdded('my project', 'chapter-1', 'Chapter 1'))
+        .not.toMatchEvent(Events.nodeAdded('my project', 'chapter-1', 'node-1', 'evt', 0));
+    });
+
     it('given no project, throws', () => {
       expectDecider(deciders().renameProject)
         .given()
