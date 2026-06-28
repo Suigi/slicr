@@ -34,6 +34,16 @@ describe('graphCommands deciders', () => {
         .thenEmits(Events.nodeAdded(projectId, 'chapter-1', 'node-1', 'evt', 2, 'Create Thing'));
     });
 
+    it('throws when the chapter exists in a different project', async () => {
+      await expectDecider(deciders({generateUuid: () => 'node-1'}).addNode)
+        .given(Events.chapterAdded('other-project-id', 'chapter-1', 'Chapter 1'))
+        .when({
+          type: 'AddNode',
+          data: {projectId, chapterId: 'chapter-1', nodeType: 'evt', laneId: 2, label: 'Create Thing'}
+        })
+        .thenThrows(new Error('Chapter with ID [chapter-1] not found'));
+    });
+
     it('throws when the chapter does not exist', async () => {
       await expectDecider(deciders({generateUuid: () => 'node-1'}).addNode)
         .given()

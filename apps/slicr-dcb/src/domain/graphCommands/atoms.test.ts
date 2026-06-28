@@ -60,17 +60,17 @@ describe('atoms', () => {
     it('given no events, projects false', async () => {
       const store = MemorySpecEventStore.create<DcbEvent>();
 
-      const projection = await (evaluate(Atoms.chapterExists)(store, {chapterId: 'my-chapter-id'}));
+      const projection = await (evaluate(Atoms.chapterExists)(store, {projectId: 'my-project-id', chapterId: 'my-chapter-id'}));
 
       expect(projection)
         .toEqual(false);
     });
 
-    it('given unrelated Chapters, projects false', async () => {
+    it('given the same chapter ID in a different project, projects false', async () => {
       const store = MemorySpecEventStore.create<DcbEvent>();
-      await store.append([Events.chapterAdded('unrelated-project-id', 'other-chapter-id', 'IRRELEVANT CHAPTER TITLE')]);
+      await store.append([Events.chapterAdded('unrelated-project-id', 'my-chapter-id', 'IRRELEVANT CHAPTER TITLE')]);
 
-      const projection = await (evaluate(Atoms.chapterExists)(store, {chapterId: 'my-chapter-id'}));
+      const projection = await (evaluate(Atoms.chapterExists)(store, {projectId: 'my-project-id', chapterId: 'my-chapter-id'}));
 
       expect(projection)
         .toEqual(false);
@@ -80,7 +80,7 @@ describe('atoms', () => {
       const store = MemorySpecEventStore.create<DcbEvent>();
       await store.append([Events.chapterAdded('my-project-id', 'my-chapter-id', 'IRRELEVANT CHAPTER TITLE')]);
 
-      const projection = await (evaluate(Atoms.chapterExists)(store, {chapterId: 'my-chapter-id'}));
+      const projection = await (evaluate(Atoms.chapterExists)(store, {projectId: 'my-project-id', chapterId: 'my-chapter-id'}));
 
       expect(projection)
         .toEqual(true);

@@ -15,9 +15,13 @@ const projectExists: DomainAtom<{ projectId: ProjectId }, boolean> = {
   project: ({projectId}, events) => events.some(event => event.type === 'ProjectAdded' && event.payload.projectId === projectId),
 };
 
-const chapterExists: DomainAtom<{ chapterId: ChapterId }, boolean> = {
-  query: ({chapterId}) => Query.where({types: ['ChapterAdded'], tags: [`chapterId:${chapterId}`]}),
-  project: ({chapterId}, events) => events.some(event => event.type === 'ChapterAdded' && event.payload.chapterId === chapterId),
+const chapterExists: DomainAtom<{ projectId: ProjectId, chapterId: ChapterId }, boolean> = {
+  query: ({projectId, chapterId}) => Query.where({types: ['ChapterAdded'], tags: [`projectId:${projectId}`, `chapterId:${chapterId}`]}),
+  project: ({projectId, chapterId}, events) => events.some(event =>
+    event.type === 'ChapterAdded' &&
+    event.payload.projectId === projectId &&
+    event.payload.chapterId === chapterId
+  ),
 };
 
 const nodeExists: DomainAtom<{
