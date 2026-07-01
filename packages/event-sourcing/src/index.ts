@@ -6,6 +6,7 @@ export * from './indexedDBSpecEventStore';
 export * from './memoryStore/memoryStore';
 export * from './memoryStore/specEventStore';
 export * from './query';
+export * from './projectors';
 export * from './specStore';
 export * from './types';
 export * from './deciders';
