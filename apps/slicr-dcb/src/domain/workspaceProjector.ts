@@ -1,3 +1,4 @@
+import {createProjectorInstance, type DcbProjectorDefinition, Query, replayProjector} from './eventSourcing';
 import type {ChapterId, DcbEvent, ProjectId} from './events';
 
 export type WorkspaceProject = {
@@ -16,41 +17,52 @@ export type WorkspaceProjection = {
   latestProjectId?: ProjectId;
 };
 
-export function projectWorkspace(events: readonly DcbEvent[]): WorkspaceProjection {
-  const projectOrder: ProjectId[] = [];
-  const projectNames = new Map<ProjectId, string>();
-  const chapterOrderByProjectId = new Map<ProjectId, ChapterId[]>();
-  const chapterTitlesByProjectId = new Map<ProjectId, Map<ChapterId, string>>();
+type WorkspaceProjectorState = {
+  projectOrder: ProjectId[];
+  projectNames: Map<ProjectId, string>;
+  chapterOrderByProjectId: Map<ProjectId, ChapterId[]>;
+  chapterTitlesByProjectId: Map<ProjectId, Map<ChapterId, string>>;
+};
 
-  for (const event of events) {
+export const workspaceProjectorDefinition: DcbProjectorDefinition<void, WorkspaceProjectorState, WorkspaceProjection> = {
+  query: () => Query.where({
+    types: ['ProjectAdded', 'ProjectRenamed', 'ChapterAdded', 'ChapterRenamed'],
+  }),
+  initialState: () => ({
+    projectOrder: [],
+    projectNames: new Map<ProjectId, string>(),
+    chapterOrderByProjectId: new Map<ProjectId, ChapterId[]>(),
+    chapterTitlesByProjectId: new Map<ProjectId, Map<ChapterId, string>>(),
+  }),
+  evolve: (state, event) => {
     switch (event.type) {
       case 'ProjectAdded':
-        if (!projectNames.has(event.payload.projectId)) {
-          projectOrder.push(event.payload.projectId);
+        if (!state.projectNames.has(event.payload.projectId)) {
+          state.projectOrder.push(event.payload.projectId);
         }
-        projectNames.set(event.payload.projectId, event.payload.name);
+        state.projectNames.set(event.payload.projectId, event.payload.name);
         break;
       case 'ProjectRenamed':
-        if (projectNames.has(event.payload.projectId)) {
-          projectNames.set(event.payload.projectId, event.payload.newName);
+        if (state.projectNames.has(event.payload.projectId)) {
+          state.projectNames.set(event.payload.projectId, event.payload.newName);
         }
         break;
       case 'ChapterAdded': {
-        if (!projectNames.has(event.payload.projectId)) {
+        if (!state.projectNames.has(event.payload.projectId)) {
           break;
         }
-        const chapterOrder = chapterOrderByProjectId.get(event.payload.projectId) ?? [];
+        const chapterOrder = state.chapterOrderByProjectId.get(event.payload.projectId) ?? [];
         if (!chapterOrder.includes(event.payload.chapterId)) {
           chapterOrder.push(event.payload.chapterId);
-          chapterOrderByProjectId.set(event.payload.projectId, chapterOrder);
+          state.chapterOrderByProjectId.set(event.payload.projectId, chapterOrder);
         }
-        const chapterTitles = chapterTitlesByProjectId.get(event.payload.projectId) ?? new Map<ChapterId, string>();
+        const chapterTitles = state.chapterTitlesByProjectId.get(event.payload.projectId) ?? new Map<ChapterId, string>();
         chapterTitles.set(event.payload.chapterId, event.payload.title);
-        chapterTitlesByProjectId.set(event.payload.projectId, chapterTitles);
+        state.chapterTitlesByProjectId.set(event.payload.projectId, chapterTitles);
         break;
       }
       case 'ChapterRenamed': {
-        const chapterTitles = chapterTitlesByProjectId.get(event.payload.projectId);
+        const chapterTitles = state.chapterTitlesByProjectId.get(event.payload.projectId);
         if (chapterTitles?.has(event.payload.chapterId)) {
           chapterTitles.set(event.payload.chapterId, event.payload.newTitle);
         }
@@ -59,20 +71,25 @@ export function projectWorkspace(events: readonly DcbEvent[]): WorkspaceProjecti
       default:
         break;
     }
-  }
 
-  return {
-    projects: projectOrder.map((projectId) => ({id: projectId, name: projectNames.get(projectId) ?? 'Untitled'})),
+    return state;
+  },
+  projection: (state) => ({
+    projects: state.projectOrder.map((projectId) => ({id: projectId, name: state.projectNames.get(projectId) ?? 'Untitled'})),
     chaptersByProjectId: Object.fromEntries(
-      projectOrder.map((projectId) => {
-        const chapterOrder = chapterOrderByProjectId.get(projectId) ?? [];
-        const chapterTitles = chapterTitlesByProjectId.get(projectId) ?? new Map<ChapterId, string>();
+      state.projectOrder.map((projectId) => {
+        const chapterOrder = state.chapterOrderByProjectId.get(projectId) ?? [];
+        const chapterTitles = state.chapterTitlesByProjectId.get(projectId) ?? new Map<ChapterId, string>();
         return [
           projectId,
           chapterOrder.map((chapterId) => ({id: chapterId, title: chapterTitles.get(chapterId) ?? 'Untitled'})),
         ];
       }),
     ),
-    latestProjectId: projectOrder[projectOrder.length - 1],
-  };
+    latestProjectId: state.projectOrder[state.projectOrder.length - 1],
+  }),
+};
+
+export function projectWorkspace(events: readonly DcbEvent[]): WorkspaceProjection {
+  return replayProjector(createProjectorInstance(workspaceProjectorDefinition, undefined), events);
 }

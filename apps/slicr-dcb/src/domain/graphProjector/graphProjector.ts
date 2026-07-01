@@ -1,35 +1,64 @@
-import {type DcbEvent, type DcbStore, MemoryStore, Query} from '../eventSourcing';
+import {
+  createProjectorInstance,
+  type DcbEvent,
+  type DcbProjectorDefinition,
+  type DcbStore,
+  MemoryStore,
+  Query,
+  replayProjector,
+} from '../eventSourcing';
 import {Edge, ModelGraph, NodeType} from '../graph';
 
-export function projectGraph(events: readonly DcbEvent[], projectId: string, chapterId?: string): ModelGraph {
-  const graphEvents = events.filter((event) => event.tags.includes(`projectId:${projectId}`) && [
-    'NodeAdded',
-    'NodeChapterChanged',
-    'NodeRenamed',
-    'NodeRemoved',
-    'NodeTypeChanged',
-    'NodeSchemaChanged',
-    'NodeExampleValuesChanged',
-    'NodesConnected',
-    'NodesDisconnected',
-  ].includes(event.type));
+type GraphProjectorScope = {
+  projectId: string;
+  chapterId?: string;
+};
 
-  const nodesById = new Map<string, {
+type GraphProjectorState = {
+  nodesById: Map<string, {
     nodeId: string,
     nodeType: NodeType,
     laneId: number,
     label: string,
     chapterId: string,
     exists: boolean
-  }>();
-  const nodeSchemas = new Map<string, ModelGraph['nodeSchemas'][string]>();
-  const nodeExampleValues = new Map<string, ModelGraph['nodeExampleValues'][string]>();
-  const edgesByConnection = new Map<string, Edge>();
+  }>;
+  nodeSchemas: Map<string, ModelGraph['nodeSchemas'][string]>;
+  nodeExampleValues: Map<string, ModelGraph['nodeExampleValues'][string]>;
+  edgesByConnection: Map<string, Edge>;
+};
 
-  for (const event of graphEvents) {
+const graphEventTypes = [
+  'NodeAdded',
+  'NodeChapterChanged',
+  'NodeRenamed',
+  'NodeRemoved',
+  'NodeTypeChanged',
+  'NodeSchemaChanged',
+  'NodeExampleValuesChanged',
+  'NodesConnected',
+  'NodesDisconnected',
+] as const;
+
+export const graphProjectorDefinition: DcbProjectorDefinition<GraphProjectorScope, GraphProjectorState, ModelGraph> = {
+  query: (scope) => Query.where({
+    types: graphEventTypes,
+    tags: [`projectId:${scope.projectId}`],
+  }),
+  initialState: () => ({
+    nodesById: new Map(),
+    nodeSchemas: new Map(),
+    nodeExampleValues: new Map(),
+    edgesByConnection: new Map(),
+  }),
+  evolve: (state, event, scope) => {
+    if (!event.tags.includes(`projectId:${scope.projectId}`) || !graphEventTypes.includes(event.type as typeof graphEventTypes[number])) {
+      return state;
+    }
+
     switch (event.type) {
       case 'NodeAdded':
-        nodesById.set(event.payload.nodeId, {
+        state.nodesById.set(event.payload.nodeId, {
           nodeId: event.payload.nodeId,
           nodeType: event.payload.type,
           laneId: event.payload.laneId,
@@ -39,89 +68,98 @@ export function projectGraph(events: readonly DcbEvent[], projectId: string, cha
         });
         break;
       case 'NodeChapterChanged': {
-        const node = nodesById.get(event.payload.nodeId);
+        const node = state.nodesById.get(event.payload.nodeId);
         if (node?.exists) {
           node.chapterId = event.payload.chapterId;
         }
         break;
       }
       case 'NodeRenamed': {
-        const node = nodesById.get(event.payload.nodeId);
+        const node = state.nodesById.get(event.payload.nodeId);
         if (node?.exists) {
           node.label = event.payload.newName;
         }
         break;
       }
       case 'NodeRemoved': {
-        const node = nodesById.get(event.payload.nodeId);
+        const node = state.nodesById.get(event.payload.nodeId);
         if (node) {
           node.exists = false;
         }
-        edgesByConnection.forEach((_, key) => {
+        state.edgesByConnection.forEach((_, key) => {
           if (key.startsWith(`${event.payload.nodeId}->`) || key.endsWith(`->${event.payload.nodeId}`)) {
-            edgesByConnection.delete(key);
+            state.edgesByConnection.delete(key);
           }
         });
-        nodeSchemas.delete(event.payload.nodeId);
-        nodeExampleValues.delete(event.payload.nodeId);
+        state.nodeSchemas.delete(event.payload.nodeId);
+        state.nodeExampleValues.delete(event.payload.nodeId);
         break;
       }
       case 'NodeTypeChanged': {
-        const node = nodesById.get(event.payload.nodeId);
+        const node = state.nodesById.get(event.payload.nodeId);
         if (node?.exists) {
           node.nodeType = event.payload.newType;
         }
         break;
       }
       case 'NodeSchemaChanged': {
-        const node = nodesById.get(event.payload.nodeId);
+        const node = state.nodesById.get(event.payload.nodeId);
         if (node?.exists) {
-          nodeSchemas.set(event.payload.nodeId, event.payload.schema);
+          state.nodeSchemas.set(event.payload.nodeId, event.payload.schema);
         }
         break;
       }
       case 'NodeExampleValuesChanged': {
-        const node = nodesById.get(event.payload.nodeId);
+        const node = state.nodesById.get(event.payload.nodeId);
         if (node?.exists) {
-          nodeExampleValues.set(event.payload.nodeId, event.payload.exampleValues);
+          state.nodeExampleValues.set(event.payload.nodeId, event.payload.exampleValues);
         }
         break;
       }
       case 'NodesConnected':
-        edgesByConnection.set(`${event.payload.sourceNodeId}->${event.payload.targetNodeId}`, {
+        state.edgesByConnection.set(`${event.payload.sourceNodeId}->${event.payload.targetNodeId}`, {
           sourceNodeId: event.payload.sourceNodeId,
           targetNodeId: event.payload.targetNodeId,
           role: event.payload.role,
         });
         break;
       case 'NodesDisconnected':
-        edgesByConnection.delete(`${event.payload.sourceNodeId}->${event.payload.targetNodeId}`);
+        state.edgesByConnection.delete(`${event.payload.sourceNodeId}->${event.payload.targetNodeId}`);
+        break;
+      default:
         break;
     }
-  }
 
-  const visibleNodes = Array.from(nodesById.values())
-    .filter(node => node.exists && (!chapterId || node.chapterId === chapterId))
-    .map(({chapterId: _chapterId, exists: _exists, ...node}) => node);
-  const visibleNodeIds = new Set(visibleNodes.map(node => node.nodeId));
+    return state;
+  },
+  projection: (state, scope) => {
+    const visibleNodes = Array.from(state.nodesById.values())
+      .filter(node => node.exists && (!scope.chapterId || node.chapterId === scope.chapterId))
+      .map(({chapterId: _chapterId, exists: _exists, ...node}) => node);
+    const visibleNodeIds = new Set(visibleNodes.map(node => node.nodeId));
 
-  return {
-    nodes: visibleNodes,
-    edges: Array.from(edgesByConnection.values()).filter(edge =>
-      edge.sourceNodeId !== edge.targetNodeId &&
-      visibleNodeIds.has(edge.sourceNodeId) &&
-      visibleNodeIds.has(edge.targetNodeId)
-    ),
-    lanes: Array.from(new Set(visibleNodes.map(node => node.laneId)))
-      .sort((left, right) => left - right)
-      .map(laneId => ({id: `lane-${laneId}`, order: laneId})),
-    nodeSchemas: Object.fromEntries(
-      Array.from(nodeSchemas.entries()).filter(([nodeId]) => visibleNodeIds.has(nodeId))
-    ),
-    nodeExampleValues: Object.fromEntries(
-      Array.from(nodeExampleValues.entries()).filter(([nodeId]) => visibleNodeIds.has(nodeId))
-    ),
-  };
+    return {
+      nodes: visibleNodes,
+      edges: Array.from(state.edgesByConnection.values()).filter(edge =>
+        edge.sourceNodeId !== edge.targetNodeId &&
+        visibleNodeIds.has(edge.sourceNodeId) &&
+        visibleNodeIds.has(edge.targetNodeId)
+      ),
+      lanes: Array.from(new Set(visibleNodes.map(node => node.laneId)))
+        .sort((left, right) => left - right)
+        .map(laneId => ({id: `lane-${laneId}`, order: laneId})),
+      nodeSchemas: Object.fromEntries(
+        Array.from(state.nodeSchemas.entries()).filter(([nodeId]) => visibleNodeIds.has(nodeId))
+      ),
+      nodeExampleValues: Object.fromEntries(
+        Array.from(state.nodeExampleValues.entries()).filter(([nodeId]) => visibleNodeIds.has(nodeId))
+      ),
+    };
+  },
+};
+
+export function projectGraph(events: readonly DcbEvent[], projectId: string, chapterId?: string): ModelGraph {
+  return replayProjector(createProjectorInstance(graphProjectorDefinition, {projectId, chapterId}), events);
 }
 
 export class GraphProjector {
@@ -134,17 +172,7 @@ export class GraphProjector {
 
   public project(projectId: string, chapterId?: string): ModelGraph {
     return projectGraph(this.store.query(Query.where({
-      types: [
-        'NodeAdded',
-        'NodeChapterChanged',
-        'NodeRenamed',
-        'NodeRemoved',
-        'NodeTypeChanged',
-        'NodeSchemaChanged',
-        'NodeExampleValuesChanged',
-        'NodesConnected',
-        'NodesDisconnected',
-      ],
+      types: graphEventTypes,
       tags: [`projectId:${projectId}`],
     })), projectId, chapterId);
   }

@@ -8,7 +8,10 @@ import {
   IndexedDBSpecEventStore,
   MemorySpecEventStore,
   MemoryStore,
+  createProjectorInstance,
+  projectFromStore,
   Query,
+  replayProjector,
   rescopeAtom as rescopeGenericAtom,
 } from '@slicr/event-sourcing';
 import type {
@@ -18,6 +21,8 @@ import type {
   Command,
   Decider,
   Event,
+  ProjectorDefinition,
+  ProjectorInstance,
   ReadOptions,
   SequencedEvent,
   SomeCommand,
@@ -40,6 +45,8 @@ export type DcbDecider<CommandType, DecisionModel> = Decider<CommandType, DcbEve
 export type DcbSequencedEvent = SequencedEvent<DcbEvent>;
 export type DcbAppendCondition = AppendCondition;
 export type DcbReadOptions = ReadOptions;
+export type DcbProjectorDefinition<Scope, State, Projection> = ProjectorDefinition<DcbEvent, Scope, State, Projection>;
+export type DcbProjectorInstance<Projection> = ProjectorInstance<DcbEvent, Projection>;
 
 export const combineAtoms = <AtomsToCombine extends Record<string, DcbAnyAtom>>(
   atoms: AtomsToCombine,
@@ -50,8 +57,8 @@ export const rescopeAtom = <OuterScope, InnerScope, Model>(
   scope: (outerScope: OuterScope) => InnerScope,
 ): DcbAtom<OuterScope, Model> => rescopeGenericAtom(atom, scope);
 
-export {AppendConditionFailedError, Query, MemoryStore, MemorySpecEventStore, IndexedDBEventStore, IndexedDBSpecEventStore, bindAtom, handleCommand, Handler};
-export type {AnyCommand, AppendCondition, Atom, Command, Decider, Event, ReadOptions, SequencedEvent, SomeCommand, SpecEventStore, Store};
+export {AppendConditionFailedError, Query, MemoryStore, MemorySpecEventStore, IndexedDBEventStore, IndexedDBSpecEventStore, bindAtom, handleCommand, Handler, createProjectorInstance, projectFromStore, replayProjector};
+export type {AnyCommand, AppendCondition, Atom, Command, Decider, Event, ProjectorDefinition, ProjectorInstance, ReadOptions, SequencedEvent, SomeCommand, SpecEventStore, Store};
 
 export const bindAtomToCommand = (atom: DcbAnyAtom) => bindAtom(atom, (command:AnyCommand) => command.data);
 
