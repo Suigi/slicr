@@ -50,6 +50,7 @@ const phaseLabel: Record<GuardPhase, string> = {
 };
 
 const testCommandPattern = /(^|\s)(\.\/scripts\/test\.sh|npm\s+run\s+test|npm\s+test|vitest|test:llm)(\s|$)/;
+const typecheckCommandPattern = /(^|\s)(npm\s+run\s+(typecheck|type-check|check-types)|(npx\s+)?(tsc|vue-tsc))(\s|$)/;
 const allowedBeforeRedPattern = /(\.test\.|\.spec\.|test-list\.md$|ptdd-log\.md$|_tasks\/|\.agents\/skills\/|\.pi\/extensions\/)/;
 
 function resetIteration() {
@@ -69,6 +70,19 @@ function resetIteration() {
 
 function isTestCommand(command: string) {
   return testCommandPattern.test(command);
+}
+
+function isTypecheckCommand(command: string) {
+  return typecheckCommandPattern.test(command);
+}
+
+function isPredictionCommand(command: string, expectedOutcome: ExpectedOutcome) {
+  if (isTestCommand(command)) return true;
+  return expectedOutcome === "fail" && isTypecheckCommand(command);
+}
+
+function isGuardedTestLikeCommand(command: string) {
+  return isTestCommand(command) || isTypecheckCommand(command);
 }
 
 function isAllowedBeforeRed(path: string) {
@@ -263,9 +277,9 @@ export default function (pi: ExtensionAPI) {
           details: { ...state },
         };
       }
-      if (!isTestCommand(params.command)) {
+      if (!isPredictionCommand(params.command, params.expectedOutcome)) {
         return {
-          content: [{ type: "text", text: `ptdd_record_prediction only runs recognized test commands. Got: ${params.command}` }],
+          content: [{ type: "text", text: `ptdd_record_prediction only runs recognized test commands. Typecheck commands are allowed only for expectedOutcome=\"fail\". Got: ${params.command}` }],
           isError: true,
           details: { ...state },
         };
@@ -411,7 +425,7 @@ export default function (pi: ExtensionAPI) {
   pi.on("tool_call", async (event) => {
     if (isToolCallEventType("bash", event)) {
       const command = event.input.command;
-      if (!isTestCommand(command)) return undefined;
+      if (!isGuardedTestLikeCommand(command)) return undefined;
       if (state.phase === "idle") return undefined;
       return {
         block: true,
