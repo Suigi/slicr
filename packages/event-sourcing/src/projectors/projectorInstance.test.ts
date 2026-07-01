@@ -2,7 +2,15 @@ import {describe, expect, it} from 'vitest';
 
 import {Query} from '../query';
 import {MemorySpecEventStore} from '../memoryStore/specEventStore';
-import {createProjectorInstance, projectFromStore, replayProjector, type ProjectorDefinition, type ProjectorInstance} from './index';
+import {
+  catchUpProjectorFromStore,
+  createProjectorInstance,
+  createSequencedProjectorInstance,
+  projectFromStore,
+  replayProjector,
+  type ProjectorDefinition,
+  type ProjectorInstance,
+} from './index';
 import type {Event} from '../types';
 
 type CounterEvent = Event<'Incremented' | 'Renamed', {amount?: number; name?: string}>;
@@ -96,5 +104,32 @@ describe('createProjectorInstance', () => {
 
     await expect(projectFromStore(store, projector, {counterId: 'counter-1'})).resolves.toBe(3);
     await expect(projectFromStore(store, projector, {counterId: 'counter-1'})).resolves.toBe(3);
+  });
+
+  it('catches up a mutable projector from the store without replaying already applied events', async () => {
+    const store = MemorySpecEventStore.create<CounterEvent>();
+    await store.append([
+      {type: 'Incremented', payload: {amount: 1}, tags: ['counterId:counter-1']},
+      {type: 'Incremented', payload: {amount: 5}, tags: ['counterId:counter-2']},
+      {type: 'Incremented', payload: {amount: 2}, tags: ['counterId:counter-1']},
+    ]);
+    const projector: ProjectorDefinition<CounterEvent, CounterScope, CounterState, number> = {
+      query: (scope) => Query.where({types: ['Incremented'], tags: [`counterId:${scope.counterId}`]}),
+      initialState: () => ({total: 0, label: ''}),
+      evolve: (state, event) => ({...state, total: state.total + (event.payload.amount ?? 0)}),
+      projection: (state) => state.total,
+    };
+    const instance = createSequencedProjectorInstance(projector, {counterId: 'counter-1'});
+
+    await expect(catchUpProjectorFromStore(store, instance)).resolves.toBe(3);
+    expect(instance.lastAppliedPosition()).toBe(3);
+    await expect(catchUpProjectorFromStore(store, instance)).resolves.toBe(3);
+
+    await store.append([
+      {type: 'Incremented', payload: {amount: 4}, tags: ['counterId:counter-1']},
+    ]);
+
+    await expect(catchUpProjectorFromStore(store, instance)).resolves.toBe(7);
+    expect(instance.lastAppliedPosition()).toBe(4);
   });
 });
