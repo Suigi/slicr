@@ -2,10 +2,14 @@ import {filterEventsByQuery} from '../queryMatcher';
 import {Query, type Query as QueryType} from '../query';
 import type {Atom} from './index';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyAtom = Atom<any, any, any>;
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type EventOf<A> = A extends Atom<infer Event, any, any> ? Event : never;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type ScopeOf<A> = A extends Atom<any, infer Scope, any> ? Scope : never;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type ModelOf<A> = A extends Atom<any, any, infer Model> ? Model : never;
 
 export type UnionToIntersection<U> =
