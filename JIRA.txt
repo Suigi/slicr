@@ -1,1 +1,50 @@
-#
+# To Do - DCB style frontend
+
+[x] Node properties
+    [x] Property view
+    [x] Property editor
+        [x] Editor component
+            [x] Spike
+            [x] Keyboard navigation
+            [x] make it a proper component
+    [x] Add properties to node cards
+        [x] Measure actual node card sizes
+    [x] Property events (decide on granularity)
+    [x] Allow nested properties to be a list
+    [x] Editor sidebar
+        [x] Split out schema and example editor
+        [x] Highlight selected property in all: graph node, schema editor, example editor
+
+[ ] Projects + Chapters
+    [x] System Initialization: When no project exists, create a default project
+                               When no chapter exists, create a default chapter
+    [x] Show Project and Chapter in UI
+    [x] Add projectId to all events
+    [x] Add chapterId to NodeAdded event
+    [ ] Project Rename
+        [ ] UI
+==> WE ARE HERE <==
+        [x] Events
+        [x] Deciders
+    [ ] Chapter Rename
+        [ ] UI
+        [ ] Events
+
+[ ] Command Routing
+
+[ ] Export current Chapter only
+[ ] Think about Import
+    Options: - import into new Project/Chapter
+             - overwrite current Chapter
+
+
+[ ] After spike/node-properties is merged, unstash mutation testing follow-ups from stash 1ed17d49d17920be966f636f72a5e85db7aca1db (stash@{0}: "mutation testing follow-ups after node 26")
+[ ] Reusable complex data types
+[ ] Slice Dividers
+[ ] Arrow labels
+[ ] Given-When-Then scenario support
+[ ]
+
+# Done
+
+[x] JSON Export
