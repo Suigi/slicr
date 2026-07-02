@@ -1,16 +1,22 @@
-import {matchesQueryItem} from '../queryMatcher';
+import {filterSequencedEventsByQuery, matchesQuery} from '../queryMatcher';
 import {Query, type SequencePosition} from '../query';
 import {
   AppendConditionFailedError,
   type AppendCondition,
+  type AppendedEventsListener,
   type ReadOptions,
   type SequencedEvent,
   type SpecEventStore,
+  type StoreSubscription,
 } from '../specStore';
 import type {Event} from '../types';
 
 export class MemorySpecEventStore<E extends Event> implements SpecEventStore<E> {
   private readonly sequencedEvents: SequencedEvent<E>[] = [];
+  private readonly subscriptions = new Set<{
+    readonly query: Query;
+    readonly listener: AppendedEventsListener<E>;
+  }>();
 
   static create<E extends Event>() {
     return new MemorySpecEventStore<E>();
@@ -30,7 +36,7 @@ export class MemorySpecEventStore<E extends Event> implements SpecEventStore<E> 
       return events;
     }
 
-    return events.filter(sequencedEvent => query.items.some(queryItem => matchesQueryItem(queryItem, sequencedEvent.event)));
+    return filterSequencedEventsByQuery(events, query);
   }
 
   async append(events: readonly E[], condition?: AppendCondition): Promise<readonly SequencedEvent<E>[]> {
@@ -47,7 +53,18 @@ export class MemorySpecEventStore<E extends Event> implements SpecEventStore<E> 
       event,
     }));
     this.sequencedEvents.push(...appendedEvents);
+    await this.notifySubscribers(appendedEvents);
     return appendedEvents;
+  }
+
+  subscribe(query: Query, listener: AppendedEventsListener<E>): StoreSubscription {
+    const subscription = {query, listener};
+    this.subscriptions.add(subscription);
+    return {
+      unsubscribe: () => {
+        this.subscriptions.delete(subscription);
+      },
+    };
   }
 
   private readSequencedEvents(from?: SequencePosition): readonly SequencedEvent<E>[] {
@@ -61,11 +78,17 @@ export class MemorySpecEventStore<E extends Event> implements SpecEventStore<E> 
       if (condition.after !== undefined && sequencedEvent.position <= condition.after) {
         return false;
       }
-      return condition.failIfEventsMatch.kind === 'none'
-        ? false
-        : condition.failIfEventsMatch.kind === 'all'
-          ? true
-          : condition.failIfEventsMatch.items.some(queryItem => matchesQueryItem(queryItem, sequencedEvent.event));
+      return matchesQuery(condition.failIfEventsMatch, sequencedEvent.event);
     });
   }
+
+  private async notifySubscribers(appendedEvents: readonly SequencedEvent<E>[]): Promise<void> {
+    await Promise.allSettled([...this.subscriptions].map(async ({query, listener}) => {
+      const matchingEvents = filterSequencedEventsByQuery(appendedEvents, query);
+      if (matchingEvents.length > 0) {
+        await listener(matchingEvents);
+      }
+    }));
+  }
 }
+

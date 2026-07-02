@@ -38,11 +38,23 @@ describe('SpecEventStore public contract', () => {
         expect(condition).toEqual(testAppendCondition);
         return [testSequencedEvent];
       },
+      subscribe(query, listener) {
+        expect(query).toEqual(Query.all());
+        void listener([testSequencedEvent]);
+        return {unsubscribe: () => undefined};
+      },
     };
 
     await expect(store.read(testReadOptions)).resolves.toEqual([testSequencedEvent]);
     await expect(store.query(Query.all(), testReadOptions)).resolves.toEqual([testSequencedEvent]);
     await expect(store.append([testEvent], testAppendCondition)).resolves.toEqual([testSequencedEvent]);
+
+    const receivedEvents: Array<readonly SequencedEvent<TestEvent>[]> = [];
+    const subscription = store.subscribe(Query.all(), events => {
+      receivedEvents.push(events);
+    });
+    expect(receivedEvents).toEqual([[testSequencedEvent]]);
+    subscription.unsubscribe();
   });
 
   it('exposes failed condition and conflicting sequenced events on append-condition errors', () => {

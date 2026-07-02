@@ -61,7 +61,7 @@ Introduce an application-layer projection service that reads canonical events fr
 
 ## Task 3: Add store-backed projector subscription infrastructure
 ### Status
-[created]
+[done]
 
 ### Description
 Introduce the event-driven infrastructure needed for query-owned read models: store append/query notifications, projector catch-up wiring, and a subscription manager that owns sequenced projector instances. Projectors should use the same `Query` for initial catch-up and live matching of appended sequenced events.

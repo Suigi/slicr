@@ -1,5 +1,5 @@
 import type {Query, SequencePosition} from '../query';
-import type {ReadOptions, SequencedEvent, SpecEventStore} from '../specStore';
+import type {ReadOptions, SequencedEvent, SpecEventStore, StoreSubscription} from '../specStore';
 import type {Event as EventBase} from '../types';
 
 export type ProjectorDefinition<Event extends EventBase, Scope, State, Projection> = {
@@ -81,4 +81,38 @@ export const catchUpProjectorFromStore = async <Event extends EventBase, Project
   const sequencedEvents = await store.query(instance.query(), {from: instance.lastAppliedPosition()});
   sequencedEvents.forEach((sequencedEvent) => instance.evolve(sequencedEvent));
   return instance.projection();
+};
+
+export type ProjectorStoreSubscription = StoreSubscription;
+
+export const subscribeProjectorToStore = async <Event extends EventBase, Scope, State, Projection>(
+  store: SpecEventStore<Event>,
+  definition: ProjectorDefinition<Event, Scope, State, Projection>,
+  scope: Scope,
+  listener: (projection: Projection) => void | Promise<void>,
+): Promise<ProjectorStoreSubscription> => {
+  const instance = createSequencedProjectorInstance(definition, scope);
+  let catchUpQueue: Promise<void> = Promise.resolve();
+  let isCatchingUp = false;
+  const scheduleCatchUp = (): Promise<void> => {
+    const scheduledCatchUp = catchUpQueue.then(async () => {
+      isCatchingUp = true;
+      try {
+        await listener(await catchUpProjectorFromStore(store, instance));
+      } finally {
+        isCatchingUp = false;
+      }
+    });
+    catchUpQueue = scheduledCatchUp;
+    return scheduledCatchUp;
+  };
+
+  const subscription = store.subscribe(instance.query(), () => {
+    const wasAlreadyCatchingUp = isCatchingUp;
+    const scheduledCatchUp = scheduleCatchUp();
+    return wasAlreadyCatchingUp ? undefined : scheduledCatchUp;
+  });
+  await scheduleCatchUp();
+  await catchUpQueue;
+  return subscription;
 };

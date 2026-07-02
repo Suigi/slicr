@@ -1,11 +1,13 @@
 import {type Query, type SequencePosition} from './query';
-import {matchesQueryItem} from './queryMatcher';
+import {filterSequencedEventsByQuery, matchesQuery} from './queryMatcher';
 import {
   AppendConditionFailedError,
   type AppendCondition,
+  type AppendedEventsListener,
   type ReadOptions,
   type SequencedEvent,
   type SpecEventStore,
+  type StoreSubscription,
 } from './specStore';
 import type {Event} from './types';
 
@@ -24,6 +26,10 @@ export class IndexedDBSpecEventStore<E extends Event> implements SpecEventStore<
 
   private readonly database: IDBDatabase;
   private readonly streamName: string;
+  private readonly subscriptions = new Set<{
+    readonly query: Query;
+    readonly listener: AppendedEventsListener<E>;
+  }>();
 
   private constructor(database: IDBDatabase, streamName: string) {
     this.database = database;
@@ -49,7 +55,7 @@ export class IndexedDBSpecEventStore<E extends Event> implements SpecEventStore<
       return events;
     }
 
-    return events.filter(sequencedEvent => query.items.some(queryItem => matchesQueryItem(queryItem, sequencedEvent.event)));
+    return filterSequencedEventsByQuery(events, query);
   }
 
   async append(events: readonly E[], condition?: AppendCondition): Promise<readonly SequencedEvent<E>[]> {
@@ -60,7 +66,7 @@ export class IndexedDBSpecEventStore<E extends Event> implements SpecEventStore<
     const transaction = this.database.transaction(IndexedDBSpecEventStore.storeName, 'readwrite');
     const objectStore = transaction.objectStore(IndexedDBSpecEventStore.storeName);
 
-    return await new Promise<readonly SequencedEvent<E>[]>((resolve, reject) => {
+    const appendedEvents = await new Promise<readonly SequencedEvent<E>[]>((resolve, reject) => {
       const appendedEvents: SequencedEvent<E>[] = [];
       const conflictingEvents: SequencedEvent<E>[] = [];
       let settled = false;
@@ -136,6 +142,19 @@ export class IndexedDBSpecEventStore<E extends Event> implements SpecEventStore<
         settleReject(request.error ?? new Error('Failed to inspect IndexedDB events'));
       };
     });
+
+    await this.notifySubscribers(appendedEvents);
+    return appendedEvents;
+  }
+
+  subscribe(query: Query, listener: AppendedEventsListener<E>): StoreSubscription {
+    const subscription = {query, listener};
+    this.subscriptions.add(subscription);
+    return {
+      unsubscribe: () => {
+        this.subscriptions.delete(subscription);
+      },
+    };
   }
 
   private async readSequencedEvents(from?: SequencePosition): Promise<readonly SequencedEvent<E>[]> {
@@ -165,7 +184,17 @@ export class IndexedDBSpecEventStore<E extends Event> implements SpecEventStore<
     await waitForTransaction(transaction);
     return events;
   }
+
+  private async notifySubscribers(appendedEvents: readonly SequencedEvent<E>[]): Promise<void> {
+    await Promise.allSettled([...this.subscriptions].map(async ({query, listener}) => {
+      const matchingEvents = filterSequencedEventsByQuery(appendedEvents, query);
+      if (matchingEvents.length > 0) {
+        await listener(matchingEvents);
+      }
+    }));
+  }
 }
+
 
 const openDatabase = (databaseName: string): Promise<IDBDatabase> => new Promise((resolve, reject) => {
   const request = indexedDB.open(databaseName, 1);
@@ -187,13 +216,5 @@ const isConflicting = <E extends Event>(event: E, position: SequencePosition, co
     return false;
   }
 
-  if (condition.failIfEventsMatch.kind === 'none') {
-    return false;
-  }
-
-  if (condition.failIfEventsMatch.kind === 'all') {
-    return true;
-  }
-
-  return condition.failIfEventsMatch.items.some(queryItem => matchesQueryItem(queryItem, event));
+  return matchesQuery(condition.failIfEventsMatch, event);
 };

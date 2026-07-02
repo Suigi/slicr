@@ -28,6 +28,10 @@ class InMemoryGraphEventStore implements SpecEventStore<DcbEvent> {
     return this.store.query(query, options);
   }
 
+  subscribe(query: Query, listener: Parameters<SpecEventStore<DcbEvent>['subscribe']>[1]) {
+    return this.store.subscribe(query, listener);
+  }
+
   async readAll() {
     return (await this.store.read()).map(({event}) => event);
   }

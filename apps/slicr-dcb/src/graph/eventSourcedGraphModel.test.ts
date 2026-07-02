@@ -70,6 +70,7 @@ function createStores(initialEvents: DcbEvent[] = []): {
     },
     read: async (options: ReadOptions = {}) => readSequencedEvents(options.from),
     query: async (query: Query, options: ReadOptions = {}) => readSequencedEvents(options.from).filter(({event}) => matchesQuery(query, event)),
+    subscribe: () => ({unsubscribe: () => undefined}),
   };
 
   return {events, commandStore};
@@ -216,6 +217,7 @@ describe('createEventSourcedGraphModel', () => {
             return matchesType && matchesTags;
           }));
         },
+        subscribe: () => ({unsubscribe: () => undefined}),
       };
 
       return {commandStore};

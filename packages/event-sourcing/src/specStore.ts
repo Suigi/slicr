@@ -33,8 +33,15 @@ export class AppendConditionFailedError extends Error {
   }
 }
 
+export type StoreSubscription = {
+  unsubscribe(): void;
+};
+
+export type AppendedEventsListener<E extends Event> = (events: readonly SequencedEvent<E>[]) => void | Promise<void>;
+
 export interface SpecEventStore<E extends Event> {
   read(options?: ReadOptions): Promise<readonly SequencedEvent<E>[]>;
   query(query: Query, options?: ReadOptions): Promise<readonly SequencedEvent<E>[]>;
   append(events: readonly E[], condition?: AppendCondition): Promise<readonly SequencedEvent<E>[]>;
+  subscribe(query: Query, listener: AppendedEventsListener<E>): StoreSubscription;
 }
