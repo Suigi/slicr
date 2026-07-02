@@ -2,63 +2,69 @@
 
 ## Summary
 
-Introduce an application-owned projection and subscription layer for `apps/slicr-dcb` so React consumes workspace and scoped graph read models through subscriptions instead of owning projection refresh timing directly. The first iteration should be additive: keep `eventSourcedGraphModel.ts` as a compatibility facade while moving projection refresh, caching, and subscriber notification into a new application service.
+Introduce an application-owned, event-driven projection and subscription layer for `apps/slicr-dcb` so React submits commands and observes workspace/scoped graph read-model updates through subscriptions. React should not own projection refresh timing and should not subscribe to raw events.
 
-The intended destination beyond v1 is query-driven projector ownership: each projector declares the `Query` for the event slice it needs, uses that same `Query` both to read its initial events from the store and to subscribe to matching store updates, and therefore no longer depends on an explicit application-level `refresh()` call.
+The target design is query-driven projector ownership: each projector declares the `Query` for the event slice it needs, uses that same `Query` for initial catch-up from the store, and uses it again to receive live matching appended events. Explicit `refresh()` is a bootstrap/compatibility mechanism, not the normal update path.
+
+See [./data-flow.md](./data-flow.md) for the event-driven sequence diagram.
 
 ## Goals
 
 - Make projection/read-model ownership explicit in the application layer.
 - Expose separate subscriptions for workspace and scoped graph projections.
 - Keep the event store as the single source of truth.
-- Keep checkpoint / sequence-position tracking internal in v1.
+- Route command-driven UI updates through appended events and projector catch-up, not manual React refresh orchestration.
+- Keep checkpoint / sequence-position tracking internal.
 - Reduce React coupling to projection refresh mechanics and store reads.
 - Preserve current behavior while migrating under the existing `eventSourcedGraphModel` boundary.
-- Keep the v1 design compatible with a later query-driven subscription model where explicit `refresh()` is no longer needed.
+- Move toward removing explicit application-level `refresh()` once store-backed projector subscriptions are in place.
 
 ## Non-goals
 
-- Fully replacing `eventSourcedGraphModel.ts` in v1.
 - Exposing raw event subscriptions to React.
-- Adding public checkpoint or catch-up APIs in v1.
-- Fully implementing query-driven store subscriptions in v1.
+- Making sequence/checkpoint state part of the React-facing API.
 - Reworking command routing, decider behavior, or existing DCB append-condition semantics.
 - Broadly rewriting React component state that is unrelated to projection ownership.
+- Supporting external cross-process live-store changes unless the store subscription primitive naturally supports it. In-process subscriptions should observe all appends made through the store instance, not only appends made through the graph application command path.
 
 ## Core rules
 
 1. React components and hooks must subscribe to read models, not domain events.
-2. The canonical event source remains `commandStore`; no new authoritative event mirror may be introduced in React or hook state.
-3. Projection refresh is owned by an application service that reads from the event store and derives workspace and graph snapshots.
-4. Graph projection is derived from event arrays or equivalent event-reader inputs, not by re-wrapping freshly read events into a temporary `MemoryStore` inside `eventSourcedGraphModel.ts`.
-5. Workspace projection and graph projection are separate subscription channels.
-6. Successful command execution must lead to projection refresh before subscribers observe the updated snapshot.
-7. Scope changes for graph consumers must recompute the visible graph from canonical projection inputs, without changing workspace state.
-8. The application projection service owns the conversion from domain graph to React-facing renderer graph by calling `adaptModelGraphToRenderer(...)` after domain graph projection.
-9. Projectors should move toward explicitly declaring the `Query` that defines their event slice, so the same `Query` can eventually drive both initial reads and store-backed subscriptions.
-10. Internal sequence/checkpoint tracking may exist to support efficient refresh later, but it must not become part of the React-facing API in v1.
+2. React actions invoke callbacks that submit commands; projection updates flow back through read-model subscriptions.
+3. The canonical event source remains `commandStore`; no new authoritative event mirror may be introduced in React or hook state.
+4. Projectors own the `Query` that defines their event slice.
+5. The same projector `Query` is used for initial catch-up and live append matching.
+6. Projection service state is derived and disposable.
+7. Successful command execution must either resolve after relevant projections have caught up or clearly expose that projection updates arrive asynchronously via subscriptions.
+8. Scope changes for graph consumers must recreate/resubscribe the scoped graph projection without changing workspace state.
+9. The application projection service owns the conversion from domain graph to React-facing renderer graph by calling `adaptModelGraphToRenderer(...)` after domain graph projection.
+10. Internal sequence/checkpoint tracking may exist to support efficient catch-up, but it must not become part of the React-facing API.
 
 ## Data model
 
-### Projector shape destination
+### Projector shape
 
-The desired long-term shape is for each projector to own both its derivation logic and the `Query` that identifies the events it cares about.
-
-Illustrative shape:
+Projectors own derivation logic and the `Query` that identifies the events they care about.
 
 ```ts
-type Projector<Scope, Projection> = {
+type ProjectorDefinition<Event, Scope, State, Projection> = {
   query(scope: Scope): Query;
-  project(events: readonly DcbEvent[], scope: Scope): Projection;
+  initialState(scope: Scope): State;
+  evolve(state: State, event: Event, scope: Scope): State;
+  projection(state: State, scope: Scope): Projection;
 };
 ```
 
-In that destination model:
+For store-backed subscriptions, the application/event-sourcing layer owns sequenced projector instances that track the last applied sequence position internally.
 
-- `query(scope)` defines the authoritative event slice for the projector
-- the same query is used for the initial store read
-- the same query is used to subscribe to future matching events
-- explicit `refresh()` becomes an internal compatibility mechanism or disappears entirely
+```ts
+type SequencedProjectorInstance<Event, Projection> = {
+  query(): Query;
+  evolve(event: SequencedEvent<Event>): void;
+  projection(): Projection;
+  lastAppliedPosition(): SequencePosition | undefined;
+};
+```
 
 ### Public application-layer concepts
 
@@ -73,176 +79,141 @@ type Subscription = {
 };
 
 type GraphProjectionService = {
-  refresh(): Promise<void>; // v1 compatibility API; intended to become internal once store-backed subscriptions exist
+  refresh(): Promise<void>; // bootstrap/compatibility API; not the normal update path after store subscriptions exist
 
   getWorkspaceSnapshot(): WorkspaceProjection;
   subscribeToWorkspace(
     listener: (workspace: WorkspaceProjection) => void,
-    options?: {emitCurrent?: boolean},
+    options?: {emitCurrent?: boolean}, // defaults to true
   ): Subscription;
 
   createScopedGraphView(initialScope?: GraphModelScope): {
     getScope(): {projectId: string; chapterId: string};
-    setScope(scope: GraphModelScope): RendererGraph;
+
+    // Scope changes query/catch up a new scoped projector and resolve with the ready renderer snapshot.
+    setScope(scope: GraphModelScope): Promise<RendererGraph>;
+
     getSnapshot(): RendererGraph;
     subscribe(
       listener: (graph: RendererGraph) => void,
-      options?: {emitCurrent?: boolean},
+      options?: {emitCurrent?: boolean}, // defaults to true
     ): Subscription;
   };
 };
 ```
 
+`setScope(...)` must return `Promise<RendererGraph>` and callers must not require a synchronous graph recompute from a full event cache. `emitCurrent` defaults to `true` for workspace and scoped graph subscriptions so read-model subscribers can hydrate from the current snapshot immediately, then receive future updates.
+
 ### Internal projection state
 
 The service may internally track:
 
-- `lastSeenPosition?: number`
-- latest canonical sequenced events or equivalent derived inputs
+- workspace sequenced projector instance
+- per-scoped-view graph sequenced projector instances
 - current workspace snapshot
-- per-scope graph snapshots and/or shared graph derivation inputs
-- projector-owned `Query` definitions or compiled subscription descriptors
-- workspace listeners
-- graph listeners keyed by scoped view
+- current renderer graph snapshot per scoped view
+- requested and resolved scope per scoped graph view
+- listener sets for workspace and scoped graph projections
+- sequence/checkpoint state inside projector instances
+- request/version counters to ignore stale async scope changes
 
-Internal storage choice is flexible as long as it preserves the source-of-truth rule and does not leak raw events to React.
+The service should avoid retaining a full canonical event cache for normal operation once store-backed projector subscriptions are in place.
 
-## Algorithm / derivation steps
+## Event-driven flow
 
-### Refresh flow
+Normal command-driven updates should follow this path:
 
-1. Read canonical events from `commandStore`.
-2. Record the highest observed sequence position internally.
-3. Derive the workspace projection from the canonical events.
-4. Derive graph projection inputs from the canonical events.
-5. For each active scoped graph view, project a domain `ModelGraph` from canonical events.
-6. Convert each domain `ModelGraph` into a `RendererGraph` by calling `adaptModelGraphToRenderer(...)` in the application projection service.
-7. Recompute the cached renderer snapshot for each active scoped graph view.
-8. Notify workspace subscribers if the workspace snapshot changed.
-9. Notify each scoped graph subscriber if that scope's graph snapshot changed.
+1. User triggers an action in a React component.
+2. React invokes a callback/hook function.
+3. The application creates/routes a command.
+4. The command router queries the event store for the decision slice.
+5. The decider projects a decision model and emits events.
+6. The command router appends emitted events to the store.
+7. Store append notifications are matched against subscribed projector queries.
+8. Matching projectors catch up from their last applied sequence position.
+9. Projection service updates workspace/scoped graph snapshots.
+10. React subscribers receive read-model updates and render the new state.
 
-The first iteration may perform full replay on each refresh. Incremental replay is deferred.
+See [./data-flow.md](./data-flow.md) for the Mermaid diagram.
 
-### Query-driven destination flow
+## Query subscription and catch-up flow
 
-1. Each projector declares a `Query` for its scope.
-2. The projection service uses that `Query` to load the initial event slice from the store.
-3. The projection service subscribes to store updates using that same `Query`.
-4. When matching events arrive, the service reprojects only the affected projector/view.
-5. React subscribers receive updated read-model snapshots without an explicit application `refresh()` call.
+1. A projection owner creates a sequenced projector instance for a definition and scope.
+2. It performs initial catch-up by querying the store with `instance.query()` from the instance's last applied position.
+3. It subscribes that same query to future appended events through the event store interface.
+4. The store subscription observes all appends made through that store instance, including appends outside the graph application command API.
+5. When matching sequenced events are appended, the instance evolves only those events after its last applied position.
+6. After event catch-up, the projection service notifies read-model listeners.
+7. Repeated notifications without new matching events must not double-apply events.
 
-### Scoped graph flow
+## Scoped graph flow
 
 1. A caller creates a scoped graph view with an optional requested scope.
-2. The view resolves that requested scope against the current workspace rules.
-3. The view exposes the resolved scope and current `RendererGraph` snapshot.
-4. When `setScope(...)` is called, the view recomputes its graph snapshot from the service's canonical projection inputs by running domain graph projection and then `adaptModelGraphToRenderer(...)`.
-5. The scoped view notifies its own subscribers if the visible renderer graph changes.
+2. The view resolves that requested scope against the current workspace projection.
+3. The view creates or reuses a graph projector subscription for the resolved scope.
+4. The view exposes the resolved scope and current `RendererGraph` snapshot.
+5. When `setScope(...)` is called, the view resolves the requested scope, recreates/resubscribes the scoped graph projector, catches it up, and notifies graph subscribers if the renderer snapshot changes.
 6. Scope changes do not read or append events directly from React.
+7. Rapid scope changes must not allow stale async catch-up results to overwrite the latest requested scope.
 
-### Command flow
+## Command flow
 
 1. React invokes an application command API.
 2. The command API routes the command through the existing command router.
-3. After successful command completion, the application refreshes projections from `commandStore`.
-4. Subscribers receive updated workspace and/or graph snapshots.
+3. The command router appends emitted events to `commandStore`.
+4. Appended events notify subscribed projector queries.
+5. Matching projectors catch up and update read-model subscribers.
+6. The command API resolves after events are appended. Projection updates may arrive later through read-model subscriptions after matching projector catch-up. Tests should make this asynchronous observation boundary explicit.
 
 ## Renderer / interaction behavior
 
-- React should be able to subscribe separately to:
+- React should subscribe separately to:
   - workspace projection updates
   - the currently scoped graph projection
 - Existing user-visible graph behavior should stay unchanged:
   - commands still update the graph/workspace after success
   - scope changes still resolve to valid project/chapter selections
   - transient UI state such as editing menus, focus, and drafts remains local to React hooks/components
-- For v1, `useGraphModel.ts` may continue to bridge application snapshots into React state, but it should stop owning projection refresh policy.
-
-### Data flow sequence
-
-```mermaid
-sequenceDiagram
-    actor User
-    participant RC as React Component
-    participant RH as React Handler / Hook
-    participant APP as Graph Application
-    participant CR as Command Router
-    participant DEC as Decider
-    participant ES as Event Store
-    participant PS as Projection Service
-    participant SUB as React Subscription Adapter
-
-    User->>RC: Click / submit
-    RC->>RH: UI event
-    RH->>APP: command API call
-    APP->>CR: execute(command)
-
-    CR->>DEC: query(command)
-    DEC-->>CR: query
-
-    CR->>ES: query(query)
-    ES-->>CR: decision-slice events
-
-    CR->>DEC: project(events)
-    DEC-->>CR: decision model
-
-    CR->>DEC: decide(command, decision model)
-    DEC-->>CR: emitted events
-
-    CR->>ES: append(events, appendCondition)
-    ES-->>CR: append success
-
-    CR-->>APP: command completed
-
-    APP->>PS: refresh()
-    PS->>ES: read() / read({from})
-    ES-->>PS: canonical events
-
-    PS->>PS: projectWorkspace(events)
-    PS->>PS: projectGraph(events, scope)
-    PS->>PS: update cached snapshots
-    PS->>SUB: notify subscribers
-
-    SUB-->>RH: updated projection snapshot
-    RH-->>RC: set state / trigger render
-    RC-->>User: updated UI
-```
+- `useGraphModel.ts` should bridge application snapshots into React state, but should stop owning projection refresh policy.
 
 ## Implementation shape
 
 ### Domain layer
 
-- Extract or introduce a pure graph projection function, e.g. `projectGraph(events, projectId, chapterId?)`, that returns a domain `ModelGraph`.
-- Keep `projectWorkspace(events)` as the workspace derivation entry point.
+- Keep `workspaceProjectorDefinition` as the workspace derivation entry point.
+- Keep `graphProjectorDefinition` as the scoped graph derivation entry point.
+- Keep compatibility wrappers such as `projectWorkspace(...)` and `projectGraph(...)` while migration is in progress.
 - Keep `adaptModelGraphToRenderer(model: ModelGraph): RendererGraph` as the domain-to-renderer adapter boundary, but do not call it from React.
-- `GraphProjector` may remain temporarily as a compatibility wrapper if needed, but application code should no longer need the temporary `MemoryStore` path.
+
+### Event-sourcing / application infrastructure
+
+Add or use infrastructure for:
+
+- sequenced projector instances
+- catch-up from a `SpecEventStore`
+- subscribing to appended sequenced events by `Query` on the store interface
+- matching appended events against subscribed queries
+- unsubscribing projector/read-model listeners
+- lazy initial catch-up before first workspace delivery, scoped graph view creation, scope changes, or explicit bootstrap `refresh()`
+- stale-result protection for async scoped graph changes
 
 ### Application layer
 
-Add a new service, likely under `apps/slicr-dcb/src/application/`, such as:
+`graphProjectionService.ts` responsibilities:
 
-- `graphProjectionService.ts`
-- optional supporting scoped-view module if helpful
-
-Responsibilities:
-
-- read from `commandStore`
-- build and cache workspace snapshot
-- build domain graph projections per active scope
+- own workspace and scoped graph projector subscriptions
+- perform initial catch-up and live catch-up
 - convert domain graphs to `RendererGraph` snapshots via `adaptModelGraphToRenderer(...)`
-- cache scoped renderer-graph snapshots
-- manage subscriptions
-- track internal sequence/checkpoint state
-- keep projector query ownership explicit so the service can later switch from explicit refresh to store-backed query subscriptions without changing React-facing APIs
-
-Update application bootstrap so the projection service is created alongside the command router-backed APIs.
+- cache latest read-model snapshots only, not a full event mirror for normal operation
+- manage read-model subscriptions
+- keep projector query ownership explicit so `refresh()` can become compatibility/bootstrap-only
 
 ### Compatibility layer
 
-`eventSourcedGraphModel.ts` remains in v1 but becomes a thinner facade that:
+`eventSourcedGraphModel.ts` remains temporarily but becomes a thinner facade that:
 
 - delegates command execution to the existing router/application APIs
-- delegates projection reads and scope changes to the new projection service or scoped graph view
+- delegates projection reads and scope changes to the projection service or scoped graph view
 - consumes already adapted `RendererGraph` snapshots from that service
 - stops directly rebuilding projections from ad-hoc event reads
 
@@ -257,15 +228,26 @@ It should continue owning only UI-transient state and command invocation glue.
 
 ## Test plan
 
-### Projection service tests
+### Projection infrastructure tests
 
 Add focused tests for:
 
-- initial refresh produces workspace and graph snapshots from store events
-- workspace subscribers receive current and updated workspace snapshots
-- scoped graph subscribers receive current and updated graph snapshots
-- changing scope recomputes the graph snapshot from canonical projection inputs
-- refreshing after store changes updates all active scoped views
+- initial projector catch-up from store
+- live matching append notifications
+- ignored non-matching append notifications
+- repeated catch-up without double replay
+- unsubscribe behavior
+- stale async scope-change protection where applicable
+
+### Projection service tests
+
+Add/update focused tests for:
+
+- initial catch-up produces workspace and graph snapshots from store events
+- workspace subscribers receive current and updated workspace snapshots through event-driven updates
+- scoped graph subscribers receive current and updated graph snapshots through event-driven updates
+- changing scope asynchronously recomputes/resubscribes the graph view
+- refreshing/bootstrap remains compatible while not being the normal command update path
 - unsubscribe stops further notifications
 
 ### Graph model / facade tests
@@ -273,7 +255,7 @@ Add focused tests for:
 Update or add tests showing:
 
 - `eventSourcedGraphModel.ts` no longer uses a temporary projection `MemoryStore`
-- command methods still return updated snapshots after successful command execution
+- command methods still lead to updated snapshots after successful command execution and projector catch-up
 - scope changes remain behaviorally equivalent
 
 ### React-facing tests
@@ -282,6 +264,7 @@ Add or update focused hook/application tests showing:
 
 - `useGraphModel.ts` reacts to projection subscription updates
 - React-facing code does not need direct store reads to observe command results
+- command callbacks submit commands and projection changes flow back through subscriptions
 
 ### Validation
 
@@ -296,11 +279,7 @@ Broader validation can follow if needed.
 
 ## Deferred follow-up
 
-- Replace explicit application-triggered `refresh()` with projector-owned query subscriptions against the store
-- Introduce store APIs that support subscribing by `Query` and replaying from a sequence/checkpoint position
-- Let each projector use the same `Query` for both initial reads and ongoing updates
-- External live-store change observation instead of explicit in-app refresh triggers
-- Public checkpoint/catch-up subscription APIs if another application consumer needs them
+- External live-store change observation if not covered by the first query subscription primitive
+- Public checkpoint/catch-up APIs if another application consumer needs them
 - Replacing `eventSourcedGraphModel.ts` entirely once the compatibility layer no longer adds value
-- Incremental projection updates keyed by sequence position if full replay becomes too expensive
 - Consolidating projection snapshots into a more general application store only if multiple features demand it
