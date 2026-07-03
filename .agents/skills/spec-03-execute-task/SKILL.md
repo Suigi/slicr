@@ -32,6 +32,8 @@ This skill covers phases 4 to 6 only. It should complete at most one task per ru
 
 Follow the repo's required validation workflow and the validation matrix in Phase 5.
 
+Before marking a task `[done]`, run `npm run validate:llm` from the repo root unless the human explicitly instructs otherwise or the command cannot be run in the current environment. This command includes Prettier format checking for changed/untracked files, lint, LLM-friendly tests, and typecheck. If formatting fails after edits, run `npm run format` from the repo root, then rerun `npm run validate:llm`.
+
 When running focused app tests, prefer the workspace-specific npm command, for example `npm run test --workspace slicr-dcb -- <path>`. Do not use `./scripts/test.sh <path>` for focused app tests because it is the full-suite wrapper and forwards extra args to every workspace.
 
 If a required validation step cannot be run, say so explicitly and do not claim full completion.
