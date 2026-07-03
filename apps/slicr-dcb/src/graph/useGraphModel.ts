@@ -7,11 +7,7 @@ import type {WorkspaceProjection} from '../domain/workspaceProjector';
 import {loadGraphApplication} from '../application/graphApplicationLoader';
 import type {EventSourcedGraphModel} from './eventSourcedGraphModel';
 import {getLaneOrder, getSuccessorNodeType} from './graphUtils';
-import {
-  deriveNodePropertyExampleValues,
-  deriveNodePropertySchema,
-  mergeNodePropertyEditorProperties,
-} from './propertyEventMapping';
+import {deriveNodePropertyExampleValues, deriveNodePropertySchema, mergeNodePropertyEditorProperties} from './propertyEventMapping';
 import type {AddDirection, GraphNode, NodeType} from './types';
 
 export type StoredGraphModel = {
@@ -25,7 +21,6 @@ export type StoredGraphModel = {
 const LAST_OK_STORAGE_KEY = 'slicr-dcb.lastOkGraphModel.v1';
 const emptyGraphModel: StoredGraphModel = {nodes: [], edges: [], lanes: []};
 const emptyWorkspace: WorkspaceProjection = {projects: [], chaptersByProjectId: {}};
-
 
 export function storeLastOkGraphModel(model: StoredGraphModel) {
   if (typeof window === 'undefined') {
@@ -223,16 +218,19 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
     }, 1000);
   }, [flushPendingPropertyEdit]);
 
-  const setFocusedNodeId = useCallback((nodeId: string | null) => {
-    if (pendingPropertyEditRef.current && pendingPropertyEditRef.current.nodeId !== nodeId) {
-      void flushPendingPropertyEdit();
-    }
-    setFocus({
-      nodeId,
-      editorFocusedPropertyId: null,
-      hoveredPropertyId: null,
-    });
-  }, [flushPendingPropertyEdit]);
+  const setFocusedNodeId = useCallback(
+    (nodeId: string | null) => {
+      if (pendingPropertyEditRef.current && pendingPropertyEditRef.current.nodeId !== nodeId) {
+        void flushPendingPropertyEdit();
+      }
+      setFocus({
+        nodeId,
+        editorFocusedPropertyId: null,
+        hoveredPropertyId: null,
+      });
+    },
+    [flushPendingPropertyEdit],
+  );
 
   const setEditorFocusedPropertyId = useCallback((propertyId: string | null) => {
     setFocus((currentFocus) => ({...currentFocus, editorFocusedPropertyId: propertyId}));
@@ -321,24 +319,32 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
     async (options: {preserveScope?: boolean} = {}) => {
       await flushPendingPropertyEdit();
       const currentScope = modelRef.current?.getScope();
-      const graphModel = await modelRef.current?.load(
+      const requestedScope =
         options.preserveScope && currentScope
           ? currentScope
           : {
               projectId: scope.activeProjectId ?? undefined,
               chapterId: scope.activeChapterId ?? undefined,
-            },
-      );
-      if (!graphModel) {
-        return;
-      }
+            };
+      const application = await loadGraphApplication(requestedScope);
+      const {model} = application;
+      const graphModel = await model.load(requestedScope);
 
+      modelRef.current = model;
       applyGraphModel(graphModel);
       syncWorkspaceState();
       setFocusedNodeId(graphModel.nodes[0]?.id ?? null);
       resetTransientState();
     },
-    [applyGraphModel, flushPendingPropertyEdit, resetTransientState, scope.activeChapterId, scope.activeProjectId, setFocusedNodeId, syncWorkspaceState],
+    [
+      applyGraphModel,
+      flushPendingPropertyEdit,
+      resetTransientState,
+      scope.activeChapterId,
+      scope.activeProjectId,
+      setFocusedNodeId,
+      syncWorkspaceState,
+    ],
   );
 
   const revertToLastOkGraphModel = useCallback(() => {
@@ -368,59 +374,71 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
     })();
   }, [applyGraphModel, setFocusedNodeId, syncWorkspaceState]);
 
-  const addProject = useCallback(async (name: string) => {
-    const graphModel = await modelRef.current?.addProject(name);
-    if (!graphModel || !modelRef.current) {
-      return;
-    }
+  const addProject = useCallback(
+    async (name: string) => {
+      const graphModel = await modelRef.current?.addProject(name);
+      if (!graphModel || !modelRef.current) {
+        return;
+      }
 
-    applyGraphModel(graphModel);
-    syncWorkspaceState();
-    setFocusedNodeId(graphModel.nodes[0]?.id ?? null);
-    setOpenNodeMenuId(null);
-    setConnectingSourceNodeId(null);
-    skipBlurSaveRef.current = false;
-    cancelEditRef.current = false;
-    setEditingNodeId(null);
-    setDraftLabel('');
-    setOriginalLabel('');
-  }, [applyGraphModel, setFocusedNodeId, syncWorkspaceState]);
+      applyGraphModel(graphModel);
+      syncWorkspaceState();
+      setFocusedNodeId(graphModel.nodes[0]?.id ?? null);
+      setOpenNodeMenuId(null);
+      setConnectingSourceNodeId(null);
+      skipBlurSaveRef.current = false;
+      cancelEditRef.current = false;
+      setEditingNodeId(null);
+      setDraftLabel('');
+      setOriginalLabel('');
+    },
+    [applyGraphModel, setFocusedNodeId, syncWorkspaceState],
+  );
 
-  const renameProject = useCallback(async (projectId: string, name: string) => {
-    const graphModel = await modelRef.current?.renameProject(projectId, name);
-    if (!graphModel) {
-      return;
-    }
+  const renameProject = useCallback(
+    async (projectId: string, name: string) => {
+      const graphModel = await modelRef.current?.renameProject(projectId, name);
+      if (!graphModel) {
+        return;
+      }
 
-    applyGraphModel(graphModel);
-    syncWorkspaceState();
-  }, [applyGraphModel, syncWorkspaceState]);
+      applyGraphModel(graphModel);
+      syncWorkspaceState();
+    },
+    [applyGraphModel, syncWorkspaceState],
+  );
 
-  const addChapter = useCallback(async (title: string) => {
-    const graphModel = await modelRef.current?.addChapter(title);
-    if (!graphModel || !modelRef.current) {
-      return undefined;
-    }
+  const addChapter = useCallback(
+    async (title: string) => {
+      const graphModel = await modelRef.current?.addChapter(title);
+      if (!graphModel || !modelRef.current) {
+        return undefined;
+      }
 
-    applyGraphModel(graphModel);
-    syncWorkspaceState();
-    setFocusedNodeId(graphModel.nodes[0]?.id ?? null);
-    setOpenNodeMenuId(null);
-    setConnectingSourceNodeId(null);
-    skipBlurSaveRef.current = false;
-    cancelEditRef.current = false;
-    setEditingNodeId(null);
-    setDraftLabel('');
-    setOriginalLabel('');
+      applyGraphModel(graphModel);
+      syncWorkspaceState();
+      setFocusedNodeId(graphModel.nodes[0]?.id ?? null);
+      setOpenNodeMenuId(null);
+      setConnectingSourceNodeId(null);
+      skipBlurSaveRef.current = false;
+      cancelEditRef.current = false;
+      setEditingNodeId(null);
+      setDraftLabel('');
+      setOriginalLabel('');
 
-    return modelRef.current.getScope().chapterId;
-  }, [applyGraphModel, setFocusedNodeId, syncWorkspaceState]);
+      return modelRef.current.getScope().chapterId;
+    },
+    [applyGraphModel, setFocusedNodeId, syncWorkspaceState],
+  );
 
-  const startConnectingFromNode = useCallback((nodeId: string) => {
-    setFocusedNodeId(nodeId);
-    setOpenNodeMenuId(null);
-    setConnectingSourceNodeId(nodeId);
-  }, [setFocusedNodeId]);
+  const startConnectingFromNode = useCallback(
+    (nodeId: string) => {
+      setFocusedNodeId(nodeId);
+      setOpenNodeMenuId(null);
+      setConnectingSourceNodeId(nodeId);
+    },
+    [setFocusedNodeId],
+  );
 
   const cancelConnecting = useCallback(() => {
     setConnectingSourceNodeId(null);
@@ -468,8 +486,7 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
   const addConnectedNode = useCallback(
     (sourceNode: GraphNode, direction: AddDirection, typeOverride?: NodeType) => {
       const sourceLaneOrder = getLaneOrder(lanes, sourceNode.laneId);
-      const targetLaneOrder =
-        direction === 'top' ? sourceLaneOrder - 1 : direction === 'bottom' ? sourceLaneOrder + 1 : sourceLaneOrder;
+      const targetLaneOrder = direction === 'top' ? sourceLaneOrder - 1 : direction === 'bottom' ? sourceLaneOrder + 1 : sourceLaneOrder;
       const targetType = typeOverride ?? getSuccessorNodeType(sourceNode.type, direction);
       const label = `Node ${nodes.length + 1}`;
 
@@ -545,15 +562,18 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
     [applyGraphModel, syncWorkspaceState],
   );
 
-  const startEditingNode = useCallback((node: GraphNode) => {
-    skipBlurSaveRef.current = false;
-    cancelEditRef.current = false;
-    setFocusedNodeId(node.id);
-    setConnectingSourceNodeId(null);
-    setEditingNodeId(node.id);
-    setDraftLabel(node.label);
-    setOriginalLabel(node.label);
-  }, [setFocusedNodeId]);
+  const startEditingNode = useCallback(
+    (node: GraphNode) => {
+      skipBlurSaveRef.current = false;
+      cancelEditRef.current = false;
+      setFocusedNodeId(node.id);
+      setConnectingSourceNodeId(null);
+      setEditingNodeId(node.id);
+      setDraftLabel(node.label);
+      setOriginalLabel(node.label);
+    },
+    [setFocusedNodeId],
+  );
 
   const saveEditingNode = useCallback(() => {
     if (!editingNodeId || cancelEditRef.current) {
@@ -578,9 +598,7 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
   const cancelEditingNode = useCallback(() => {
     cancelEditRef.current = true;
     if (editingNodeId) {
-      setNodes((currentNodes) =>
-        currentNodes.map((node) => (node.id === editingNodeId ? {...node, label: originalLabel} : node)),
-      );
+      setNodes((currentNodes) => currentNodes.map((node) => (node.id === editingNodeId ? {...node, label: originalLabel} : node)));
     }
     setEditingNodeId(null);
     setDraftLabel('');
@@ -636,8 +654,7 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
       Object.fromEntries(
         nodes.map((node) => [
           node.id,
-          editorPropertiesById[node.id]
-            ?? mergeNodePropertyEditorProperties(nodeSchemas[node.id] ?? [], nodeExampleValues[node.id] ?? []),
+          editorPropertiesById[node.id] ?? mergeNodePropertyEditorProperties(nodeSchemas[node.id] ?? [], nodeExampleValues[node.id] ?? []),
         ]),
       ),
     [editorPropertiesById, nodeExampleValues, nodeSchemas, nodes],
@@ -651,18 +668,21 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
     return nodePropertiesById[focusedNodeId] ?? [];
   }, [focusedNodeId, nodePropertiesById]);
 
-  const updateFocusedNodeProperties = useCallback((properties: EditableProperty[]) => {
-    if (!focusedNodeId) {
-      return;
-    }
+  const updateFocusedNodeProperties = useCallback(
+    (properties: EditableProperty[]) => {
+      if (!focusedNodeId) {
+        return;
+      }
 
-    setEditorPropertiesById((currentPropertiesById) => ({
-      ...currentPropertiesById,
-      [focusedNodeId]: properties,
-    }));
-    pendingPropertyEditRef.current = {nodeId: focusedNodeId, properties};
-    schedulePropertyEditFlush();
-  }, [focusedNodeId, schedulePropertyEditFlush]);
+      setEditorPropertiesById((currentPropertiesById) => ({
+        ...currentPropertiesById,
+        [focusedNodeId]: properties,
+      }));
+      pendingPropertyEditRef.current = {nodeId: focusedNodeId, properties};
+      schedulePropertyEditFlush();
+    },
+    [focusedNodeId, schedulePropertyEditFlush],
+  );
 
   return {
     workspace,

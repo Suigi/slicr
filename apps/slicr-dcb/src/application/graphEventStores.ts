@@ -13,6 +13,8 @@ import type {EventBackupAdminStore} from './eventBackup';
 const EVENT_STORE_DATABASE_NAME = 'slicr-dcb.events.v1';
 const EVENT_STORE_STREAM_NAME = 'graph';
 
+let inMemoryGraphEventStore: InMemoryGraphEventStore | undefined;
+
 class InMemoryGraphEventStore implements SpecEventStore<DcbEvent> {
   private store = MemorySpecEventStore.create<DcbEvent>();
 
@@ -47,9 +49,7 @@ class InMemoryGraphEventStore implements SpecEventStore<DcbEvent> {
 }
 
 class IndexedDBEventBackupAdminStore implements EventBackupAdminStore {
-  constructor(
-    private readonly mutableStore: Pick<IndexedDBEventStore<DcbEvent>, 'replace'>,
-  ) {}
+  constructor(private readonly mutableStore: Pick<IndexedDBEventStore<DcbEvent>, 'replace'>) {}
 
   restoreBackup(events: readonly DcbEvent[]) {
     return this.mutableStore.replace(events);
@@ -61,7 +61,8 @@ export async function createDefaultGraphEventStore(): Promise<{
   commandStore: SpecEventStore<DcbEvent>;
 }> {
   if (typeof indexedDB === 'undefined') {
-    const store = new InMemoryGraphEventStore();
+    inMemoryGraphEventStore ??= new InMemoryGraphEventStore();
+    const store = inMemoryGraphEventStore;
     return {
       graphStore: {
         restoreBackup: (events) => store.restoreBackup(events),

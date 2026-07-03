@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useRef} from 'react';
 
 import type {EventBackupService} from './eventBackup';
-import {loadGraphApplication} from './graphApplicationLoader';
+import {loadGraphApplication, resetGraphApplication} from './graphApplicationLoader';
 
 export function useEventBackup() {
   const serviceRef = useRef<EventBackupService | null>(null);
@@ -31,10 +31,15 @@ export function useEventBackup() {
     return service.backupText();
   }, [getService]);
 
-  const restoreFrom = useCallback(async (backup: string) => {
-    const service = await getService();
-    await service.restoreFrom(backup);
-  }, [getService]);
+  const restoreFrom = useCallback(
+    async (backup: string) => {
+      const service = await getService();
+      await service.restoreFrom(backup);
+      resetGraphApplication({ensureInitialWorkspace: false});
+      serviceRef.current = null;
+    },
+    [getService],
+  );
 
   return {backupText, restoreFrom};
 }

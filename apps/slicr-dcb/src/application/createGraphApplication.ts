@@ -4,16 +4,21 @@ import {createEventBackupService, type EventBackupService} from './eventBackup';
 import {createDefaultGraphEventStore} from './graphEventStores';
 import {ensureInitialWorkspace} from './initialWorkspace';
 
-export async function createGraphApplication(scope: GraphModelScope = {}): Promise<{
-  model: EventSourcedGraphModel,
-  graphModel: RendererGraph,
-  eventBackup: EventBackupService,
+export async function createGraphApplication(
+  scope: GraphModelScope = {},
+  options: {ensureInitialWorkspace?: boolean} = {},
+): Promise<{
+  model: EventSourcedGraphModel;
+  graphModel: RendererGraph;
+  eventBackup: EventBackupService;
 }> {
   const stores = await createDefaultGraphEventStore();
 
-  await ensureInitialWorkspace({
-    store: stores.commandStore,
-  });
+  if (options.ensureInitialWorkspace !== false) {
+    await ensureInitialWorkspace({
+      store: stores.commandStore,
+    });
+  }
 
   const model = createEventSourcedGraphModel({
     commandStore: stores.commandStore,

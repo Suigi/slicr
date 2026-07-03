@@ -1,7 +1,7 @@
 import {describe, expect, it, vi} from 'vitest';
 
 import {createEventSourcedGraphModel} from './eventSourcedGraphModel';
-import {Events,} from '../domain/events';
+import {Events} from '../domain/events';
 import {
   type AppendCondition,
   AppendConditionFailedError,
@@ -10,7 +10,7 @@ import {
   Query,
   type ReadOptions,
   type SequencedEvent,
-  type SpecEventStore
+  type SpecEventStore,
 } from '../domain/eventSourcing';
 import {NODE_HEIGHT, NODE_WIDTH} from './constants';
 
@@ -28,49 +28,68 @@ function createIdGenerator(ids: string[]) {
   };
 }
 
+function matchesQuery(query: Query, event: DcbEvent) {
+  if (query.kind === 'none') {
+    return false;
+  }
+  if (query.kind === 'all') {
+    return true;
+  }
+  return query.items.some((queryItem) => {
+    const matchesType = queryItem.types === undefined || queryItem.types.includes(event.type);
+    const matchesTags = queryItem.tags === undefined || queryItem.tags.every((tag) => event.tags.includes(tag));
+    return matchesType && matchesTags;
+  });
+}
+
 function createStores(initialEvents: DcbEvent[] = []): {
   events: DcbEvent[];
   commandStore: SpecEventStore<DcbEvent>;
 } {
   const events = [...initialEvents];
+  const subscriptions = new Set<{query: Query; listener: (events: readonly SequencedEvent<DcbEvent>[]) => void | Promise<void>}>();
 
   const readSequencedEvents = (from?: number) => {
     const sequencedEvents = events.map((event, index) => ({position: index + 1, event}));
-    return from === undefined
-      ? sequencedEvents
-      : sequencedEvents.filter((sequencedEvent) => sequencedEvent.position > from);
+    return from === undefined ? sequencedEvents : sequencedEvents.filter((sequencedEvent) => sequencedEvent.position > from);
   };
 
-  const matchesQuery = (query: Query, event: DcbEvent) => {
-    if (query.kind === 'none') {
-      return false;
-    }
-    if (query.kind === 'all') {
-      return true;
-    }
-    return query.items.some((queryItem) => {
-      const matchesType = queryItem.types === undefined || queryItem.types.includes(event.type);
-      const matchesTags = queryItem.tags === undefined || queryItem.tags.every((tag) => event.tags.includes(tag));
-      return matchesType && matchesTags;
-    });
+  const notifySubscribers = async (appendedEvents: readonly SequencedEvent<DcbEvent>[]) => {
+    await Promise.allSettled(
+      [...subscriptions].map(async ({query, listener}) => {
+        const matchingEvents = appendedEvents.filter(({event}) => matchesQuery(query, event));
+        if (matchingEvents.length > 0) {
+          await listener(matchingEvents);
+        }
+      }),
+    );
   };
 
   const commandStore: SpecEventStore<DcbEvent> = {
     append: async (nextEvents, condition?: AppendCondition) => {
-      const conflictingEvents = condition === undefined
-        ? []
-        : readSequencedEvents(condition.after).filter(({event}) => matchesQuery(condition.failIfEventsMatch, event));
+      const conflictingEvents =
+        condition === undefined
+          ? []
+          : readSequencedEvents(condition.after).filter(({event}) => matchesQuery(condition.failIfEventsMatch, event));
 
       if (condition !== undefined && conflictingEvents.length > 0) {
         throw new AppendConditionFailedError(condition, conflictingEvents);
       }
 
+      const startingPosition = events.length > 0 ? events.length : 0;
+      const appendedEvents = nextEvents.map((event, index) => ({position: startingPosition + index + 1, event}));
       events.push(...nextEvents);
-      return readSequencedEvents().slice(-nextEvents.length);
+      await notifySubscribers(appendedEvents);
+      return appendedEvents;
     },
     read: async (options: ReadOptions = {}) => readSequencedEvents(options.from),
-    query: async (query: Query, options: ReadOptions = {}) => readSequencedEvents(options.from).filter(({event}) => matchesQuery(query, event)),
-    subscribe: () => ({unsubscribe: () => undefined}),
+    query: async (query: Query, options: ReadOptions = {}) =>
+      readSequencedEvents(options.from).filter(({event}) => matchesQuery(query, event)),
+    subscribe: (query, listener) => {
+      const subscription = {query, listener};
+      subscriptions.add(subscription);
+      return {unsubscribe: () => subscriptions.delete(subscription)};
+    },
   };
 
   return {events, commandStore};
@@ -132,6 +151,23 @@ describe('createEventSourcedGraphModel', () => {
     });
   });
 
+  it('observes direct matching appends through subscriptions without reloading', async () => {
+    const {commandStore, model} = createModelContext({
+      events: [
+        Events.projectAdded(defaultProjectId, 'Default Project'),
+        Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
+      ],
+    });
+
+    await model.load({projectId: defaultProjectId, chapterId: 'default-chapter'});
+    await commandStore.append([Events.nodeAdded(defaultProjectId, 'default-chapter', 'node-1', 'ui', 0, 'Projected Later')]);
+
+    expect(model.getSnapshot().nodes).toEqual([
+      {id: 'node-1', label: 'Projected Later', type: 'ui', laneId: 'lane-0', width: NODE_WIDTH, height: NODE_HEIGHT},
+    ]);
+    expect(model.getScope()).toEqual({projectId: defaultProjectId, chapterId: 'default-chapter'});
+  });
+
   it('does not append duplicate default workspace events when the default workspace already exists', async () => {
     const {events, model} = createModelContext({
       events: [
@@ -163,6 +199,7 @@ describe('createEventSourcedGraphModel', () => {
   it('does not append bootstrap events across distinct store instances sharing the same backing storage', async () => {
     const sequencedEvents: SequencedEvent<DcbEvent>[] = [];
     const createSharedStores = () => {
+      const subscriptions = new Set<{query: Query; listener: (events: readonly SequencedEvent<DcbEvent>[]) => void | Promise<void>}>();
       const commandStore: SpecEventStore<DcbEvent> = {
         append: async (nextEvents, condition?: AppendCondition) => {
           const conflictingEvents = condition
@@ -189,35 +226,39 @@ describe('createEventSourcedGraphModel', () => {
           }
 
           const startingPosition = sequencedEvents.length > 0 ? sequencedEvents[sequencedEvents.length - 1].position : 0;
-          sequencedEvents.push(
-            ...nextEvents.map((event, index) => ({position: startingPosition + index + 1, event})),
+          const appendedEvents = nextEvents.map((event, index) => ({position: startingPosition + index + 1, event}));
+          sequencedEvents.push(...appendedEvents);
+          await Promise.allSettled(
+            [...subscriptions].map(async ({query, listener}) => {
+              const matchingEvents = appendedEvents.filter(({event}) => matchesQuery(query, event));
+              if (matchingEvents.length > 0) {
+                await listener(matchingEvents);
+              }
+            }),
           );
-          return sequencedEvents.slice(-nextEvents.length);
+          return appendedEvents;
         },
         read: async (options: ReadOptions = {}) => {
           const from = options.from;
-          return from === undefined
-            ? [...sequencedEvents]
-            : sequencedEvents.filter((sequencedEvent) => sequencedEvent.position > from);
+          return from === undefined ? [...sequencedEvents] : sequencedEvents.filter((sequencedEvent) => sequencedEvent.position > from);
         },
         query: async (query: Query, options: ReadOptions = {}) => {
           const from = options.from;
-          const eventsToQuery = from === undefined
-            ? sequencedEvents
-            : sequencedEvents.filter((sequencedEvent) => sequencedEvent.position > from);
+          const eventsToQuery =
+            from === undefined ? sequencedEvents : sequencedEvents.filter((sequencedEvent) => sequencedEvent.position > from);
           if (query.kind === 'none') {
             return [];
           }
           if (query.kind === 'all') {
             return eventsToQuery;
           }
-          return eventsToQuery.filter(({event}) => query.items.some((queryItem) => {
-            const matchesType = queryItem.types === undefined || queryItem.types.includes(event.type);
-            const matchesTags = queryItem.tags === undefined || queryItem.tags.every((tag) => event.tags.includes(tag));
-            return matchesType && matchesTags;
-          }));
+          return eventsToQuery.filter(({event}) => matchesQuery(query, event));
         },
-        subscribe: () => ({unsubscribe: () => undefined}),
+        subscribe: (query, listener) => {
+          const subscription = {query, listener};
+          subscriptions.add(subscription);
+          return {unsubscribe: () => subscriptions.delete(subscription)};
+        },
       };
 
       return {commandStore};
@@ -376,11 +417,9 @@ describe('createEventSourcedGraphModel', () => {
     };
 
     await model.load();
-    expect(readCalls).toBe(1);
-
     await model.addConnection('source-node', 'target-node');
 
-    expect(readCalls).toBe(2);
+    expect(readCalls).toBe(0);
     expect(model.getSnapshot().edges).toEqual([
       {
         id: 'edge-source-node-target-node',
@@ -409,11 +448,9 @@ describe('createEventSourcedGraphModel', () => {
     };
 
     await model.load();
-    expect(readCalls).toBe(1);
-
     await model.deleteConnection('edge-source-node-target-node');
 
-    expect(readCalls).toBe(2);
+    expect(readCalls).toBe(0);
     expect(model.getSnapshot().edges).toEqual([]);
   });
 
@@ -450,9 +487,7 @@ describe('createEventSourcedGraphModel', () => {
     });
 
     await model.load({projectId: defaultProjectId, chapterId: 'default-chapter'});
-    await commandStore.append([
-      Events.nodeAdded(defaultProjectId, 'chapter-2', 'node-added-after-load', 'evt', 1, 'Fresh Event'),
-    ]);
+    await commandStore.append([Events.nodeAdded(defaultProjectId, 'chapter-2', 'node-added-after-load', 'evt', 1, 'Fresh Event')]);
 
     const graph = await model.setScope({projectId: defaultProjectId, chapterId: 'chapter-2'});
 
@@ -461,10 +496,9 @@ describe('createEventSourcedGraphModel', () => {
   });
 
   it('loads and scopes without constructing a temporary projection MemoryStore', async () => {
-    const memoryStoreCreateSpy = vi.spyOn(MemoryStore, 'create')
-      .mockImplementation(() => {
-        throw new Error('projection MemoryStore should not be created');
-      });
+    const memoryStoreCreateSpy = vi.spyOn(MemoryStore, 'create').mockImplementation(() => {
+      throw new Error('projection MemoryStore should not be created');
+    });
     const {model} = createModelContext({
       events: [
         Events.projectAdded(defaultProjectId, 'Default Project'),
@@ -476,30 +510,47 @@ describe('createEventSourcedGraphModel', () => {
     });
 
     try {
-      await expect(model.load({projectId: defaultProjectId, chapterId: 'default-chapter'}))
-        .resolves.toEqual({
-          nodes: [
-            {id: 'node-1', label: 'Default Chapter Node', type: 'ui', laneId: 'lane-0', width: NODE_WIDTH, height: NODE_HEIGHT},
-          ],
-          edges: [],
-          lanes: [{id: 'lane-0', order: 0}],
-          nodeSchemas: {},
-          nodeExampleValues: {},
-        });
-      await expect(model.setScope({projectId: defaultProjectId, chapterId: 'chapter-2'}))
-        .resolves.toEqual({
-          nodes: [
-            {id: 'node-2', label: 'Other Chapter Node', type: 'evt', laneId: 'lane-1', width: NODE_WIDTH, height: NODE_HEIGHT},
-          ],
-          edges: [],
-          lanes: [{id: 'lane-1', order: 1}],
-          nodeSchemas: {},
-          nodeExampleValues: {},
-        });
+      await expect(model.load({projectId: defaultProjectId, chapterId: 'default-chapter'})).resolves.toEqual({
+        nodes: [{id: 'node-1', label: 'Default Chapter Node', type: 'ui', laneId: 'lane-0', width: NODE_WIDTH, height: NODE_HEIGHT}],
+        edges: [],
+        lanes: [{id: 'lane-0', order: 0}],
+        nodeSchemas: {},
+        nodeExampleValues: {},
+      });
+      await expect(model.setScope({projectId: defaultProjectId, chapterId: 'chapter-2'})).resolves.toEqual({
+        nodes: [{id: 'node-2', label: 'Other Chapter Node', type: 'evt', laneId: 'lane-1', width: NODE_WIDTH, height: NODE_HEIGHT}],
+        edges: [],
+        lanes: [{id: 'lane-1', order: 1}],
+        nodeSchemas: {},
+        nodeExampleValues: {},
+      });
       expect(memoryStoreCreateSpy).not.toHaveBeenCalled();
     } finally {
       memoryStoreCreateSpy.mockRestore();
     }
+  });
+
+  it('does not read the command store directly when hydrating or mutating through the facade', async () => {
+    const {model, commandStore} = createModelContext({
+      events: [
+        Events.projectAdded(defaultProjectId, 'Default Project'),
+        Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
+        Events.chapterAdded(defaultProjectId, 'chapter-2', 'Chapter 2'),
+      ],
+      ids: ['generated-node-1'],
+    });
+    let readCalls = 0;
+    const originalRead = commandStore.read.bind(commandStore);
+    commandStore.read = async (options = {}) => {
+      readCalls += 1;
+      return originalRead(options);
+    };
+
+    await model.load({projectId: defaultProjectId, chapterId: 'default-chapter'});
+    await model.setScope({projectId: defaultProjectId, chapterId: 'chapter-2'});
+    await model.addNewSlice();
+
+    expect(readCalls).toBe(0);
   });
 
   it('keeps each chapter node visible after switching back and forth between chapters', async () => {
@@ -589,12 +640,23 @@ describe('createEventSourcedGraphModel', () => {
       {
         type: 'NodesConnected',
         payload: {projectId: defaultProjectId, sourceNodeId: 'generated-node-1', targetNodeId: 'generated-node-2', role: 'flow'},
-        tags: ['projectId:default-project', 'nodeId:generated-node-1', 'nodeId:generated-node-2', 'role:flow', 'connection:generated-node-1->generated-node-2'],
+        tags: [
+          'projectId:default-project',
+          'nodeId:generated-node-1',
+          'nodeId:generated-node-2',
+          'role:flow',
+          'connection:generated-node-1->generated-node-2',
+        ],
       },
       {
         type: 'NodesDisconnected',
         payload: {projectId: defaultProjectId, sourceNodeId: 'generated-node-1', targetNodeId: 'generated-node-2'},
-        tags: ['projectId:default-project', 'nodeId:generated-node-1', 'nodeId:generated-node-2', 'connection:generated-node-1->generated-node-2'],
+        tags: [
+          'projectId:default-project',
+          'nodeId:generated-node-1',
+          'nodeId:generated-node-2',
+          'connection:generated-node-1->generated-node-2',
+        ],
       },
       {
         type: 'NodeRenamed',

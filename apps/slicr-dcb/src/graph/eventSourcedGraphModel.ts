@@ -1,18 +1,12 @@
-import {
-  type DcbEvent,
-  type SpecEventStore
-} from '../domain/eventSourcing';
 import {v4 as uuid} from 'uuid';
 
 import {createCommandRouter} from '../application/commandRouter';
-import {projectGraph} from '../domain/graphProjector/graphProjector';
-import {projectWorkspace, type WorkspaceProjection} from '../domain/workspaceProjector';
-import {adaptModelGraphToRenderer, type RendererGraph} from './domainGraphAdapter';
-import type {NodeType} from './types';
+import {createGraphProjectionService} from '../application/graphProjectionService';
+import type {DcbEvent, SpecEventStore} from '../domain/eventSourcing';
 import {ChangeNodeExampleValues, ChangeNodeSchema} from '../domain/graphCommands/commands';
-
-const DEFAULT_PROJECT_ID = 'default-project';
-const DEFAULT_CHAPTER_ID = 'default-chapter';
+import type {WorkspaceProjection} from '../domain/workspaceProjector';
+import type {RendererGraph} from './domainGraphAdapter';
+import type {NodeType} from './types';
 
 type ChangeNodeSchemaInput = Omit<ChangeNodeSchema['data'], 'projectId'>;
 type ChangeNodeExampleValuesInput = Omit<ChangeNodeExampleValues['data'], 'projectId'>;
@@ -27,7 +21,7 @@ export type EventSourcedGraphModel = {
   setScope(scope: GraphModelScope): Promise<RendererGraph>;
   getSnapshot(): RendererGraph;
   getWorkspace(): WorkspaceProjection;
-  getScope(): { projectId: string; chapterId: string };
+  getScope(): {projectId: string; chapterId: string};
   addNewSlice(): Promise<RendererGraph>;
   addProject(name: string): Promise<RendererGraph>;
   renameProject(projectId: string, name: string): Promise<RendererGraph>;
@@ -39,7 +33,7 @@ export type EventSourcedGraphModel = {
     nodeType: NodeType;
     laneId: number;
     label: string;
-    role?: 'flow' | 'back-reference'
+    role?: 'flow' | 'back-reference';
   }): Promise<RendererGraph>;
   renameNode(nodeId: string, newName: string): Promise<RendererGraph>;
   setNodeType(nodeId: string, type: NodeType): Promise<RendererGraph>;
@@ -48,70 +42,66 @@ export type EventSourcedGraphModel = {
   deleteNode(nodeId: string): Promise<RendererGraph>;
 };
 
-function resolveScope(workspace: WorkspaceProjection, scope: GraphModelScope) {
-  const resolvedProjectId = workspace.projects.some((project) => project.id === scope.projectId)
-    ? (scope.projectId ?? DEFAULT_PROJECT_ID)
-    : (workspace.projects[0]?.id ?? DEFAULT_PROJECT_ID);
-  const chapters = workspace.chaptersByProjectId[resolvedProjectId] ?? [];
-  const resolvedChapterId = chapters.some((chapter) => chapter.id === scope.chapterId)
-    ? (scope.chapterId ?? DEFAULT_CHAPTER_ID)
-    : (chapters[0]?.id ?? DEFAULT_CHAPTER_ID);
-
-  return {projectId: resolvedProjectId, chapterId: resolvedChapterId};
-}
-
 export function createEventSourcedGraphModel(config: {
-  commandStore: SpecEventStore<DcbEvent>,
-  uuidGenerator?: () => string,
+  commandStore: SpecEventStore<DcbEvent>;
+  uuidGenerator?: () => string;
 }): EventSourcedGraphModel {
   const generateId = config.uuidGenerator ?? uuid;
   const routeCommand = createCommandRouter({
     store: config.commandStore,
     generateUuid: generateId,
   });
-  const readAllEvents = async () => (await config.commandStore.read()).map(({event}) => event);
-  let snapshot: RendererGraph = {nodes: [], edges: [], lanes: [], nodeSchemas: {}, nodeExampleValues: {}};
-  let workspace: WorkspaceProjection = projectWorkspace([]);
-  let currentProjectId = DEFAULT_PROJECT_ID;
-  let currentChapterId = DEFAULT_CHAPTER_ID;
+  const projectionService = createGraphProjectionService({commandStore: config.commandStore});
+  const graphView = projectionService.createScopedGraphView();
 
-  const project = (events: readonly DcbEvent[], scope: GraphModelScope = {}) => {
-    workspace = projectWorkspace(events);
-    ({projectId: currentProjectId, chapterId: currentChapterId} = resolveScope(workspace, scope));
+  let workspaceSnapshot = projectionService.getWorkspaceSnapshot();
+  let graphSnapshot = graphView.getSnapshot();
+  let resolvedScope = graphView.getScope();
 
-    snapshot = adaptModelGraphToRenderer(projectGraph(events, currentProjectId, currentChapterId));
-    return snapshot;
-  };
+  projectionService.subscribeToWorkspace((workspace) => {
+    workspaceSnapshot = workspace;
+  });
+  graphView.subscribe((graph) => {
+    graphSnapshot = graph;
+    resolvedScope = graphView.getScope();
+  });
+
+  const currentScope = () => resolvedScope;
+  const currentGraph = () => graphSnapshot;
 
   return {
     async load(scope = {}) {
-      return project(await readAllEvents(), scope);
+      await graphView.setScope(scope);
+      await projectionService.refresh();
+      return currentGraph();
     },
     async setScope(scope) {
-      return project(await readAllEvents(), scope);
+      await graphView.setScope(scope);
+      return currentGraph();
     },
     getSnapshot() {
-      return snapshot;
+      return currentGraph();
     },
     getWorkspace() {
-      return workspace;
+      return workspaceSnapshot;
     },
     getScope() {
-      return {projectId: currentProjectId, chapterId: currentChapterId};
+      return currentScope();
     },
     async addNewSlice() {
-      const newNodeNumber = snapshot.nodes.length + 1;
+      const scope = currentScope();
+      const newNodeNumber = currentGraph().nodes.length + 1;
       await routeCommand({
         type: 'AddNode',
         data: {
-          projectId: currentProjectId,
-          chapterId: currentChapterId,
+          projectId: scope.projectId,
+          chapterId: scope.chapterId,
           nodeType: 'ui',
           label: `Node ${newNodeNumber}`,
           laneId: 0,
-        }
+        },
       });
-      return project(await readAllEvents(), {projectId: currentProjectId, chapterId: currentChapterId});
+      return currentGraph();
     },
     async addProject(name: string) {
       await routeCommand({
@@ -119,17 +109,14 @@ export function createEventSourcedGraphModel(config: {
         data: {name},
       });
 
-      const nextEvents = await readAllEvents();
-      const nextWorkspace = projectWorkspace(nextEvents);
-      const latestProjectId = nextWorkspace.latestProjectId;
-      const latestChapterId = latestProjectId
-        ? nextWorkspace.chaptersByProjectId[latestProjectId]?.[0]?.id
-        : undefined;
+      const latestProjectId = workspaceSnapshot.latestProjectId;
+      const latestChapterId = latestProjectId ? workspaceSnapshot.chaptersByProjectId[latestProjectId]?.[0]?.id : undefined;
 
-      return project(nextEvents, {
-        projectId: latestProjectId,
-        chapterId: latestChapterId,
-      });
+      if (latestProjectId && latestChapterId) {
+        await graphView.setScope({projectId: latestProjectId, chapterId: latestChapterId});
+      }
+
+      return currentGraph();
     },
     async renameProject(projectId: string, name: string) {
       await routeCommand({
@@ -137,62 +124,65 @@ export function createEventSourcedGraphModel(config: {
         data: {projectId, name},
       });
 
-      return project(await readAllEvents(), {projectId: currentProjectId, chapterId: currentChapterId});
+      return currentGraph();
     },
     async addChapter(title: string) {
+      const scope = currentScope();
       await routeCommand({
         type: 'AddChapter',
-        data: {projectId: currentProjectId, title},
+        data: {projectId: scope.projectId, title},
       });
-      const events = await readAllEvents();
-      const workspace = projectWorkspace(events);
-      const latestChapterId = workspace.chaptersByProjectId[currentProjectId]?.at(-1)?.id;
-      return project(events, {projectId: currentProjectId, chapterId: latestChapterId});
+      const latestChapterId = workspaceSnapshot.chaptersByProjectId[scope.projectId]?.at(-1)?.id;
+      if (latestChapterId) {
+        await graphView.setScope({projectId: scope.projectId, chapterId: latestChapterId});
+      }
+
+      return currentGraph();
     },
     async addConnection(sourceNodeId: string, targetNodeId: string, role?: 'flow' | 'back-reference') {
+      const scope = currentScope();
       await routeCommand({
         type: 'ConnectNodes',
         data: {
-          projectId: currentProjectId,
+          projectId: scope.projectId,
           sourceNodeId,
           targetNodeId,
           role,
-        }
+        },
       });
-      return project(await readAllEvents(), {projectId: currentProjectId, chapterId: currentChapterId});
+      return currentGraph();
     },
     async deleteConnection(edgeId: string) {
-      const edge = snapshot.edges.find((candidate) => candidate.id === edgeId);
+      const edge = currentGraph().edges.find((candidate) => candidate.id === edgeId);
       if (!edge) {
-        return snapshot;
+        return currentGraph();
       }
 
+      const scope = currentScope();
       await routeCommand({
         type: 'DisconnectNodes',
         data: {
-          projectId: currentProjectId,
+          projectId: scope.projectId,
           sourceNodeId: edge.sourceId,
           targetNodeId: edge.targetId,
         },
       });
 
-      return project(await readAllEvents(), {
-        projectId: currentProjectId,
-        chapterId: currentChapterId,
-      });
+      return currentGraph();
     },
     async addConnectedNode(command: {
       sourceNodeId: string;
       nodeType: NodeType;
       laneId: number;
       label: string;
-      role?: 'flow' | 'back-reference'
+      role?: 'flow' | 'back-reference';
     }) {
+      const scope = currentScope();
       await routeCommand({
         type: 'AddConnectedNode',
         data: {
-          projectId: currentProjectId,
-          chapterId: currentChapterId,
+          projectId: scope.projectId,
+          chapterId: scope.chapterId,
           sourceNodeId: command.sourceNodeId,
           nodeType: command.nodeType,
           laneId: command.laneId,
@@ -201,64 +191,66 @@ export function createEventSourcedGraphModel(config: {
         },
       });
 
-      return project(await readAllEvents(), {
-        projectId: currentProjectId,
-        chapterId: currentChapterId,
-      });
+      return currentGraph();
     },
     async renameNode(nodeId: string, newName: string) {
+      const scope = currentScope();
       await routeCommand({
         type: 'RenameNode',
         data: {
-          projectId: currentProjectId,
+          projectId: scope.projectId,
           nodeId,
           newName,
-        }
+        },
       });
-      return project(await readAllEvents(), {projectId: currentProjectId, chapterId: currentChapterId});
+      return currentGraph();
     },
     async setNodeType(nodeId: string, type: NodeType) {
+      const scope = currentScope();
       await routeCommand({
         type: 'ChangeNodeType',
         data: {
-          projectId: currentProjectId,
+          projectId: scope.projectId,
           nodeId: nodeId,
           newType: type,
-        }
+        },
       });
-      return project(await readAllEvents(), {projectId: currentProjectId, chapterId: currentChapterId});
+      return currentGraph();
     },
     async changeNodeSchema(command: ChangeNodeSchemaInput) {
+      const scope = currentScope();
       await routeCommand({
         type: 'ChangeNodeSchema',
         data: {
-          projectId: currentProjectId,
+          projectId: scope.projectId,
           nodeId: command.nodeId,
           schema: command.schema,
-        }
-      })
-      return project(await readAllEvents(), {projectId: currentProjectId, chapterId: currentChapterId});
+        },
+      });
+      return currentGraph();
     },
     async changeNodeExampleValues(command: ChangeNodeExampleValuesInput) {
+      const scope = currentScope();
       await routeCommand({
         type: 'ChangeNodeExampleValues',
         data: {
-          projectId: currentProjectId,
+          projectId: scope.projectId,
           nodeId: command.nodeId,
           exampleValues: command.exampleValues,
-        }
+        },
       });
-      return project(await readAllEvents(), {projectId: currentProjectId, chapterId: currentChapterId});
+      return currentGraph();
     },
     async deleteNode(nodeId: string) {
+      const scope = currentScope();
       await routeCommand({
         type: 'DeleteNode',
         data: {
-          projectId: currentProjectId,
+          projectId: scope.projectId,
           nodeId,
-        }
+        },
       });
-      return project(await readAllEvents(), {projectId: currentProjectId, chapterId: currentChapterId});
+      return currentGraph();
     },
   };
 }
