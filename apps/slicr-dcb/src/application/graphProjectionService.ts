@@ -1,4 +1,6 @@
-import {createProjectorInstance, type DcbEvent, type DcbReadOptions, type DcbSpecStore, replayProjector} from '../domain/eventSourcing';
+import {type ProjectorStoreSubscription, subscribeProjectorToStore} from '@slicr/event-sourcing';
+
+import {createProjectorInstance, type DcbSpecStore, replayProjector} from '../domain/eventSourcing';
 import {graphProjectorDefinition} from '../domain/graphProjector/graphProjector';
 import {workspaceProjectorDefinition, type WorkspaceProjection} from '../domain/workspaceProjector';
 import {adaptModelGraphToRenderer, type RendererGraph} from '../graph/domainGraphAdapter';
@@ -19,7 +21,7 @@ type Listener<T> = (value: T) => void;
 
 type ScopedGraphView = {
   getScope(): {projectId: string; chapterId: string};
-  setScope(scope: GraphModelScope): RendererGraph;
+  setScope(scope: GraphModelScope): Promise<RendererGraph>;
   getSnapshot(): RendererGraph;
   subscribe(listener: Listener<RendererGraph>, options?: {emitCurrent?: boolean}): Subscription;
 };
@@ -31,14 +33,21 @@ export type GraphProjectionService = {
   createScopedGraphView(initialScope?: GraphModelScope): ScopedGraphView;
 };
 
+type ResolvedGraphModelScope = {projectId: string; chapterId: string};
+
 type GraphViewState = {
   requestedScope: GraphModelScope;
-  resolvedScope: {projectId: string; chapterId: string};
+  resolvedScope: ResolvedGraphModelScope;
   snapshot: RendererGraph;
   listeners: Set<Listener<RendererGraph>>;
+  pendingListeners: Map<Listener<RendererGraph>, {emitCurrent: boolean}>;
+  subscription?: ProjectorStoreSubscription;
+  activationVersion: number;
+  ready: Promise<void>;
+  isReady: boolean;
 };
 
-function resolveScope(workspace: WorkspaceProjection, scope: GraphModelScope) {
+function resolveScope(workspace: WorkspaceProjection, scope: GraphModelScope): ResolvedGraphModelScope {
   const resolvedProjectId = workspace.projects.some((project) => project.id === scope.projectId)
     ? (scope.projectId ?? DEFAULT_PROJECT_ID)
     : (workspace.projects[0]?.id ?? DEFAULT_PROJECT_ID);
@@ -50,114 +59,189 @@ function resolveScope(workspace: WorkspaceProjection, scope: GraphModelScope) {
   return {projectId: resolvedProjectId, chapterId: resolvedChapterId};
 }
 
-function rendererGraphFor(events: readonly DcbEvent[], workspace: WorkspaceProjection, scope: GraphModelScope): {
-  resolvedScope: {projectId: string; chapterId: string};
-  snapshot: RendererGraph;
-} {
-  const resolvedScope = resolveScope(workspace, scope);
-  const modelGraph = replayProjector(
-    createProjectorInstance(graphProjectorDefinition, resolvedScope),
-    events,
-  );
-  return {
-    resolvedScope,
-    snapshot: adaptModelGraphToRenderer(modelGraph),
-  };
-}
-
 function isEqual(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+const emptyWorkspaceSnapshot = (): WorkspaceProjection => replayProjector(
+  createProjectorInstance(workspaceProjectorDefinition, undefined),
+  [],
+);
+
+const emptyRendererGraph = (): RendererGraph => adaptModelGraphToRenderer(replayProjector(
+  createProjectorInstance(graphProjectorDefinition, {projectId: DEFAULT_PROJECT_ID, chapterId: DEFAULT_CHAPTER_ID}),
+  [],
+));
+
 export function createGraphProjectionService(config: {commandStore: DcbSpecStore}): GraphProjectionService {
-  let events: readonly DcbEvent[] = [];
-  // Reserved for the upcoming incremental projector refresh path, where refresh()
-  // will only read events after the last applied sequence position.
-  let lastSeenPosition: number | undefined;
-  let workspaceSnapshot: WorkspaceProjection = replayProjector(
-    createProjectorInstance(workspaceProjectorDefinition, undefined),
-    [],
-  );
+  let workspaceSnapshot: WorkspaceProjection = emptyWorkspaceSnapshot();
+  let workspaceReady: Promise<void> | undefined;
+  let workspaceIsReady = false;
   const workspaceListeners = new Set<Listener<WorkspaceProjection>>();
+  const pendingWorkspaceListeners = new Map<Listener<WorkspaceProjection>, {emitCurrent: boolean}>();
   const graphViews = new Set<GraphViewState>();
 
-  const readAllEvents = async (options: DcbReadOptions = {}) => config.commandStore.read(options);
+  const activateGraphView = async (graphView: GraphViewState): Promise<RendererGraph> => {
+    const activationVersion = ++graphView.activationVersion;
+    await ensureWorkspaceProjection();
 
-  const recomputeGraphView = (graphView: GraphViewState): RendererGraph => {
-    const previousSnapshot = graphView.snapshot;
-    const previousScope = graphView.resolvedScope;
-    const next = rendererGraphFor(events, workspaceSnapshot, graphView.requestedScope);
-    graphView.resolvedScope = next.resolvedScope;
-    graphView.snapshot = next.snapshot;
+    const resolvedScope = resolveScope(workspaceSnapshot, graphView.requestedScope);
+    const previousSubscription = graphView.subscription;
+    const nextSubscription = await subscribeProjectorToStore(
+      config.commandStore,
+      graphProjectorDefinition,
+      resolvedScope,
+      (modelGraph) => {
+        if (graphView.activationVersion !== activationVersion) {
+          return;
+        }
 
-    if (!isEqual(previousSnapshot, graphView.snapshot) || !isEqual(previousScope, graphView.resolvedScope)) {
-      graphView.listeners.forEach((listener) => listener(graphView.snapshot));
+        const nextSnapshot = adaptModelGraphToRenderer(modelGraph);
+        const scopeChanged = !isEqual(graphView.resolvedScope, resolvedScope);
+        const snapshotChanged = !isEqual(graphView.snapshot, nextSnapshot);
+        graphView.resolvedScope = resolvedScope;
+        graphView.snapshot = nextSnapshot;
+
+        if (scopeChanged || snapshotChanged) {
+          graphView.listeners.forEach((listener) => listener(graphView.snapshot));
+        }
+      },
+    );
+
+    if (graphView.activationVersion !== activationVersion) {
+      nextSubscription.unsubscribe();
+      return graphView.snapshot;
     }
 
+    graphView.subscription = nextSubscription;
+    previousSubscription?.unsubscribe();
     return graphView.snapshot;
+  };
+
+  const flushPendingGraphListeners = (graphView: GraphViewState) => {
+    graphView.pendingListeners.forEach((options, listener) => {
+      graphView.listeners.add(listener);
+      if (options.emitCurrent) {
+        listener(graphView.snapshot);
+      }
+    });
+    graphView.pendingListeners.clear();
+  };
+
+  const scheduleGraphViewActivation = (graphView: GraphViewState): Promise<RendererGraph> => {
+    graphView.isReady = false;
+    const activation = activateGraphView(graphView);
+    graphView.ready = activation.then(() => {
+      graphView.isReady = true;
+      flushPendingGraphListeners(graphView);
+    });
+    return activation;
+  };
+
+  const ensureWorkspaceProjection = (): Promise<void> => {
+    if (workspaceReady !== undefined) {
+      return workspaceReady;
+    }
+
+    workspaceReady = (async () => {
+      await subscribeProjectorToStore(
+        config.commandStore,
+        workspaceProjectorDefinition,
+        undefined,
+        (projection) => {
+          const previousWorkspaceSnapshot = workspaceSnapshot;
+          workspaceSnapshot = projection;
+
+          if (!isEqual(previousWorkspaceSnapshot, workspaceSnapshot)) {
+            workspaceListeners.forEach((listener) => listener(workspaceSnapshot));
+          }
+
+          graphViews.forEach((graphView) => {
+            const nextResolvedScope = resolveScope(workspaceSnapshot, graphView.requestedScope);
+            if (graphView.subscription === undefined || !isEqual(graphView.resolvedScope, nextResolvedScope)) {
+              void scheduleGraphViewActivation(graphView);
+            }
+          });
+        },
+      );
+      workspaceIsReady = true;
+      pendingWorkspaceListeners.forEach((options, listener) => {
+        workspaceListeners.add(listener);
+        if (options.emitCurrent) {
+          listener(workspaceSnapshot);
+        }
+      });
+      pendingWorkspaceListeners.clear();
+    })();
+
+    return workspaceReady;
   };
 
   return {
     async refresh() {
-      const sequencedEvents = await readAllEvents();
-      events = sequencedEvents.map(({event}) => event);
-      lastSeenPosition = sequencedEvents.at(-1)?.position ?? lastSeenPosition;
-
-      const nextWorkspaceSnapshot = replayProjector(
-        createProjectorInstance(workspaceProjectorDefinition, undefined),
-        events,
-      );
-      const workspaceChanged = !isEqual(workspaceSnapshot, nextWorkspaceSnapshot);
-      workspaceSnapshot = nextWorkspaceSnapshot;
-
-      graphViews.forEach(recomputeGraphView);
-
-      if (workspaceChanged) {
-        workspaceListeners.forEach((listener) => listener(workspaceSnapshot));
-      }
+      await ensureWorkspaceProjection();
+      await Promise.all([...graphViews].map((graphView) => graphView.ready));
     },
     getWorkspaceSnapshot() {
       return workspaceSnapshot;
     },
     subscribeToWorkspace(listener, options = {}) {
-      workspaceListeners.add(listener);
-      if (options.emitCurrent) {
-        listener(workspaceSnapshot);
+      const emitCurrent = options.emitCurrent !== false;
+      if (workspaceIsReady) {
+        workspaceListeners.add(listener);
+        if (emitCurrent) {
+          listener(workspaceSnapshot);
+        }
+      } else {
+        pendingWorkspaceListeners.set(listener, {emitCurrent});
+        void ensureWorkspaceProjection();
       }
       return {
         unsubscribe() {
+          pendingWorkspaceListeners.delete(listener);
           workspaceListeners.delete(listener);
         },
       };
     },
     createScopedGraphView(initialScope = {}) {
-      const initialProjection = rendererGraphFor(events, workspaceSnapshot, initialScope);
       const graphView: GraphViewState = {
         requestedScope: initialScope,
-        resolvedScope: initialProjection.resolvedScope,
-        snapshot: initialProjection.snapshot,
+        resolvedScope: resolveScope(workspaceSnapshot, initialScope),
+        snapshot: emptyRendererGraph(),
         listeners: new Set(),
+        pendingListeners: new Map(),
+        activationVersion: 0,
+        ready: Promise.resolve(),
+        isReady: false,
       };
       graphViews.add(graphView);
+      void ensureWorkspaceProjection();
+      scheduleGraphViewActivation(graphView);
 
       return {
         getScope() {
           return graphView.resolvedScope;
         },
-        setScope(scope) {
+        async setScope(scope) {
           graphView.requestedScope = scope;
-          return recomputeGraphView(graphView);
+          return scheduleGraphViewActivation(graphView);
         },
         getSnapshot() {
           return graphView.snapshot;
         },
         subscribe(listener, options = {}) {
-          graphView.listeners.add(listener);
-          if (options.emitCurrent) {
-            listener(graphView.snapshot);
+          const emitCurrent = options.emitCurrent !== false;
+          if (graphView.isReady) {
+            graphView.listeners.add(listener);
+            if (emitCurrent) {
+              listener(graphView.snapshot);
+            }
+          } else {
+            graphView.pendingListeners.set(listener, {emitCurrent});
           }
           return {
             unsubscribe() {
+              graphView.pendingListeners.delete(listener);
               graphView.listeners.delete(listener);
             },
           };

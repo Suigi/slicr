@@ -83,7 +83,7 @@ Introduce the event-driven infrastructure needed for query-owned read models: st
 
 ## Task 4: Route the graph projection service through store-backed projector subscriptions
 ### Status
-[created]
+[done]
 
 ### Description
 Refactor `graphProjectionService.ts` so workspace and scoped graph views are backed by subscribed sequenced projector instances instead of a full canonical event cache and explicit full replay refreshes. Scope changes should recreate/resubscribe scoped graph projectors and deliver the new projection through the graph-view subscription channel.
