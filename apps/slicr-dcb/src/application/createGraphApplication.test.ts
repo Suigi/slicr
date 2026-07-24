@@ -62,8 +62,7 @@ describe('createGraphApplication', () => {
         id: 'node-1',
         label: 'Checkout Completed',
         type: 'evt'
-      },
-      ]);
+      }]);
     expect(application.model.getSnapshot())
       .toEqual(application.graphModel);
   });
