@@ -184,7 +184,7 @@ Update `useGraphModel.ts` to consume workspace and scoped graph updates through 
 
 ### Status
 
-[in progress]
+[done]
 
 ### Description
 

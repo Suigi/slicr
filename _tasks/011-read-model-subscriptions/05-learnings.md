@@ -10,3 +10,5 @@
 - `load()` can remain a bootstrap-only compatibility hook, but normal `setScope()` does not need to re-run projection refresh when the scoped view subscription already settles the new scope.
 - The React hook should treat command return graphs as transient-only data; the rendered graph state should come from workspace/scoped projection subscriptions so updates stay aligned with the event-driven read model.
 - Reload paths must tear down old workspace/scoped subscriptions before wiring the fresh application instance, otherwise stale listeners can keep driving hook state after a reset.
+- `createGraphApplication` should be the graph application composition/bootstrap owner: create/open stores, ensure initial workspace, create command executor, create projection service, create the initial scoped graph view, and perform initial projection catch-up before returning the application.
+- `eventSourcedGraphModel` is now compatibility/adaptation code; keep it receiving composed dependencies from the application boundary instead of letting it own command-router, projection-service, or bootstrap refresh creation.
