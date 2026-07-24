@@ -184,7 +184,7 @@ Update `useGraphModel.ts` to consume workspace and scoped graph updates through 
 
 ### Status
 
-[created]
+[in progress]
 
 ### Description
 
@@ -294,3 +294,110 @@ Target ownership rule:
 
 - Keep this task focused on wiring and regression coverage, not on new product behavior.
 - Preserve a clear migration path toward removing compatibility refresh/facade code once all React consumers use subscriptions directly.
+
+## Task 8: Expose explicit graph application APIs
+
+### Status
+
+[created]
+
+### Description
+
+Add an explicit application-facing API from `createGraphApplication` that separates command execution, workspace read-model access, scoped graph read-model access, and event backup. Keep the existing `model` facade temporarily for compatibility while new consumers migrate to the clearer API.
+
+### Acceptance Criteria
+
+- `createGraphApplication` returns explicit command APIs for graph/workspace mutations without requiring callers to go through `application.model`.
+- `createGraphApplication` returns explicit workspace read-model APIs for `getSnapshot()` and `subscribe(...)` behavior.
+- `createGraphApplication` returns explicit scoped graph read-model APIs for creating scoped views and observing renderer graph snapshots.
+- The existing `model` facade remains available temporarily and delegates to the same composed command/projection services.
+- Focused tests prove the explicit APIs can bootstrap from existing events and observe command-driven projection updates.
+
+### Dependencies
+
+- Task 7
+
+### Notes
+
+- Keep this as an additive API step. Do not migrate React or delete the facade in this task.
+- The explicit API should make ownership obvious: commands submit commands; read-model APIs expose projections/subscriptions.
+
+## Task 9: Migrate `useGraphModel` off `eventSourcedGraphModel`
+
+### Status
+
+[created]
+
+### Description
+
+Update `useGraphModel.ts` to use the explicit graph application APIs from Task 8 instead of calling through `application.model` or `eventSourcedGraphModel` methods.
+
+### Acceptance Criteria
+
+- `useGraphModel.ts` invokes command functions through the explicit application command API.
+- `useGraphModel.ts` subscribes to workspace and scoped graph projections through the explicit application read-model APIs.
+- `useGraphModel.ts` no longer depends on `application.model` in production code.
+- Existing React-facing behavior for initial load, scope switching, reload/reset, and command-driven updates remains intact.
+- Focused hook/integration tests prove the hook observes projection updates without depending on the compatibility facade.
+
+### Dependencies
+
+- Task 8
+
+### Notes
+
+- Preserve local UI-transient state ownership in the hook.
+- Do not expose raw event-store or domain-event primitives to React while migrating the API calls.
+
+## Task 10: Remove the `eventSourcedGraphModel` compatibility facade
+
+### Status
+
+[created]
+
+### Description
+
+Remove `eventSourcedGraphModel.ts` once production consumers use the explicit graph application APIs. Migrate useful facade tests to application, command, projection-service, or hook tests before deleting obsolete coverage.
+
+### Acceptance Criteria
+
+- No production code imports or constructs `eventSourcedGraphModel.ts`.
+- The compatibility facade file is deleted or reduced to test-only legacy code that is no longer part of production builds.
+- Useful behavior coverage from `eventSourcedGraphModel.test.ts` is preserved at the appropriate application/projection/command layer.
+- Application composition remains owned by `createGraphApplication.ts`.
+- React continues to use read-model subscriptions and application command APIs only.
+
+### Dependencies
+
+- Task 9
+
+### Notes
+
+- This task should remove compatibility code only after the explicit API and React migration are stable.
+- Prefer moving tests before deleting the facade so regressions remain visible.
+
+## Task 11: Remove public bootstrap `refresh()` from normal application flow
+
+### Status
+
+[created]
+
+### Description
+
+Tighten projection-service bootstrap semantics after the facade is gone. Keep catch-up behavior available where needed, but remove `refresh()` from normal public application flow or rename/narrow it so it is clearly bootstrap/internal compatibility only.
+
+### Acceptance Criteria
+
+- Normal application command/update paths do not call public `refresh()`.
+- Initial workspace and scoped graph catch-up are expressed through application bootstrap or scoped-view readiness APIs.
+- `GraphProjectionService.refresh()` is either made internal, renamed to a bootstrap-specific operation, or otherwise documented as not part of React/application update flow.
+- Focused tests prove initial catch-up and command-driven subscription updates still work without normal application callers invoking `refresh()`.
+
+### Dependencies
+
+- Task 10
+
+### Notes
+
+- This task is about API clarity and lifecycle ownership, not changing read-model behavior.
+- Keep projector catch-up and sequence tracking internal to the projection/application layer.
