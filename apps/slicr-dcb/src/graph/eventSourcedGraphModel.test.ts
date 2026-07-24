@@ -13,6 +13,7 @@ import {
   type SpecEventStore,
 } from '../domain/eventSourcing';
 import {NODE_HEIGHT, NODE_WIDTH} from './constants';
+import {createGraphProjectionService} from '../application/graphProjectionService';
 
 const defaultProjectId = 'default-project';
 
@@ -107,6 +108,23 @@ function createModelContext(args: {events?: DcbEvent[]; ids?: string[]} = {}) {
 }
 
 describe('createEventSourcedGraphModel', () => {
+  it('can use an externally created projection service', async () => {
+    const {commandStore} = createStores([
+      Events.projectAdded(defaultProjectId, 'Default Project'),
+      Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
+      Events.nodeAdded(defaultProjectId, 'default-chapter', 'node-1', 'ui', 0, 'Projected Node'),
+    ]);
+    const projectionService = createGraphProjectionService({commandStore});
+    const model = createEventSourcedGraphModel({
+      commandStore,
+      projectionService,
+    });
+
+    await model.load({projectId: defaultProjectId, chapterId: 'default-chapter'});
+
+    expect(model.getSnapshot().nodes.map((node) => node.label)).toEqual(['Projected Node']);
+  });
+
   it('loads an empty event store without bootstrapping while keeping the renderer graph empty', async () => {
     const {events, model} = createModelContext();
 

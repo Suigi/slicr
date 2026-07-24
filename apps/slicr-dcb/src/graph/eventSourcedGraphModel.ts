@@ -1,7 +1,7 @@
 import {v4 as uuid} from 'uuid';
 
 import {createCommandRouter} from '../application/commandRouter';
-import {createGraphProjectionService} from '../application/graphProjectionService';
+import {createGraphProjectionService, type GraphProjectionService} from '../application/graphProjectionService';
 import type {DcbEvent, SpecEventStore} from '../domain/eventSourcing';
 import {ChangeNodeExampleValues, ChangeNodeSchema} from '../domain/graphCommands/commands';
 import type {WorkspaceProjection} from '../domain/workspaceProjector';
@@ -57,6 +57,7 @@ export type EventSourcedGraphModel = {
 
 export function createEventSourcedGraphModel(config: {
   commandStore: SpecEventStore<DcbEvent>;
+  projectionService?: GraphProjectionService;
   uuidGenerator?: () => string;
 }): EventSourcedGraphModel {
   const generateId = config.uuidGenerator ?? uuid;
@@ -64,7 +65,7 @@ export function createEventSourcedGraphModel(config: {
     store: config.commandStore,
     generateUuid: generateId,
   });
-  const projectionService = createGraphProjectionService({commandStore: config.commandStore});
+  const projectionService = config.projectionService ?? createGraphProjectionService({commandStore: config.commandStore});
   const graphView = projectionService.createScopedGraphView();
 
   let workspaceSnapshot = projectionService.getWorkspaceSnapshot();

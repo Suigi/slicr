@@ -2,6 +2,7 @@ import {createEventSourcedGraphModel, type EventSourcedGraphModel, type GraphMod
 import type {RendererGraph} from '../graph/domainGraphAdapter';
 import {createEventBackupService, type EventBackupService} from './eventBackup';
 import {createDefaultGraphEventStore} from './graphEventStores';
+import {createGraphProjectionService} from './graphProjectionService';
 import {ensureInitialWorkspace} from './initialWorkspace';
 
 export async function createGraphApplication(
@@ -20,8 +21,10 @@ export async function createGraphApplication(
     });
   }
 
+  const projectionService = createGraphProjectionService({commandStore: stores.commandStore});
   const model = createEventSourcedGraphModel({
     commandStore: stores.commandStore,
+    projectionService,
   });
 
   const eventBackup = createEventBackupService({
