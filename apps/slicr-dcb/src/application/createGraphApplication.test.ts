@@ -24,12 +24,9 @@ describe('createGraphApplication', () => {
       },
       latestProjectId: defaultProjectId,
     });
-    expect(application.model.getScope())
-      .toEqual({projectId: defaultProjectId, chapterId: defaultChapterId});
-    expect(application.graphModel)
-      .toEqual({nodes: [], edges: [], lanes: [], nodeSchemas: {}, nodeExampleValues: {}});
-    expect(application.model.getSnapshot())
-      .toEqual(application.graphModel);
+    expect(application.model.getScope()).toEqual({projectId: defaultProjectId, chapterId: defaultChapterId});
+    expect(application.graphModel).toEqual({nodes: [], edges: [], lanes: [], nodeSchemas: {}, nodeExampleValues: {}});
+    expect(application.model.getSnapshot()).toEqual(application.graphModel);
   });
 
   it('returns initially caught-up workspace and graph snapshots from existing store events', async () => {
@@ -44,26 +41,44 @@ describe('createGraphApplication', () => {
 
     const application = await createGraphApplication({projectId: existingProjectId, chapterId: existingChapterId});
 
-    expect(application.model.getWorkspace())
-      .toEqual({
-        projects: [{id: existingProjectId, name: 'Checkout System'}],
-        chaptersByProjectId: {
-          [existingProjectId]: [{id: existingChapterId, title: 'Overview'}],
-        },
-        latestProjectId: existingProjectId,
-      });
-    expect(application.model.getScope())
-      .toEqual({
-        projectId: existingProjectId,
-        chapterId: existingChapterId
-      });
-    expect(application.graphModel.nodes.map((node) => ({id: node.id, label: node.label, type: node.type})))
-      .toEqual([{
+    expect(application.model.getWorkspace()).toEqual({
+      projects: [{id: existingProjectId, name: 'Checkout System'}],
+      chaptersByProjectId: {
+        [existingProjectId]: [{id: existingChapterId, title: 'Overview'}],
+      },
+      latestProjectId: existingProjectId,
+    });
+    expect(application.model.getScope()).toEqual({
+      projectId: existingProjectId,
+      chapterId: existingChapterId,
+    });
+    expect(application.graphModel.nodes.map((node) => ({id: node.id, label: node.label, type: node.type}))).toEqual([
+      {
         id: 'node-1',
         label: 'Checkout Completed',
-        type: 'evt'
-      }]);
-    expect(application.model.getSnapshot())
-      .toEqual(application.graphModel);
+        type: 'evt',
+      },
+    ]);
+    expect(application.model.getSnapshot()).toEqual(application.graphModel);
+  });
+
+  it('delivers scoped graph subscription updates after commands append events', async () => {
+    const application = await createGraphApplication();
+    const scopedGraphView = application.model.createScopedGraphView(application.model.getScope());
+    await scopedGraphView.setScope(application.model.getScope());
+    const graphNotifications: string[][] = [];
+    let latestNodeId: string | undefined;
+    scopedGraphView.subscribe(
+      (graph) => {
+        latestNodeId = graph.nodes[0]?.id;
+        graphNotifications.push(graph.nodes.map((node) => `${node.label}`));
+      },
+      {emitCurrent: false},
+    );
+
+    await application.model.addNewSlice();
+    await application.model.renameNode(latestNodeId!, 'Renamed Node');
+
+    expect(graphNotifications).toEqual([['Node 1'], ['Renamed Node']]);
   });
 });
