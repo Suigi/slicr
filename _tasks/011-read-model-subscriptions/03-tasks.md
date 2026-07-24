@@ -190,6 +190,95 @@ Update `useGraphModel.ts` to consume workspace and scoped graph updates through 
 
 Update application bootstrap and loader wiring so command APIs, projector subscriptions, and projection service initialization live in one consistent application boundary.
 
+Current bootstrap flow:
+
+```mermaid
+sequenceDiagram
+    participant UI as React/useGraphModel
+    participant Loader as loadGraphApplication
+    participant App as createGraphApplication
+    participant Stores as createDefaultGraphEventStore
+    participant Init as ensureInitialWorkspace
+    participant Facade as createEventSourcedGraphModel
+    participant Router as createCommandRouter
+    participant Projections as createGraphProjectionService
+    participant Backup as createEventBackupService
+
+    UI->>Loader: loadGraphApplication(scope)
+    Loader->>App: createGraphApplication(scope, options)
+    App->>Stores: create/open commandStore + admin store
+    Stores-->>App: stores
+    App->>Init: ensureInitialWorkspace(commandStore)
+    Init-->>App: initial workspace events exist
+    App->>Facade: createEventSourcedGraphModel(commandStore)
+    Facade->>Router: createCommandRouter(commandStore)
+    Facade->>Projections: createGraphProjectionService(commandStore)
+    Facade->>Projections: createScopedGraphView()
+    Facade->>Projections: subscribeToWorkspace(...)
+    Facade->>Projections: graphView.subscribe(...)
+    Facade-->>App: model facade
+    App->>Backup: createEventBackupService(commandStore, adminStore)
+    App->>Facade: model.load(scope)
+    Facade->>Projections: graphView.setScope(scope)
+    Facade->>Projections: refresh()
+    Projections-->>Facade: caught-up renderer graph
+    Facade-->>App: initial graphModel
+    App-->>Loader: {model, graphModel, eventBackup}
+    Loader-->>UI: application
+```
+
+Current complexity to preserve safely while refactoring:
+
+- bootstrap ownership is split between `createGraphApplication.ts` and `eventSourcedGraphModel.ts`
+- command router creation is hidden inside the facade
+- projection service creation is hidden inside the facade
+- the initial scoped graph view is created inside the facade
+- initial catch-up is triggered indirectly through `model.load(scope)`
+- `refresh()` remains part of the bootstrap/compatibility path
+
+Target bootstrap flow:
+
+```mermaid
+sequenceDiagram
+    participant UI as React/useGraphModel
+    participant Loader as loadGraphApplication
+    participant App as createGraphApplication
+    participant Stores as createDefaultGraphEventStore
+    participant Init as ensureInitialWorkspace
+    participant Router as createCommandRouter
+    participant Projections as createGraphProjectionService
+    participant View as initial scoped graph view
+    participant Facade as compatibility graph model adapter
+    participant Backup as createEventBackupService
+
+    UI->>Loader: loadGraphApplication(scope)
+    Loader->>App: createGraphApplication(scope, options)
+    App->>Stores: create/open commandStore + admin store
+    Stores-->>App: stores
+    App->>Init: ensureInitialWorkspace(commandStore)
+    Init-->>App: initial workspace events exist
+    App->>Router: createCommandRouter(commandStore)
+    Router-->>App: executeCommand(command)
+    App->>Projections: createGraphProjectionService(commandStore)
+    App->>View: createScopedGraphView(scope)
+    App->>Projections: bootstrap/catch up workspace + scoped graph
+    Projections-->>App: ready workspace + renderer graph snapshots
+    App->>Facade: create compatibility adapter(executeCommand, projectionService/view)
+    Facade-->>App: model facade
+    App->>Backup: createEventBackupService(commandStore, adminStore)
+    App-->>Loader: {model, graphModel, eventBackup}
+    Loader-->>UI: application
+```
+
+Target ownership rule:
+
+- `createGraphApplication.ts` is the composition root and owns bootstrap ordering.
+- `graphEventStores.ts` owns only store creation/opening/reset/backup-store access.
+- `commandRouter.ts` owns only command dispatch and decider lookup.
+- `graphProjectionService.ts` owns only workspace/scoped graph read-model catch-up and subscriptions.
+- `eventSourcedGraphModel.ts` remains a temporary compatibility adapter; it may adapt command/read-model APIs, but should not create stores, command routers, or projection services.
+- `useGraphModel.ts` remains a React bridge that subscribes to read models and invokes application command APIs.
+
 ### Acceptance Criteria
 
 - `createGraphApplication` and related loader code initialize command APIs and the projection service in one consistent application boundary.
