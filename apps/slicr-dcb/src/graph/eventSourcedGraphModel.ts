@@ -61,6 +61,7 @@ export function createEventSourcedGraphModel(config: {
   commandStore: SpecEventStore<DcbEvent>;
   executeCommand?: ExecuteCommand;
   projectionService?: GraphProjectionService;
+  scopedGraphView?: ScopedGraphView;
   uuidGenerator?: () => string;
 }): EventSourcedGraphModel {
   const generateId = config.uuidGenerator ?? uuid;
@@ -71,7 +72,7 @@ export function createEventSourcedGraphModel(config: {
       generateUuid: generateId,
     });
   const projectionService = config.projectionService ?? createGraphProjectionService({commandStore: config.commandStore});
-  const graphView = projectionService.createScopedGraphView();
+  const graphView = config.scopedGraphView ?? projectionService.createScopedGraphView();
 
   let workspaceSnapshot = projectionService.getWorkspaceSnapshot();
   let graphSnapshot = graphView.getSnapshot();
@@ -94,7 +95,6 @@ export function createEventSourcedGraphModel(config: {
   return {
     async load(scope = {}) {
       await graphView.setScope(scope);
-      await projectionService.refresh();
       return currentGraph();
     },
     async setScope(scope) {

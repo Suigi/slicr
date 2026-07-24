@@ -140,6 +140,31 @@ describe('createEventSourcedGraphModel', () => {
     ]);
   });
 
+  it('can adapt an externally created scoped graph view', async () => {
+    const {commandStore} = createStores([
+      Events.projectAdded(defaultProjectId, 'Default Project'),
+      Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
+      Events.nodeAdded(defaultProjectId, 'default-chapter', 'node-1', 'ui', 0, 'Projected Node'),
+    ]);
+    const projectionService = createGraphProjectionService({commandStore});
+    const scopedGraphView = projectionService.createScopedGraphView({
+      projectId: defaultProjectId,
+      chapterId: 'default-chapter'
+    });
+    await projectionService.refresh();
+
+    const model = createEventSourcedGraphModel({
+      commandStore,
+      projectionService,
+      scopedGraphView,
+    });
+
+    expect(model.getScope())
+      .toEqual({projectId: defaultProjectId, chapterId: 'default-chapter'});
+    expect(model.getSnapshot().nodes.map((node) => node.label))
+      .toEqual(['Projected Node']);
+  });
+
   it('can use an externally created projection service', async () => {
     const {commandStore} = createStores([
       Events.projectAdded(defaultProjectId, 'Default Project'),

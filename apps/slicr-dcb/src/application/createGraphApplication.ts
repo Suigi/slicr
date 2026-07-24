@@ -24,10 +24,15 @@ export async function createGraphApplication(
 
   const executeCommand = createCommandRouter({store: stores.commandStore});
   const projectionService = createGraphProjectionService({commandStore: stores.commandStore});
+  const scopedGraphView = projectionService.createScopedGraphView(scope);
+
+  await projectionService.refresh();
+
   const model = createEventSourcedGraphModel({
     commandStore: stores.commandStore,
     executeCommand,
     projectionService,
+    scopedGraphView,
   });
 
   const eventBackup = createEventBackupService({
@@ -35,7 +40,5 @@ export async function createGraphApplication(
     adminStore: stores.graphStore,
   });
 
-  const graphModel = await model.load(scope);
-
-  return {model, graphModel, eventBackup};
+  return {model, graphModel: scopedGraphView.getSnapshot(), eventBackup};
 }
