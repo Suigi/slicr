@@ -5,6 +5,7 @@ import {Events} from '../domain/events';
 import {
   type AppendCondition,
   AppendConditionFailedError,
+  type DcbAnyCommand,
   type DcbEvent,
   MemoryStore,
   Query,
@@ -108,6 +109,37 @@ function createModelContext(args: {events?: DcbEvent[]; ids?: string[]} = {}) {
 }
 
 describe('createEventSourcedGraphModel', () => {
+  it('can use an externally provided command executor', async () => {
+    const executedCommands: DcbAnyCommand[] = [];
+    const {commandStore} = createStores([
+      Events.projectAdded(defaultProjectId, 'Default Project'),
+      Events.chapterAdded(defaultProjectId, 'default-chapter', 'Chapter 1'),
+    ]);
+    const model = createEventSourcedGraphModel({
+      commandStore,
+      executeCommand: async (command) => {
+        executedCommands.push(command);
+      },
+      uuidGenerator: () => 'generated-node-1',
+    });
+
+    await model.load({projectId: defaultProjectId, chapterId: 'default-chapter'});
+    await model.addNewSlice();
+
+    expect(executedCommands).toEqual([
+      {
+        type: 'AddNode',
+        data: {
+          projectId: defaultProjectId,
+          chapterId: 'default-chapter',
+          nodeType: 'ui',
+          label: 'Node 1',
+          laneId: 0,
+        },
+      },
+    ]);
+  });
+
   it('can use an externally created projection service', async () => {
     const {commandStore} = createStores([
       Events.projectAdded(defaultProjectId, 'Default Project'),

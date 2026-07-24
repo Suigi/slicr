@@ -1,5 +1,6 @@
 import {createEventSourcedGraphModel, type EventSourcedGraphModel, type GraphModelScope} from '../graph/eventSourcedGraphModel';
 import type {RendererGraph} from '../graph/domainGraphAdapter';
+import {createCommandRouter} from './commandRouter';
 import {createEventBackupService, type EventBackupService} from './eventBackup';
 import {createDefaultGraphEventStore} from './graphEventStores';
 import {createGraphProjectionService} from './graphProjectionService';
@@ -21,9 +22,11 @@ export async function createGraphApplication(
     });
   }
 
+  const executeCommand = createCommandRouter({store: stores.commandStore});
   const projectionService = createGraphProjectionService({commandStore: stores.commandStore});
   const model = createEventSourcedGraphModel({
     commandStore: stores.commandStore,
+    executeCommand,
     projectionService,
   });
 

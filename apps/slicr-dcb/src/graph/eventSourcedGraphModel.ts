@@ -2,7 +2,7 @@ import {v4 as uuid} from 'uuid';
 
 import {createCommandRouter} from '../application/commandRouter';
 import {createGraphProjectionService, type GraphProjectionService} from '../application/graphProjectionService';
-import type {DcbEvent, SpecEventStore} from '../domain/eventSourcing';
+import type {DcbAnyCommand, DcbEvent, SpecEventStore} from '../domain/eventSourcing';
 import {ChangeNodeExampleValues, ChangeNodeSchema} from '../domain/graphCommands/commands';
 import type {WorkspaceProjection} from '../domain/workspaceProjector';
 import type {RendererGraph} from './domainGraphAdapter';
@@ -19,6 +19,8 @@ export type GraphModelScope = {
 type Subscription = {
   unsubscribe(): void;
 };
+
+type ExecuteCommand = (command: DcbAnyCommand) => Promise<void>;
 
 type ScopedGraphView = {
   getScope(): {projectId: string; chapterId: string};
@@ -57,14 +59,17 @@ export type EventSourcedGraphModel = {
 
 export function createEventSourcedGraphModel(config: {
   commandStore: SpecEventStore<DcbEvent>;
+  executeCommand?: ExecuteCommand;
   projectionService?: GraphProjectionService;
   uuidGenerator?: () => string;
 }): EventSourcedGraphModel {
   const generateId = config.uuidGenerator ?? uuid;
-  const routeCommand = createCommandRouter({
-    store: config.commandStore,
-    generateUuid: generateId,
-  });
+  const routeCommand =
+    config.executeCommand ??
+    createCommandRouter({
+      store: config.commandStore,
+      generateUuid: generateId,
+    });
   const projectionService = config.projectionService ?? createGraphProjectionService({commandStore: config.commandStore});
   const graphView = projectionService.createScopedGraphView();
 
