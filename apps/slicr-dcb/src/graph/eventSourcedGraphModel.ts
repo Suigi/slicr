@@ -16,12 +16,25 @@ export type GraphModelScope = {
   chapterId?: string;
 };
 
+type Subscription = {
+  unsubscribe(): void;
+};
+
+type ScopedGraphView = {
+  getScope(): {projectId: string; chapterId: string};
+  setScope(scope: GraphModelScope): Promise<RendererGraph>;
+  getSnapshot(): RendererGraph;
+  subscribe(listener: (graph: RendererGraph) => void, options?: {emitCurrent?: boolean}): Subscription;
+};
+
 export type EventSourcedGraphModel = {
   load(scope?: GraphModelScope): Promise<RendererGraph>;
   setScope(scope: GraphModelScope): Promise<RendererGraph>;
   getSnapshot(): RendererGraph;
   getWorkspace(): WorkspaceProjection;
   getScope(): {projectId: string; chapterId: string};
+  subscribeToWorkspace(listener: (workspace: WorkspaceProjection) => void, options?: {emitCurrent?: boolean}): Subscription;
+  createScopedGraphView(initialScope?: GraphModelScope): ScopedGraphView;
   addNewSlice(): Promise<RendererGraph>;
   addProject(name: string): Promise<RendererGraph>;
   renameProject(projectId: string, name: string): Promise<RendererGraph>;
@@ -58,7 +71,10 @@ export function createEventSourcedGraphModel(config: {
   let graphSnapshot = graphView.getSnapshot();
   let resolvedScope = graphView.getScope();
 
-  projectionService.subscribeToWorkspace((workspace) => {
+  const subscribeToWorkspace = projectionService.subscribeToWorkspace.bind(projectionService);
+  const createScopedGraphView = projectionService.createScopedGraphView.bind(projectionService);
+
+  subscribeToWorkspace((workspace) => {
     workspaceSnapshot = workspace;
   });
   graphView.subscribe((graph) => {
@@ -88,6 +104,8 @@ export function createEventSourcedGraphModel(config: {
     getScope() {
       return currentScope();
     },
+    subscribeToWorkspace,
+    createScopedGraphView,
     async addNewSlice() {
       const scope = currentScope();
       const newNodeNumber = currentGraph().nodes.length + 1;

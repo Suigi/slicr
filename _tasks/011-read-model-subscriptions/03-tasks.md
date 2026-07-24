@@ -158,7 +158,7 @@ Shrink `eventSourcedGraphModel.ts` into a compatibility facade that delegates pr
 
 ### Status
 
-[created]
+[done]
 
 ### Description
 

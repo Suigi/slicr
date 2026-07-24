@@ -8,3 +8,5 @@
 - Facade tests that rely on projection subscriptions need a SpecEventStore double whose `subscribe(...)` actually notifies matching appends; a no-op subscribe stub will make the service look stale even when the implementation is correct.
 - Once the store append path awaits matching listeners, the facade can drop mutation-path `refresh()` calls and still expose fresh snapshots after command appends; direct append tests are a good proof of that boundary.
 - `load()` can remain a bootstrap-only compatibility hook, but normal `setScope()` does not need to re-run projection refresh when the scoped view subscription already settles the new scope.
+- The React hook should treat command return graphs as transient-only data; the rendered graph state should come from workspace/scoped projection subscriptions so updates stay aligned with the event-driven read model.
+- Reload paths must tear down old workspace/scoped subscriptions before wiring the fresh application instance, otherwise stale listeners can keep driving hook state after a reset.
