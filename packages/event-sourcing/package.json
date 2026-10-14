@@ -12,6 +12,10 @@
       "types": "./src/sqliteSpecEventStore.ts",
       "import": "./src/sqliteSpecEventStore.ts"
     },
+    "./ndjson": {
+      "types": "./src/ndjsonSpecEventStore.ts",
+      "import": "./src/ndjsonSpecEventStore.ts"
+    },
     "./testing": {
       "types": "./src/testing/index.ts",
       "import": "./src/testing/index.ts"
