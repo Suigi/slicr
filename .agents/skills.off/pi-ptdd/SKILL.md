@@ -1,6 +1,6 @@
 ---
 name: pi-ptdd
-description: "Autonomously implement one software task using Pi-enforced Predictive Test-Driven Development. Use when a task must be implemented with PTDD in this repo. Requires the project-local ptdd-guard Pi extension tools."
+description: 'Autonomously implement one software task using Pi-enforced Predictive Test-Driven Development. Use when a task must be implemented with PTDD in this repo. Requires the project-local ptdd-guard Pi extension tools.'
 ---
 
 # Pi PTDD
@@ -99,6 +99,7 @@ For each `[todo]` behavior:
    Good runtime red prediction: "`calculateTotalDiscount()` fails because the new test asserts the returned total is `25`, but the current implementation returns `7`; the matcher output should be equivalent to `expected 25 received 7`."
 
    Good compile/typecheck red prediction: "The behavioral test imports and calls `createInvoiceSummary()` to assert the summary total is `25`, but the package entrypoint currently does not export `createInvoiceSummary`; TypeScript should fail with `Module './index' has no exported member 'createInvoiceSummary'`."
+
 5. Wait for `ptdd_record_prediction` to run the command and return the result. Do not run the command separately.
 6. Call `ptdd_record_actual` with:
    - what happened, including the relevant failure/pass output
@@ -113,10 +114,12 @@ For each `[todo]` behavior:
    - include `predictedReason`, and for fail predictions include `predictedExpected`, `predictedActual`, and `predictedFailureMessage` when known
 10. Wait for `ptdd_record_prediction` to run that command and return the result. Do not run the command separately.
 11. Call `ptdd_record_actual` with:
-   - what happened, including the relevant failure/pass output
-   - whether it matched the concrete prediction
-   - `outcome: "failed-as-expected"` for matching fail predictions or `outcome: "passed-as-expected"` for matching pass predictions
-   - `mismatchExplanation` when the result did not match
+
+- what happened, including the relevant failure/pass output
+- whether it matched the concrete prediction
+- `outcome: "failed-as-expected"` for matching fail predictions or `outcome: "passed-as-expected"` for matching pass predictions
+- `mismatchExplanation` when the result did not match
+
 12. If the result is another confirmed red, repeat from step 8 for the same behavior. If green is confirmed, mark the test `[done]` and call `ptdd_finish_iteration`.
 13. Refactor only after green. If refactoring, use the same prediction/actual discipline around each test run.
 
