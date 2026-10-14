@@ -85,6 +85,7 @@ describe('event backup', () => {
   it.each([
     ['invalid JSON', '{not json', 'Backup must be valid JSON.'],
     ['bare event array', JSON.stringify(events), 'not a bare event array'],
+    ['unsupported version', JSON.stringify({version: 2, events}), 'Backup version is unsupported. Expected version 1.'],
     ['legacy graph snapshot', JSON.stringify({nodes: [], edges: [], lanes: []}), 'version 1'],
     ['unknown event types', JSON.stringify({version: 1, events: [{type: 'Nope', payload: {}, tags: []}]}), 'invalid event'],
   ])('restoreFrom rejects %s', async (_label, backupText, expectedMessage) => {
@@ -94,6 +95,19 @@ describe('event backup', () => {
     });
 
     await expect(service.restoreFrom(backupText)).rejects.toThrow(expectedMessage);
+  });
+
+  it('does not invoke replacement or change the exported stream for a rejected restore', async () => {
+    const store = MemorySpecEventStore.create<DcbEvent>();
+    await store.append(events);
+    const restoreBackup = async () => {
+      throw new Error('Unexpected replacement');
+    };
+    const service = createEventBackupService({store, adminStore: {restoreBackup}});
+    const before = await service.backupText();
+
+    await expect(service.restoreFrom(JSON.stringify({version: 2, events: []}))).rejects.toThrow('unsupported');
+    await expect(service.backupText()).resolves.toBe(before);
   });
 });
 

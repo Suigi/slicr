@@ -10,7 +10,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:llm": "vitest run --reporter=vitest-llm-reporter",
+    "test:llm": "vitest run --reporter=vitest-llm-reporter && npm run test:browser",
+    "test:browser": "playwright test",
     "watch": "vitest run --watch --reporter=default --reporter=vitest-lib/cliReporter",
     "test:watch": "vitest",
     "lint": "eslint ."
@@ -28,6 +29,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
+    "@playwright/test": "^1.64.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.4",

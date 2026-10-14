@@ -42,6 +42,7 @@ describe('App backup/restore property event flow', () => {
     globalThis.indexedDB = originalIndexedDb;
     window.localStorage?.clear?.();
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it('restores node property events from a clipboard backup into the focused node side panel', async () => {
@@ -85,6 +86,51 @@ describe('App backup/restore property event flow', () => {
     expect(nodeEditor).not.toBeNull();
     expect(schemaNameInput?.value).toBe('title');
     expect(exampleInput?.value).toBe('Hello world');
+  });
+
+  it.each([
+    ['cancelled', JSON.stringify({version: 1, events: []}), false, undefined],
+    ['invalid JSON', '{invalid', true, 'Backup must be valid JSON.'],
+    ['unsupported version', JSON.stringify({version: 2, events: []}), true, 'Backup version is unsupported. Expected version 1.'],
+  ])('preserves the existing backup when restore is %s', async (_case, restoreText, confirmed, errorMessage) => {
+    globalThis.indexedDB = undefined as unknown as typeof indexedDB;
+    const originalEvents = [Events.nodeAdded(defaultProjectId, 'default-chapter', 'node-1', 'evt', 0, 'Keep this node')];
+    const readText = vi.fn().mockResolvedValue(JSON.stringify({version: 1, events: originalEvents}));
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const alert = vi.spyOn(window, 'alert').mockImplementation(() => undefined);
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    Object.defineProperty(navigator, 'clipboard', {configurable: true, value: {readText, writeText}});
+
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(createElement(App));
+      await flushRender();
+    });
+    await act(async () => {
+      clickButtonByTitle(container!, 'Restore full event backup from clipboard');
+      await flushRender();
+    });
+    expect(container.querySelector('.node-detail-title')?.textContent).toBe('Keep this node');
+
+    readText.mockResolvedValue(restoreText);
+    confirm.mockReturnValue(confirmed);
+    await act(async () => {
+      clickButtonByTitle(container!, 'Restore full event backup from clipboard');
+      await flushRender();
+    });
+    expect(container.querySelector('.node-detail-title')?.textContent).toBe('Keep this node');
+    await act(async () => {
+      clickButtonByTitle(container!, 'Copy full event backup to clipboard');
+      await flushRender();
+    });
+    expect(JSON.parse(writeText.mock.lastCall?.[0] as string).events).toEqual(originalEvents);
+    if (errorMessage) {
+      expect(alert).toHaveBeenCalledWith(errorMessage);
+    } else {
+      expect(alert).not.toHaveBeenCalled();
+    }
   });
 
   it('backs up all persisted events after a debounced property edit', async () => {
