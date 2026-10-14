@@ -1,4 +1,5 @@
 import {describe, expect, it} from 'vitest';
+import {expectEmptyAppendIsNoOp} from './emptyAppendContract.ts';
 import {Query} from './query.ts';
 import {AppendConditionFailedError} from './specStore.ts';
 import {IndexedDBSpecEventStore} from './indexedDBSpecEventStore.ts';
@@ -15,6 +16,14 @@ const makeEvent = (type: TestEvent['type'], value: number, tags: readonly string
 const databaseName = (testName: string): string => `event-sourcing-${testName}-${crypto.randomUUID()}`;
 
 describe('IndexedDBSpecEventStore in a browser', () => {
+  it('treats an empty conditional append as an unconditional no-op', async () => {
+    const store = await IndexedDBSpecEventStore.create<TestEvent>({
+      databaseName: databaseName('spec-empty-append'),
+      streamName: 'primary-stream',
+    });
+    await expectEmptyAppendIsNoOp(store, makeEvent('FirstEvent', 1));
+  });
+
   it('assigns persisted sequence positions starting at 1 and reads sequenced events in append order', async () => {
     const store = await IndexedDBSpecEventStore.create<TestEvent>({
       databaseName: databaseName('spec-append-read-order'),
@@ -49,9 +58,7 @@ describe('IndexedDBSpecEventStore in a browser', () => {
       {position: 2, event: second},
       {position: 3, event: third},
     ]);
-    await expect(store.query(Query.where({tags: ['match']}), {from: 1})).resolves.toEqual([
-      {position: 3, event: third},
-    ]);
+    await expect(store.query(Query.where({tags: ['match']}), {from: 1})).resolves.toEqual([{position: 3, event: third}]);
   });
 
   it('rejects conditional appends when matching conflicts exist after the relevant position', async () => {
@@ -69,8 +76,9 @@ describe('IndexedDBSpecEventStore in a browser', () => {
       condition: {failIfEventsMatch: Query.where({tags: ['conflict']})},
       conflictingEvents: [{position: 1, event: conflicting}],
     });
-    await expect(store.append([appended], {failIfEventsMatch: Query.where({tags: ['conflict']})}))
-      .rejects.toBeInstanceOf(AppendConditionFailedError);
+    await expect(store.append([appended], {failIfEventsMatch: Query.where({tags: ['conflict']})})).rejects.toBeInstanceOf(
+      AppendConditionFailedError,
+    );
   });
 
   it('allows at most one of two overlapping conflicting conditional appends to succeed', async () => {
@@ -87,14 +95,11 @@ describe('IndexedDBSpecEventStore in a browser', () => {
     const secondAppend = makeEvent('SecondEvent', 2, ['conflict']);
     const condition = {failIfEventsMatch: Query.where({tags: ['conflict']})};
 
-    const outcomes = await Promise.allSettled([
-      firstStore.append([firstAppend], condition),
-      secondStore.append([secondAppend], condition),
-    ]);
+    const outcomes = await Promise.allSettled([firstStore.append([firstAppend], condition), secondStore.append([secondAppend], condition)]);
 
     expect(outcomes).toHaveLength(2);
-    expect(outcomes.filter(outcome => outcome.status === 'fulfilled')).toHaveLength(1);
-    const rejectedOutcome = outcomes.find(outcome => outcome.status === 'rejected');
+    expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1);
+    const rejectedOutcome = outcomes.find((outcome) => outcome.status === 'rejected');
     expect(rejectedOutcome).toBeDefined();
     if (rejectedOutcome?.status === 'rejected') {
       expect(rejectedOutcome.reason).toBeInstanceOf(AppendConditionFailedError);
@@ -126,11 +131,7 @@ describe('IndexedDBSpecEventStore in a browser', () => {
       {position: 1, event: primaryFirst},
       {position: 2, event: primarySecond},
     ]);
-    await expect(secondaryStore.read()).resolves.toEqual([
-      {position: 3, event: secondaryFirst},
-    ]);
-    await expect(secondaryStore.query(Query.where({tags: ['secondary']}))).resolves.toEqual([
-      {position: 3, event: secondaryFirst},
-    ]);
+    await expect(secondaryStore.read()).resolves.toEqual([{position: 3, event: secondaryFirst}]);
+    await expect(secondaryStore.query(Query.where({tags: ['secondary']}))).resolves.toEqual([{position: 3, event: secondaryFirst}]);
   });
 });
