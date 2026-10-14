@@ -1,4 +1,4 @@
-import {type Query, type SequencePosition} from './query';
+import type {Query, SequencePosition} from './query.ts';
 import type {Event} from './types';
 
 export type SequencedEvent<E extends Event> = {
@@ -9,7 +9,7 @@ export type SequencedEvent<E extends Event> = {
 export const SequencedEvent = {
   wrap<E extends Event>(event: E, position: SequencePosition): SequencedEvent<E> {
     return {position, event};
-  }
+  },
 };
 
 export type ReadOptions = {
@@ -42,6 +42,7 @@ export type AppendedEventsListener<E extends Event> = (events: readonly Sequence
 export interface SpecEventStore<E extends Event> {
   read(options?: ReadOptions): Promise<readonly SequencedEvent<E>[]>;
   query(query: Query, options?: ReadOptions): Promise<readonly SequencedEvent<E>[]>;
+  /** An empty batch is an unconditional no-op: no condition check, persisted events, or notifications. */
   append(events: readonly E[], condition?: AppendCondition): Promise<readonly SequencedEvent<E>[]>;
   subscribe(query: Query, listener: AppendedEventsListener<E>): StoreSubscription;
 }

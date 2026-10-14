@@ -8,6 +8,10 @@
       "types": "./src/index.ts",
       "import": "./src/index.ts"
     },
+    "./sqlite": {
+      "types": "./src/sqliteSpecEventStore.ts",
+      "import": "./src/sqliteSpecEventStore.ts"
+    },
     "./testing": {
       "types": "./src/testing/index.ts",
       "import": "./src/testing/index.ts"
@@ -33,6 +37,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
+    "@types/node": "^24.12.4",
     "@vitest/browser-playwright": "^4.0.18",
     "eslint": "^9.39.4",
     "playwright": "^1.58.2",

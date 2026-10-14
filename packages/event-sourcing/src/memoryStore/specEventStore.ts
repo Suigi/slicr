@@ -40,14 +40,13 @@ export class MemorySpecEventStore<E extends Event> implements SpecEventStore<E> 
   }
 
   async append(events: readonly E[], condition?: AppendCondition): Promise<readonly SequencedEvent<E>[]> {
+    if (events.length === 0) return [];
     const conflictingEvents = condition === undefined ? [] : this.findConflictingEvents(condition);
     if (condition !== undefined && conflictingEvents.length > 0) {
       throw new AppendConditionFailedError(condition, conflictingEvents);
     }
 
-    const startingPosition = this.sequencedEvents.length > 0
-      ? this.sequencedEvents[this.sequencedEvents.length - 1]?.position ?? 0
-      : 0;
+    const startingPosition = this.sequencedEvents.length > 0 ? (this.sequencedEvents[this.sequencedEvents.length - 1]?.position ?? 0) : 0;
     const appendedEvents = events.map((event, index) => ({
       position: (startingPosition + index + 1) as SequencePosition,
       event,
@@ -68,13 +67,11 @@ export class MemorySpecEventStore<E extends Event> implements SpecEventStore<E> 
   }
 
   private readSequencedEvents(from?: SequencePosition): readonly SequencedEvent<E>[] {
-    return from === undefined
-      ? [...this.sequencedEvents]
-      : this.sequencedEvents.filter(sequencedEvent => sequencedEvent.position > from);
+    return from === undefined ? [...this.sequencedEvents] : this.sequencedEvents.filter((sequencedEvent) => sequencedEvent.position > from);
   }
 
   private findConflictingEvents(condition: AppendCondition): readonly SequencedEvent<E>[] {
-    return this.sequencedEvents.filter(sequencedEvent => {
+    return this.sequencedEvents.filter((sequencedEvent) => {
       if (condition.after !== undefined && sequencedEvent.position <= condition.after) {
         return false;
       }
@@ -83,12 +80,13 @@ export class MemorySpecEventStore<E extends Event> implements SpecEventStore<E> 
   }
 
   private async notifySubscribers(appendedEvents: readonly SequencedEvent<E>[]): Promise<void> {
-    await Promise.allSettled([...this.subscriptions].map(async ({query, listener}) => {
-      const matchingEvents = filterSequencedEventsByQuery(appendedEvents, query);
-      if (matchingEvents.length > 0) {
-        await listener(matchingEvents);
-      }
-    }));
+    await Promise.allSettled(
+      [...this.subscriptions].map(async ({query, listener}) => {
+        const matchingEvents = filterSequencedEventsByQuery(appendedEvents, query);
+        if (matchingEvents.length > 0) {
+          await listener(matchingEvents);
+        }
+      }),
+    );
   }
 }
-

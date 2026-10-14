@@ -1,4 +1,5 @@
 import {describe, expect, it} from 'vitest';
+import {expectEmptyAppendIsNoOp} from '../emptyAppendContract.ts';
 import {Query} from '../query.ts';
 import {AppendConditionFailedError} from '../specStore.ts';
 import {MemorySpecEventStore} from './specEventStore.ts';
@@ -10,19 +11,23 @@ const storedEvent: TestEvent = {type: 'Created', payload: {value: 1}, tags: ['co
 const appendedEvent: TestEvent = {type: 'Created', payload: {value: 2}, tags: ['conflict']};
 
 describe('MemorySpecEventStore.append', () => {
+  it('treats an empty conditional append as an unconditional no-op', async () => {
+    await expectEmptyAppendIsNoOp(MemorySpecEventStore.create<TestEvent>(), storedEvent);
+  });
+
   it('fails with conflicting sequenced events when a matching append condition is violated', async () => {
     const store = MemorySpecEventStore.create<TestEvent>();
 
     await store.append([storedEvent]);
 
-    await expect(store.append([appendedEvent], {failIfEventsMatch: Query.where({tags: ['conflict']})}))
-      .rejects.toMatchObject({
-        name: 'AppendConditionFailedError',
-        condition: {failIfEventsMatch: Query.where({tags: ['conflict']})},
-        conflictingEvents: [{position: 1, event: storedEvent}],
-      });
+    await expect(store.append([appendedEvent], {failIfEventsMatch: Query.where({tags: ['conflict']})})).rejects.toMatchObject({
+      name: 'AppendConditionFailedError',
+      condition: {failIfEventsMatch: Query.where({tags: ['conflict']})},
+      conflictingEvents: [{position: 1, event: storedEvent}],
+    });
 
-    await expect(store.append([appendedEvent], {failIfEventsMatch: Query.where({tags: ['conflict']})}))
-      .rejects.toBeInstanceOf(AppendConditionFailedError);
+    await expect(store.append([appendedEvent], {failIfEventsMatch: Query.where({tags: ['conflict']})})).rejects.toBeInstanceOf(
+      AppendConditionFailedError,
+    );
   });
 });
