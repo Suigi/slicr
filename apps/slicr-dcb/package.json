@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "dev:tailnet": "vite --host $(tailscale ip --4)",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
