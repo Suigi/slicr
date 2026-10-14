@@ -2,7 +2,7 @@
 
 ## Goal
 
-A project such as `kid-points` owns its event model in `./.slicr/`. The `slicr` CLI lets people and agents inspect and edit that model from the project's directory. `slicr serve` hosts the visual editor (currently `slicr-dcb`) against the **same** model. DCB is a project-wide event-sourcing practice, not a reason to name the frontend `-dcb`.
+A project such as `kid-points` owns its event model in `./.slicr/`. The `slicr` CLI lets people and agents inspect and edit that model from the project's directory. `slicr serve` hosts the `slicr-editor` frontend against the **same** model. DCB is a project-wide event-sourcing practice.
 
 The event model's history records **modeling events** (such as adding or connecting nodes). Events depicted within the model (such as a hypothetical `PointsEarned` in `kid-points`) are model content, not events in the Slicr modeling history. The on-disk event history is authoritative; JSON and Markdown are derived read models, not alternative write authorities.
 
@@ -22,7 +22,7 @@ flowchart LR
     subgraph Tooling["Slicr tooling"]
         CLI["slicr CLI"]
         Serve["slicr serve<br/>web hosting + local API"]
-        Web["Visual editor<br/>currently slicr-dcb"]
+        Web["slicr-editor frontend"]
         App["Shared application<br/>commands, deciders, projectors"]
     end
 
@@ -46,18 +46,6 @@ The CLI and `slicr serve` share command and projection semantics. The browser co
 - During each step, run focused tests (prefer `npm run test:llm --workspace=<workspace-name>`). Before completing the step, run `npm run format` and `npm run validate:llm` from the repository root for edited files, plus a manual editor smoke check for user-facing changes. Add automated regression tests for each new contract.
 
 ## Incremental steps
-
-### Prerequisite. Rename the existing editor
-
-Rename `apps/slicr-dcb` to `apps/slicr-editor` and the workspace package to `slicr-editor` as a standalone, behavior-preserving change before the model work. Update current scripts, package-lock references, page title, and live documentation references, but leave historical plans alone. **Keep the existing IndexedDB database name and localStorage key unchanged** so previously saved browser data remains available; changing those identifiers requires a separate migration. Validate the renamed editor's build and tests, and smoke-check that existing browser data still opens. This rename is not the later `slicr serve` implementation.
-
-**Safe stopping point:** The editor works at its new path with the same persisted data. All tests pass and the previous frontend workflows remain available.
-
-### Cleanup. Remove the superseded `slicr-frontend` application
-
-After the rename is validated, remove `apps/slicr-frontend` in a separate commit, updating root scripts and the workspace lockfile so the retained `slicr-editor` is the supported frontend. Check that functionality still needed from the older application is available in the retained editor before deletion. Preserve historical task references as history, and do not combine this removal with model or storage changes.
-
-**Safe stopping point:** The retained editor builds, runs, and passes its tests; root validation passes for the remaining workspaces.
 
 ### 0. Pin current behavior
 
@@ -186,4 +174,4 @@ sequenceDiagram
 
 ## First tranche and decisions to revisit
 
-Complete the standalone editor rename, then implement Steps 0–2 first and review the results before settling the `.slicr/` storage format. Later choices requiring explicit discussion include whether the authoritative store is Git-tracked, how to handle branches and merges, how revisions and agent identity are represented, how `slicr serve` is secured to localhost, and how older event schemas are upgraded. None is decided by this plan.
+Implement Steps 0–2 first and review the results before settling the `.slicr/` storage format. Later choices requiring explicit discussion include whether the authoritative store is Git-tracked, how to handle branches and merges, how revisions and agent identity are represented, how `slicr serve` is secured to localhost, and how older event schemas are upgraded. None is decided by this plan.
