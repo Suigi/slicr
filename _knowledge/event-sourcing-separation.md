@@ -1,6 +1,6 @@
 # Event Sourcing Separation Guidelines
 
-These notes capture the desired direction for `apps/slicr-dcb` and related `@slicr/event-sourcing` abstractions.
+These notes capture the desired direction for `apps/slicr-editor` and related `@slicr/event-sourcing` abstractions.
 
 ## Core rule
 
@@ -148,7 +148,7 @@ Conceptually:
 ```ts
 const query = decider.query(command);
 const sequencedEvents = await store.query(query);
-const decisionModel = decider.project(sequencedEvents.map(e => e.event));
+const decisionModel = decider.project(sequencedEvents.map((e) => e.event));
 const eventsToEmit = decider.decide(command, decisionModel);
 
 await store.append(eventsToEmit, {
@@ -174,13 +174,10 @@ Example style:
 await expectDecider(addProjectDecider({generateUuid}))
   .given()
   .when({name: 'New Project'})
-  .thenEmits(
-    Events.projectAdded('project-1', 'New Project'),
-    Events.chapterAdded('project-1', 'chapter-1', 'Chapter 1'),
-  );
+  .thenEmits(Events.projectAdded('project-1', 'New Project'), Events.chapterAdded('project-1', 'chapter-1', 'Chapter 1'));
 ```
 
-## Current migration direction for `slicr-dcb`
+## Current migration direction for `slicr-editor`
 
 Good next targets:
 

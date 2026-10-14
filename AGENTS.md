@@ -19,7 +19,7 @@
 
 - Use conventional commits. For example:
   ```
-  feat(slicr-dcb): Implemented new feature XYZ
+  feat(slicr-editor): Implemented new feature XYZ
   refactor(event-sourcing): Extracted functionality XYZ into its own file
-  chore(slicr-dcb): Fixed formatting
+  chore(slicr-editor): Fixed formatting
   ```

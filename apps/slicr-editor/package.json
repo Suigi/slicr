@@ -1,0 +1,45 @@
+{
+  "name": "slicr-editor",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev:tailnet": "vite --host $(tailscale ip --4)",
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:llm": "vitest run --reporter=vitest-llm-reporter",
+    "watch": "vitest run --watch --reporter=default --reporter=vitest-lib/cliReporter",
+    "test:watch": "vitest",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@fortawesome/fontawesome-svg-core": "^7.2.0",
+    "@fortawesome/free-solid-svg-icons": "^7.2.0",
+    "@fortawesome/react-fontawesome": "^3.3.1",
+    "@slicr/event-sourcing": "0.0.0",
+    "@slicr/react-ui": "0.0.0",
+    "layout-lib": "0.0.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "uuid": "^14.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.4",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.0",
+    "globals": "^17.3.0",
+    "jsdom": "^28.1.0",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.57.2",
+    "vite": "^8.0.16",
+    "vitest": "^4.0.18",
+    "vitest-llm-reporter": "^1.2.2"
+  }
+}

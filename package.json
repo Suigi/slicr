@@ -13,7 +13,8 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "format": "./scripts/prettier-changed.sh write",
     "validate:llm": "./scripts/prettier-changed.sh check && npm run lint && npm run test:llm && npm run typecheck",
-    "dev:frontend": "npm run dev --workspace slice-visualizer"
+    "dev:frontend": "npm run dev --workspace slice-visualizer",
+    "dev:editor": "npm run dev --workspace slicr-editor"
   },
   "devDependencies": {
     "@stryker-mutator/core": "^9.6.1",
