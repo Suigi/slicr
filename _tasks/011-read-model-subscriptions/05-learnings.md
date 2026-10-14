@@ -12,3 +12,5 @@
 - Reload paths must tear down old workspace/scoped subscriptions before wiring the fresh application instance, otherwise stale listeners can keep driving hook state after a reset.
 - `createGraphApplication` should be the graph application composition/bootstrap owner: create/open stores, ensure initial workspace, create command executor, create projection service, create the initial scoped graph view, and perform initial projection catch-up before returning the application.
 - `eventSourcedGraphModel` is now compatibility/adaptation code; keep it receiving composed dependencies from the application boundary instead of letting it own command-router, projection-service, or bootstrap refresh creation.
+- Share one scoped graph view between explicit graph commands and the React bridge so commands always target the scope the UI observes; additional scoped views remain read-only observers.
+- When a cached application is loaded for a changed React scope, await the explicit graph view's `setScope` before attaching listeners and applying its snapshot; otherwise an earlier scope's graph may overwrite the newly selected project during async load.

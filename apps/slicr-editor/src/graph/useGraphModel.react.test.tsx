@@ -47,24 +47,28 @@ describe('useGraphModel', () => {
     let graphListener: ((graph: StoredGraphModel) => void) | null = null;
 
     loadGraphApplicationMock.mockResolvedValue({
-      model: {
-        load: vi.fn(async () => initialGraph),
-        setScope: vi.fn(async () => initialGraph),
-        getSnapshot: vi.fn(() => initialGraph),
-        getWorkspace: vi.fn(() => ({projects: [], chaptersByProjectId: {}})),
-        getScope: vi.fn(() => ({projectId: 'project-1', chapterId: 'chapter-1'})),
-        subscribeToWorkspace: vi.fn(() => ({unsubscribe: vi.fn()})),
-        createScopedGraphView: vi.fn(() => ({
-          getSnapshot: () => initialGraph,
-          getScope: () => ({projectId: 'project-1', chapterId: 'chapter-1'}),
-          setScope: vi.fn(async () => initialGraph),
-          subscribe: (listener: (graph: StoredGraphModel) => void) => {
-            graphListener = listener;
-            return {unsubscribe: vi.fn()};
+      model: new Proxy(
+        {},
+        {
+          get: () => {
+            throw new Error('Compatibility facade must not be used');
           },
-        })),
-        addNewSlice: vi.fn(async () => updatedGraph),
+        },
+      ),
+      workspace: {
+        getWorkspaceSnapshot: () => ({projects: [], chaptersByProjectId: {}}),
+        subscribeToWorkspace: vi.fn(() => ({unsubscribe: vi.fn()})),
       },
+      graph: {
+        getSnapshot: () => initialGraph,
+        getScope: () => ({projectId: 'project-1', chapterId: 'chapter-1'}),
+        setScope: vi.fn(async () => initialGraph),
+        subscribe: (listener: (graph: StoredGraphModel) => void) => {
+          graphListener = listener;
+          return {unsubscribe: vi.fn()};
+        },
+      },
+      commands: {addNewSlice: vi.fn(async () => updatedGraph)},
       graphModel: initialGraph,
       eventBackup: {},
     });
@@ -110,22 +114,28 @@ describe('useGraphModel', () => {
     let graphListener: ((graph: StoredGraphModel) => void) | null = null;
 
     loadGraphApplicationMock.mockResolvedValue({
-      model: {
-        load: vi.fn(async () => initialGraph),
-        setScope: vi.fn(async () => nextGraph),
-        getSnapshot: vi.fn(() => initialGraph),
-        getWorkspace: vi.fn(() => ({projects: [], chaptersByProjectId: {}})),
-        getScope: vi.fn(() => currentScope),
-        subscribeToWorkspace: vi.fn(() => ({unsubscribe: vi.fn()})),
-        createScopedGraphView: vi.fn(() => ({
-          getSnapshot: () => initialGraph,
-          getScope: () => currentScope,
-          setScope: vi.fn(async () => nextGraph),
-          subscribe: (listener: (graph: StoredGraphModel) => void) => {
-            graphListener = listener;
-            return {unsubscribe: vi.fn()};
+      model: new Proxy(
+        {},
+        {
+          get: () => {
+            throw new Error('Compatibility facade must not be used');
           },
-        })),
+        },
+      ),
+      workspace: {
+        getWorkspaceSnapshot: () => ({projects: [], chaptersByProjectId: {}}),
+        subscribeToWorkspace: vi.fn(() => ({unsubscribe: vi.fn()})),
+      },
+      graph: {
+        getSnapshot: () => initialGraph,
+        getScope: () => currentScope,
+        setScope: vi.fn(async () => nextGraph),
+        subscribe: (listener: (graph: StoredGraphModel) => void) => {
+          graphListener = listener;
+          return {unsubscribe: vi.fn()};
+        },
+      },
+      commands: {
         addProject: vi.fn(async () => {
           currentScope.projectId = 'project-2';
           return nextGraph;
@@ -186,44 +196,54 @@ describe('useGraphModel', () => {
 
     loadGraphApplicationMock
       .mockResolvedValueOnce({
-        model: {
-          load: vi.fn(async () => initialGraph),
-          setScope: vi.fn(async () => initialGraph),
-          getSnapshot: vi.fn(() => initialGraph),
-          getWorkspace: vi.fn(() => ({projects: [], chaptersByProjectId: {}})),
-          getScope: vi.fn(() => initialScope),
-          subscribeToWorkspace: vi.fn(() => ({unsubscribe: vi.fn()})),
-          createScopedGraphView: vi.fn(() => ({
-            getSnapshot: () => initialGraph,
-            getScope: () => initialScope,
-            setScope: vi.fn(async () => initialGraph),
-            subscribe: (listener: (graph: StoredGraphModel) => void) => {
-              firstGraphListener = listener;
-              return {unsubscribe: vi.fn()};
+        model: new Proxy(
+          {},
+          {
+            get: () => {
+              throw new Error('Compatibility facade must not be used');
             },
-          })),
+          },
+        ),
+        workspace: {
+          getWorkspaceSnapshot: () => ({projects: [], chaptersByProjectId: {}}),
+          subscribeToWorkspace: vi.fn(() => ({unsubscribe: vi.fn()})),
         },
+        graph: {
+          getSnapshot: () => initialGraph,
+          getScope: () => initialScope,
+          setScope: vi.fn(async () => initialGraph),
+          subscribe: (listener: (graph: StoredGraphModel) => void) => {
+            firstGraphListener = listener;
+            return {unsubscribe: vi.fn()};
+          },
+        },
+        commands: {},
         graphModel: initialGraph,
         eventBackup: {},
       })
       .mockResolvedValueOnce({
-        model: {
-          load: vi.fn(async () => reloadedGraph),
-          setScope: vi.fn(async () => reloadedGraph),
-          getSnapshot: vi.fn(() => reloadedGraph),
-          getWorkspace: vi.fn(() => ({projects: [], chaptersByProjectId: {}})),
-          getScope: vi.fn(() => reloadedScope),
-          subscribeToWorkspace: vi.fn(() => ({unsubscribe: vi.fn()})),
-          createScopedGraphView: vi.fn(() => ({
-            getSnapshot: () => reloadedGraph,
-            getScope: () => reloadedScope,
-            setScope: vi.fn(async () => reloadedGraph),
-            subscribe: (listener: (graph: StoredGraphModel) => void) => {
-              secondGraphListener = listener;
-              return {unsubscribe: vi.fn()};
+        model: new Proxy(
+          {},
+          {
+            get: () => {
+              throw new Error('Compatibility facade must not be used');
             },
-          })),
+          },
+        ),
+        workspace: {
+          getWorkspaceSnapshot: () => ({projects: [], chaptersByProjectId: {}}),
+          subscribeToWorkspace: vi.fn(() => ({unsubscribe: vi.fn()})),
         },
+        graph: {
+          getSnapshot: () => reloadedGraph,
+          getScope: () => reloadedScope,
+          setScope: vi.fn(async () => reloadedGraph),
+          subscribe: (listener: (graph: StoredGraphModel) => void) => {
+            secondGraphListener = listener;
+            return {unsubscribe: vi.fn()};
+          },
+        },
+        commands: {},
         graphModel: reloadedGraph,
         eventBackup: {},
       });

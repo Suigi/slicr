@@ -299,7 +299,7 @@ Target ownership rule:
 
 ### Status
 
-[created]
+[done]
 
 ### Description
 
@@ -326,7 +326,7 @@ Add an explicit application-facing API from `createGraphApplication` that separa
 
 ### Status
 
-[created]
+[done]
 
 ### Description
 

@@ -62,6 +62,42 @@ describe('createGraphApplication', () => {
     expect(application.model.getSnapshot()).toEqual(application.graphModel);
   });
 
+  it('bootstraps explicit workspace and scoped graph reads from existing history', async () => {
+    const stores = await createDefaultGraphEventStore();
+    await stores.graphStore.restoreBackup([
+      Events.projectAdded('project-1', 'Existing'),
+      Events.chapterAdded('project-1', 'chapter-1', 'First'),
+      Events.nodeAdded('project-1', 'chapter-1', 'node-1', 'evt', 1, 'Recorded'),
+    ]);
+
+    const application = await createGraphApplication({projectId: 'project-1', chapterId: 'chapter-1'});
+    expect(application.workspace.getWorkspaceSnapshot().projects).toEqual([{id: 'project-1', name: 'Existing'}]);
+    expect(application.graph.getScope()).toEqual({projectId: 'project-1', chapterId: 'chapter-1'});
+    expect(application.graph.getSnapshot().nodes[0].label).toBe('Recorded');
+    const anotherView = application.graph.createScopedView({projectId: 'project-1', chapterId: 'chapter-1'});
+    expect((await anotherView.setScope({projectId: 'project-1', chapterId: 'chapter-1'})).nodes[0].label).toBe('Recorded');
+  });
+
+  it('delivers explicit workspace and graph subscriptions after commands, sharing the facade state', async () => {
+    const application = await createGraphApplication();
+    const workspaceNames: string[][] = [];
+    const graphLabels: string[][] = [];
+    application.workspace.subscribeToWorkspace((snapshot) => workspaceNames.push(snapshot.projects.map((project) => project.name)), {
+      emitCurrent: false,
+    });
+    application.graph.subscribe((snapshot) => graphLabels.push(snapshot.nodes.map((node) => node.label)), {emitCurrent: false});
+
+    await application.commands.addNewSlice();
+    const nodeId = application.graph.getSnapshot().nodes[0].id;
+    await application.commands.renameNode(nodeId, 'Renamed');
+    await application.commands.addProject('Another');
+
+    expect(graphLabels).toEqual([['Node 1'], ['Renamed'], []]);
+    expect(workspaceNames.at(-1)).toEqual(['Default Project', 'Another']);
+    expect(application.model.getScope()).toEqual(application.graph.getScope());
+    expect(application.model.getSnapshot()).toEqual(application.graph.getSnapshot());
+  });
+
   it('delivers scoped graph subscription updates after commands append events', async () => {
     const application = await createGraphApplication();
     const scopedGraphView = application.model.createScopedGraphView(application.model.getScope());

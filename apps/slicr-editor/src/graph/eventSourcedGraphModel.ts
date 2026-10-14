@@ -22,12 +22,28 @@ type Subscription = {
 
 type ExecuteCommand = (command: DcbAnyCommand) => Promise<void>;
 
-type ScopedGraphView = {
+export type ScopedGraphView = {
   getScope(): {projectId: string; chapterId: string};
   setScope(scope: GraphModelScope): Promise<RendererGraph>;
   getSnapshot(): RendererGraph;
   subscribe(listener: (graph: RendererGraph) => void, options?: {emitCurrent?: boolean}): Subscription;
 };
+
+export type GraphCommands = Pick<
+  EventSourcedGraphModel,
+  | 'addNewSlice'
+  | 'addProject'
+  | 'renameProject'
+  | 'addChapter'
+  | 'addConnection'
+  | 'deleteConnection'
+  | 'addConnectedNode'
+  | 'renameNode'
+  | 'setNodeType'
+  | 'changeNodeSchema'
+  | 'changeNodeExampleValues'
+  | 'deleteNode'
+>;
 
 export type EventSourcedGraphModel = {
   load(scope?: GraphModelScope): Promise<RendererGraph>;
@@ -57,61 +73,17 @@ export type EventSourcedGraphModel = {
   deleteNode(nodeId: string): Promise<RendererGraph>;
 };
 
-export function createEventSourcedGraphModel(config: {
-  commandStore: SpecEventStore<DcbEvent>;
-  executeCommand?: ExecuteCommand;
-  projectionService?: GraphProjectionService;
-  scopedGraphView?: ScopedGraphView;
-  uuidGenerator?: () => string;
-}): EventSourcedGraphModel {
-  const generateId = config.uuidGenerator ?? uuid;
-  const routeCommand =
-    config.executeCommand ??
-    createCommandRouter({
-      store: config.commandStore,
-      generateUuid: generateId,
-    });
-  const projectionService = config.projectionService ?? createGraphProjectionService({commandStore: config.commandStore});
-  const graphView = config.scopedGraphView ?? projectionService.createScopedGraphView();
-
-  let workspaceSnapshot = projectionService.getWorkspaceSnapshot();
-  let graphSnapshot = graphView.getSnapshot();
-  let resolvedScope = graphView.getScope();
-
-  const subscribeToWorkspace = projectionService.subscribeToWorkspace.bind(projectionService);
-  const createScopedGraphView = projectionService.createScopedGraphView.bind(projectionService);
-
-  subscribeToWorkspace((workspace) => {
-    workspaceSnapshot = workspace;
-  });
-  graphView.subscribe((graph) => {
-    graphSnapshot = graph;
-    resolvedScope = graphView.getScope();
-  });
-
-  const currentScope = () => resolvedScope;
-  const currentGraph = () => graphSnapshot;
+export function createGraphCommands(config: {
+  executeCommand: ExecuteCommand;
+  graphView: ScopedGraphView;
+  getWorkspaceSnapshot: () => WorkspaceProjection;
+}): GraphCommands {
+  const routeCommand = config.executeCommand;
+  const graphView = config.graphView;
+  const currentScope = () => graphView.getScope();
+  const currentGraph = () => graphView.getSnapshot();
 
   return {
-    async load(scope = {}) {
-      await graphView.setScope(scope);
-      return currentGraph();
-    },
-    async setScope(scope) {
-      await graphView.setScope(scope);
-      return currentGraph();
-    },
-    getSnapshot() {
-      return currentGraph();
-    },
-    getWorkspace() {
-      return workspaceSnapshot;
-    },
-    getScope() {
-      return currentScope();
-    },
-    subscribeToWorkspace,
-    createScopedGraphView,
     async addNewSlice() {
       const scope = currentScope();
       const newNodeNumber = currentGraph().nodes.length + 1;
@@ -133,6 +105,7 @@ export function createEventSourcedGraphModel(config: {
         data: {name},
       });
 
+      const workspaceSnapshot = config.getWorkspaceSnapshot();
       const latestProjectId = workspaceSnapshot.latestProjectId;
       const latestChapterId = latestProjectId ? workspaceSnapshot.chaptersByProjectId[latestProjectId]?.[0]?.id : undefined;
 
@@ -156,7 +129,7 @@ export function createEventSourcedGraphModel(config: {
         type: 'AddChapter',
         data: {projectId: scope.projectId, title},
       });
-      const latestChapterId = workspaceSnapshot.chaptersByProjectId[scope.projectId]?.at(-1)?.id;
+      const latestChapterId = config.getWorkspaceSnapshot().chaptersByProjectId[scope.projectId]?.at(-1)?.id;
       if (latestChapterId) {
         await graphView.setScope({projectId: scope.projectId, chapterId: latestChapterId});
       }
@@ -276,5 +249,37 @@ export function createEventSourcedGraphModel(config: {
       });
       return currentGraph();
     },
+  };
+}
+
+export function createEventSourcedGraphModel(config: {
+  commandStore: SpecEventStore<DcbEvent>;
+  executeCommand?: ExecuteCommand;
+  projectionService?: GraphProjectionService;
+  scopedGraphView?: ScopedGraphView;
+  commands?: GraphCommands;
+  uuidGenerator?: () => string;
+}): EventSourcedGraphModel {
+  const executeCommand =
+    config.executeCommand ?? createCommandRouter({store: config.commandStore, generateUuid: config.uuidGenerator ?? uuid});
+  const projectionService = config.projectionService ?? createGraphProjectionService({commandStore: config.commandStore});
+  const graphView = config.scopedGraphView ?? projectionService.createScopedGraphView();
+  const commands =
+    config.commands ??
+    createGraphCommands({executeCommand, graphView, getWorkspaceSnapshot: () => projectionService.getWorkspaceSnapshot()});
+
+  return {
+    ...commands,
+    async load(scope = {}) {
+      return graphView.setScope(scope);
+    },
+    async setScope(scope) {
+      return graphView.setScope(scope);
+    },
+    getSnapshot: () => graphView.getSnapshot(),
+    getWorkspace: () => projectionService.getWorkspaceSnapshot(),
+    getScope: () => graphView.getScope(),
+    subscribeToWorkspace: projectionService.subscribeToWorkspace,
+    createScopedGraphView: projectionService.createScopedGraphView,
   };
 }
