@@ -47,13 +47,13 @@ The CLI and `slicr serve` share command and projection semantics. The browser co
 
 ## Incremental steps
 
-### 0. Pin current behavior
+### 0. Pin current behavior [DONE]
 
 Cover opening a workspace, editing a node, switching projects/chapters, reopening persisted data, and backup/restore in integration tests. Record a brief manual smoke checklist for startup, editing, switching scope, and reloading. This gives later changes an observable baseline.
 
 **Safe stopping point:** No architecture change; the existing editor still works. Its full test suite and the root validation pass.
 
-### 1. Clarify the application API
+### 1. Clarify the application API [DONE]
 
 Complete the already-planned explicit command and read-model APIs in [`../011-read-model-subscriptions/03-tasks.md`](../011-read-model-subscriptions/03-tasks.md) (Tasks 8–9). Separate scoped command execution from workspace and graph projection reads/subscriptions. Retain the existing graph-model facade while consumers migrate; only remove it in a later, separately tested change. Do not mix this with storage migration.
 
