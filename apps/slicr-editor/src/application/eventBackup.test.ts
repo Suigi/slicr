@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest';
 
-import {Events} from '../domain/events';
-import {type DcbEvent, MemorySpecEventStore} from '../domain/eventSourcing';
+import {Events} from '@slicr/core/events';
+import {type DcbEvent, MemorySpecEventStore} from '@slicr/core/eventSourcing';
 import {createEventBackupService, parseEventBackup, serializeEventBackup, type EventBackupAdminStore} from './eventBackup';
 
 const events: DcbEvent[] = [

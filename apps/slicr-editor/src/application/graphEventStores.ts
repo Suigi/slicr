@@ -7,7 +7,7 @@ import {
   type ReadOptions,
   type SpecEventStore,
 } from '@slicr/event-sourcing';
-import type {DcbEvent} from '../domain/events';
+import type {DcbEvent} from '@slicr/core/events';
 import type {EventBackupAdminStore} from './eventBackup';
 
 const EVENT_STORE_DATABASE_NAME = 'slicr-dcb.events.v1';

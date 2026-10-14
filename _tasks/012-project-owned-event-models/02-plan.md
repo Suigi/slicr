@@ -59,7 +59,7 @@ Complete the already-planned explicit command and read-model APIs in [`../011-re
 
 **Safe stopping point:** React continues to use its existing IndexedDB history. Both compatibility and new paths are covered, and the editor smoke check passes.
 
-### 2. Extract the reusable model
+### 2. Extract the reusable model [DONE]
 
 Move domain events, commands, deciders, domain graph/workspace projections, and their tests into a non-React package. Keep renderer adaptation, layout, measurement, and UI-local state in the frontend. Move imports in small groups without redesigning event payloads or changing persisted history in the same step. A package extraction must not change replay results for existing event fixtures.
 

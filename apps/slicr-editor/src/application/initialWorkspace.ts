@@ -1,5 +1,5 @@
 import {createCommandRouter} from './commandRouter';
-import type {DcbSpecStore} from '../domain/eventSourcing';
+import type {DcbSpecStore} from '@slicr/core/eventSourcing';
 
 export async function ensureInitialWorkspace(args: {store: DcbSpecStore; generateUuid?: () => string}) {
   const routeCommand = createCommandRouter({

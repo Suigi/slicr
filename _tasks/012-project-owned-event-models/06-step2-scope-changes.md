@@ -1,0 +1,12 @@
+# Step 2 scope changes
+
+Baseline: [Step 2 of the project-owned event-model plan](./02-plan.md#2-extract-the-reusable-model). No implementation beyond the package extraction is authorized by review findings.
+
+| Date       | Proposed change or decision                                                 | Reason / evidence                                                                                                                                                     | Decision                                                                        | Status      |
+| ---------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ----------- |
+| 2026-10-14 | Name the non-React domain package `packages/slicr-core` (`@slicr/core`)     | User chose a core Slicr-specific package rather than extending generic event-sourcing, then explicitly approved the clearer directory and npm identity before commit. | Approved within Step 2 extraction; naming only.                                 | Implemented |
+| 2026-10-14 | Remove the `NodeType` type import in `apps/slicr-editor/src/graph/types.ts` | Review called it redundant, but the re-export does not supply a local binding; `GraphNode` uses the imported type.                                                    | Do not remove: it would break typechecking. A syntactic rewrite has no benefit. | Closed      |
+| 2026-10-14 | Reduce the package's subpath export surface                                 | Review suggested a smaller public API might help future CLI/server work.                                                                                              | Defer to a later API-design decision; avoid redesign during extraction.         | Deferred    |
+| 2026-10-14 | Add a package build/prepare step                                            | Review noted source exports without a build script; existing workspace packages use this pattern, and editor build passes.                                            | Defer unless a concrete consumer needs it.                                      | Deferred    |
+
+No verified Step 2 blockers were reported by the read-only review. Later storage, CLI, serve, and cutover work remains outside Step 2. Review suggestions are not authorization to expand scope.

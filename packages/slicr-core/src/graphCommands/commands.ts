@@ -1,5 +1,5 @@
 import {type Command} from '../eventSourcing';
-import {type NodeType} from '../../graph/types';
+import {type NodeType} from '../graph';
 import {type NodePropertyExampleValues, type NodePropertySchema, type ProjectId, type ChapterId} from '../events';
 
 export type AddChapter = Command<

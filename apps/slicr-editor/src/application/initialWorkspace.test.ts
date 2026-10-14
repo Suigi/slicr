@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
-import {type DcbEvent, MemorySpecEventStore} from '../domain/eventSourcing';
-import {Events} from '../domain/events';
+import {type DcbEvent, MemorySpecEventStore} from '@slicr/core/eventSourcing';
+import {Events} from '@slicr/core/events';
 import {ensureInitialWorkspace} from './initialWorkspace';
 
 describe('ensureInitialWorkspace', () => {

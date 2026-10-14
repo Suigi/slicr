@@ -2,7 +2,7 @@ import {beforeEach, describe, expect, it} from 'vitest';
 
 import {createGraphApplication} from './createGraphApplication';
 import {createDefaultGraphEventStore} from './graphEventStores';
-import {Events} from '../domain/events';
+import {Events} from '@slicr/core/events';
 
 const defaultChapterId = 'default-chapter';
 

@@ -1,7 +1,7 @@
 import {describe, expect, it, vi} from 'vitest';
 
 import {createEventSourcedGraphModel} from './eventSourcedGraphModel';
-import {Events} from '../domain/events';
+import {Events} from '@slicr/core/events';
 import {
   type AppendCondition,
   AppendConditionFailedError,
@@ -12,7 +12,7 @@ import {
   type ReadOptions,
   type SequencedEvent,
   type SpecEventStore,
-} from '../domain/eventSourcing';
+} from '@slicr/core/eventSourcing';
 import {NODE_HEIGHT, NODE_WIDTH} from './constants';
 import {createGraphProjectionService} from '../application/graphProjectionService';
 

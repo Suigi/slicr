@@ -5,7 +5,7 @@ import {createRoot, type Root} from 'react-dom/client';
 import {afterEach, describe, expect, it, vi} from 'vitest';
 
 import {App} from './App';
-import {Events} from './domain/events';
+import {Events} from '@slicr/core/events';
 
 const reactActEnvironment = globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean};
 reactActEnvironment.IS_REACT_ACT_ENVIRONMENT = true;

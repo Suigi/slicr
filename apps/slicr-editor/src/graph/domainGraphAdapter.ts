@@ -1,7 +1,7 @@
 import type {EdgeInput, LaneInput} from 'layout-lib';
 
-import type {NodePropertyExampleValues, NodePropertySchema} from '../domain/events';
-import type {ModelGraph} from '../domain/graph';
+import type {NodePropertyExampleValues, NodePropertySchema} from '@slicr/core/events';
+import type {ModelGraph} from '@slicr/core/graph';
 import {NODE_HEIGHT, NODE_WIDTH, laneIdForOrder} from './constants';
 import type {GraphNode} from './types';
 

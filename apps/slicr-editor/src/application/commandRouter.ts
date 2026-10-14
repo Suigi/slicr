@@ -1,7 +1,7 @@
-import {DcbAnyCommand, type DcbDecider, type DcbSpecStore, handleCommand, MemorySpecEventStore} from '../domain/eventSourcing';
-import {deciders as makeProjectDeciders} from '../domain/projectCommands/projectCommandHandler';
-import {deciders as makeGraphDeciders} from '../domain/graphCommands/deciders';
-import {initialWorkspaceDecider} from '../domain/projectCommands/initialWorkspaceProcessor/initialWorkspaceProcessor';
+import {DcbAnyCommand, type DcbDecider, type DcbSpecStore, handleCommand, MemorySpecEventStore} from '@slicr/core/eventSourcing';
+import {deciders as makeProjectDeciders} from '@slicr/core/projectCommands/projectCommandHandler';
+import {deciders as makeGraphDeciders} from '@slicr/core/graphCommands/deciders';
+import {initialWorkspaceDecider} from '@slicr/core/projectCommands/initialWorkspaceProcessor/initialWorkspaceProcessor';
 
 export const createCommandRouter = (
   args: {

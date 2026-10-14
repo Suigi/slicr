@@ -1,4 +1,4 @@
-import type {DcbEvent, SpecEventStore} from '../domain/eventSourcing';
+import type {DcbEvent, SpecEventStore} from '@slicr/core/eventSourcing';
 import type {NodeType} from '../graph/types';
 
 export type EventBackupAdminStore = {

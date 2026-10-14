@@ -2,8 +2,8 @@ import type {EditableProperty} from '@slicr/react-ui';
 import type {EdgeInput, LaneInput} from 'layout-lib';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 
-import type {NodePropertyExampleValues, NodePropertySchema} from '../domain/events';
-import type {WorkspaceProjection} from '../domain/workspaceProjector';
+import type {NodePropertyExampleValues, NodePropertySchema} from '@slicr/core/events';
+import type {WorkspaceProjection} from '@slicr/core/workspaceProjector';
 import {loadGraphApplication} from '../application/graphApplicationLoader';
 import type {createGraphApplication} from '../application/createGraphApplication';
 

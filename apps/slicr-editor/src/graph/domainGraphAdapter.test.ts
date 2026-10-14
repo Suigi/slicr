@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 
-import type {ModelGraph} from '../domain/graph';
+import type {ModelGraph} from '@slicr/core/graph';
 import {adaptModelGraphToRenderer} from './domainGraphAdapter';
 import {NODE_HEIGHT, NODE_WIDTH} from './constants';
 

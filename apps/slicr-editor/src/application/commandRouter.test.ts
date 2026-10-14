@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest';
-import {AnyCommand, type DcbEvent, MemorySpecEventStore} from '../domain/eventSourcing';
+import {AnyCommand, type DcbEvent, MemorySpecEventStore} from '@slicr/core/eventSourcing';
 import {createCommandRouter} from './commandRouter';
-import {Events} from '../domain/events';
+import {Events} from '@slicr/core/events';
 
 describe('commandRouter', () => {
   it('routes AddProject and appends project events', async () => {

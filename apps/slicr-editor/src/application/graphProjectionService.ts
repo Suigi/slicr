@@ -1,8 +1,8 @@
 import {type ProjectorStoreSubscription, subscribeProjectorToStore} from '@slicr/event-sourcing';
 
-import {createProjectorInstance, type DcbSpecStore, replayProjector} from '../domain/eventSourcing';
-import {graphProjectorDefinition} from '../domain/graphProjector/graphProjector';
-import {workspaceProjectorDefinition, type WorkspaceProjection} from '../domain/workspaceProjector';
+import {createProjectorInstance, type DcbSpecStore, replayProjector} from '@slicr/core/eventSourcing';
+import {graphProjectorDefinition} from '@slicr/core/graphProjector/graphProjector';
+import {workspaceProjectorDefinition, type WorkspaceProjection} from '@slicr/core/workspaceProjector';
 import {adaptModelGraphToRenderer, type RendererGraph} from '../graph/domainGraphAdapter';
 
 const DEFAULT_PROJECT_ID = 'default-project';

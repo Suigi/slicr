@@ -1,5 +1,5 @@
 import type {EditableProperty} from '@slicr/react-ui';
-import type {NodeComplexExampleValue, NodeExamplePrimitive, NodePropertyExampleValues, NodePropertySchema} from '../domain/events';
+import type {NodeComplexExampleValue, NodeExamplePrimitive, NodePropertyExampleValues, NodePropertySchema} from '@slicr/core/events';
 
 type ComplexRow = Record<string, unknown>;
 

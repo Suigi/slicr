@@ -1,0 +1,38 @@
+{
+  "name": "@slicr/core",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    "./events": "./src/events.ts",
+    "./eventSourcing": "./src/eventSourcing.ts",
+    "./graph": "./src/graph.ts",
+    "./graphCommands/atoms": "./src/graphCommands/atoms.ts",
+    "./graphCommands/commands": "./src/graphCommands/commands.ts",
+    "./graphCommands/deciders": "./src/graphCommands/deciders.ts",
+    "./graphProjector/graphProjector": "./src/graphProjector/graphProjector.ts",
+    "./projectCommands/commands": "./src/projectCommands/commands.ts",
+    "./projectCommands/projectCommandHandler": "./src/projectCommands/projectCommandHandler.ts",
+    "./projectCommands/initialWorkspaceProcessor/initialWorkspaceProcessor": "./src/projectCommands/initialWorkspaceProcessor/initialWorkspaceProcessor.ts",
+    "./workspaceProjector": "./src/workspaceProjector.ts",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:llm": "vitest run --reporter=vitest-llm-reporter",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@slicr/event-sourcing": "0.0.0",
+    "uuid": "^14.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "eslint": "^9.39.4",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.57.2",
+    "vitest": "^4.0.18",
+    "vitest-llm-reporter": "^1.2.2"
+  }
+}

@@ -2,9 +2,9 @@ import {v4 as uuid} from 'uuid';
 
 import {createCommandRouter} from '../application/commandRouter';
 import {createGraphProjectionService, type GraphProjectionService} from '../application/graphProjectionService';
-import type {DcbAnyCommand, DcbEvent, SpecEventStore} from '../domain/eventSourcing';
-import {ChangeNodeExampleValues, ChangeNodeSchema} from '../domain/graphCommands/commands';
-import type {WorkspaceProjection} from '../domain/workspaceProjector';
+import type {DcbAnyCommand, DcbEvent, SpecEventStore} from '@slicr/core/eventSourcing';
+import {ChangeNodeExampleValues, ChangeNodeSchema} from '@slicr/core/graphCommands/commands';
+import type {WorkspaceProjection} from '@slicr/core/workspaceProjector';
 import type {RendererGraph} from './domainGraphAdapter';
 import type {NodeType} from './types';
 

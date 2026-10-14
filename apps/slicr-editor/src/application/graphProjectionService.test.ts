@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest';
 
 import {createGraphProjectionService} from './graphProjectionService';
-import {Events, type DcbEvent} from '../domain/events';
+import {Events, type DcbEvent} from '@slicr/core/events';
 import {MemorySpecEventStore, Query, type ReadOptions, type SequencedEvent, type SpecEventStore} from '@slicr/event-sourcing';
 import {NODE_HEIGHT, NODE_WIDTH} from '../graph/constants';
 
