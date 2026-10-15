@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync, readFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
-import {join} from 'node:path';
+import {join, relative} from 'node:path';
 import {spawn, spawnSync} from 'node:child_process';
 import {promises as fs} from 'node:fs';
 import {Events} from '../../packages/slicr-core/src/events.ts';
@@ -62,7 +62,7 @@ function run(cwd, ...args) {
   return spawnSync(
     process.execPath,
     ['--experimental-transform-types', '--import', new URL('./ts-register.mjs', import.meta.url).href, cli.pathname, ...args],
-    {cwd, encoding: 'utf8'},
+    {cwd, encoding: 'utf8', env: {...process.env, INIT_CWD: cwd}},
   );
 }
 test('lists, scopes, projects and renders markdown', () => {
@@ -238,13 +238,35 @@ test('root script forwards arguments to the workspace CLI', () => {
     rmSync(dir, {recursive: true, force: true});
   }
 });
+test('relative --path is resolved from the npm invocation directory', () => {
+  const parent = mkdtempSync(join(tmpdir(), 'slicr-relative-init-'));
+  const project = join(parent, '_temp_project');
+  mkdirSync(project);
+  try {
+    const relativeProject = relative(repositoryRoot, project);
+    const result = spawnSync('npm', ['run', 'slicr', '--', '--path', relativeProject, 'init'], {cwd: repositoryRoot, encoding: 'utf8'});
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(existsSync(join(project, '.slicr', 'events.ndjson')), true);
+    assert.equal(JSON.parse(result.stdout.trim().split('\n').at(-1)).path, join(project, '.slicr', 'events.ndjson'));
+  } finally {
+    rmSync(parent, {recursive: true, force: true});
+  }
+});
 test('installed bin invocation renames a project without caller-supplied Node loader flags', () => {
   const {dir} = fixture();
   try {
-    const result = spawnSync(packageBin, ['--path', dir, 'rename-project', 'p1', 'Bin Rename'], {encoding: 'utf8', cwd: tmpdir()});
+    const result = spawnSync(packageBin, ['--path', dir, 'rename-project', 'p1', 'Bin Rename'], {
+      encoding: 'utf8',
+      cwd: tmpdir(),
+      env: {...process.env, INIT_CWD: tmpdir()},
+    });
     assert.equal(result.status, 0, result.stderr);
     assert.equal(JSON.parse(result.stdout).name, 'Bin Rename');
-    const noPath = spawnSync(packageBin, ['rename-project', 'p1', 'No Path'], {encoding: 'utf8', cwd: dir});
+    const noPath = spawnSync(packageBin, ['rename-project', 'p1', 'No Path'], {
+      encoding: 'utf8',
+      cwd: dir,
+      env: {...process.env, INIT_CWD: dir},
+    });
     assert.equal(noPath.status, 0, noPath.stderr);
     assert.equal(JSON.parse(noPath.stdout).name, 'No Path');
     assert.equal(JSON.parse(run(dir, 'projects').stdout).projects[0].name, 'No Path');

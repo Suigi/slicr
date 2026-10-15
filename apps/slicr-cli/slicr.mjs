@@ -72,11 +72,12 @@ function validateEventTypes(events) {
 }
 
 async function main(args) {
-  let root = process.cwd();
+  const invocationCwd = process.env.INIT_CWD || process.cwd();
+  let root = invocationCwd;
   const pathIndex = args.indexOf('--path');
   if (pathIndex >= 0) {
     if (!args[pathIndex + 1]) throw new Error('--path requires a project directory');
-    root = resolve(args[pathIndex + 1]);
+    root = resolve(invocationCwd, args[pathIndex + 1]);
     args.splice(pathIndex, 2);
   }
   const [command, ...rest] = args;
