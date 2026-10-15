@@ -6,7 +6,7 @@ Updated: 2026-10-15
 
 - Worktree: `/Users/daniel/.herdr/worktrees/slicr/project-owned-steps4-7`
 - Branch: `project-owned-steps4-7`
-- Latest implementation commit: `60a7b1f feat(slicr-cli): complete step 5.1 project model commands`
+- Latest implementation commit: `62bf5a1 refactor(slicr-cli): remove unsupported tag repair`
 - Base includes the two storage spikes:
   - `bc7950f feat(event-sourcing): add SQLite project store spike`
   - `7336aef feat(event-sourcing): add NDJSON outbox spike`
@@ -58,11 +58,11 @@ The CLI files now live in `apps/slicr-cli/` as `@slicr/slicr-cli`, which owns th
 
 ### Step 5.1 — initialize models, share projections, expand CLI edits (implemented and reviewed)
 
-Step 5.1 is implemented in `60a7b1f`. The CLI adds explicit `init` with refusal of any existing `.slicr/` directory, reads through the shared `slicr-core` workspace and graph projections, and supports `add-project`, `add-chapter`, `add-node`, `rename-node`, and `connect-nodes` through shared deciders and `handleCommand` (alongside Step 5's `rename-project`). Mutations return generated IDs where applicable, append count, and exact-log-byte revision. The CLI uses Node 24's transform-types runtime; a shared projector type-only import was clarified for that runtime.
+Step 5.1 was implemented in `60a7b1f` and simplified in `62bf5a1` to remove unsupported missing-tag repair. The CLI adds explicit `init` with refusal of any existing `.slicr/` directory, reads through the shared `slicr-core` workspace and graph projections, and supports `add-project`, `add-chapter`, `add-node`, `rename-node`, and `connect-nodes` through shared deciders and `handleCommand` (alongside Step 5's `rename-project`). Mutations return generated IDs where applicable, append count, and exact-log-byte revision. The CLI uses Node 24's transform-types runtime; a shared projector type-only import was clarified for that runtime.
 
-Compatible legacy histories missing query tags are projected in memory from known event payloads (project, chapter, node, and connection tags), without rewriting stored history. Regression coverage verifies fully tagless history can be read and edited, including project rename, chapter creation, node edits, duplicate connection no-op, and unchanged original batch bytes. Other tests cover initialization refusal, invalid inputs/references, no-ops, generated IDs, exact revisions, reopening, and conditional conflicts from independent shared-handler workers.
+Event histories must contain valid query tags as emitted by the shared event constructors; the CLI does not infer or repair missing tags. CLI fixture events are created with those constructors. Tests cover initialization refusal, invalid inputs/references, no-ops, generated IDs, exact revisions, reopening, and conditional conflicts from independent shared-handler workers.
 
-Scope record: `11-step5.1-scope-changes.md`. Verification on Node 24.21.0: CLI tests 16/16; `npm run format` and `npm run validate:llm` passed (including lint, workspace tests, browser tests 3/3, and typecheck). Final independent `gpt-6-sol` review found no blockers. Residual limitations: concurrency test uses separate shared-handler workers rather than simultaneous CLI invocations; no-op decisions return before conditional append/CAS; and init close-failure cleanup lacks an injected-failure test. IndexedDB remains unchanged and unsynchronized. No manual editor smoke check was needed for this CLI-only step.
+Scope record: `11-step5.1-scope-changes.md`. Verification on Node 24.21.0: CLI tests 13/13; `npm run format` and `npm run validate:llm` passed (including lint, workspace tests, browser tests 3/3, and typecheck). Final independent `gpt-6-sol` review found no blockers. Residual limitations: concurrency test uses separate shared-handler workers rather than simultaneous CLI invocations; no-op decisions return before conditional append/CAS; and init close-failure cleanup lacks an injected-failure test. IndexedDB remains unchanged and unsynchronized. No manual editor smoke check was needed for this CLI-only step.
 
 ### Step 6 — read-only `slicr serve`
 
