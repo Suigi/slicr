@@ -311,8 +311,8 @@ try {
       process.execPath,
       [
         '--experimental-transform-types',
-        '--experimental-loader',
-        new URL('./ts-resolve-hook.mjs', import.meta.url).pathname,
+        '--import',
+        new URL('./ts-register.mjs', import.meta.url).href,
         fileURLToPath(import.meta.url),
         ...args,
       ],

@@ -10,8 +10,8 @@
     "node": ">=24"
   },
   "scripts": {
-    "test": "node --experimental-transform-types --experimental-loader ./ts-resolve-hook.mjs --test slicr.test.mjs",
-    "test:llm": "node --experimental-transform-types --experimental-loader ./ts-resolve-hook.mjs --test slicr.test.mjs"
+    "test": "node --experimental-transform-types --import ./ts-register.mjs --test slicr.test.mjs",
+    "test:llm": "node --experimental-transform-types --import ./ts-register.mjs --test slicr.test.mjs"
   },
   "dependencies": {
     "@slicr/core": "0.0.0",

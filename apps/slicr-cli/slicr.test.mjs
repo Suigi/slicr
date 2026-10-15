@@ -61,13 +61,7 @@ function fixture(extraEvents = []) {
 function run(cwd, ...args) {
   return spawnSync(
     process.execPath,
-    [
-      '--experimental-transform-types',
-      '--experimental-loader',
-      new URL('./ts-resolve-hook.mjs', import.meta.url).pathname,
-      cli.pathname,
-      ...args,
-    ],
+    ['--experimental-transform-types', '--import', new URL('./ts-register.mjs', import.meta.url).href, cli.pathname, ...args],
     {cwd, encoding: 'utf8'},
   );
 }
