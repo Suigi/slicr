@@ -10,42 +10,6 @@ function fail(message) {
   process.exitCode = 1;
 }
 
-function projectLegacyTags(event) {
-  const payload = event.payload;
-  if (!payload) return event;
-  const fieldsByType = {
-    ProjectAdded: ['projectId'],
-    ProjectRenamed: ['projectId'],
-    ChapterAdded: ['projectId', 'chapterId'],
-    ChapterRenamed: ['projectId', 'chapterId'],
-    NodeAdded: ['projectId', 'chapterId', 'nodeId'],
-    NodeChapterChanged: ['projectId', 'chapterId', 'nodeId'],
-    NodeRenamed: ['projectId', 'nodeId'],
-    NodeRemoved: ['projectId', 'nodeId'],
-    NodeTypeChanged: ['projectId', 'nodeId'],
-    NodeSchemaChanged: ['projectId', 'nodeId'],
-    NodeExampleValuesChanged: ['projectId', 'nodeId'],
-    NodesConnected: ['projectId', 'sourceNodeId', 'targetNodeId'],
-    NodesDisconnected: ['projectId', 'sourceNodeId', 'targetNodeId'],
-  };
-  const inferred = [];
-  for (const field of fieldsByType[event.type] ?? []) {
-    const value = payload[field];
-    if (typeof value === 'string' && value.length) {
-      inferred.push(field === 'sourceNodeId' || field === 'targetNodeId' ? `nodeId:${value}` : `${field}:${value}`);
-    }
-  }
-  if (
-    (event.type === 'NodesConnected' || event.type === 'NodesDisconnected') &&
-    typeof payload.sourceNodeId === 'string' &&
-    typeof payload.targetNodeId === 'string'
-  ) {
-    inferred.push(`connection:${payload.sourceNodeId}->${payload.targetNodeId}`);
-  }
-  const tags = inferred.filter((tag) => !event.tags.includes(tag));
-  return tags.length ? {...event, tags: [...event.tags, ...tags]} : event;
-}
-
 function load(root) {
   const file = join(root, '.slicr', 'events.ndjson');
   let text;
@@ -81,7 +45,6 @@ function load(root) {
       !events.every((e, i) => e.id === `${id}:${i}` && e.event && typeof e.event.type === 'string' && Array.isArray(e.event.tags))
     )
       throw new Error(`Incompatible or corrupt Slicr event history (line ${index + 1}, expected format v1).`);
-    batch.events = events.map((entry) => ({...entry, event: projectLegacyTags(entry.event)}));
     batches.push(batch);
     ids.add(id);
     position += events.length;

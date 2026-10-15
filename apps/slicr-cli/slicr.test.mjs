@@ -6,37 +6,39 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {spawn, spawnSync} from 'node:child_process';
 import {promises as fs} from 'node:fs';
+import {Events} from '../../packages/slicr-core/src/events.ts';
 
 const cli = new URL('./slicr.mjs', import.meta.url);
 const packageBin = new URL('../../node_modules/.bin/slicr', import.meta.url).pathname;
 const repositoryRoot = new URL('../../', import.meta.url).pathname;
+function withConstructorTags(event) {
+  const p = event.payload;
+  const constructors = {
+    ProjectAdded: () => Events.projectAdded(p.projectId, p.name),
+    ProjectRenamed: () => Events.projectRenamed(p.projectId, p.newName),
+    ChapterAdded: () => Events.chapterAdded(p.projectId, p.chapterId, p.title),
+    ChapterRenamed: () => Events.chapterRenamed(p.projectId, p.chapterId, p.newTitle),
+    NodeAdded: () => Events.nodeAdded(p.projectId, p.chapterId, p.nodeId, p.type, p.laneId, p.label),
+    NodeRenamed: () => Events.nodeRenamed(p.projectId, p.nodeId, p.newName),
+    NodeRemoved: () => Events.nodeRemoved(p.projectId, p.nodeId),
+    NodeSchemaChanged: () => Events.nodeSchemaChanged(p.projectId, p.nodeId, p.schema),
+    NodeExampleValuesChanged: () => Events.nodeExampleValuesChanged(p.projectId, p.nodeId, p.exampleValues),
+    NodesConnected: () => Events.nodesConnected(p.projectId, p.sourceNodeId, p.targetNodeId, p.role),
+    NodesDisconnected: () => Events.nodesDisconnected(p.projectId, p.sourceNodeId, p.targetNodeId),
+  };
+  return constructors[event.type]?.() ?? event;
+}
 function fixture(extraEvents = []) {
   const events = [
-    {type: 'ProjectAdded', payload: {projectId: 'p1', name: 'Example'}, tags: ['projectId:p1']},
-    {type: 'ChapterAdded', payload: {projectId: 'p1', chapterId: 'c1', title: 'Start'}, tags: ['projectId:p1', 'chapterId:c1']},
-    {type: 'ChapterAdded', payload: {projectId: 'p1', chapterId: 'c2', title: 'Next'}, tags: ['projectId:p1', 'chapterId:c2']},
-    {
-      type: 'NodeAdded',
-      payload: {projectId: 'p1', chapterId: 'c1', nodeId: 'n1', type: 'evt', laneId: 0, label: 'Created'},
-      tags: ['projectId:p1', 'chapterId:c1', 'nodeId:n1'],
-    },
-    {
-      type: 'NodeAdded',
-      payload: {projectId: 'p1', chapterId: 'c2', nodeId: 'n2', type: 'cmd', laneId: 1, label: 'Handled'},
-      tags: ['projectId:p1', 'chapterId:c2', 'nodeId:n2'],
-    },
-    {type: 'NodeSchemaChanged', payload: {projectId: 'p1', nodeId: 'n1', schema: {type: 'object'}}, tags: ['projectId:p1', 'nodeId:n1']},
-    {
-      type: 'NodeExampleValuesChanged',
-      payload: {projectId: 'p1', nodeId: 'n1', exampleValues: [{id: 'x'}]},
-      tags: ['projectId:p1', 'nodeId:n1'],
-    },
-    {
-      type: 'NodesConnected',
-      payload: {projectId: 'p1', sourceNodeId: 'n1', targetNodeId: 'n2', role: 'flow'},
-      tags: ['projectId:p1', 'nodeId:n1', 'nodeId:n2'],
-    },
-    ...extraEvents,
+    Events.projectAdded('p1', 'Example'),
+    Events.chapterAdded('p1', 'c1', 'Start'),
+    Events.chapterAdded('p1', 'c2', 'Next'),
+    Events.nodeAdded('p1', 'c1', 'n1', 'evt', 0, 'Created'),
+    Events.nodeAdded('p1', 'c2', 'n2', 'cmd', 1, 'Handled'),
+    Events.nodeSchemaChanged('p1', 'n1', [{propertyId: 'name', name: 'Name', type: 'string'}]),
+    Events.nodeExampleValuesChanged('p1', 'n1', [{propertyId: 'name', scalarValue: 'x'}]),
+    Events.nodesConnected('p1', 'n1', 'n2'),
+    ...extraEvents.map(withConstructorTags),
   ];
   const dir = mkdtempSync(join(tmpdir(), 'slicr-cli-'));
   mkdirSync(join(dir, '.slicr'));
@@ -45,18 +47,7 @@ function fixture(extraEvents = []) {
       v: 1,
       id,
       start,
-      events: values.map((event, index) => {
-        if (!event.tags?.length) {
-          const payload = event.payload ?? {};
-          event.tags = [
-            ...(payload.projectId ? [`projectId:${payload.projectId}`] : []),
-            ...(payload.chapterId ? [`chapterId:${payload.chapterId}`] : []),
-            ...[payload.nodeId, payload.sourceNodeId, payload.targetNodeId].filter(Boolean).map((nodeId) => `nodeId:${nodeId}`),
-            ...(payload.type ? [`type:${payload.type}`] : []),
-          ];
-        }
-        return {id: `${id}:${index}`, event};
-      }),
+      events: values.map((event, index) => ({id: `${id}:${index}`, event: withConstructorTags(event)})),
     };
     body.sha256 = createHash('sha256')
       .update(JSON.stringify({v: body.v, id: body.id, start: body.start, events: body.events}))
@@ -97,47 +88,17 @@ test('lists, scopes, projects and renders markdown', () => {
       value.nodes.map((n) => n.id),
       ['n1'],
     );
-    assert.deepEqual(value.nodeSchemas.n1, {type: 'object'});
-    assert.deepEqual(value.nodeExampleValues.n1, [{id: 'x'}]);
+    assert.deepEqual(value.nodeSchemas.n1, [{propertyId: 'name', name: 'Name', type: 'string'}]);
+    assert.deepEqual(value.nodeExampleValues.n1, [{propertyId: 'name', scalarValue: 'x'}]);
     assert.deepEqual(value.edges, []);
     const markdown = run(dir, 'show', 'p1', '--format', 'md');
     assert.equal(markdown.status, 0, markdown.stderr);
     assert.match(markdown.stdout, /Created/);
-    assert.match(markdown.stdout, /Schema: \{"type":"object"\}/);
-    assert.match(markdown.stdout, /Example values: \[\{"id":"x"\}\]/);
+    assert.match(markdown.stdout, /Schema: \[\{"propertyId":"name","name":"Name","type":"string"\}\]/);
+    assert.match(markdown.stdout, /Example values: \[\{"propertyId":"name","scalarValue":"x"\}\]/);
     assert.notEqual(run(dir, 'show', 'p1', '--format', 'json', 'c1').status, 0);
   } finally {
     rmSync(dir, {recursive: true, force: true});
-  }
-});
-test('tagless legacy history can be shown and edited without rewriting existing batches', () => {
-  const value = fixture();
-  try {
-    const file = join(value.dir, '.slicr', 'events.ndjson');
-    const original = readFileSync(file, 'utf8');
-    const batch = JSON.parse(original);
-    for (const entry of batch.events) entry.event.tags = entry.event.tags.filter((tag) => !tag.startsWith('projectId:'));
-    const {v, id, start, events} = batch;
-    batch.sha256 = createHash('sha256').update(JSON.stringify({v, id, start, events})).digest('hex');
-    writeFileSync(file, `${JSON.stringify(batch)}\n`);
-    const legacyBytes = readFileSync(file, 'utf8');
-    const shown = run(value.dir, 'show', 'p1');
-    assert.equal(shown.status, 0, shown.stderr);
-    assert.equal(JSON.parse(shown.stdout).nodes.length, 2);
-    const edited = run(value.dir, 'rename-project', 'p1', 'Renamed');
-    assert.equal(edited.status, 0, edited.stderr);
-    const batches = readFileSync(file, 'utf8').trim().split('\n');
-    assert.equal(batches.length, 2);
-    assert.equal(batches[0], legacyBytes.trim());
-    assert.equal(
-      JSON.parse(batches[0]).events[0].event.tags.some((tag) => tag.startsWith('projectId:')),
-      false,
-    );
-    assert.equal(JSON.parse(batches[1]).start, batch.events.length + 1);
-    assert.equal(JSON.parse(run(value.dir, 'projects').stdout).projects[0].name, 'Renamed');
-    assert.notEqual(legacyBytes, readFileSync(file, 'utf8'));
-  } finally {
-    rmSync(value.dir, {recursive: true, force: true});
   }
 });
 test('disconnect removes edge and self-connections are excluded', () => {
@@ -155,7 +116,7 @@ test('disconnect removes edge and self-connections are excluded', () => {
   const self = fixture([
     {
       type: 'NodesConnected',
-      payload: {projectId: 'p1', sourceNodeId: 'n1', targetNodeId: 'n1', role: 'loop'},
+      payload: {projectId: 'p1', sourceNodeId: 'n1', targetNodeId: 'n1', role: 'flow'},
       tags: ['projectId:p1', 'nodeId:n1'],
     },
   ]);
@@ -181,7 +142,7 @@ test('same node and edge IDs remain isolated across projects during updates and 
       payload: {projectId: 'p2', chapterId: 'c1', nodeId: 'n2', type: 'cmd', laneId: 1, label: 'Other Handled'},
       tags: [],
     },
-    {type: 'NodesConnected', payload: {projectId: 'p2', sourceNodeId: 'n1', targetNodeId: 'n2', role: 'other flow'}, tags: []},
+    {type: 'NodesConnected', payload: {projectId: 'p2', sourceNodeId: 'n1', targetNodeId: 'n2', role: 'back-reference'}, tags: []},
   ]);
   try {
     value.appendBatch('isolated-updates', 14, [
@@ -221,65 +182,6 @@ test('delimiter-containing project and node IDs remain isolated on updates and r
       [['c', 'Updated first']],
     );
     assert.deepEqual(second.nodes, []);
-  } finally {
-    rmSync(value.dir, {recursive: true, force: true});
-  }
-});
-test('fully tagless legacy projects, chapters, nodes, and connections remain queryable and mutable', () => {
-  const value = fixture();
-  const file = join(value.dir, '.slicr', 'events.ndjson');
-  try {
-    const batch = JSON.parse(readFileSync(file, 'utf8'));
-    for (const entry of batch.events) entry.event.tags = [];
-    const {v, id, start, events} = batch;
-    batch.sha256 = createHash('sha256').update(JSON.stringify({v, id, start, events})).digest('hex');
-    const legacyBytes = `${JSON.stringify(batch)}\n`;
-    writeFileSync(file, legacyBytes);
-
-    const shown = run(value.dir, 'show', 'p1');
-    assert.equal(shown.status, 0, shown.stderr);
-    assert.equal(JSON.parse(shown.stdout).nodes.length, 2);
-    const renameProject = run(value.dir, 'rename-project', 'p1', 'Renamed project');
-    assert.equal(renameProject.status, 0, renameProject.stderr);
-    assert.equal(JSON.parse(run(value.dir, 'projects').stdout).projects[0].name, 'Renamed project');
-    const addChapter = run(value.dir, 'add-chapter', 'p1', 'New chapter');
-    assert.equal(addChapter.status, 0, addChapter.stderr);
-    assert.ok(JSON.parse(addChapter.stdout).generatedIds.length > 0);
-    const noOpRename = run(value.dir, 'rename-node', 'p1', 'n1', 'Created');
-    assert.equal(noOpRename.status, 0, noOpRename.stderr);
-    assert.equal(JSON.parse(noOpRename.stdout).appended, 0);
-    assert.equal(JSON.parse(run(value.dir, 'connect-nodes', 'p1', 'n1', 'n2').stdout).appended, 0);
-    const added = run(value.dir, 'add-node', 'p1', 'c1', 'evt', '2', 'Added');
-    assert.equal(added.status, 0, added.stderr);
-    const addedId = JSON.parse(added.stdout).generatedIds[0];
-    const renamed = run(value.dir, 'rename-node', 'p1', addedId, 'Added correctly');
-    assert.equal(renamed.status, 0, renamed.stderr);
-    assert.equal(
-      JSON.parse(run(value.dir, 'show', 'p1', 'c1').stdout).nodes.some((node) => node.id === addedId && node.label === 'Added correctly'),
-      true,
-    );
-    assert.equal(readFileSync(file, 'utf8').startsWith(legacyBytes), true);
-    assert.equal(readFileSync(file, 'utf8').split('\n')[0], legacyBytes.trim());
-  } finally {
-    rmSync(value.dir, {recursive: true, force: true});
-  }
-});
-test('legacy untagged events are projected from payload without rewriting history', () => {
-  const value = fixture();
-  const file = join(value.dir, '.slicr', 'events.ndjson');
-  try {
-    const before = readFileSync(file, 'utf8');
-    const firstBatch = JSON.parse(before);
-    firstBatch.events[1].event.tags = [];
-    firstBatch.events[3].event.tags = [];
-    firstBatch.sha256 = createHash('sha256')
-      .update(JSON.stringify({v: firstBatch.v, id: firstBatch.id, start: firstBatch.start, events: firstBatch.events}))
-      .digest('hex');
-    writeFileSync(file, `${JSON.stringify(firstBatch)}\n`);
-    const result = run(value.dir, 'show', 'p1');
-    assert.equal(result.status, 0, result.stderr);
-    assert.equal(JSON.parse(result.stdout).nodes.length, 2);
-    assert.equal(readFileSync(file, 'utf8'), `${JSON.stringify(firstBatch)}\n`);
   } finally {
     rmSync(value.dir, {recursive: true, force: true});
   }

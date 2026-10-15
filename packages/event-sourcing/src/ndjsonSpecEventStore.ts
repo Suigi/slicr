@@ -66,49 +66,8 @@ function parseLog<E extends Event>(bytes: Buffer, firstPosition = 1): {batches: 
   return {batches, tail: bytes.subarray(offset)};
 }
 
-function projectLegacyTags<E extends Event>(event: E): E {
-  const payload = (event as Event & {payload?: Record<string, unknown>}).payload;
-  if (!payload) return event;
-
-  // Derive only tags supported by the event's payload schema. This is an in-memory
-  // compatibility projection: the batch log and its checksums remain untouched.
-  const fieldsByType: Record<string, readonly string[]> = {
-    ProjectAdded: ['projectId'],
-    ProjectRenamed: ['projectId'],
-    ChapterAdded: ['projectId', 'chapterId'],
-    ChapterRenamed: ['projectId', 'chapterId'],
-    NodeAdded: ['projectId', 'chapterId', 'nodeId'],
-    NodeChapterChanged: ['projectId', 'chapterId', 'nodeId'],
-    NodeRenamed: ['projectId', 'nodeId'],
-    NodeRemoved: ['projectId', 'nodeId'],
-    NodeTypeChanged: ['projectId', 'nodeId'],
-    NodeSchemaChanged: ['projectId', 'nodeId'],
-    NodeExampleValuesChanged: ['projectId', 'nodeId'],
-    NodesConnected: ['projectId', 'sourceNodeId', 'targetNodeId'],
-    NodesDisconnected: ['projectId', 'sourceNodeId', 'targetNodeId'],
-  };
-  const inferred: string[] = [];
-  for (const field of fieldsByType[event.type] ?? []) {
-    const value = payload[field];
-    if (typeof value === 'string' && value.length) {
-      inferred.push(field === 'sourceNodeId' || field === 'targetNodeId' ? `nodeId:${value}` : `${field}:${value}`);
-    }
-  }
-  if (
-    (event.type === 'NodesConnected' || event.type === 'NodesDisconnected') &&
-    typeof payload.sourceNodeId === 'string' &&
-    typeof payload.targetNodeId === 'string'
-  ) {
-    inferred.push(`connection:${payload.sourceNodeId}->${payload.targetNodeId}`);
-  }
-  const tags = inferred.filter((tag) => !event.tags.includes(tag));
-  return tags.length ? ({...event, tags: [...event.tags, ...tags]} as E) : event;
-}
-
 function entries<E extends Event>(batches: Batch<E>[]): SequencedEvent<E>[] {
-  return batches.flatMap((batch) =>
-    batch.events.map(({event}, index) => ({position: batch.start + index, event: projectLegacyTags(event)})),
-  );
+  return batches.flatMap((batch) => batch.events.map(({event}, index) => ({position: batch.start + index, event})));
 }
 
 /** Experimental adapter: do not remove an outbox while a write may be in flight. */
