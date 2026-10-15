@@ -7,7 +7,7 @@ import {
   Query,
   replayProjector,
 } from '../eventSourcing';
-import {Edge, ModelGraph, NodeType} from '../graph';
+import type {Edge, ModelGraph, NodeType} from '../graph';
 
 type GraphProjectorScope = {
   projectId: string;

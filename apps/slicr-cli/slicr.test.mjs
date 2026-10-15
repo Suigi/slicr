@@ -41,7 +41,23 @@ function fixture(extraEvents = []) {
   const dir = mkdtempSync(join(tmpdir(), 'slicr-cli-'));
   mkdirSync(join(dir, '.slicr'));
   function appendBatch(id, start, values) {
-    const body = {v: 1, id, start, events: values.map((event, index) => ({id: `${id}:${index}`, event}))};
+    const body = {
+      v: 1,
+      id,
+      start,
+      events: values.map((event, index) => {
+        if (!event.tags?.length) {
+          const payload = event.payload ?? {};
+          event.tags = [
+            ...(payload.projectId ? [`projectId:${payload.projectId}`] : []),
+            ...(payload.chapterId ? [`chapterId:${payload.chapterId}`] : []),
+            ...[payload.nodeId, payload.sourceNodeId, payload.targetNodeId].filter(Boolean).map((nodeId) => `nodeId:${nodeId}`),
+            ...(payload.type ? [`type:${payload.type}`] : []),
+          ];
+        }
+        return {id: `${id}:${index}`, event};
+      }),
+    };
     body.sha256 = createHash('sha256')
       .update(JSON.stringify({v: body.v, id: body.id, start: body.start, events: body.events}))
       .digest('hex');
@@ -55,7 +71,7 @@ function run(cwd, ...args) {
   return spawnSync(
     process.execPath,
     [
-      '--experimental-strip-types',
+      '--experimental-transform-types',
       '--experimental-loader',
       new URL('./ts-resolve-hook.mjs', import.meta.url).pathname,
       cli.pathname,
@@ -92,6 +108,36 @@ test('lists, scopes, projects and renders markdown', () => {
     assert.notEqual(run(dir, 'show', 'p1', '--format', 'json', 'c1').status, 0);
   } finally {
     rmSync(dir, {recursive: true, force: true});
+  }
+});
+test('tagless legacy history can be shown and edited without rewriting existing batches', () => {
+  const value = fixture();
+  try {
+    const file = join(value.dir, '.slicr', 'events.ndjson');
+    const original = readFileSync(file, 'utf8');
+    const batch = JSON.parse(original);
+    for (const entry of batch.events) entry.event.tags = entry.event.tags.filter((tag) => !tag.startsWith('projectId:'));
+    const {v, id, start, events} = batch;
+    batch.sha256 = createHash('sha256').update(JSON.stringify({v, id, start, events})).digest('hex');
+    writeFileSync(file, `${JSON.stringify(batch)}\n`);
+    const legacyBytes = readFileSync(file, 'utf8');
+    const shown = run(value.dir, 'show', 'p1');
+    assert.equal(shown.status, 0, shown.stderr);
+    assert.equal(JSON.parse(shown.stdout).nodes.length, 2);
+    const edited = run(value.dir, 'rename-project', 'p1', 'Renamed');
+    assert.equal(edited.status, 0, edited.stderr);
+    const batches = readFileSync(file, 'utf8').trim().split('\n');
+    assert.equal(batches.length, 2);
+    assert.equal(batches[0], legacyBytes.trim());
+    assert.equal(
+      JSON.parse(batches[0]).events[0].event.tags.some((tag) => tag.startsWith('projectId:')),
+      false,
+    );
+    assert.equal(JSON.parse(batches[1]).start, batch.events.length + 1);
+    assert.equal(JSON.parse(run(value.dir, 'projects').stdout).projects[0].name, 'Renamed');
+    assert.notEqual(legacyBytes, readFileSync(file, 'utf8'));
+  } finally {
+    rmSync(value.dir, {recursive: true, force: true});
   }
 });
 test('disconnect removes edge and self-connections are excluded', () => {
@@ -175,6 +221,65 @@ test('delimiter-containing project and node IDs remain isolated on updates and r
       [['c', 'Updated first']],
     );
     assert.deepEqual(second.nodes, []);
+  } finally {
+    rmSync(value.dir, {recursive: true, force: true});
+  }
+});
+test('fully tagless legacy projects, chapters, nodes, and connections remain queryable and mutable', () => {
+  const value = fixture();
+  const file = join(value.dir, '.slicr', 'events.ndjson');
+  try {
+    const batch = JSON.parse(readFileSync(file, 'utf8'));
+    for (const entry of batch.events) entry.event.tags = [];
+    const {v, id, start, events} = batch;
+    batch.sha256 = createHash('sha256').update(JSON.stringify({v, id, start, events})).digest('hex');
+    const legacyBytes = `${JSON.stringify(batch)}\n`;
+    writeFileSync(file, legacyBytes);
+
+    const shown = run(value.dir, 'show', 'p1');
+    assert.equal(shown.status, 0, shown.stderr);
+    assert.equal(JSON.parse(shown.stdout).nodes.length, 2);
+    const renameProject = run(value.dir, 'rename-project', 'p1', 'Renamed project');
+    assert.equal(renameProject.status, 0, renameProject.stderr);
+    assert.equal(JSON.parse(run(value.dir, 'projects').stdout).projects[0].name, 'Renamed project');
+    const addChapter = run(value.dir, 'add-chapter', 'p1', 'New chapter');
+    assert.equal(addChapter.status, 0, addChapter.stderr);
+    assert.ok(JSON.parse(addChapter.stdout).generatedIds.length > 0);
+    const noOpRename = run(value.dir, 'rename-node', 'p1', 'n1', 'Created');
+    assert.equal(noOpRename.status, 0, noOpRename.stderr);
+    assert.equal(JSON.parse(noOpRename.stdout).appended, 0);
+    assert.equal(JSON.parse(run(value.dir, 'connect-nodes', 'p1', 'n1', 'n2').stdout).appended, 0);
+    const added = run(value.dir, 'add-node', 'p1', 'c1', 'evt', '2', 'Added');
+    assert.equal(added.status, 0, added.stderr);
+    const addedId = JSON.parse(added.stdout).generatedIds[0];
+    const renamed = run(value.dir, 'rename-node', 'p1', addedId, 'Added correctly');
+    assert.equal(renamed.status, 0, renamed.stderr);
+    assert.equal(
+      JSON.parse(run(value.dir, 'show', 'p1', 'c1').stdout).nodes.some((node) => node.id === addedId && node.label === 'Added correctly'),
+      true,
+    );
+    assert.equal(readFileSync(file, 'utf8').startsWith(legacyBytes), true);
+    assert.equal(readFileSync(file, 'utf8').split('\n')[0], legacyBytes.trim());
+  } finally {
+    rmSync(value.dir, {recursive: true, force: true});
+  }
+});
+test('legacy untagged events are projected from payload without rewriting history', () => {
+  const value = fixture();
+  const file = join(value.dir, '.slicr', 'events.ndjson');
+  try {
+    const before = readFileSync(file, 'utf8');
+    const firstBatch = JSON.parse(before);
+    firstBatch.events[1].event.tags = [];
+    firstBatch.events[3].event.tags = [];
+    firstBatch.sha256 = createHash('sha256')
+      .update(JSON.stringify({v: firstBatch.v, id: firstBatch.id, start: firstBatch.start, events: firstBatch.events}))
+      .digest('hex');
+    writeFileSync(file, `${JSON.stringify(firstBatch)}\n`);
+    const result = run(value.dir, 'show', 'p1');
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(JSON.parse(result.stdout).nodes.length, 2);
+    assert.equal(readFileSync(file, 'utf8'), `${JSON.stringify(firstBatch)}\n`);
   } finally {
     rmSync(value.dir, {recursive: true, force: true});
   }
@@ -283,7 +388,7 @@ test('independent shared-handler writers conflict after a deterministic read bar
     const child = spawn(
       process.execPath,
       [
-        '--experimental-strip-types',
+        '--experimental-transform-types',
         '--experimental-loader',
         new URL('./ts-resolve-hook.mjs', import.meta.url).pathname,
         worker,
@@ -354,6 +459,85 @@ test('independent shared-handler writers conflict after a deterministic read bar
       }),
     );
     await Promise.allSettled(workers);
+    rmSync(dir, {recursive: true, force: true});
+  }
+});
+test('all scoped mutations use shared decisions, expose generated IDs, and survive reopening', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'slicr-mutations-'));
+  const file = join(dir, '.slicr', 'events.ndjson');
+  const invoke = (...args) => run(dir, ...args);
+  try {
+    assert.equal(invoke('init').status, 0);
+    const project = invoke('add-project', 'Demo');
+    assert.equal(project.status, 0, project.stderr);
+    const created = JSON.parse(project.stdout);
+    assert.equal(created.appended, 2);
+    assert.equal(created.generatedIds.length, 2);
+    const [projectId, defaultChapterId] = created.generatedIds;
+    const beforeInvalid = readFileSync(file, 'utf8');
+    for (const args of [
+      ['add-chapter', 'missing', 'No'],
+      ['add-node', projectId, 'missing-chapter', 'evt', '0', 'No'],
+      ['rename-node', projectId, 'missing-node', 'No'],
+      ['connect-nodes', projectId, 'missing-source', 'missing-target'],
+      ['add-node', projectId, defaultChapterId, 'bogus', '0', 'No'],
+      ['add-node', projectId, defaultChapterId, 'evt', '-1', 'No'],
+    ]) {
+      assert.notEqual(invoke(...args).status, 0, args.join(' '));
+      assert.equal(readFileSync(file, 'utf8'), beforeInvalid);
+    }
+    const chapter = invoke('add-chapter', projectId, 'Next');
+    assert.equal(chapter.status, 0, chapter.stderr);
+    const chapterId = JSON.parse(chapter.stdout).generatedIds[0];
+    const node1 = invoke('add-node', projectId, defaultChapterId, 'evt', '0', 'Created');
+    const node1Id = JSON.parse(node1.stdout).generatedIds[0];
+    const node2 = invoke('add-node', projectId, chapterId, 'cmd', '1', 'Handled');
+    const node2Id = JSON.parse(node2.stdout).generatedIds[0];
+    assert.equal(invoke('rename-node', projectId, node1Id, 'Created').status, 0);
+    assert.equal(JSON.parse(invoke('rename-node', projectId, node1Id, 'Created').stdout).appended, 0);
+    const rename = invoke('rename-node', projectId, node1Id, 'Created successfully');
+    assert.equal(JSON.parse(rename.stdout).appended, 1);
+    assert.equal(JSON.parse(invoke('connect-nodes', projectId, node1Id, node2Id).stdout).appended, 1);
+    assert.equal(JSON.parse(invoke('connect-nodes', projectId, node1Id, node2Id).stdout).appended, 0);
+    assert.equal(JSON.parse(invoke('connect-nodes', projectId, node1Id, node1Id).stdout).appended, 0);
+    const reopened = JSON.parse(invoke('show', projectId).stdout);
+    assert.deepEqual(
+      reopened.nodes.map(({id, label}) => [id, label]),
+      [
+        [node1Id, 'Created successfully'],
+        [node2Id, 'Handled'],
+      ],
+    );
+    assert.deepEqual(
+      reopened.edges.map(({sourceNodeId, targetNodeId, role}) => [sourceNodeId, targetNodeId, role]),
+      [[node1Id, node2Id, 'flow']],
+    );
+    const bytes = readFileSync(file);
+    assert.equal(JSON.parse(invoke('projects').stdout).revision, createHash('sha256').update(bytes).digest('hex'));
+    assert.equal(JSON.parse(rename.stdout).revision.length, 64);
+  } finally {
+    rmSync(dir, {recursive: true, force: true});
+  }
+});
+test('init creates an empty model and refuses to overwrite existing data', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'slicr-init-'));
+  try {
+    const initialized = run(dir, 'init');
+    assert.equal(initialized.status, 0, initialized.stderr);
+    assert.equal(readFileSync(join(dir, '.slicr', 'events.ndjson'), 'utf8'), '');
+    const repeated = run(dir, 'init');
+    assert.notEqual(repeated.status, 0);
+    assert.equal(readFileSync(join(dir, '.slicr', 'events.ndjson'), 'utf8'), '');
+    assert.deepEqual(JSON.parse(run(dir, 'projects').stdout).projects, []);
+    const incompatible = mkdtempSync(join(tmpdir(), 'slicr-init-existing-'));
+    mkdirSync(join(incompatible, '.slicr'));
+    const incompatibleFile = join(incompatible, '.slicr', 'events.ndjson');
+    writeFileSync(incompatibleFile, 'existing bytes\n');
+    const refused = run(incompatible, 'init');
+    assert.notEqual(refused.status, 0);
+    assert.equal(readFileSync(incompatibleFile, 'utf8'), 'existing bytes\n');
+    rmSync(incompatible, {recursive: true, force: true});
+  } finally {
     rmSync(dir, {recursive: true, force: true});
   }
 });
