@@ -510,7 +510,7 @@ test('serve hosts the editor and read-only workspace and graph projections, then
   const {dir} = fixture();
   const assets = mkdtempSync(join(tmpdir(), 'slicr-assets-'));
   mkdirSync(join(assets, 'assets'));
-  writeFileSync(join(assets, 'index.html'), '<html><div id="root"></div></html>');
+  writeFileSync(join(assets, 'project.html'), '<html><div id="root"></div><script src="/assets/app.js"></script></html>');
   writeFileSync(join(assets, 'assets', 'app.js'), 'ok');
   const running = startServeServer({root: dir, assets});
   try {
@@ -519,14 +519,12 @@ test('serve hosts the editor and read-only workspace and graph projections, then
     const page = await fetch(base);
     assert.equal(page.status, 200);
     const servedPage = await page.text();
-    assert.match(servedPage, /Slicr project view/);
-    assert.match(servedPage, /\/api\/model/);
-    assert.match(servedPage, /\/api\/projection/);
-    assert.match(servedPage, /Chapter/);
-    assert.match(servedPage, /Revision:/);
-    assert.match(servedPage, /Schema:/);
-    assert.match(servedPage, /Example values:/);
-    assert.doesNotMatch(servedPage, /id="root"/);
+    assert.match(servedPage, /id="root"/);
+    assert.match(servedPage, /\/assets\/app.js/);
+    assert.equal(await (await fetch(`${base}/index.html`)).text(), servedPage);
+    assert.equal((await fetch(`${base}/src/main.tsx`)).status, 404);
+    assert.equal((await fetch(`${base}/api/unknown`)).status, 404);
+    assert.equal((await fetch(`${base}/api/model`, {method: 'POST'})).status, 405);
     assert.equal(await (await fetch(`${base}/assets/app.js`)).text(), 'ok');
     const modelResponse = await fetch(`${base}/api/model`);
     assert.equal(modelResponse.status, 200);
@@ -579,7 +577,7 @@ test('serve scopes chapter IDs by project when node IDs are reused', async () =>
 test('serve rejects non-loopback Host headers', async () => {
   const {dir} = fixture();
   const assets = mkdtempSync(join(tmpdir(), 'slicr-assets-'));
-  writeFileSync(join(assets, 'index.html'), '<html></html>');
+  writeFileSync(join(assets, 'project.html'), '<html></html>');
   const running = startServeServer({root: dir, assets});
   try {
     const {port} = await running.listening;
@@ -619,10 +617,68 @@ test('serve does not follow static symlinks outside the asset root', async () =>
   }
 });
 
+test('serve rejects checksum-valid events with inherited schema names across both read APIs', async () => {
+  for (const type of ['__proto__', 'constructor', 'toString']) {
+    const {dir} = fixture();
+    const assets = mkdtempSync(join(tmpdir(), 'slicr-assets-'));
+    const file = join(dir, '.slicr', 'events.ndjson');
+    const batch = {v: 1, id: 'inherited', start: 9, events: [{id: 'inherited:0', event: {type, payload: {}, tags: []}}]};
+    batch.sha256 = createHash('sha256').update(JSON.stringify(batch)).digest('hex');
+    writeFileSync(file, `${readFileSync(file, 'utf8')}${JSON.stringify(batch)}\n`);
+    const before = readFileSync(file, 'utf8');
+    const running = startServeServer({root: dir, assets});
+    try {
+      const {port} = await running.listening;
+      for (const path of ['/api/model', '/api/projection?project=p1&chapter=c1']) {
+        const response = await fetch(`http://127.0.0.1:${port}${path}`);
+        assert.equal(response.status, 422, `${type}: ${path}`);
+        assert.equal((await response.json()).error, `Incompatible event type in Slicr history at line 2, event 9: ${type}`);
+      }
+      assert.equal(readFileSync(file, 'utf8'), before);
+    } finally {
+      await running.close();
+      rmSync(dir, {recursive: true, force: true});
+      rmSync(assets, {recursive: true, force: true});
+    }
+  }
+});
+
+test('serve rejects checksum-valid events with invalid tags or missing payload across both read APIs', async () => {
+  for (const invalidEvent of [
+    {type: 'NodeAdded', payload: {projectId: 'p1', chapterId: 'c1', nodeId: 'hidden', type: 'evt', laneId: 0, label: 'Hidden'}, tags: []},
+    {type: 'NodeAdded', tags: ['projectId:p1', 'chapterId:c1', 'nodeId:hidden', 'type:evt']},
+  ]) {
+    const {dir} = fixture();
+    const assets = mkdtempSync(join(tmpdir(), 'slicr-assets-'));
+    const file = join(dir, '.slicr', 'events.ndjson');
+    const batch = {v: 1, id: 'invalid', start: 9, events: [{id: 'invalid:0', event: invalidEvent}]};
+    batch.sha256 = createHash('sha256').update(JSON.stringify(batch)).digest('hex');
+    writeFileSync(file, `${readFileSync(file, 'utf8')}${JSON.stringify(batch)}\n`);
+    const before = readFileSync(file, 'utf8');
+    const running = startServeServer({root: dir, assets});
+    try {
+      const {port} = await running.listening;
+      for (const path of ['/api/model', '/api/projection?project=p1&chapter=c1']) {
+        const response = await fetch(`http://127.0.0.1:${port}${path}`);
+        assert.equal(response.status, 422, `${invalidEvent.type}: ${path}`);
+        const body = await response.json();
+        assert.match(body.error, /Invalid NodeAdded (payload or tags|tags) in Slicr history at line 2, event 9/);
+        assert.equal('projects' in body, false);
+        assert.equal('nodes' in body, false);
+      }
+      assert.equal(readFileSync(file, 'utf8'), before);
+    } finally {
+      await running.close();
+      rmSync(dir, {recursive: true, force: true});
+      rmSync(assets, {recursive: true, force: true});
+    }
+  }
+});
+
 test('serve reports missing and corrupt model errors without writing a store', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'slicr-serve-errors-'));
   const assets = mkdtempSync(join(tmpdir(), 'slicr-assets-'));
-  writeFileSync(join(assets, 'index.html'), '<div id="root"></div>');
+  writeFileSync(join(assets, 'project.html'), '<div id="root"></div>');
   const running = startServeServer({root: dir, assets});
   try {
     const address = await running.listening;

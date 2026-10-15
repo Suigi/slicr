@@ -6,7 +6,8 @@
   "scripts": {
     "dev:tailnet": "vite --host $(tailscale ip --4)",
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && vite build --mode project",
+    "build:project": "vite build --mode project",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "preview": "vite preview",
     "test": "vitest run",

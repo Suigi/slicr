@@ -6,3 +6,5 @@ test-list.md
 /.direnv
 .stryker-tmp/
 **/reports/mutation/
+apps/slicr-editor/dist-project/
+_temp_project/
