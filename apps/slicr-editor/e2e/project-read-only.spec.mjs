@@ -21,7 +21,7 @@ test.beforeAll(() => {
   expect(build.status, build.stderr).toBe(0);
 });
 
-test('served real editor visualizes API projection but has no browser store or mutation controls', async ({browser}) => {
+test('served editor edits the project store without opening IndexedDB and catches up across processes', async ({browser}) => {
   const dir = mkdtempSync(join(tmpdir(), 'slicr-project-browser-'));
   let serving;
   const context = await browser.newContext();
@@ -54,7 +54,7 @@ test('served real editor visualizes API projection but has no browser store or m
     await expect(page.locator('.canvas .node-label-button', {hasText: 'Visible project event'})).toBeVisible();
     await expect(page.getByLabel('Project store identity')).toContainText(dir);
     await expect(page.getByLabel('Project store identity')).toContainText('.slicr');
-    await expect(page.getByLabel('Project store identity')).toContainText('Read-only');
+    await expect(page.getByLabel('Project store identity')).toContainText('project store');
     expect(responses.some((url) => url.includes('/api/model'))).toBe(true);
     expect(responses.some((url) => url.includes('/api/projection'))).toBe(true);
     await expect(page.locator('.canvas .node-label-button', {hasText: 'Other chapter node'})).toBeVisible();
@@ -62,16 +62,18 @@ test('served real editor visualizes API projection but has no browser store or m
     await page.getByLabel('Chapter', {exact: true}).selectOption(initial.chapterId);
     await expect(page.locator('.canvas .node-label-button', {hasText: 'Visible project event'})).toBeVisible();
     await expect(page.locator('.canvas .node-label-button', {hasText: 'Other chapter node'})).toHaveCount(0);
-    await expect(page.getByRole('button', {name: /new slice|add node|options|restore|revert|edit/i})).toHaveCount(0);
+    await expect(page.getByRole('button', {name: 'Add node'})).toBeVisible();
     await page.locator('.canvas .node-label-button', {hasText: 'Visible project event'}).dblclick();
-    await page.keyboard.press('Enter');
-    await page.keyboard.press('Meta+Backspace');
-    await expect(page.locator('.node-label-input')).toHaveCount(0);
-    await expect(page.locator('.canvas .node-label-button', {hasText: 'Visible project event'})).toBeVisible();
+    const editor = page.getByRole('textbox', {name: 'Edit Visible project event label'});
+    await editor.fill('Browser project edit');
+    await editor.press('Enter');
+    await expect(page.locator('.canvas .node-label-button', {hasText: 'Browser project edit'})).toBeVisible();
+    expect(readFileSync(history)).not.toEqual(before);
+    command(dir, 'rename-node', node.generatedIds[0], 'CLI project edit');
+    await expect(page.locator('.canvas .node-label-button', {hasText: 'CLI project edit'})).toBeVisible({timeout: 5000});
     await page.reload();
-    await expect(page.locator('.canvas .node-label-button', {hasText: 'Visible project event'})).toBeVisible();
+    await expect(page.locator('.canvas .node-label-button', {hasText: 'CLI project edit'})).toBeVisible();
     expect(pageErrors).toEqual([]);
-    expect(readFileSync(history)).toEqual(before);
   } finally {
     await context.close();
     if (serving) await serving.close();

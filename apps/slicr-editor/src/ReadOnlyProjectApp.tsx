@@ -40,6 +40,16 @@ async function readApi<T>(url: string, signal: AbortSignal): Promise<T> {
 
 const noop = () => {};
 
+async function writeApi(command: {projectId: string; type: string; data: Record<string, unknown>}) {
+  const response = await fetch('/api/command', {
+    method: 'POST',
+    headers: {'content-type': 'application/json', accept: 'application/json'},
+    body: JSON.stringify(command),
+  });
+  const body = await response.json();
+  if (!response.ok) throw new Error(body.error ?? `Request failed (${response.status})`);
+}
+
 /** Served entry point only: deliberately never imports App, useGraphModel, or any browser event store. */
 export function ReadOnlyProjectApp() {
   const canvasRef = useRef<InfiniteCanvasHandle>(null);
@@ -50,6 +60,8 @@ export function ReadOnlyProjectApp() {
   const [projection, setProjection] = useState<Projection | null>(null);
   const [error, setError] = useState('');
   const [measurements, setMeasurements] = useState<Record<string, NodeDimensions>>({});
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
+  const [draftLabel, setDraftLabel] = useState('');
 
   useEffect(() => {
     const controller = new AbortController();
@@ -79,6 +91,47 @@ export function ReadOnlyProjectApp() {
       });
     return () => controller.abort();
   }, [projectId, chapterId]);
+
+  // Poll the disk-backed projection: store subscriptions are process-local and cannot observe CLI writes.
+  useEffect(() => {
+    if (!projectId) return;
+    const timer = window.setInterval(() => {
+      const query = new URLSearchParams({project: projectId});
+      if (chapterId) query.set('chapter', chapterId);
+      const controller = new AbortController();
+      readApi<Projection>(`/api/projection?${query}`, controller.signal)
+        .then((next) => setProjection((current) => (current?.revision === next.revision ? current : next)))
+        .catch(() => {});
+      readApi<Model>('/api/model', controller.signal)
+        .then(setModel)
+        .catch(() => {});
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [projectId, chapterId]);
+
+  const refreshProjection = async () => {
+    if (!projectId) return;
+    const query = new URLSearchParams({project: projectId});
+    if (chapterId) query.set('chapter', chapterId);
+    const controller = new AbortController();
+    const [next, nextModel] = await Promise.all([
+      readApi<Projection>(`/api/projection?${query}`, controller.signal),
+      readApi<Model>('/api/model', controller.signal),
+    ]);
+    setProjection(next);
+    setModel(nextModel);
+  };
+  const saveLabel = async () => {
+    if (!editingNodeId || !projectId) return;
+    try {
+      await writeApi({projectId, type: 'RenameNode', data: {nodeId: editingNodeId, name: draftLabel}});
+      setEditingNodeId(null);
+      setError('');
+      await refreshProjection();
+    } catch (reason) {
+      setError(`Could not save edit: ${String(reason)}`);
+    }
+  };
 
   const chapters = model?.chaptersByProjectId[projectId] ?? [];
   const graph = useMemo(() => {
@@ -182,10 +235,10 @@ export function ReadOnlyProjectApp() {
       collapsedSidebarLabel={chapters.find((chapter) => chapter.id === chapterId)?.title ?? 'All chapters'}
       isSidebarOpen={true}
       onExpandSidebar={noop}
-      topbarActions={<strong>Project store · Read-only</strong>}
+      topbarActions={<strong>Project store · editing enabled</strong>}
     >
       <div className="read-only-identity" aria-label="Project store identity">
-        <strong>Project-backed editor · Read-only</strong>
+        <strong>Project-backed editor · project store</strong>
         <div>Project directory: {model?.projectDirectory ?? 'Loading…'}</div>
         <div>Store: {model?.storeDirectory ?? 'Loading…'}</div>
         <div>Revision: {projection?.revision ?? model?.revision ?? 'Loading…'}</div>
@@ -195,54 +248,80 @@ export function ReadOnlyProjectApp() {
       {model && !projectId ? <p>No projects in this model.</p> : null}
       {projectId && !projection && !error ? <p>Loading project projection…</p> : null}
       {projection && !error ? (
-        <div className="graph-workspace">
-          <NodeMeasureLayer
-            nodes={renderedNodes}
-            nodePropertiesById={propertiesById}
-            editingNodeId={null}
-            draftLabel=""
-            containerRef={measureRef}
-          />
-          <InfiniteCanvas ref={canvasRef} className="canvas" defaultCamera={{x: 100, y: 100, zoom: 1}} controls={{toolbar: true}}>
-            {layout.ok ? (
-              <EdgeLayer
-                edges={layout.result.edges.flatMap((edge) => {
-                  const points = getArrowRenderPoints(edge.points);
-                  return points ? [{id: edge.id, role: edge.role, points, isConnectedToFocusedNode: false}] : [];
-                })}
-              />
-            ) : (
-              <p className="layout-error">{layout.error.message}</p>
-            )}
-            {renderedNodes.map((node) => (
-              <GraphNodeView
-                key={node.id}
-                node={node}
-                properties={propertiesById[node.id] ?? []}
-                renderMode="read-only"
-                isFocused={false}
-                isEditing={false}
-                isMenuOpen={false}
-                isConnectingSource={false}
-                draftLabel=""
-                connectionMenuItems={[]}
-                onNodeClick={noop}
-                onCloseOtherMenus={noop}
-                onToggleMenu={noop}
-                onAddConnectedNode={noop}
-                onStartEditingNode={noop}
-                onSetNodeType={noop}
-                onStartConnection={noop}
-                onDeleteConnection={noop}
-                onDeleteNode={noop}
-                onDraftLabelChange={noop}
-                onSaveEditingNode={noop}
-                onCancelEditingFromKeyboard={noop}
-                onLabelBlur={noop}
-              />
-            ))}
-          </InfiniteCanvas>
-        </div>
+        <>
+          <button
+            type="button"
+            onClick={() => {
+              const chapter = chapterId || chapters[0]?.id;
+              if (!chapter) {
+                setError('Select a chapter before adding a node.');
+                return;
+              }
+              void writeApi({
+                projectId,
+                type: 'AddNode',
+                data: {chapterId: chapter, nodeType: 'ui', laneId: graph.nodes.length, label: `Node ${graph.nodes.length + 1}`},
+              })
+                .then(refreshProjection)
+                .catch((reason) => setError(`Could not add node: ${String(reason)}`));
+            }}
+          >
+            Add node
+          </button>
+          <div className="graph-workspace">
+            <NodeMeasureLayer
+              nodes={renderedNodes}
+              nodePropertiesById={propertiesById}
+              editingNodeId={null}
+              draftLabel=""
+              containerRef={measureRef}
+            />
+            <InfiniteCanvas ref={canvasRef} className="canvas" defaultCamera={{x: 100, y: 100, zoom: 1}} controls={{toolbar: true}}>
+              {layout.ok ? (
+                <EdgeLayer
+                  edges={layout.result.edges.flatMap((edge) => {
+                    const points = getArrowRenderPoints(edge.points);
+                    return points ? [{id: edge.id, role: edge.role, points, isConnectedToFocusedNode: false}] : [];
+                  })}
+                />
+              ) : (
+                <p className="layout-error">{layout.error.message}</p>
+              )}
+              {renderedNodes.map((node) => (
+                <GraphNodeView
+                  key={node.id}
+                  node={node}
+                  properties={propertiesById[node.id] ?? []}
+                  renderMode="interactive"
+                  isFocused={false}
+                  isEditing={editingNodeId === node.id}
+                  isMenuOpen={false}
+                  isConnectingSource={false}
+                  draftLabel={editingNodeId === node.id ? draftLabel : ''}
+                  connectionMenuItems={[]}
+                  onNodeClick={noop}
+                  onCloseOtherMenus={noop}
+                  onToggleMenu={noop}
+                  onAddConnectedNode={noop}
+                  onStartEditingNode={(selected) => {
+                    setEditingNodeId(selected.id);
+                    setDraftLabel(selected.label);
+                  }}
+                  onSetNodeType={noop}
+                  onStartConnection={noop}
+                  onDeleteConnection={noop}
+                  onDeleteNode={noop}
+                  onDraftLabelChange={setDraftLabel}
+                  onSaveEditingNode={() => void saveLabel()}
+                  onCancelEditingFromKeyboard={noop}
+                  onLabelBlur={() => {
+                    if (editingNodeId === node.id) void saveLabel();
+                  }}
+                />
+              ))}
+            </InfiniteCanvas>
+          </div>
+        </>
       ) : null}
     </AppShell>
   );

@@ -6,7 +6,7 @@ Updated: 2026-10-15
 
 - Worktree: `/Users/daniel/.herdr/worktrees/slicr/project-owned-steps4-7`
 - Branch: `project-owned-steps4-7`
-- Latest implementation commit: `e46f706 feat(slicr-cli): seed default workspace and select named projects`
+- Latest implementation commit before Step 7 work: `e46f706 feat(slicr-cli): seed default workspace and select named projects`
 - Base includes the two storage spikes:
   - `bc7950f feat(event-sourcing): add SQLite project store spike`
   - `7336aef feat(event-sourcing): add NDJSON outbox spike`
@@ -68,9 +68,13 @@ Scope record: `11-step5.1-scope-changes.md`. Verification on Node 24.21.0: CLI t
 
 The initial inline projection preview was committed as `5a298cf`; the subsequent uncommitted Step 6 work replaces it with the actual editor canvas, node cards, properties, edges, measurement, and layout in an isolated read-only project build. The project entry fetches `/api/model` and `/api/projection` and does not import normal App/IndexedDB startup. Store/project path and revision are visible. The server serves only the isolated frontend assets and read-only endpoints (GET/HEAD), retaining loopback Host and static-path protections. Normal IndexedDB editing remains unchanged and separate; no Step 7 writes or migration exist. See `12-step6-scope-changes.md`. Browser tests cover real assets and projected content, missing/corrupt storage, absence of mutation controls and IndexedDB initialization. Focused CLI tests (22/22) and project browser tests (2/2), `npm run build --workspace=slicr-editor`, `npm run format`, and root `npm run validate:llm` passed (including all 5 browser tests). Store validation rejects malformed payloads/tags and prototype-named event types with 422, covered for both read APIs. High-effort `gpt-6-sol` review found and fixed the invalid-history and inherited-key blockers; final review reported no Step 6 blockers. Automated browser interaction smoke passed; a human visual smoke check and subprocess signal-shutdown test remain outstanding. This follow-up is ready to commit.
 
-### Step 7 — served editing and explicit cutover
+### Step 7 — served editing (migration/cutover deferred)
 
-Not started. Route served edits through the local API and same project store as CLI; test cross-process catch-up in both directions and conflicts. Design and test an explicit backed-up, verified browser IndexedDB migration, including nonempty destination behavior and recovery. Do not remove the old frontend write path until migration/regression evidence justifies the cutover. Create/update a Step 7 scope-change document.
+A bounded served-editing slice is implemented and committed in `ab22372` (`feat(slicr-cli): accept guarded served model commands`), with the frontend and scope record pending commit. `slicr serve` adds loopback-only `POST /api/command`, routes validated project-scoped shared commands through the common deciders/`handleCommand` and `.slicr/` NDJSON store, and reports conditional-append conflicts as 409. The served editor can add and rename nodes. Projection/model APIs reread from disk; the browser polls them so CLI/store updates appear across processes, and tests verify browser writes are visible to subsequent CLI store reads and external writes appear on the next API read. Existing independent-process conditional conflict coverage remains in place.
+
+Migration from browser IndexedDB is explicitly deferred per user decision. Normal editor startup/default IndexedDB writes remain intact; they are not synchronized with the project store. No migration, backup/import/rollback, or cutover claim is made. Served-editor UI mutation parity is incomplete (property editing, deletion/type changes, and connection gestures are not exposed). See `13-step7-scope-changes.md`.
+
+Verification: focused CLI suite 23/23 passed; editor production build and typecheck passed; `npm run format` and root `npm run validate:llm` passed (including all workspace suites and five Playwright browser tests). Automated browser smoke and server restart persistence pass; human visual smoke and an HTTP-level forced race/conflict test remain outstanding.
 
 ## Validation and environment notes
 
