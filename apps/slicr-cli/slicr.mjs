@@ -141,7 +141,7 @@ async function main(args) {
     const port = portValue === undefined ? 4173 : Number(portValue);
     if (!Number.isInteger(port) || port < 0 || port > 65535 || rest.length) throw new Error('Usage: serve [--port PORT]');
     const {startServeServer} = await import('./serve.mjs');
-    const assets = fileURLToPath(new URL('../slicr-editor/dist/', import.meta.url));
+    const assets = fileURLToPath(new URL('../slicr-editor/dist-project/', import.meta.url));
     const serving = startServeServer({root, assets, port});
     const address = await serving.listening;
     console.log(`Slicr read-only server listening at http://${address.address}:${address.port}`);
@@ -155,7 +155,7 @@ async function main(args) {
   const projectId = scopedCommands.has(command) ? await resolveProjectId(root, selectedProjectId) : undefined;
   if (command === '--help' || !command) {
     console.log(
-      'Usage: slicr [--path PROJECT_DIR] [--project PROJECT_ID] init | projects | chapters | show [CHAPTER_ID] [--format json|md] | rename-project NAME | add-project NAME | add-chapter TITLE | add-node CHAPTER_ID TYPE LANE LABEL | rename-node NODE_ID NAME | connect-nodes SOURCE_ID TARGET_ID [ROLE]',
+      'Usage: slicr [--path PROJECT_DIR] [--project PROJECT_ID] init | projects | chapters | show [CHAPTER_ID] [--format json|md] | rename-project NAME | add-project NAME | add-chapter TITLE | add-node CHAPTER_ID TYPE LANE LABEL | rename-node NODE_ID NAME | connect-nodes SOURCE_ID TARGET_ID [ROLE] | serve [--port PORT]',
     );
     console.log('When the model has one project, --project is optional; with multiple projects, specify its ID.');
     console.log(

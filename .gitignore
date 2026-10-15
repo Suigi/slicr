@@ -7,3 +7,5 @@ test-list.md
 .stryker-tmp/
 **/reports/mutation/
 .playwright-mcp/
+apps/slicr-editor/dist-project/
+_temp_project/

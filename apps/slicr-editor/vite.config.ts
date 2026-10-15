@@ -4,8 +4,11 @@ import react from '@vitejs/plugin-react';
 import * as path from 'node:path';
 import * as os from 'node:os';
 
-export default defineConfig({
+export default defineConfig(({mode}) => ({
   plugins: [react()],
+  ...(mode === 'project'
+    ? {build: {outDir: 'dist-project', rollupOptions: {input: path.resolve(import.meta.dirname, 'project.html')}}}
+    : {}),
   test: {
     projects: [
       {
@@ -29,4 +32,4 @@ export default defineConfig({
       },
     ],
   },
-});
+}));

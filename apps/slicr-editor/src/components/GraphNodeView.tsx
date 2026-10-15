@@ -14,7 +14,7 @@ type ConnectionMenuItem = {
   nodeType: NodeType;
 };
 
-type GraphNodeRenderMode = 'interactive' | 'measurement';
+type GraphNodeRenderMode = 'interactive' | 'measurement' | 'read-only';
 
 type GraphNodeViewProps = {
   node: RenderNode;
@@ -79,7 +79,8 @@ export function GraphNodeView({
   onLabelBlur,
 }: GraphNodeViewProps) {
   const isMeasurementMode = renderMode === 'measurement';
-  const showTransientControls = !isMeasurementMode && isFocused;
+  const isReadOnly = renderMode === 'read-only';
+  const showTransientControls = !isMeasurementMode && !isReadOnly && isFocused;
   const showNodeMenu = showTransientControls && isMenuOpen;
   const hasProperties = properties.length > 0;
   const nodeStyle = isMeasurementMode
@@ -97,7 +98,7 @@ export function GraphNodeView({
       className={`node-box node-type-${node.type}${hasProperties ? ' node-box-with-properties' : ''}${showTransientControls ? ' node-focused' : ''}${!isMeasurementMode && isConnectingSource ? ' node-connecting-source' : ''}`}
       style={nodeStyle}
       onClick={
-        isMeasurementMode
+        isMeasurementMode || isReadOnly
           ? undefined
           : () => {
               onNodeClick(node);
@@ -138,6 +139,8 @@ export function GraphNodeView({
                     }
               }
             />
+          ) : isReadOnly ? (
+            <span className="node-label-button">{node.label}</span>
           ) : (
             <button
               type="button"
