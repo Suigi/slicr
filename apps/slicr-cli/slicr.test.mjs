@@ -65,18 +65,21 @@ function run(cwd, ...args) {
     env: {...process.env, INIT_CWD: cwd},
   });
 }
+function projectRun(cwd, projectId, ...args) {
+  return run(cwd, '--project', projectId, ...args);
+}
 test('lists, scopes, projects and renders markdown', () => {
   const {dir} = fixture();
   try {
     const projects = run(dir, 'projects');
     assert.equal(projects.status, 0, projects.stderr);
     assert.equal(JSON.parse(projects.stdout).projects[0].id, 'p1');
-    const chapters = run(dir, 'chapters', 'p1');
+    const chapters = projectRun(dir, 'p1', 'chapters');
     assert.deepEqual(
       JSON.parse(chapters.stdout).chapters.map((c) => c.id),
       ['c1', 'c2'],
     );
-    const shown = run(dir, 'show', 'p1', 'c1');
+    const shown = projectRun(dir, 'p1', 'show', 'c1');
     const value = JSON.parse(shown.stdout);
     assert.deepEqual(
       value.nodes.map((n) => n.id),
@@ -85,12 +88,12 @@ test('lists, scopes, projects and renders markdown', () => {
     assert.deepEqual(value.nodeSchemas.n1, [{propertyId: 'name', name: 'Name', type: 'string'}]);
     assert.deepEqual(value.nodeExampleValues.n1, [{propertyId: 'name', scalarValue: 'x'}]);
     assert.deepEqual(value.edges, []);
-    const markdown = run(dir, 'show', 'p1', '--format', 'md');
+    const markdown = projectRun(dir, 'p1', 'show', '--format', 'md');
     assert.equal(markdown.status, 0, markdown.stderr);
     assert.match(markdown.stdout, /Created/);
     assert.match(markdown.stdout, /Schema: \[\{"propertyId":"name","name":"Name","type":"string"\}\]/);
     assert.match(markdown.stdout, /Example values: \[\{"propertyId":"name","scalarValue":"x"\}\]/);
-    assert.notEqual(run(dir, 'show', 'p1', '--format', 'json', 'c1').status, 0);
+    assert.notEqual(projectRun(dir, 'p1', 'show', 'c1', '--format', 'txt').status, 0);
   } finally {
     rmSync(dir, {recursive: true, force: true});
   }
@@ -101,7 +104,7 @@ test('disconnect removes edge and self-connections are excluded', () => {
     {type: 'NodesDisconnected', payload: {projectId: 'p1', sourceNodeId: 'n1', targetNodeId: 'n2'}, tags: []},
   ]);
   try {
-    const result = run(disconnected.dir, 'show', 'p1');
+    const result = projectRun(disconnected.dir, 'p1', 'show');
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(JSON.parse(result.stdout).edges, []);
   } finally {
@@ -115,7 +118,7 @@ test('disconnect removes edge and self-connections are excluded', () => {
     },
   ]);
   try {
-    const result = run(self.dir, 'show', 'p1');
+    const result = projectRun(self.dir, 'p1', 'show');
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(JSON.parse(result.stdout).edges, [{projectId: 'p1', sourceNodeId: 'n1', targetNodeId: 'n2', role: 'flow'}]);
   } finally {
@@ -143,11 +146,11 @@ test('same node and edge IDs remain isolated across projects during updates and 
       {type: 'NodeRenamed', payload: {projectId: 'p1', nodeId: 'n1', newName: 'Renamed'}, tags: []},
       {type: 'NodesDisconnected', payload: {projectId: 'p1', sourceNodeId: 'n1', targetNodeId: 'n2'}, tags: []},
     ]);
-    let p2 = JSON.parse(run(value.dir, 'show', 'p2').stdout);
+    let p2 = JSON.parse(projectRun(value.dir, 'p2', 'show').stdout);
     assert.equal(p2.nodes.find((n) => n.id === 'n1').label, 'Other Created');
     assert.equal(p2.edges.length, 1);
     value.appendBatch('isolated-removal', 16, [{type: 'NodeRemoved', payload: {projectId: 'p1', nodeId: 'n1'}, tags: []}]);
-    p2 = JSON.parse(run(value.dir, 'show', 'p2').stdout);
+    p2 = JSON.parse(projectRun(value.dir, 'p2', 'show').stdout);
     assert.deepEqual(
       p2.nodes.map((n) => n.id),
       ['n1', 'n2'],
@@ -169,8 +172,8 @@ test('delimiter-containing project and node IDs remain isolated on updates and r
     {type: 'NodeRemoved', payload: {projectId: 'a', nodeId: 'b:c'}, tags: []},
   ]);
   try {
-    const first = JSON.parse(run(value.dir, 'show', 'a:b').stdout);
-    const second = JSON.parse(run(value.dir, 'show', 'a').stdout);
+    const first = JSON.parse(projectRun(value.dir, 'a:b', 'show').stdout);
+    const second = JSON.parse(projectRun(value.dir, 'a', 'show').stdout);
     assert.deepEqual(
       first.nodes.map((n) => [n.id, n.label]),
       [['c', 'Updated first']],
@@ -220,7 +223,7 @@ test('revision changes after valid batch and corrupt or unknown histories fail',
     const file = join(unknown.dir, '.slicr', 'events.ndjson');
     const before = readFileSync(file, 'utf8');
     assert.match(run(unknown.dir, 'projects').stderr, /Incompatible event type/);
-    const rename = run(unknown.dir, 'rename-project', 'p1', 'Should Not Append');
+    const rename = projectRun(unknown.dir, 'p1', 'rename-project', 'Should Not Append');
     assert.notEqual(rename.status, 0);
     assert.match(rename.stderr, /Incompatible event type/);
     assert.equal(readFileSync(file, 'utf8'), before);
@@ -247,7 +250,10 @@ test('relative --path is resolved from the npm invocation directory', () => {
     const result = spawnSync('npm', ['run', 'slicr', '--', '--path', relativeProject, 'init'], {cwd: repositoryRoot, encoding: 'utf8'});
     assert.equal(result.status, 0, result.stderr);
     assert.equal(existsSync(join(project, '.slicr', 'events.ndjson')), true);
-    assert.equal(JSON.parse(result.stdout.trim().split('\n').at(-1)).path, join(project, '.slicr', 'events.ndjson'));
+    const initialized = JSON.parse(result.stdout.trim().split('\n').at(-1));
+    assert.equal(initialized.path, join(project, '.slicr', 'events.ndjson'));
+    assert.equal(initialized.projectName, 'Default Project');
+    assert.equal(initialized.chapterTitle, 'Default Chapter');
   } finally {
     rmSync(parent, {recursive: true, force: true});
   }
@@ -255,14 +261,14 @@ test('relative --path is resolved from the npm invocation directory', () => {
 test('installed bin invocation renames a project without caller-supplied Node loader flags', () => {
   const {dir} = fixture();
   try {
-    const result = spawnSync(packageBin, ['--path', dir, 'rename-project', 'p1', 'Bin Rename'], {
+    const result = spawnSync(packageBin, ['--path', dir, '--project', 'p1', 'rename-project', 'Bin Rename'], {
       encoding: 'utf8',
       cwd: tmpdir(),
       env: {...process.env, INIT_CWD: tmpdir()},
     });
     assert.equal(result.status, 0, result.stderr);
     assert.equal(JSON.parse(result.stdout).name, 'Bin Rename');
-    const noPath = spawnSync(packageBin, ['rename-project', 'p1', 'No Path'], {
+    const noPath = spawnSync(packageBin, ['--project', 'p1', 'rename-project', 'No Path'], {
       encoding: 'utf8',
       cwd: dir,
       env: {...process.env, INIT_CWD: dir},
@@ -279,11 +285,11 @@ test('rename-project uses the shared decider and persists a readable rename', ()
   const file = join(dir, '.slicr', 'events.ndjson');
   try {
     const before = readFileSync(file, 'utf8');
-    const missing = run(dir, 'rename-project', 'missing', 'Nope');
+    const missing = projectRun(dir, 'missing', 'rename-project', 'Nope');
     assert.notEqual(missing.status, 0);
-    assert.match(missing.stderr, /not found/);
+    assert.match(missing.stderr, /Unknown project ID/);
     assert.equal(readFileSync(file, 'utf8'), before);
-    const renamed = run(dir, 'rename-project', 'p1', 'Renamed');
+    const renamed = projectRun(dir, 'p1', 'rename-project', 'Renamed');
     assert.equal(renamed.status, 0, renamed.stderr);
     assert.equal(JSON.parse(renamed.stdout).appended, 1);
     const readBack = run(dir, 'projects');
@@ -370,45 +376,54 @@ test('independent shared-handler writers conflict after a deterministic read bar
     rmSync(dir, {recursive: true, force: true});
   }
 });
-test('all scoped mutations use shared decisions, expose generated IDs, and survive reopening', () => {
+test('init creates a default project and chapter; scoped commands use shared decisions', () => {
   const dir = mkdtempSync(join(tmpdir(), 'slicr-mutations-'));
   const file = join(dir, '.slicr', 'events.ndjson');
   const invoke = (...args) => run(dir, ...args);
   try {
-    assert.equal(invoke('init').status, 0);
-    const project = invoke('add-project', 'Demo');
-    assert.equal(project.status, 0, project.stderr);
-    const created = JSON.parse(project.stdout);
-    assert.equal(created.appended, 2);
-    assert.equal(created.generatedIds.length, 2);
-    const [projectId, defaultChapterId] = created.generatedIds;
+    const initialized = invoke('init');
+    assert.equal(initialized.status, 0, initialized.stderr);
+    const initResult = JSON.parse(initialized.stdout);
+    assert.equal(initResult.projectName, 'Default Project');
+    assert.equal(initResult.chapterTitle, 'Default Chapter');
+    assert.equal(initResult.appended, 2);
+    const projectId = initResult.projectId;
+    const defaultChapterId = initResult.chapterId;
+    const chapters = JSON.parse(invoke('chapters').stdout);
+    assert.deepEqual(
+      chapters.chapters.map((chapter) => chapter.title),
+      ['Default Chapter'],
+    );
+
     const beforeInvalid = readFileSync(file, 'utf8');
     for (const args of [
-      ['add-chapter', 'missing', 'No'],
-      ['add-node', projectId, 'missing-chapter', 'evt', '0', 'No'],
-      ['rename-node', projectId, 'missing-node', 'No'],
-      ['connect-nodes', projectId, 'missing-source', 'missing-target'],
-      ['add-node', projectId, defaultChapterId, 'bogus', '0', 'No'],
-      ['add-node', projectId, defaultChapterId, 'evt', '-1', 'No'],
+      ['add-node', 'missing-chapter', 'evt', '0', 'No'],
+      ['rename-node', 'missing-node', 'No'],
+      ['connect-nodes', 'missing-source', 'missing-target'],
+      ['add-node', defaultChapterId, 'bogus', '0', 'No'],
+      ['add-node', defaultChapterId, 'evt', '-1', 'No'],
     ]) {
       assert.notEqual(invoke(...args).status, 0, args.join(' '));
       assert.equal(readFileSync(file, 'utf8'), beforeInvalid);
     }
-    const chapter = invoke('add-chapter', projectId, 'Next');
+
+    const namedChapter = invoke('--project', projectId, 'add-chapter', 'Named Chapter');
+    assert.equal(namedChapter.status, 0, namedChapter.stderr);
+    const chapter = invoke('add-chapter', 'Next');
     assert.equal(chapter.status, 0, chapter.stderr);
     const chapterId = JSON.parse(chapter.stdout).generatedIds[0];
-    const node1 = invoke('add-node', projectId, defaultChapterId, 'evt', '0', 'Created');
+    const node1 = invoke('add-node', defaultChapterId, 'evt', '0', 'Created');
     const node1Id = JSON.parse(node1.stdout).generatedIds[0];
-    const node2 = invoke('add-node', projectId, chapterId, 'cmd', '1', 'Handled');
+    const node2 = invoke('add-node', chapterId, 'cmd', '1', 'Handled');
     const node2Id = JSON.parse(node2.stdout).generatedIds[0];
-    assert.equal(invoke('rename-node', projectId, node1Id, 'Created').status, 0);
-    assert.equal(JSON.parse(invoke('rename-node', projectId, node1Id, 'Created').stdout).appended, 0);
-    const rename = invoke('rename-node', projectId, node1Id, 'Created successfully');
+    assert.equal(invoke('rename-node', node1Id, 'Created').status, 0);
+    assert.equal(JSON.parse(invoke('rename-node', node1Id, 'Created').stdout).appended, 0);
+    const rename = invoke('rename-node', node1Id, 'Created successfully');
     assert.equal(JSON.parse(rename.stdout).appended, 1);
-    assert.equal(JSON.parse(invoke('connect-nodes', projectId, node1Id, node2Id).stdout).appended, 1);
-    assert.equal(JSON.parse(invoke('connect-nodes', projectId, node1Id, node2Id).stdout).appended, 0);
-    assert.equal(JSON.parse(invoke('connect-nodes', projectId, node1Id, node1Id).stdout).appended, 0);
-    const reopened = JSON.parse(invoke('show', projectId).stdout);
+    assert.equal(JSON.parse(invoke('connect-nodes', node1Id, node2Id).stdout).appended, 1);
+    assert.equal(JSON.parse(invoke('connect-nodes', node1Id, node2Id).stdout).appended, 0);
+    assert.equal(JSON.parse(invoke('connect-nodes', node1Id, node1Id).stdout).appended, 0);
+    const reopened = JSON.parse(invoke('show').stdout);
     assert.deepEqual(
       reopened.nodes.map(({id, label}) => [id, label]),
       [
@@ -420,6 +435,17 @@ test('all scoped mutations use shared decisions, expose generated IDs, and survi
       reopened.edges.map(({sourceNodeId, targetNodeId, role}) => [sourceNodeId, targetNodeId, role]),
       [[node1Id, node2Id, 'flow']],
     );
+
+    const secondProject = invoke('add-project', 'Second Project');
+    assert.equal(secondProject.status, 0, secondProject.stderr);
+    const secondProjectId = JSON.parse(secondProject.stdout).generatedIds[0];
+    const ambiguous = invoke('show');
+    assert.notEqual(ambiguous.status, 0);
+    assert.match(ambiguous.stderr, /--project PROJECT_ID is required/);
+    assert.equal(invoke('--project', secondProjectId, 'chapters').status, 0);
+    assert.equal(invoke('--project', projectId, 'show').status, 0);
+    assert.notEqual(invoke('--project', 'missing-project', 'show').status, 0);
+
     const bytes = readFileSync(file);
     assert.equal(JSON.parse(invoke('projects').stdout).revision, createHash('sha256').update(bytes).digest('hex'));
     assert.equal(JSON.parse(rename.stdout).revision.length, 64);
@@ -427,16 +453,33 @@ test('all scoped mutations use shared decisions, expose generated IDs, and survi
     rmSync(dir, {recursive: true, force: true});
   }
 });
-test('init creates an empty model and refuses to overwrite existing data', () => {
+test('init seeds an existing empty event log with the default workspace', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'slicr-init-empty-log-'));
+  try {
+    mkdirSync(join(dir, '.slicr'));
+    writeFileSync(join(dir, '.slicr', 'events.ndjson'), '');
+    const initialized = run(dir, 'init');
+    assert.equal(initialized.status, 0, initialized.stderr);
+    assert.equal(JSON.parse(initialized.stdout).projectName, 'Default Project');
+    assert.equal(JSON.parse(initialized.stdout).chapterTitle, 'Default Chapter');
+    assert.deepEqual(
+      JSON.parse(run(dir, 'projects').stdout).projects.map((project) => project.name),
+      ['Default Project'],
+    );
+  } finally {
+    rmSync(dir, {recursive: true, force: true});
+  }
+});
+test('init refuses to overwrite existing data', () => {
   const dir = mkdtempSync(join(tmpdir(), 'slicr-init-'));
   try {
     const initialized = run(dir, 'init');
     assert.equal(initialized.status, 0, initialized.stderr);
-    assert.equal(readFileSync(join(dir, '.slicr', 'events.ndjson'), 'utf8'), '');
+    const original = readFileSync(join(dir, '.slicr', 'events.ndjson'), 'utf8');
+    assert.equal(JSON.parse(run(dir, 'projects').stdout).projects[0].name, 'Default Project');
     const repeated = run(dir, 'init');
     assert.notEqual(repeated.status, 0);
-    assert.equal(readFileSync(join(dir, '.slicr', 'events.ndjson'), 'utf8'), '');
-    assert.deepEqual(JSON.parse(run(dir, 'projects').stdout).projects, []);
+    assert.equal(readFileSync(join(dir, '.slicr', 'events.ndjson'), 'utf8'), original);
     const incompatible = mkdtempSync(join(tmpdir(), 'slicr-init-existing-'));
     mkdirSync(join(incompatible, '.slicr'));
     const incompatibleFile = join(incompatible, '.slicr', 'events.ndjson');

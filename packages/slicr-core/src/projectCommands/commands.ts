@@ -1,5 +1,5 @@
-import {Command} from '../eventSourcing';
-import {ProjectId} from '../events';
+import type {Command} from '../eventSourcing';
+import type {ProjectId} from '../events';
 
 export type AddProject = Command<'AddProject', {name: string}>;
 
