@@ -1,6 +1,9 @@
 {
   "name": "slicr-mono",
   "private": true,
+  "bin": {
+    "slicr": "scripts/slicr.mjs"
+  },
   "workspaces": [
     "packages/*",
     "apps/*"
