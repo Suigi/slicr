@@ -5,8 +5,10 @@ import {mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync, readFileSync}
 import {tmpdir} from 'node:os';
 import {join, relative} from 'node:path';
 import {spawn, spawnSync} from 'node:child_process';
+import {request as httpRequest} from 'node:http';
 import {promises as fs} from 'node:fs';
 import {Events} from '../../packages/slicr-core/src/events.ts';
+import {startServeServer} from './serve.mjs';
 
 const cli = new URL('./slicr.mjs', import.meta.url);
 const packageBin = new URL('../../node_modules/.bin/slicr', import.meta.url).pathname;
@@ -501,5 +503,142 @@ test('missing model fails without creating files', () => {
     assert.equal(existsSync(join(dir, '.slicr')), false);
   } finally {
     rmSync(dir, {recursive: true, force: true});
+  }
+});
+
+test('serve hosts the editor and read-only workspace and graph projections, then shuts down', async () => {
+  const {dir} = fixture();
+  const assets = mkdtempSync(join(tmpdir(), 'slicr-assets-'));
+  mkdirSync(join(assets, 'assets'));
+  writeFileSync(join(assets, 'index.html'), '<html><div id="root"></div></html>');
+  writeFileSync(join(assets, 'assets', 'app.js'), 'ok');
+  const running = startServeServer({root: dir, assets});
+  try {
+    const address = await running.listening;
+    const base = `http://127.0.0.1:${address.port}`;
+    const page = await fetch(base);
+    assert.equal(page.status, 200);
+    const servedPage = await page.text();
+    assert.match(servedPage, /Slicr project view/);
+    assert.match(servedPage, /\/api\/model/);
+    assert.match(servedPage, /\/api\/projection/);
+    assert.match(servedPage, /Chapter/);
+    assert.match(servedPage, /Revision:/);
+    assert.match(servedPage, /Schema:/);
+    assert.match(servedPage, /Example values:/);
+    assert.doesNotMatch(servedPage, /id="root"/);
+    assert.equal(await (await fetch(`${base}/assets/app.js`)).text(), 'ok');
+    const modelResponse = await fetch(`${base}/api/model`);
+    assert.equal(modelResponse.status, 200);
+    const model = await modelResponse.json();
+    assert.equal(model.projectDirectory, dir);
+    assert.equal(model.storeDirectory, join(dir, '.slicr'));
+    assert.equal(model.projects[0].id, 'p1');
+    const projectionResponse = await fetch(`${base}/api/projection?project=p1&chapter=c1`);
+    assert.equal(projectionResponse.status, 200);
+    const projection = await projectionResponse.json();
+    assert.equal(projection.revision, model.revision);
+    assert.deepEqual(
+      projection.nodes.map((node) => node.id),
+      ['n1'],
+    );
+    assert.equal(projection.nodes[0].chapterId, 'c1');
+    assert.deepEqual(projection.edges, []);
+    const allChapters = await (await fetch(`${base}/api/projection?project=p1`)).json();
+    assert.equal(allChapters.edges.length, 1);
+    assert.equal((await fetch(`${base}/api/projection?project=nope`)).status, 404);
+  } finally {
+    await running.close();
+    rmSync(dir, {recursive: true, force: true});
+    rmSync(assets, {recursive: true, force: true});
+  }
+  assert.equal(running.server.listening, false);
+});
+
+test('serve scopes chapter IDs by project when node IDs are reused', async () => {
+  const {dir} = fixture([
+    Events.projectAdded('p2', 'Other'),
+    Events.chapterAdded('p2', 'c9', 'Other chapter'),
+    Events.nodeAdded('p2', 'c9', 'n1', 'evt', 0, 'Other node'),
+  ]);
+  const assets = mkdtempSync(join(tmpdir(), 'slicr-assets-'));
+  const running = startServeServer({root: dir, assets});
+  try {
+    const {port} = await running.listening;
+    const p1 = await (await fetch(`http://127.0.0.1:${port}/api/projection?project=p1&chapter=c1`)).json();
+    const p2 = await (await fetch(`http://127.0.0.1:${port}/api/projection?project=p2&chapter=c9`)).json();
+    assert.equal(p1.nodes.find((node) => node.id === 'n1').chapterId, 'c1');
+    assert.equal(p2.nodes.find((node) => node.id === 'n1').chapterId, 'c9');
+  } finally {
+    await running.close();
+    rmSync(dir, {recursive: true, force: true});
+    rmSync(assets, {recursive: true, force: true});
+  }
+});
+
+test('serve rejects non-loopback Host headers', async () => {
+  const {dir} = fixture();
+  const assets = mkdtempSync(join(tmpdir(), 'slicr-assets-'));
+  writeFileSync(join(assets, 'index.html'), '<html></html>');
+  const running = startServeServer({root: dir, assets});
+  try {
+    const {port} = await running.listening;
+    const response = await new Promise((resolve, reject) => {
+      const request = httpRequest({host: '127.0.0.1', port, path: '/', headers: {Host: 'attacker.example'}}, resolve);
+      request.on('error', reject);
+      request.end();
+    });
+    let body = '';
+    for await (const chunk of response) body += chunk;
+    assert.equal(response.statusCode, 403);
+    assert.match(JSON.parse(body).error, /loopback host/);
+  } finally {
+    await running.close();
+    rmSync(dir, {recursive: true, force: true});
+    rmSync(assets, {recursive: true, force: true});
+  }
+});
+
+test('serve does not follow static symlinks outside the asset root', async () => {
+  const {dir} = fixture();
+  const assets = mkdtempSync(join(tmpdir(), 'slicr-assets-'));
+  const outside = mkdtempSync(join(tmpdir(), 'slicr-outside-'));
+  writeFileSync(join(outside, 'secret.txt'), 'not for serving');
+  await fs.symlink(join(outside, 'secret.txt'), join(assets, 'secret.txt'));
+  const running = startServeServer({root: dir, assets});
+  try {
+    const {port} = await running.listening;
+    const response = await fetch(`http://127.0.0.1:${port}/secret.txt`);
+    assert.equal(response.status, 404);
+    assert.match((await response.json()).error, /Not found/);
+  } finally {
+    await running.close();
+    rmSync(dir, {recursive: true, force: true});
+    rmSync(assets, {recursive: true, force: true});
+    rmSync(outside, {recursive: true, force: true});
+  }
+});
+
+test('serve reports missing and corrupt model errors without writing a store', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'slicr-serve-errors-'));
+  const assets = mkdtempSync(join(tmpdir(), 'slicr-assets-'));
+  writeFileSync(join(assets, 'index.html'), '<div id="root"></div>');
+  const running = startServeServer({root: dir, assets});
+  try {
+    const address = await running.listening;
+    const url = `http://127.0.0.1:${address.port}/api/model`;
+    const missing = await fetch(url);
+    assert.equal(missing.status, 404);
+    assert.match((await missing.json()).error, /No Slicr model/);
+    assert.equal(existsSync(join(dir, '.slicr')), false);
+    mkdirSync(join(dir, '.slicr'));
+    writeFileSync(join(dir, '.slicr', 'events.ndjson'), 'not-json\\n');
+    const corrupt = await fetch(url);
+    assert.equal(corrupt.status, 422);
+    assert.match((await corrupt.json()).error, /Invalid JSON/);
+  } finally {
+    await running.close();
+    rmSync(dir, {recursive: true, force: true});
+    rmSync(assets, {recursive: true, force: true});
   }
 });

@@ -135,6 +135,21 @@ async function main(args) {
   if (path) root = resolve(invocationCwd, path);
   const selectedProjectId = consumeOption(args, '--project');
   const [command, ...rest] = args;
+  if (command === 'serve') {
+    if (selectedProjectId) throw new Error('--project is not used by serve; select a project in the read API when needed');
+    const portValue = consumeOption(rest, '--port');
+    const port = portValue === undefined ? 4173 : Number(portValue);
+    if (!Number.isInteger(port) || port < 0 || port > 65535 || rest.length) throw new Error('Usage: serve [--port PORT]');
+    const {startServeServer} = await import('./serve.mjs');
+    const assets = fileURLToPath(new URL('../slicr-editor/dist/', import.meta.url));
+    const serving = startServeServer({root, assets, port});
+    const address = await serving.listening;
+    console.log(`Slicr read-only server listening at http://${address.address}:${address.port}`);
+    const shutdown = () => serving.close().finally(() => process.exit(0));
+    process.once('SIGINT', shutdown);
+    process.once('SIGTERM', shutdown);
+    return;
+  }
   const scopedCommands = new Set(['chapters', 'show', 'rename-project', 'add-chapter', 'add-node', 'rename-node', 'connect-nodes']);
   if (selectedProjectId && !scopedCommands.has(command)) throw new Error(`--project is not used by ${command ?? 'help'}`);
   const projectId = scopedCommands.has(command) ? await resolveProjectId(root, selectedProjectId) : undefined;
