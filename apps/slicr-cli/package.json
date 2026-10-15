@@ -1,0 +1,20 @@
+{
+  "name": "@slicr/slicr-cli",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "bin": {
+    "slicr": "slicr.mjs"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test slicr.test.mjs",
+    "test:llm": "node --test slicr.test.mjs"
+  },
+  "dependencies": {
+    "@slicr/core": "0.0.0",
+    "@slicr/event-sourcing": "0.0.0"
+  }
+}

@@ -8,6 +8,8 @@ import {spawn, spawnSync} from 'node:child_process';
 import {promises as fs} from 'node:fs';
 
 const cli = new URL('./slicr.mjs', import.meta.url);
+const packageBin = new URL('../../node_modules/.bin/slicr', import.meta.url).pathname;
+const repositoryRoot = new URL('../../', import.meta.url).pathname;
 function fixture(extraEvents = []) {
   const events = [
     {type: 'ProjectAdded', payload: {projectId: 'p1', name: 'Example'}, tags: ['projectId:p1']},
@@ -225,13 +227,23 @@ test('revision changes after valid batch and corrupt or unknown histories fail',
     rmSync(unknown.dir, {recursive: true, force: true});
   }
 });
+test('root script forwards arguments to the workspace CLI', () => {
+  const {dir} = fixture();
+  try {
+    const result = spawnSync('npm', ['run', 'slicr', '--', '--path', dir, 'projects'], {cwd: repositoryRoot, encoding: 'utf8'});
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /"projects": \[\s*\{/);
+  } finally {
+    rmSync(dir, {recursive: true, force: true});
+  }
+});
 test('installed bin invocation renames a project without caller-supplied Node loader flags', () => {
   const {dir} = fixture();
   try {
-    const result = spawnSync(cli.pathname, ['--path', dir, 'rename-project', 'p1', 'Bin Rename'], {encoding: 'utf8'});
+    const result = spawnSync(packageBin, ['--path', dir, 'rename-project', 'p1', 'Bin Rename'], {encoding: 'utf8', cwd: tmpdir()});
     assert.equal(result.status, 0, result.stderr);
     assert.equal(JSON.parse(result.stdout).name, 'Bin Rename');
-    const noPath = spawnSync(cli.pathname, ['rename-project', 'p1', 'No Path'], {encoding: 'utf8', cwd: dir});
+    const noPath = spawnSync(packageBin, ['rename-project', 'p1', 'No Path'], {encoding: 'utf8', cwd: dir});
     assert.equal(noPath.status, 0, noPath.stderr);
     assert.equal(JSON.parse(noPath.stdout).name, 'No Path');
     assert.equal(JSON.parse(run(dir, 'projects').stdout).projects[0].name, 'No Path');

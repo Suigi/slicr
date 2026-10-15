@@ -3,9 +3,9 @@ import {join} from 'node:path';
 
 const [root, barrier, workerId] = process.argv.slice(2);
 const [{NdjsonSpecEventStore}, {deciders}, {handleCommand}] = await Promise.all([
-  import('../packages/event-sourcing/src/ndjsonSpecEventStore.ts'),
-  import('../packages/slicr-core/src/projectCommands/projectCommandHandler.ts'),
-  import('../packages/event-sourcing/src/deciders/index.ts'),
+  import('../../packages/event-sourcing/src/ndjsonSpecEventStore.ts'),
+  import('../../packages/slicr-core/src/projectCommands/projectCommandHandler.ts'),
+  import('../../packages/event-sourcing/src/deciders/index.ts'),
 ]);
 const store = NdjsonSpecEventStore.open(root);
 const gatedStore = Object.create(store);
