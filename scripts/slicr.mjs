@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
+import {spawnSync} from 'node:child_process';
 import {resolve, join} from 'node:path';
+import {fileURLToPath} from 'node:url';
 
 function fail(message) {
   console.error(`slicr: ${message}`);
@@ -130,7 +132,7 @@ function project(events) {
   return {projects: [...projects.values()], chapters, nodes: [...nodes.values()], edges: [...edges.values()]};
 }
 
-function main(args) {
+async function main(args) {
   let root = process.cwd();
   const pathIndex = args.indexOf('--path');
   if (pathIndex >= 0) {
@@ -140,8 +142,18 @@ function main(args) {
   }
   const [command, ...rest] = args;
   if (command === '--help' || !command) {
-    console.log('Usage: slicr [--path PROJECT_DIR] projects | chapters PROJECT_ID | show PROJECT_ID [CHAPTER_ID] [--format json|md]');
+    console.log(
+      'Usage: slicr [--path PROJECT_DIR] projects | chapters PROJECT_ID | show PROJECT_ID [CHAPTER_ID] [--format json|md] | rename-project PROJECT_ID NAME',
+    );
+    console.log(
+      'CLI edits use the project .slicr/ history. The existing browser editor uses a separate IndexedDB store; the stores are not synchronized.',
+    );
     return;
+  }
+  if (command === 'rename-project') {
+    const [projectId, name, ...extra] = rest;
+    if (!projectId || !name || extra.length) throw new Error('Usage: rename-project PROJECT_ID NEW_NAME');
+    return await renameProject(root, projectId, name);
   }
   const {events, revision} = load(root);
   const model = project(events);
@@ -203,8 +215,47 @@ function main(args) {
   throw new Error(`Unknown command: ${command}. Run slicr --help.`);
 }
 
+async function renameProject(root, projectId, name) {
+  const {events} = load(root);
+  project(events);
+  const [{NdjsonSpecEventStore}, {deciders}, {handleCommand}] = await Promise.all([
+    import('../packages/event-sourcing/src/ndjsonSpecEventStore.ts'),
+    import('../packages/slicr-core/src/projectCommands/projectCommandHandler.ts'),
+    import('../packages/event-sourcing/src/deciders/index.ts'),
+  ]);
+  const store = NdjsonSpecEventStore.open(root);
+  try {
+    const appended = await handleCommand(store, deciders().renameProject, {type: 'RenameProject', data: {projectId, name}});
+    const revision = createHash('sha256')
+      .update(readFileSync(join(root, '.slicr', 'events.ndjson')))
+      .digest('hex');
+    console.log(JSON.stringify({projectId, name, revision, appended: appended.length}));
+  } finally {
+    store.close();
+  }
+}
+
 try {
-  main(process.argv.slice(2));
+  const args = process.argv.slice(2);
+  const commandIndex = args[0] === '--path' ? 2 : 0;
+  if (args[commandIndex] === 'rename-project' && process.env.SLICR_TYPESCRIPT_RUNTIME !== '1') {
+    const result = spawnSync(
+      process.execPath,
+      [
+        '--experimental-strip-types',
+        '--experimental-loader',
+        new URL('./ts-resolve-hook.mjs', import.meta.url).pathname,
+        fileURLToPath(import.meta.url),
+        ...args,
+      ],
+      {
+        stdio: 'inherit',
+        env: {...process.env, SLICR_TYPESCRIPT_RUNTIME: '1'},
+      },
+    );
+    if (result.error) throw result.error;
+    process.exitCode = result.status ?? 1;
+  } else await main(args);
 } catch (error) {
   fail(error.message);
 }

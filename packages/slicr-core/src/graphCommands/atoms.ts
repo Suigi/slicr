@@ -1,6 +1,6 @@
 import {type Atom, type DcbEvent, Query} from '../eventSourcing';
 import type {NodeType} from '../graph';
-import {ChapterId, NodeId, NodePropertyExampleValues, NodePropertySchema, ProjectId} from '../events';
+import {type ChapterId, type NodeId, type NodePropertyExampleValues, type NodePropertySchema, type ProjectId} from '../events';
 
 export {bindAtom} from '../eventSourcing';
 

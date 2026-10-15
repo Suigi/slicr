@@ -50,7 +50,7 @@ describe('SpecEventStore public contract', () => {
     await expect(store.append([testEvent], testAppendCondition)).resolves.toEqual([testSequencedEvent]);
 
     const receivedEvents: Array<readonly SequencedEvent<TestEvent>[]> = [];
-    const subscription = store.subscribe(Query.all(), events => {
+    const subscription = store.subscribe(Query.all(), (events) => {
       receivedEvents.push(events);
     });
     expect(receivedEvents).toEqual([[testSequencedEvent]]);
@@ -58,15 +58,13 @@ describe('SpecEventStore public contract', () => {
   });
 
   it('exposes failed condition and conflicting sequenced events on append-condition errors', () => {
-    const conflictingEvents: readonly SequencedEvent<TestEvent>[] = [
-      {position: 7, event: testEvent},
-    ];
+    const conflictingEvents: readonly SequencedEvent<TestEvent>[] = [{position: 7, event: testEvent}];
     const error = new AppendConditionFailedError(testAppendCondition, conflictingEvents);
 
     expect(error).toBeInstanceOf(Error);
     expect(error).toBeInstanceOf(AppendConditionFailedError);
     expect(error.name).toBe('AppendConditionFailedError');
-    expect(error.message).toBe('Append condition failed');
+    expect(error.message).toBe('Append condition failed; the model changed concurrently. Re-read the model and retry the command.');
     expect(error.condition).toBe(testAppendCondition);
     expect(error.conflictingEvents).toBe(conflictingEvents);
   });

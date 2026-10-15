@@ -26,7 +26,7 @@ export class AppendConditionFailedError extends Error {
   readonly conflictingEvents: readonly SequencedEvent<Event>[];
 
   constructor(condition: AppendCondition, conflictingEvents: readonly SequencedEvent<Event>[]) {
-    super('Append condition failed');
+    super('Append condition failed; the model changed concurrently. Re-read the model and retry the command.');
     this.name = 'AppendConditionFailedError';
     this.condition = condition;
     this.conflictingEvents = conflictingEvents;
