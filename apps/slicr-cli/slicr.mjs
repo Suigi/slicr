@@ -310,13 +310,7 @@ try {
   if (process.env.SLICR_TYPESCRIPT_RUNTIME !== '1') {
     const result = spawnSync(
       process.execPath,
-      [
-        '--experimental-transform-types',
-        '--import',
-        new URL('./ts-register.mjs', import.meta.url).href,
-        fileURLToPath(import.meta.url),
-        ...args,
-      ],
+      ['--import', new URL('./ts-register.mjs', import.meta.url).href, fileURLToPath(import.meta.url), ...args],
       {
         stdio: 'inherit',
         env: {...process.env, SLICR_TYPESCRIPT_RUNTIME: '1'},

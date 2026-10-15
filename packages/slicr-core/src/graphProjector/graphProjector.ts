@@ -161,7 +161,11 @@ export function projectGraph(events: readonly DcbEvent[], projectId: string, cha
 }
 
 export class GraphProjector {
-  private constructor(private readonly store: DcbStore) {}
+  private readonly store: DcbStore;
+
+  private constructor(store: DcbStore) {
+    this.store = store;
+  }
 
   public static create(config: {store?: DcbStore} = {}): GraphProjector {
     return new GraphProjector(config.store ?? MemoryStore.create<DcbEvent>());

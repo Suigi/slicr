@@ -10,8 +10,8 @@
     "node": ">=24"
   },
   "scripts": {
-    "test": "node --experimental-transform-types --import ./ts-register.mjs --test slicr.test.mjs",
-    "test:llm": "node --experimental-transform-types --import ./ts-register.mjs --test slicr.test.mjs"
+    "test": "node --import ./ts-register.mjs --test slicr.test.mjs",
+    "test:llm": "node --import ./ts-register.mjs --test slicr.test.mjs"
   },
   "dependencies": {
     "@slicr/core": "0.0.0",

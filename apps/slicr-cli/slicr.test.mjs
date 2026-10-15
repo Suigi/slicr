@@ -59,11 +59,11 @@ function fixture(extraEvents = []) {
   return {dir, appendBatch};
 }
 function run(cwd, ...args) {
-  return spawnSync(
-    process.execPath,
-    ['--experimental-transform-types', '--import', new URL('./ts-register.mjs', import.meta.url).href, cli.pathname, ...args],
-    {cwd, encoding: 'utf8', env: {...process.env, INIT_CWD: cwd}},
-  );
+  return spawnSync(process.execPath, ['--import', new URL('./ts-register.mjs', import.meta.url).href, cli.pathname, ...args], {
+    cwd,
+    encoding: 'utf8',
+    env: {...process.env, INIT_CWD: cwd},
+  });
 }
 test('lists, scopes, projects and renders markdown', () => {
   const {dir} = fixture();
@@ -303,19 +303,9 @@ test('independent shared-handler writers conflict after a deterministic read bar
   const children = [];
   let workers = [];
   const startWorker = (id) => {
-    const child = spawn(
-      process.execPath,
-      [
-        '--experimental-transform-types',
-        '--experimental-loader',
-        new URL('./ts-resolve-hook.mjs', import.meta.url).pathname,
-        worker,
-        dir,
-        barrier,
-        id,
-      ],
-      {encoding: 'utf8'},
-    );
+    const child = spawn(process.execPath, ['--import', new URL('./ts-register.mjs', import.meta.url).href, worker, dir, barrier, id], {
+      encoding: 'utf8',
+    });
     children.push(child);
     let stdout = '';
     let stderr = '';
