@@ -1,8 +1,10 @@
-import {Decider, Query, SomeCommand} from '../eventSourcing';
-import {Events, ProjectId} from '../events';
+import {Query} from '../eventSourcing';
+import type {Decider, SomeCommand} from '../eventSourcing';
+import {Events} from '../events';
+import type {ProjectId} from '../events';
 import {type DcbEvent} from '../eventSourcing';
 import {v4 as uuid} from 'uuid';
-import {AddProject, RenameProject} from './commands';
+import type {AddProject, RenameProject} from './commands';
 
 const DEFAULT_CHAPTER_TITLE = 'Chapter 1';
 

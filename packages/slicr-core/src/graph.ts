@@ -1,4 +1,4 @@
-import {NodeId, type NodePropertyExampleValues, type NodePropertySchema} from './events';
+import {type NodeId, type NodePropertyExampleValues, type NodePropertySchema} from './events';
 
 export type NodeType = 'ui' | 'cmd' | 'evt' | 'rm' | 'dm' | 'processor';
 

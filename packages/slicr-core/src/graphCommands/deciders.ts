@@ -2,7 +2,7 @@ import {bindAtomToCommand, combineAtoms, type DcbEvent, type Decider, rescopeAto
 import {v4 as uuid} from 'uuid';
 
 import type {NodeType} from '../graph';
-import {ChapterId, Events, NodeId, type NodePropertyExampleValues, type NodePropertySchema, ProjectId} from '../events';
+import {Events, type ChapterId, type NodeId, type NodePropertyExampleValues, type NodePropertySchema, type ProjectId} from '../events';
 import {
   type AddChapter,
   type AddConnectedNode,
