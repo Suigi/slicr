@@ -124,6 +124,14 @@ Give the agent a link containing a proposal ID that opens the proposal in the se
 
 **Safe stopping point:** A user can ask an agent for a proposal, inspect it visually, and leave without changing the model. All tests and the editor smoke check pass.
 
+### 10. Package the CLI for Git-based installation
+
+Produce a versioned, reproducible npm package artifact for the CLI that can be installed by projects outside this monorepo from a Git-hosted release asset. Keep the root `npm run slicr -- ...` command as a development convenience, separate from the distributable package. The installed artifact must include its executable entry point and all required runtime code, must not depend on monorepo-relative paths or private workspace packages, and must document its supported Node version. Bundle the shared runtime into the artifact or make every runtime dependency independently installable; do not assume workspace symlinks exist in a consumer project. Publish or attach the packed `.tgz` to a Git-hosted release, with package version and release tag aligned.
+
+Test packing and installing the artifact in a clean temporary consumer project using the Git-hosted release asset (or a local packed artifact as a pre-release check). From that consumer project, verify the installed `slicr` command discovers its local `.slicr/` model, supports explicit `--path`, and can run the supported read and edit commands without access to the Slicr checkout. Also verify missing/incompatible models fail safely, and that the package can later be published to a registry without changing its runtime layout.
+
+**Safe stopping point:** An external project can install the versioned CLI artifact from the Git host and use it independently of the monorepo; the root forwarding script continues to work for development. Package contents, Node requirement, version/tag, and installation instructions are documented. This step does not itself require registry publication.
+
 ## Intended agent interaction
 
 ```mermaid
