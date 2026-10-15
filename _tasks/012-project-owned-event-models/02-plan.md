@@ -83,6 +83,16 @@ Expose a small set of explicit scoped commands through the shared application, b
 
 **Safe stopping point:** Agents can make validated changes to a project-owned model. The existing browser editor remains usable on its separate IndexedDB store; this coexistence must be labeled, not presented as synchronization.
 
+### 5.1 Initialize models, share projections, and expand CLI edits
+
+Add an explicit `slicr init` command that initializes a new project's `.slicr/` store without creating domain events. Initialization must never happen as a side effect of a read; refuse to overwrite an existing or incompatible store. Keep project creation separate from store initialization.
+
+Replace the CLI's local event replay/projection logic with the common projections from `slicr-core`, so CLI inspection and shared command decisions use the same model semantics. Preserve stable IDs, scoped slices, and the exact-file-byte revision token.
+
+Add these explicit, scoped CLI commands: `add-project`, `add-chapter`, `add-node`, `rename-node`, and `connect-nodes`. Route each through its existing shared decider and `handleCommand` using the project-local store; do not construct or append domain events in CLI code. Return generated IDs and the resulting revision where applicable. Keep conditional append and actionable conflict behavior, and test invalid references, no-op/failed decisions, concurrent conflicts, and visibility after reopening in another process. Add initialization tests for a new store and for existing or incompatible stores, confirming that no existing history is overwritten.
+
+**Safe stopping point:** An agent can explicitly initialize a project store, create a project and chapter, add and rename nodes, and connect nodes using the common projections and validated shared commands. CLI and browser storage remain separate and unsynchronized; this step does not switch the frontend or imply a cutover.
+
 ### 6. Add `slicr serve`, initially read-only
 
 Host the current frontend assets plus a local projection API pointing to the selected project's `.slicr/`. Start with read-only views and an unmistakable indication of the opened project and store. Keep the existing frontend startup path until the served path is proven. Test server start, projection reads, missing/corrupt store behavior, and shutdown.
