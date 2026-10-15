@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import {createHash} from 'node:crypto';
-import {readFileSync} from 'node:fs';
+import {readFileSync, mkdirSync, openSync, closeSync, fsyncSync, existsSync, unlinkSync, rmdirSync} from 'node:fs';
 import {spawnSync} from 'node:child_process';
 import {resolve, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -8,6 +8,42 @@ import {fileURLToPath} from 'node:url';
 function fail(message) {
   console.error(`slicr: ${message}`);
   process.exitCode = 1;
+}
+
+function projectLegacyTags(event) {
+  const payload = event.payload;
+  if (!payload) return event;
+  const fieldsByType = {
+    ProjectAdded: ['projectId'],
+    ProjectRenamed: ['projectId'],
+    ChapterAdded: ['projectId', 'chapterId'],
+    ChapterRenamed: ['projectId', 'chapterId'],
+    NodeAdded: ['projectId', 'chapterId', 'nodeId'],
+    NodeChapterChanged: ['projectId', 'chapterId', 'nodeId'],
+    NodeRenamed: ['projectId', 'nodeId'],
+    NodeRemoved: ['projectId', 'nodeId'],
+    NodeTypeChanged: ['projectId', 'nodeId'],
+    NodeSchemaChanged: ['projectId', 'nodeId'],
+    NodeExampleValuesChanged: ['projectId', 'nodeId'],
+    NodesConnected: ['projectId', 'sourceNodeId', 'targetNodeId'],
+    NodesDisconnected: ['projectId', 'sourceNodeId', 'targetNodeId'],
+  };
+  const inferred = [];
+  for (const field of fieldsByType[event.type] ?? []) {
+    const value = payload[field];
+    if (typeof value === 'string' && value.length) {
+      inferred.push(field === 'sourceNodeId' || field === 'targetNodeId' ? `nodeId:${value}` : `${field}:${value}`);
+    }
+  }
+  if (
+    (event.type === 'NodesConnected' || event.type === 'NodesDisconnected') &&
+    typeof payload.sourceNodeId === 'string' &&
+    typeof payload.targetNodeId === 'string'
+  ) {
+    inferred.push(`connection:${payload.sourceNodeId}->${payload.targetNodeId}`);
+  }
+  const tags = inferred.filter((tag) => !event.tags.includes(tag));
+  return tags.length ? {...event, tags: [...event.tags, ...tags]} : event;
 }
 
 function load(root) {
@@ -45,6 +81,7 @@ function load(root) {
       !events.every((e, i) => e.id === `${id}:${i}` && e.event && typeof e.event.type === 'string' && Array.isArray(e.event.tags))
     )
       throw new Error(`Incompatible or corrupt Slicr event history (line ${index + 1}, expected format v1).`);
+    batch.events = events.map((entry) => ({...entry, event: projectLegacyTags(entry.event)}));
     batches.push(batch);
     ids.add(id);
     position += events.length;
@@ -52,84 +89,23 @@ function load(root) {
   return {events: batches.flatMap((b) => b.events.map((e) => e.event)), revision: createHash('sha256').update(text).digest('hex')};
 }
 
-const tupleKey = (...parts) => JSON.stringify(parts);
-
-function project(events) {
-  const projects = new Map();
-  const chapters = new Map();
-  const nodes = new Map();
-  const edges = new Map();
-  for (const event of events) {
-    const p = event.payload;
-    switch (event.type) {
-      case 'ProjectAdded':
-        projects.set(p.projectId, {id: p.projectId, name: p.name});
-        break;
-      case 'ProjectRenamed':
-        if (projects.has(p.projectId)) projects.get(p.projectId).name = p.newName;
-        break;
-      case 'ChapterAdded': {
-        const map = chapters.get(p.projectId) ?? new Map();
-        map.set(p.chapterId, {id: p.chapterId, title: p.title});
-        chapters.set(p.projectId, map);
-        break;
-      }
-      case 'ChapterRenamed':
-        if (chapters.get(p.projectId)?.has(p.chapterId)) chapters.get(p.projectId).get(p.chapterId).title = p.newTitle;
-        break;
-      case 'NodeAdded':
-        nodes.set(tupleKey(p.projectId, p.nodeId), {
-          id: p.nodeId,
-          type: p.type,
-          laneId: p.laneId,
-          label: p.label,
-          chapterId: p.chapterId,
-          projectId: p.projectId,
-        });
-        break;
-      case 'NodeRenamed': {
-        const node = nodes.get(tupleKey(p.projectId, p.nodeId));
-        if (node) node.label = p.newName;
-        break;
-      }
-      case 'NodeChapterChanged': {
-        const node = nodes.get(tupleKey(p.projectId, p.nodeId));
-        if (node) node.chapterId = p.chapterId;
-        break;
-      }
-      case 'NodeTypeChanged': {
-        const node = nodes.get(tupleKey(p.projectId, p.nodeId));
-        if (node) node.type = p.newType;
-        break;
-      }
-      case 'NodeSchemaChanged': {
-        const node = nodes.get(tupleKey(p.projectId, p.nodeId));
-        if (node) node.schema = p.schema;
-        break;
-      }
-      case 'NodeExampleValuesChanged': {
-        const node = nodes.get(tupleKey(p.projectId, p.nodeId));
-        if (node) node.exampleValues = p.exampleValues;
-        break;
-      }
-      case 'NodeRemoved':
-        nodes.delete(tupleKey(p.projectId, p.nodeId));
-        for (const [key, e] of edges)
-          if (e.projectId === p.projectId && (e.sourceNodeId === p.nodeId || e.targetNodeId === p.nodeId)) edges.delete(key);
-        break;
-      case 'NodesConnected': {
-        const key = tupleKey(p.projectId, p.sourceNodeId, p.targetNodeId);
-        edges.set(key, {projectId: p.projectId, sourceNodeId: p.sourceNodeId, targetNodeId: p.targetNodeId, role: p.role});
-        break;
-      }
-      case 'NodesDisconnected':
-        edges.delete(tupleKey(p.projectId, p.sourceNodeId, p.targetNodeId));
-        break;
-      default:
-        throw new Error(`Incompatible event type for Slicr model: ${event.type}`);
-    }
-  }
-  return {projects: [...projects.values()], chapters, nodes: [...nodes.values()], edges: [...edges.values()]};
+function validateEventTypes(events) {
+  const supported = new Set([
+    'ProjectAdded',
+    'ProjectRenamed',
+    'ChapterAdded',
+    'ChapterRenamed',
+    'NodeAdded',
+    'NodeChapterChanged',
+    'NodeRenamed',
+    'NodeRemoved',
+    'NodeTypeChanged',
+    'NodeSchemaChanged',
+    'NodeExampleValuesChanged',
+    'NodesConnected',
+    'NodesDisconnected',
+  ]);
+  for (const event of events) if (!supported.has(event.type)) throw new Error(`Incompatible event type for Slicr model: ${event.type}`);
 }
 
 async function main(args) {
@@ -143,20 +119,82 @@ async function main(args) {
   const [command, ...rest] = args;
   if (command === '--help' || !command) {
     console.log(
-      'Usage: slicr [--path PROJECT_DIR] projects | chapters PROJECT_ID | show PROJECT_ID [CHAPTER_ID] [--format json|md] | rename-project PROJECT_ID NAME',
+      'Usage: slicr [--path PROJECT_DIR] init | projects | chapters PROJECT_ID | show PROJECT_ID [CHAPTER_ID] [--format json|md] | rename-project PROJECT_ID NAME | add-project NAME | add-chapter PROJECT_ID TITLE | add-node PROJECT_ID CHAPTER_ID TYPE LANE LABEL | rename-node PROJECT_ID NODE_ID NAME | connect-nodes PROJECT_ID SOURCE_ID TARGET_ID [ROLE]',
     );
     console.log(
       'CLI edits use the project .slicr/ history. The existing browser editor uses a separate IndexedDB store; the stores are not synchronized.',
     );
     return;
   }
+  if (command === 'init') {
+    if (rest.length) throw new Error('Usage: init');
+    const directory = join(root, '.slicr');
+    if (existsSync(directory)) throw new Error(`Refusing to initialize: ${directory} already exists.`);
+    mkdirSync(directory);
+    const file = join(directory, 'events.ndjson');
+    let fd;
+    let createdFile = false;
+    try {
+      fd = openSync(file, 'wx');
+      createdFile = true;
+      fsyncSync(fd);
+      closeSync(fd);
+      fd = undefined;
+    } catch (error) {
+      if (fd !== undefined) {
+        try {
+          closeSync(fd);
+        } catch {
+          // Cleanup must continue even when the descriptor close also fails.
+        }
+      }
+      if (createdFile) unlinkSync(file);
+      rmdirSync(directory);
+      throw new Error(`Refusing to initialize: ${file} already exists or cannot be created (${error.message})`);
+    }
+    console.log(JSON.stringify({initialized: true, path: file, revision: createHash('sha256').update('').digest('hex')}));
+    return;
+  }
   if (command === 'rename-project') {
     const [projectId, name, ...extra] = rest;
-    if (!projectId || !name || extra.length) throw new Error('Usage: rename-project PROJECT_ID NEW_NAME');
-    return await renameProject(root, projectId, name);
+    if (!projectId?.trim() || !name?.trim() || extra.length) throw new Error('Usage: rename-project PROJECT_ID NEW_NAME');
+    return await runCommand(root, 'renameProject', {type: 'RenameProject', data: {projectId, name}}, {projectId, name});
   }
+  const mutation = parseMutation(command, rest);
+  if (mutation) return await runCommand(root, mutation.decider, mutation.command, mutation.result);
   const {events, revision} = load(root);
-  const model = project(events);
+  validateEventTypes(events);
+  const [{projectWorkspace}, {projectGraph}] = await Promise.all([
+    import('../../packages/slicr-core/src/workspaceProjector.ts'),
+    import('../../packages/slicr-core/src/graphProjector/graphProjector.ts'),
+  ]);
+  const workspace = projectWorkspace(events);
+  const graphs = new Map(workspace.projects.map((item) => [item.id, projectGraph(events, item.id)]));
+  const model = {
+    projects: workspace.projects,
+    chapters: new Map(
+      Object.entries(workspace.chaptersByProjectId).map(([id, chapters]) => [
+        id,
+        new Map(chapters.map((chapter) => [chapter.id, chapter])),
+      ]),
+    ),
+    nodes: workspace.projects.flatMap((item) =>
+      (workspace.chaptersByProjectId[item.id] ?? []).flatMap((chapter) => {
+        const graph = projectGraph(events, item.id, chapter.id);
+        return graph.nodes.map((node) => ({
+          id: node.nodeId,
+          projectId: item.id,
+          type: node.nodeType,
+          laneId: node.laneId,
+          label: node.label,
+          chapterId: chapter.id,
+          schema: graph.nodeSchemas[node.nodeId],
+          exampleValues: graph.nodeExampleValues[node.nodeId],
+        }));
+      }),
+    ),
+    edges: [...graphs].flatMap(([projectId, graph]) => graph.edges.map((edge) => ({...edge, projectId}))),
+  };
   if (command === 'projects') {
     console.log(JSON.stringify({version: 1, revision, projects: model.projects}, null, 2));
     return;
@@ -215,21 +253,88 @@ async function main(args) {
   throw new Error(`Unknown command: ${command}. Run slicr --help.`);
 }
 
-async function renameProject(root, projectId, name) {
+function parseMutation(command, args) {
+  const [a, b, c, d, e, f, extra] = args;
+  switch (command) {
+    case 'add-project':
+      if (args.length !== 1 || !a.trim()) throw new Error('Usage: add-project NAME');
+      return {decider: 'addProject', command: {type: 'AddProject', data: {name: a}}, result: {}};
+    case 'add-chapter':
+      if (args.length !== 2 || !a.trim() || !b.trim()) throw new Error('Usage: add-chapter PROJECT_ID TITLE');
+      return {decider: 'addChapter', command: {type: 'AddChapter', data: {projectId: a, title: b}}, result: {projectId: a}};
+    case 'add-node':
+      if (
+        args.length !== 5 ||
+        !a.trim() ||
+        !b.trim() ||
+        !['ui', 'cmd', 'evt', 'rm', 'dm', 'processor'].includes(c) ||
+        !/^(0|[1-9]\d*)$/.test(d) ||
+        !Number.isSafeInteger(Number(d)) ||
+        !e.trim()
+      )
+        throw new Error('Usage: add-node PROJECT_ID CHAPTER_ID TYPE LANE LABEL');
+      return {
+        decider: 'addNode',
+        command: {type: 'AddNode', data: {projectId: a, chapterId: b, nodeType: c, laneId: Number(d), label: e}},
+        result: {projectId: a},
+      };
+    case 'rename-node':
+      if (args.length !== 3 || !a.trim() || !b.trim() || !c.trim()) throw new Error('Usage: rename-node PROJECT_ID NODE_ID NAME');
+      return {
+        decider: 'renameNode',
+        command: {type: 'RenameNode', data: {projectId: a, nodeId: b, newName: c}},
+        result: {projectId: a, nodeId: b, name: c},
+      };
+    case 'connect-nodes':
+      if (
+        args.length < 3 ||
+        args.length > 4 ||
+        !a?.trim() ||
+        !b?.trim() ||
+        !c?.trim() ||
+        extra ||
+        (d !== undefined && !['flow', 'back-reference'].includes(d))
+      )
+        throw new Error('Usage: connect-nodes PROJECT_ID SOURCE_ID TARGET_ID [ROLE]');
+      return {
+        decider: 'connectNodes',
+        command: {type: 'ConnectNodes', data: {projectId: a, sourceNodeId: b, targetNodeId: c, ...(d ? {role: d} : {})}},
+        result: {projectId: a, sourceNodeId: b, targetNodeId: c},
+      };
+    default:
+      return null;
+  }
+}
+
+async function runCommand(root, deciderName, command, result) {
   const {events} = load(root);
-  project(events);
-  const [{NdjsonSpecEventStore}, {deciders}, {handleCommand}] = await Promise.all([
+  validateEventTypes(events);
+  const [{NdjsonSpecEventStore}, graphModule, projectModule, {handleCommand}] = await Promise.all([
     import('../../packages/event-sourcing/src/ndjsonSpecEventStore.ts'),
+    import('../../packages/slicr-core/src/graphCommands/deciders.ts'),
     import('../../packages/slicr-core/src/projectCommands/projectCommandHandler.ts'),
-    import('../../packages/event-sourcing/src/deciders/index.ts'),
+    import('../../packages/slicr-core/src/eventSourcing.ts'),
   ]);
   const store = NdjsonSpecEventStore.open(root);
   try {
-    const appended = await handleCommand(store, deciders().renameProject, {type: 'RenameProject', data: {projectId, name}});
+    const decider = graphModule.deciders()[deciderName] ?? projectModule.deciders()[deciderName];
+    const appended = await handleCommand(store, decider, command);
     const revision = createHash('sha256')
       .update(readFileSync(join(root, '.slicr', 'events.ndjson')))
       .digest('hex');
-    console.log(JSON.stringify({projectId, name, revision, appended: appended.length}));
+    const generatedFields =
+      {
+        addProject: {ProjectAdded: 'projectId', ChapterAdded: 'chapterId'},
+        addChapter: {ChapterAdded: 'chapterId'},
+        addNode: {NodeAdded: 'nodeId'},
+      }[deciderName] ?? {};
+    const generatedIds = appended.flatMap((item) => {
+      const event = item.event;
+      const field = generatedFields[event?.type];
+      const value = field && event.payload?.[field];
+      return typeof value === 'string' ? [value] : [];
+    });
+    console.log(JSON.stringify({...result, ...(generatedIds.length ? {generatedIds} : {}), revision, appended: appended.length}));
   } finally {
     store.close();
   }
@@ -238,11 +343,11 @@ async function renameProject(root, projectId, name) {
 try {
   const args = process.argv.slice(2);
   const commandIndex = args[0] === '--path' ? 2 : 0;
-  if (args[commandIndex] === 'rename-project' && process.env.SLICR_TYPESCRIPT_RUNTIME !== '1') {
+  if (process.env.SLICR_TYPESCRIPT_RUNTIME !== '1') {
     const result = spawnSync(
       process.execPath,
       [
-        '--experimental-strip-types',
+        '--experimental-transform-types',
         '--experimental-loader',
         new URL('./ts-resolve-hook.mjs', import.meta.url).pathname,
         fileURLToPath(import.meta.url),
