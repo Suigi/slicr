@@ -553,6 +553,55 @@ test('serve hosts the editor and read-only workspace and graph projections, then
   assert.equal(running.server.listening, false);
 });
 
+test('serve accepts validated editor commands, and projections catch up from disk across reads', async () => {
+  const {dir} = fixture();
+  const assets = mkdtempSync(join(tmpdir(), 'slicr-assets-'));
+  const running = startServeServer({root: dir, assets});
+  try {
+    const {port} = await running.listening;
+    const base = `http://127.0.0.1:${port}`;
+    const response = await fetch(`${base}/api/command`, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({projectId: 'p1', type: 'RenameNode', data: {nodeId: 'n1', name: 'Browser edit'}}),
+    });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).appended, 1);
+    const projection = await (await fetch(`${base}/api/projection?project=p1&chapter=c1`)).json();
+    assert.equal(projection.nodes[0].label, 'Browser edit');
+    const invalid = await fetch(`${base}/api/command`, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({projectId: 'p1', type: 'RenameNode', data: {nodeId: 'missing', name: 'Nope'}}),
+    });
+    assert.notEqual(invalid.status, 200);
+    const {NdjsonSpecEventStore} = await import('../../packages/event-sourcing/src/ndjsonSpecEventStore.ts');
+    const store = NdjsonSpecEventStore.open(dir);
+    try {
+      const events = await store.read();
+      assert.equal(events.at(-1).event.payload.newName, 'Browser edit');
+      await store.append([Events.nodeRenamed('p1', 'n1', 'CLI edit')]);
+    } finally {
+      store.close();
+    }
+    const caughtUp = await (await fetch(`${base}/api/projection?project=p1&chapter=c1`)).json();
+    assert.equal(caughtUp.nodes[0].label, 'CLI edit');
+    await running.close();
+    const restarted = startServeServer({root: dir, assets});
+    try {
+      const address = await restarted.listening;
+      const afterRestart = await (await fetch(`http://127.0.0.1:${address.port}/api/projection?project=p1&chapter=c1`)).json();
+      assert.equal(afterRestart.nodes[0].label, 'CLI edit');
+    } finally {
+      await restarted.close();
+    }
+  } finally {
+    if (running.server.listening) await running.close();
+    rmSync(dir, {recursive: true, force: true});
+    rmSync(assets, {recursive: true, force: true});
+  }
+});
+
 test('serve scopes chapter IDs by project when node IDs are reused', async () => {
   const {dir} = fixture([
     Events.projectAdded('p2', 'Other'),

@@ -172,8 +172,8 @@ export function startServeServer({root, assets, port = 0, host = '127.0.0.1'}) {
   const assetRoot = resolve(assets);
   const server = createServer(async (request, response) => {
     try {
-      if (request.method !== 'GET' && request.method !== 'HEAD')
-        throw Object.assign(new Error('Read-only server: only GET and HEAD are allowed.'), {status: 405});
+      if (request.method !== 'GET' && request.method !== 'HEAD' && !(request.method === 'POST' && request.url === '/api/command'))
+        throw Object.assign(new Error('Only GET, HEAD and scoped POST /api/command are allowed.'), {status: 405});
       const hostHeader = request.headers.host;
       let requestHost;
       try {
@@ -185,6 +185,79 @@ export function startServeServer({root, assets, port = 0, host = '127.0.0.1'}) {
       if (!['localhost', '127.0.0.1', '::1'].includes(requestHost))
         throw Object.assign(new Error('Host header must name a loopback host (localhost, 127.0.0.1, or ::1).'), {status: 403});
       const url = new URL(request.url, `http://${hostHeader}`);
+      if (url.pathname === '/api/command') {
+        if (request.method !== 'POST') throw Object.assign(new Error('POST required.'), {status: 405});
+        let body = '';
+        for await (const chunk of request) {
+          body += chunk;
+          if (body.length > 64 * 1024) throw Object.assign(new Error('Command body is too large.'), {status: 413});
+        }
+        let input;
+        try {
+          input = JSON.parse(body);
+        } catch {
+          throw Object.assign(new Error('Invalid JSON command.'), {status: 400});
+        }
+        if (!object(input) || typeof input.projectId !== 'string' || typeof input.type !== 'string' || !object(input.data))
+          throw Object.assign(new Error('Expected a scoped command with projectId, type and data.'), {status: 400});
+        const commandMap = {
+          RenameNode: ['renameNode', ['nodeId', 'name'], (data) => ({projectId: input.projectId, nodeId: data.nodeId, newName: data.name})],
+          AddNode: [
+            'addNode',
+            ['chapterId', 'nodeType', 'laneId', 'label'],
+            (data) => ({
+              projectId: input.projectId,
+              chapterId: data.chapterId,
+              nodeType: data.nodeType,
+              laneId: data.laneId,
+              label: data.label,
+            }),
+          ],
+          ConnectNodes: [
+            'connectNodes',
+            ['sourceNodeId', 'targetNodeId', 'role'],
+            (data) => ({
+              projectId: input.projectId,
+              sourceNodeId: data.sourceNodeId,
+              targetNodeId: data.targetNodeId,
+              ...(data.role ? {role: data.role} : {}),
+            }),
+          ],
+          AddChapter: ['addChapter', ['title'], (data) => ({projectId: input.projectId, title: data.title})],
+          RenameProject: ['renameProject', ['name'], (data) => ({projectId: input.projectId, name: data.name})],
+        };
+        const mapping = commandMap[input.type];
+        if (!mapping) throw Object.assign(new Error(`Unsupported command type: ${input.type}`), {status: 400});
+        const model = await projectModel(projectRoot);
+        if (!model.workspace.projects.some((p) => p.id === input.projectId))
+          throw Object.assign(new Error(`Unknown project ID: ${input.projectId}`), {status: 404});
+        const allowedFields = mapping[1];
+        if (
+          Object.keys(input.data).some((key) => !allowedFields.includes(key)) ||
+          allowedFields.some((key) => !(key in input.data) && !(input.type === 'ConnectNodes' && key === 'role'))
+        )
+          throw Object.assign(new Error('Invalid command data.'), {status: 400});
+        const data = mapping[2](input.data);
+        if (Object.values(data).some((value) => value === undefined))
+          throw Object.assign(new Error('Invalid command data.'), {status: 400});
+        const [{NdjsonSpecEventStore}, graphModule, projectModule, {handleCommand}] = await Promise.all([
+          import('../../packages/event-sourcing/src/ndjsonSpecEventStore.ts'),
+          import('../../packages/slicr-core/src/graphCommands/deciders.ts'),
+          import('../../packages/slicr-core/src/projectCommands/projectCommandHandler.ts'),
+          import('../../packages/slicr-core/src/eventSourcing.ts'),
+        ]);
+        const store = NdjsonSpecEventStore.open(projectRoot);
+        let appended;
+        try {
+          const decider = graphModule.deciders()[mapping[0]] ?? projectModule.deciders()[mapping[0]];
+          appended = await handleCommand(store, decider, {type: input.type, data});
+        } finally {
+          store.close();
+        }
+        response.writeHead(200, {'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store'});
+        response.end(JSON.stringify({appended: appended.length}));
+        return;
+      }
       if (url.pathname === '/api/model' || url.pathname === '/api/projection') {
         const model = await projectModel(projectRoot);
         const projectId = url.searchParams.get('project') || undefined;
@@ -253,7 +326,7 @@ export function startServeServer({root, assets, port = 0, host = '127.0.0.1'}) {
       response.writeHead(200, {'content-type': contentTypes[extname(file)] ?? 'application/octet-stream'});
       createReadStream(file).pipe(response);
     } catch (error) {
-      const status = error.status ?? (error.code === 'ENOENT' ? 404 : 500);
+      const status = error.status ?? (error.name === 'AppendConditionFailedError' ? 409 : error.code === 'ENOENT' ? 404 : 500);
       response.writeHead(status, {'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store'});
       response.end(JSON.stringify({error: error.message}));
     }
