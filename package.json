@@ -1,9 +1,6 @@
 {
   "name": "slicr-mono",
   "private": true,
-  "bin": {
-    "slicr": "scripts/slicr.mjs"
-  },
   "workspaces": [
     "packages/*",
     "apps/*"
@@ -17,7 +14,8 @@
     "format": "./scripts/prettier-changed.sh write",
     "validate:llm": "./scripts/prettier-changed.sh check && npm run lint && npm run test:llm && npm run typecheck",
     "dev:frontend": "npm run dev --workspace slicr-editor",
-    "dev:editor": "npm run dev --workspace slicr-editor"
+    "dev:editor": "npm run dev --workspace slicr-editor",
+    "slicr": "npm exec --workspace=@slicr/slicr-cli -- slicr"
   },
   "devDependencies": {
     "@stryker-mutator/core": "^9.6.1",

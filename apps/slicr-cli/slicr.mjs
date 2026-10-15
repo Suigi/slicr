@@ -219,9 +219,9 @@ async function renameProject(root, projectId, name) {
   const {events} = load(root);
   project(events);
   const [{NdjsonSpecEventStore}, {deciders}, {handleCommand}] = await Promise.all([
-    import('../packages/event-sourcing/src/ndjsonSpecEventStore.ts'),
-    import('../packages/slicr-core/src/projectCommands/projectCommandHandler.ts'),
-    import('../packages/event-sourcing/src/deciders/index.ts'),
+    import('../../packages/event-sourcing/src/ndjsonSpecEventStore.ts'),
+    import('../../packages/slicr-core/src/projectCommands/projectCommandHandler.ts'),
+    import('../../packages/event-sourcing/src/deciders/index.ts'),
   ]);
   const store = NdjsonSpecEventStore.open(root);
   try {

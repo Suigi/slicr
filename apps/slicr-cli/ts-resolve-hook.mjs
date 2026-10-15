@@ -1,7 +1,7 @@
 import {fileURLToPath, pathToFileURL} from 'node:url';
 import {dirname, resolve as resolvePath} from 'node:path';
 
-const root = resolvePath(dirname(fileURLToPath(import.meta.url)), '..');
+const root = resolvePath(dirname(fileURLToPath(import.meta.url)), '../..');
 export async function resolve(specifier, context, nextResolve) {
   if (specifier === '@slicr/event-sourcing')
     return {url: pathToFileURL(resolvePath(root, 'packages/event-sourcing/src/index.ts')).href, shortCircuit: true};
