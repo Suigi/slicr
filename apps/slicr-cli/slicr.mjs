@@ -71,20 +71,78 @@ function validateEventTypes(events) {
   for (const event of events) if (!supported.has(event.type)) throw new Error(`Incompatible event type for Slicr model: ${event.type}`);
 }
 
+function consumeOption(args, option) {
+  const indexes = args.flatMap((arg, index) => (arg === option ? [index] : []));
+  if (indexes.length > 1) throw new Error(`${option} may be specified only once`);
+  if (!indexes.length) return undefined;
+  const [index] = indexes;
+  const value = args[index + 1];
+  if (!value || value.startsWith('--')) throw new Error(`${option} requires a value`);
+  args.splice(index, 2);
+  return value;
+}
+
+async function resolveProjectId(root, selectedProjectId) {
+  const {events} = load(root);
+  validateEventTypes(events);
+  const {projectWorkspace} = await import('../../packages/slicr-core/src/workspaceProjector.ts');
+  const projects = projectWorkspace(events).projects;
+  if (selectedProjectId) {
+    if (!projects.some((project) => project.id === selectedProjectId)) throw new Error(`Unknown project ID: ${selectedProjectId}`);
+    return selectedProjectId;
+  }
+  if (projects.length === 1) return projects[0].id;
+  if (projects.length === 0) throw new Error('The model has no projects. Add a project first.');
+  throw new Error(`--project PROJECT_ID is required when the model has multiple projects (${projects.length} found).`);
+}
+
+async function initializeWorkspace(root, file) {
+  const [{NdjsonSpecEventStore}, {initialWorkspaceDecider}, {handleCommand}] = await Promise.all([
+    import('../../packages/event-sourcing/src/ndjsonSpecEventStore.ts'),
+    import('../../packages/slicr-core/src/projectCommands/initialWorkspaceProcessor/initialWorkspaceProcessor.ts'),
+    import('../../packages/slicr-core/src/eventSourcing.ts'),
+  ]);
+  const store = NdjsonSpecEventStore.open(root);
+  try {
+    const appended = await handleCommand(store, initialWorkspaceDecider({defaultChapterTitle: 'Default Chapter'}), {
+      type: 'EnsureInitialWorkspace',
+      data: {},
+    });
+    const project = appended.find((item) => item.event.type === 'ProjectAdded');
+    const chapter = appended.find((item) => item.event.type === 'ChapterAdded');
+    const revision = createHash('sha256').update(readFileSync(file)).digest('hex');
+    console.log(
+      JSON.stringify({
+        initialized: true,
+        path: file,
+        projectId: project?.event.payload.projectId,
+        projectName: project?.event.payload.name,
+        chapterId: chapter?.event.payload.chapterId,
+        chapterTitle: chapter?.event.payload.title,
+        revision,
+        appended: appended.length,
+      }),
+    );
+  } finally {
+    store.close();
+  }
+}
+
 async function main(args) {
   const invocationCwd = process.env.INIT_CWD || process.cwd();
   let root = invocationCwd;
-  const pathIndex = args.indexOf('--path');
-  if (pathIndex >= 0) {
-    if (!args[pathIndex + 1]) throw new Error('--path requires a project directory');
-    root = resolve(invocationCwd, args[pathIndex + 1]);
-    args.splice(pathIndex, 2);
-  }
+  const path = consumeOption(args, '--path');
+  if (path) root = resolve(invocationCwd, path);
+  const selectedProjectId = consumeOption(args, '--project');
   const [command, ...rest] = args;
+  const scopedCommands = new Set(['chapters', 'show', 'rename-project', 'add-chapter', 'add-node', 'rename-node', 'connect-nodes']);
+  if (selectedProjectId && !scopedCommands.has(command)) throw new Error(`--project is not used by ${command ?? 'help'}`);
+  const projectId = scopedCommands.has(command) ? await resolveProjectId(root, selectedProjectId) : undefined;
   if (command === '--help' || !command) {
     console.log(
-      'Usage: slicr [--path PROJECT_DIR] init | projects | chapters PROJECT_ID | show PROJECT_ID [CHAPTER_ID] [--format json|md] | rename-project PROJECT_ID NAME | add-project NAME | add-chapter PROJECT_ID TITLE | add-node PROJECT_ID CHAPTER_ID TYPE LANE LABEL | rename-node PROJECT_ID NODE_ID NAME | connect-nodes PROJECT_ID SOURCE_ID TARGET_ID [ROLE]',
+      'Usage: slicr [--path PROJECT_DIR] [--project PROJECT_ID] init | projects | chapters | show [CHAPTER_ID] [--format json|md] | rename-project NAME | add-project NAME | add-chapter TITLE | add-node CHAPTER_ID TYPE LANE LABEL | rename-node NODE_ID NAME | connect-nodes SOURCE_ID TARGET_ID [ROLE]',
     );
+    console.log('When the model has one project, --project is optional; with multiple projects, specify its ID.');
     console.log(
       'CLI edits use the project .slicr/ history. The existing browser editor uses a separate IndexedDB store; the stores are not synchronized.',
     );
@@ -93,9 +151,16 @@ async function main(args) {
   if (command === 'init') {
     if (rest.length) throw new Error('Usage: init');
     const directory = join(root, '.slicr');
-    if (existsSync(directory)) throw new Error(`Refusing to initialize: ${directory} already exists.`);
-    mkdirSync(directory);
     const file = join(directory, 'events.ndjson');
+    if (existsSync(directory)) {
+      if (!existsSync(file)) throw new Error(`Refusing to initialize: ${directory} already exists without a valid event log.`);
+      const existing = load(root);
+      validateEventTypes(existing.events);
+      if (existing.events.length) throw new Error(`Refusing to initialize: ${directory} already contains events.`);
+      await initializeWorkspace(root, file);
+      return;
+    }
+    mkdirSync(directory);
     let fd;
     let createdFile = false;
     try {
@@ -116,15 +181,15 @@ async function main(args) {
       rmdirSync(directory);
       throw new Error(`Refusing to initialize: ${file} already exists or cannot be created (${error.message})`);
     }
-    console.log(JSON.stringify({initialized: true, path: file, revision: createHash('sha256').update('').digest('hex')}));
+    await initializeWorkspace(root, file);
     return;
   }
   if (command === 'rename-project') {
-    const [projectId, name, ...extra] = rest;
-    if (!projectId?.trim() || !name?.trim() || extra.length) throw new Error('Usage: rename-project PROJECT_ID NEW_NAME');
+    const [name, ...extra] = rest;
+    if (!name?.trim() || extra.length) throw new Error('Usage: [--project PROJECT_ID] rename-project NEW_NAME');
     return await runCommand(root, 'renameProject', {type: 'RenameProject', data: {projectId, name}}, {projectId, name});
   }
-  const mutation = parseMutation(command, rest);
+  const mutation = parseMutation(command, rest, projectId);
   if (mutation) return await runCommand(root, mutation.decider, mutation.command, mutation.result);
   const {events, revision} = load(root);
   validateEventTypes(events);
@@ -164,22 +229,18 @@ async function main(args) {
     return;
   }
   if (command === 'chapters') {
-    const id = rest[0];
-    if (!model.projects.some((p) => p.id === id)) throw new Error(`Unknown project ID: ${id ?? '(missing)'}`);
-    console.log(JSON.stringify({version: 1, revision, projectId: id, chapters: [...(model.chapters.get(id)?.values() ?? [])]}, null, 2));
+    if (rest.length) throw new Error('Usage: [--project PROJECT_ID] chapters');
+    console.log(JSON.stringify({version: 1, revision, projectId, chapters: [...(model.chapters.get(projectId)?.values() ?? [])]}, null, 2));
     return;
   }
   if (command === 'show') {
     const formatIndex = rest.indexOf('--format');
-    if (
-      formatIndex >= 0 &&
-      ((formatIndex !== 1 && formatIndex !== 2) || rest.indexOf('--format', formatIndex + 1) >= 0 || rest.length !== formatIndex + 2)
-    )
-      throw new Error('Usage: show PROJECT_ID [CHAPTER_ID] [--format json|md]');
-    const positional = formatIndex < 0 ? rest : rest.slice(0, formatIndex);
-    if (positional.length < 1 || positional.length > 2) throw new Error('Usage: show PROJECT_ID [CHAPTER_ID] [--format json|md]');
-    const [projectId, chapterId] = positional;
-    if (!model.projects.some((p) => p.id === projectId)) throw new Error(`Unknown project ID: ${projectId ?? '(missing)'}`);
+    if (formatIndex >= 0 && (rest.indexOf('--format', formatIndex + 1) >= 0 || rest.length !== formatIndex + 2))
+      throw new Error('Usage: [--project PROJECT_ID] show [CHAPTER_ID] [--format json|md]');
+    const positional = formatIndex < 0 ? rest : rest.filter((_, index) => index !== formatIndex && index !== formatIndex + 1);
+    if (positional.length > 1) throw new Error('Usage: [--project PROJECT_ID] show [CHAPTER_ID] [--format json|md]');
+    const [chapterId] = positional;
+    if (chapterId && !model.chapters.get(projectId)?.has(chapterId)) throw new Error(`Unknown chapter ID: ${chapterId}`);
     const slice = {
       version: 1,
       revision,
@@ -204,7 +265,6 @@ async function main(args) {
           model.nodes.some((n) => n.id === e.targetNodeId && n.projectId === projectId && (!chapterId || n.chapterId === chapterId)),
       ),
     };
-    if (chapterId && !model.chapters.get(projectId)?.has(chapterId)) throw new Error(`Unknown chapter ID: ${chapterId}`);
     const format = formatIndex >= 0 ? rest[formatIndex + 1] : 'json';
     if (format === 'json') console.log(JSON.stringify(slice, null, 2));
     else if (format === 'md')
@@ -217,53 +277,51 @@ async function main(args) {
   throw new Error(`Unknown command: ${command}. Run slicr --help.`);
 }
 
-function parseMutation(command, args) {
-  const [a, b, c, d, e, f, extra] = args;
+function parseMutation(command, args, projectId) {
+  const [a, b, c, d, extra] = args;
   switch (command) {
     case 'add-project':
       if (args.length !== 1 || !a.trim()) throw new Error('Usage: add-project NAME');
       return {decider: 'addProject', command: {type: 'AddProject', data: {name: a}}, result: {}};
     case 'add-chapter':
-      if (args.length !== 2 || !a.trim() || !b.trim()) throw new Error('Usage: add-chapter PROJECT_ID TITLE');
-      return {decider: 'addChapter', command: {type: 'AddChapter', data: {projectId: a, title: b}}, result: {projectId: a}};
+      if (args.length !== 1 || !a.trim()) throw new Error('Usage: [--project PROJECT_ID] add-chapter TITLE');
+      return {decider: 'addChapter', command: {type: 'AddChapter', data: {projectId, title: a}}, result: {projectId}};
     case 'add-node':
       if (
-        args.length !== 5 ||
+        args.length !== 4 ||
         !a.trim() ||
-        !b.trim() ||
-        !['ui', 'cmd', 'evt', 'rm', 'dm', 'processor'].includes(c) ||
-        !/^(0|[1-9]\d*)$/.test(d) ||
-        !Number.isSafeInteger(Number(d)) ||
-        !e.trim()
+        !['ui', 'cmd', 'evt', 'rm', 'dm', 'processor'].includes(b) ||
+        !/^(0|[1-9]\d*)$/.test(c) ||
+        !Number.isSafeInteger(Number(c)) ||
+        !d.trim()
       )
-        throw new Error('Usage: add-node PROJECT_ID CHAPTER_ID TYPE LANE LABEL');
+        throw new Error('Usage: [--project PROJECT_ID] add-node CHAPTER_ID TYPE LANE LABEL');
       return {
         decider: 'addNode',
-        command: {type: 'AddNode', data: {projectId: a, chapterId: b, nodeType: c, laneId: Number(d), label: e}},
-        result: {projectId: a},
+        command: {type: 'AddNode', data: {projectId, chapterId: a, nodeType: b, laneId: Number(c), label: d}},
+        result: {projectId},
       };
     case 'rename-node':
-      if (args.length !== 3 || !a.trim() || !b.trim() || !c.trim()) throw new Error('Usage: rename-node PROJECT_ID NODE_ID NAME');
+      if (args.length !== 2 || !a.trim() || !b.trim()) throw new Error('Usage: [--project PROJECT_ID] rename-node NODE_ID NAME');
       return {
         decider: 'renameNode',
-        command: {type: 'RenameNode', data: {projectId: a, nodeId: b, newName: c}},
-        result: {projectId: a, nodeId: b, name: c},
+        command: {type: 'RenameNode', data: {projectId, nodeId: a, newName: b}},
+        result: {projectId, nodeId: a, name: b},
       };
     case 'connect-nodes':
       if (
-        args.length < 3 ||
-        args.length > 4 ||
+        args.length < 2 ||
+        args.length > 3 ||
         !a?.trim() ||
         !b?.trim() ||
-        !c?.trim() ||
         extra ||
-        (d !== undefined && !['flow', 'back-reference'].includes(d))
+        (c !== undefined && !['flow', 'back-reference'].includes(c))
       )
-        throw new Error('Usage: connect-nodes PROJECT_ID SOURCE_ID TARGET_ID [ROLE]');
+        throw new Error('Usage: [--project PROJECT_ID] connect-nodes SOURCE_ID TARGET_ID [ROLE]');
       return {
         decider: 'connectNodes',
-        command: {type: 'ConnectNodes', data: {projectId: a, sourceNodeId: b, targetNodeId: c, ...(d ? {role: d} : {})}},
-        result: {projectId: a, sourceNodeId: b, targetNodeId: c},
+        command: {type: 'ConnectNodes', data: {projectId, sourceNodeId: a, targetNodeId: b, ...(c ? {role: c} : {})}},
+        result: {projectId, sourceNodeId: a, targetNodeId: b},
       };
     default:
       return null;
@@ -306,7 +364,6 @@ async function runCommand(root, deciderName, command, result) {
 
 try {
   const args = process.argv.slice(2);
-  const commandIndex = args[0] === '--path' ? 2 : 0;
   if (process.env.SLICR_TYPESCRIPT_RUNTIME !== '1') {
     const result = spawnSync(
       process.execPath,

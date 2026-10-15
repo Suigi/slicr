@@ -10,9 +10,11 @@ export const DEFAULT_CHAPTER_TITLE = 'Chapter 1';
 export const initialWorkspaceDecider = (
   args: {
     generateUuid?: () => string;
+    defaultChapterTitle?: string;
   } = {},
 ): Decider<EnsureInitialWorkspace, DcbEvent, boolean> => {
   const generateUuid = args.generateUuid ?? uuid;
+  const defaultChapterTitle = args.defaultChapterTitle ?? DEFAULT_CHAPTER_TITLE;
   return {
     query: () => Query.where({types: ['ProjectAdded']}),
     project: (_, events) => events.length === 0,
@@ -24,7 +26,7 @@ export const initialWorkspaceDecider = (
       const projectId = generateUuid();
       return [
         Events.projectAdded(projectId, DEFAULT_PROJECT_NAME),
-        Events.chapterAdded(projectId, DEFAULT_CHAPTER_ID, DEFAULT_CHAPTER_TITLE),
+        Events.chapterAdded(projectId, DEFAULT_CHAPTER_ID, defaultChapterTitle),
       ];
     },
   };
