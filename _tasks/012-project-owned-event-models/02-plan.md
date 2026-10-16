@@ -93,17 +93,25 @@ Add these explicit, scoped CLI commands: `add-project`, `add-chapter`, `add-node
 
 **Safe stopping point:** An agent can explicitly initialize a project store, create a project and chapter, add and rename nodes, and connect nodes using the common projections and validated shared commands. CLI and browser storage remain separate and unsynchronized; this step does not switch the frontend or imply a cutover.
 
-### 6. Add `slicr serve`, initially read-only
+### 6. Add `slicr serve`, initially read-only [DONE]
 
 Host the current frontend assets plus a local projection API pointing to the selected project's `.slicr/`. Start with read-only views and an unmistakable indication of the opened project and store. Keep the existing frontend startup path until the served path is proven. Test server start, projection reads, missing/corrupt store behavior, and shutdown.
 
-**Safe stopping point:** The project-local model is visually inspectable, but there is not yet a second write path to reconcile.
+**Safe stopping point:** The project-local model is visually inspectable, but there is not yet a second write path to reconcile. **Completed:** manual browser smoke checks passed; see [`12-step6-scope-changes.md`](./12-step6-scope-changes.md).
 
-### 7. Switch served editing on with an explicit cutover
+### 7. Serve project-backed editing [DONE — current scoped slice]
 
-Route frontend edits through the local API and the same project-local store as the CLI. Add cross-process update/catch-up behavior so CLI writes appear in the browser and browser writes appear in a subsequent CLI read; in-process store subscriptions alone are insufficient. Confirm concurrent edits reject or resolve conflicts without losing history. Provide an explicit, backed-up, verified migration from existing browser histories to `.slicr/`; define what happens if the destination already has events. Switch a user/project only after successful verification, and retain a recovery path. Remove the old default write path only after migrated workflows pass their regression tests.
+Route the served editor's available edits through the local API and the same project store as the CLI. The served UI supports adding and renaming nodes; the guarded API supports `RenameNode`, `AddNode`, `ConnectNodes`, `AddChapter`, and `RenameProject`. Writes use shared deciders and command handling, validate command payloads, include a base revision enforced at the store's cross-process append boundary, and reject stale edits. Polling provides cross-process catch-up without relying on process-local subscriptions. Tests cover CLI/browser propagation, restart, malformed requests, conflicts, and refresh behavior. The manual editor smoke check passed. See [`13-step7-scope-changes.md`](./13-step7-scope-changes.md).
 
-**Safe stopping point:** Both served editor and CLI read and write one authoritative project history. Test CLI-to-browser and browser-to-CLI propagation, conflict handling, restart, and migration/recovery, then run the full editor smoke check.
+The existing standalone editor remains on its IndexedDB store; it is separate and unsynchronized with the `.slicr/` store. The served UI does not yet expose full standalone editing parity (property edits, deletion/type changes, and connection gestures); treat those as follow-up work rather than implying they are implemented.
+
+**Safe stopping point:** CLI and the currently supported served-editor controls read/write the same project-owned history; the standalone IndexedDB workflow remains available and separate.
+
+### 7.1. Migrate browser history and cut over [DEFERRED]
+
+Provide an explicit, backed-up, verified migration from existing browser histories to `.slicr/`; define what happens if the destination already has events. Switch a user/project only after successful verification and retain a recovery path. Remove the old default write path only after migrated workflows pass regression tests. This substep is explicitly deferred; do not imply migration, synchronization, or cutover.
+
+**Safe stopping point:** After this substep is resumed and completed, browser migration/recovery is tested and the selected project's workflows use one authoritative project history.
 
 ```mermaid
 flowchart TB
@@ -113,7 +121,7 @@ flowchart TB
         Preview["slicr serve preview"] -->|"read-only"| Repo
     end
 
-    subgraph After["Step 7: explicit cutover"]
+    subgraph After["After deferred migration/cutover (future)"]
         Agent["Agent via CLI"] --> App["Shared application"]
         Browser["Browser via slicr serve"] --> App
         App --> OneStore["One project-owned .slicr/ history"]
