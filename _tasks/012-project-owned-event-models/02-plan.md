@@ -65,25 +65,25 @@ Move domain events, commands, deciders, domain graph/workspace projections, and 
 
 **Safe stopping point:** The existing frontend runs with unchanged behavior using the shared package; full root validation and the editor smoke check pass.
 
-### 3. Introduce a project-local store
+### 3. Introduce a project-local store [DONE]
 
 Define how a CLI discovers and initializes `./.slicr/`. Decide a versioned event-history format after evaluating transactional conditional append, process concurrency, portability, backups, and whether generated text rather than the raw store should be Git-tracked. Implement a project-local store adapter behind the event-store contract, with replay and conflict tests. Do not switch the frontend yet. Do not create `.slicr/` merely by running a read command.
 
 **Safe stopping point:** The existing editor still uses IndexedDB. The new store passes shared contract, recovery, and independent-process conflict tests without affecting it.
 
-### 4. Ship a read-only CLI
+### 4. Ship a read-only CLI [DONE]
 
 Make `slicr` work from another repository such as `kid-points`, discovering that repository's `.slicr/` (with a clear override for explicit paths). Add commands to list projects/chapters and show a scoped slice as versioned structured JSON and readable Markdown with stable IDs. Include a revision token suitable for later guarded writes. A missing or incompatible model should yield a helpful error, not be silently initialized or rewritten.
 
 **Safe stopping point:** An agent can inspect a project-owned model from the project's directory, but cannot mutate it yet. Test invocation outside the Slicr repository.
 
-### 5. Add CLI edits
+### 5. Add CLI edits [DONE]
 
 Expose a small set of explicit scoped commands through the shared application, beginning with one or two well-tested mutations. Add CLI tests for invalid references, failed decisions, concurrent conflicting edits, and reopening a model in another process. Never expose ordinary agent-facing direct event append or backup restore as an edit command.
 
 **Safe stopping point:** Agents can make validated changes to a project-owned model. The existing browser editor remains usable on its separate IndexedDB store; this coexistence must be labeled, not presented as synchronization.
 
-### 5.1 Initialize models, share projections, and expand CLI edits
+### 5.1 Initialize models, share projections, and expand CLI edits [DONE]
 
 Add an explicit `slicr init` command that initializes a new project's `.slicr/` store without creating domain events. Initialization must never happen as a side effect of a read; refuse to overwrite an existing or incompatible store. Keep project creation separate from store initialization.
 
