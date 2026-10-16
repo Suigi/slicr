@@ -132,23 +132,23 @@ flowchart TB
 
 ### 8. Bring the project-backed editor to full visual and feature parity
 
-Complete the production-editor experience for the project-backed entry point, using the same project API and `.slicr/` history as the CLI. Reuse shared editor components where practical; do not duplicate graph behavior or introduce a second write authority. Preserve the visible project/store identity and revision as project-specific safety context.
+Complete the production-editor experience for the project-backed entry point, using the same project API and `.slicr/` history as the CLI. Treat the existing standalone editor as the UI and interaction baseline: consolidate its controls over a project-backed application/API adapter instead of rebuilding parallel controls or redesigning the editor. Keep storage-specific behavior behind that adapter; UI components should not choose between direct IndexedDB writes and direct API calls. Preserve the visible project/store identity and revision as project-specific safety context.
 
-**Visual and interaction gaps to close:**
+**UI consolidation and visual/interaction gaps to close (not a UI rebuild):**
 
-- Replace the simplified project/chapter selectors with the production project switcher and chapter navigation behavior, including project creation/rename controls, chapter creation, sidebar collapse/expand, selection state, and the same navigation feedback.
-- Bring node interaction states to parity: selection/focus, focused-node detail panel, property focus/hover highlighting, context menus, connected-node creation, connection mode feedback/cancel, and the production node/edge styling and layout behavior.
-- Restore the production keyboard and pointer interactions for focus navigation, label editing/cancel, connect/cancel, add-connected-node, node type changes, and deletion. Keep the project editor's explicit project/store/revision identity visible.
+- Reuse the existing project switcher, chapter sidebar, node/edge components, detail panel, menus, and interaction state wherever available. Where the project entry point currently substitutes simple selectors or wires existing controls to no-ops, connect those controls to the project-backed read model and command adapter rather than creating new versions of them.
+- Reconcile the project entry point with the existing production navigation and interaction behavior: project create/rename, chapter creation, sidebar collapse/expand, node selection/focus, focused-node detail, property focus/hover highlighting, context menus, connected-node creation, connection mode feedback/cancel, and existing node/edge styling and layout.
+- Keep the existing keyboard and pointer interactions for focus navigation, label editing/cancel, connect/cancel, add-connected-node, node type changes, and deletion. Treat these as existing behavior to preserve and wire to project commands—not new interaction concepts to design. Keep the project editor's explicit project/store/revision identity visible.
 
 **Read-operation gaps to close:**
 
-- The project view can currently list projects/chapters and render the all-chapter or chapter-scoped graph, including nodes, edges, schemas, and example values. However, node clicks do not focus/select a node, and there is no focused-node detail/property view or focused/hovered-property read state. Add these so users can inspect the same node and property information available in the standalone editor.
+- The project view can currently list projects/chapters and render the all-chapter or chapter-scoped graph, including nodes, edges, schemas, and example values. However, node clicks do not focus/select a node, and there is no focused-node detail/property view or focused/hovered-property read state. Wire the existing standalone inspection/detail behavior to project-backed reads so users can inspect the same node and property information.
 - Preserve stable project/chapter/node identity and display the selected scope consistently. Add tests for switching project/chapter scope and reading nodes with schemas/examples and connected/disconnected edges.
 
 **Write-operation gaps to close:**
 
-- Current project UI writes only `AddNode` (with hard-coded type/lane/label choices) and `RenameNode`. Add the standalone editor's project operations (`AddProject`, `RenameProject`), chapter creation, and full node operations: add slice, add connected node, rename, change type, delete, and edit property schema/example values.
-- Add connection gestures and disconnection/deletion controls. The server currently accepts `ConnectNodes` but has no project-editor UI for it; add the required scoped `NodesDisconnected`/equivalent command path as well.
+- Current project UI routes only `AddNode` (with hard-coded type/lane/label choices) and `RenameNode` through project commands. Wire the existing standalone controls for project operations (`AddProject`, `RenameProject`), chapter creation, and node operations—add slice, add connected node, rename, change type, delete, and edit property schema/example values—to the project-backed command adapter. Add API command support only where the existing controls' operations are not yet supported.
+- Wire the existing connection gestures and disconnection/deletion controls to project commands. The server currently accepts `ConnectNodes` but the project entry point does not expose its existing UI interaction; add the required scoped `NodesDisconnected`/equivalent command path as well.
 - Route every mutation through validated project API commands and the shared deciders/`handleCommand`. Include the latest base revision, preserve atomic cross-process conflict rejection, and keep browser-to-CLI/CLI-to-browser catch-up. Do not append events directly from the UI.
 
 **Explicit exclusions and project-store behavior:**
