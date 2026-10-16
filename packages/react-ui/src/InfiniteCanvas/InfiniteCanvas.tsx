@@ -1,21 +1,7 @@
-import {
-  forwardRef,
-  useCallback,
-  useImperativeHandle,
-  useRef,
-  useState,
-  useEffect,
-  type PointerEvent as ReactPointerEvent,
-} from "react";
-import type {
-  CanvasBounds,
-  CanvasCamera,
-  InfiniteCanvasControls,
-  InfiniteCanvasHandle,
-  InfiniteCanvasProps,
-} from "./types";
+import {forwardRef, useCallback, useImperativeHandle, useRef, useState, useEffect, type PointerEvent as ReactPointerEvent} from 'react';
+import type {CanvasBounds, CanvasCamera, InfiniteCanvasControls, InfiniteCanvasHandle, InfiniteCanvasProps} from './types';
 
-const DEFAULT_CAMERA: CanvasCamera = { x: 0, y: 0, zoom: 1 };
+const DEFAULT_CAMERA: CanvasCamera = {x: 0, y: 0, zoom: 1};
 const DEFAULT_CONTROLS: Required<InfiniteCanvasControls> = {
   pan: true,
   wheelPan: true,
@@ -30,10 +16,24 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
+function canScrollWithinTarget(target: EventTarget | null, deltaX: number, deltaY: number) {
+  if (!(target instanceof Element)) return false;
+
+  let element: Element | null = target;
+  while (element) {
+    const style = window.getComputedStyle(element);
+    const canScrollY = /(auto|scroll)/.test(style.overflowY) && element.scrollHeight > element.clientHeight;
+    const canScrollX = /(auto|scroll)/.test(style.overflowX) && element.scrollWidth > element.clientWidth;
+    if ((canScrollY && deltaY !== 0) || (canScrollX && deltaX !== 0)) return true;
+    element = element.parentElement;
+  }
+  return false;
+}
+
 function mergeRefs<T>(...refs: Array<React.Ref<T> | undefined>) {
   return (value: T) => {
     refs.forEach((ref) => {
-      if (typeof ref === "function") {
+      if (typeof ref === 'function') {
         ref(value);
       } else if (ref) {
         ref.current = value;
@@ -50,11 +50,7 @@ function zoomAroundPoint(
   controls: Required<InfiniteCanvasControls>,
   bounds?: CanvasBounds,
 ) {
-  const nextZoom = clamp(
-    camera.zoom * factor,
-    controls.minZoom,
-    controls.maxZoom,
-  );
+  const nextZoom = clamp(camera.zoom * factor, controls.minZoom, controls.maxZoom);
   const tx = (bounds?.offsetX ?? 0) + camera.x;
   const ty = (bounds?.offsetY ?? 0) + camera.y;
   const worldX = (clientX - tx) / camera.zoom;
@@ -67,11 +63,7 @@ function zoomAroundPoint(
   };
 }
 
-function getViewportPoint(
-  element: HTMLDivElement | null,
-  clientX: number,
-  clientY: number,
-) {
+function getViewportPoint(element: HTMLDivElement | null, clientX: number, clientY: number) {
   const rect = element?.getBoundingClientRect();
   return {
     x: clientX - (rect?.left ?? 0),
@@ -79,10 +71,7 @@ function getViewportPoint(
   };
 }
 
-export const InfiniteCanvas = forwardRef<
-  InfiniteCanvasHandle,
-  InfiniteCanvasProps
->(function InfiniteCanvas(
+export const InfiniteCanvas = forwardRef<InfiniteCanvasHandle, InfiniteCanvasProps>(function InfiniteCanvas(
   {
     children,
     overlay,
@@ -103,9 +92,9 @@ export const InfiniteCanvas = forwardRef<
   },
   ref,
 ) {
-  const controls = { ...DEFAULT_CONTROLS, ...controlsOverride };
+  const controls = {...DEFAULT_CONTROLS, ...controlsOverride};
   const internalViewportRef = useRef<HTMLDivElement | null>(null);
-  const heldWheelZoomModifiersRef = useRef({ ctrl: false, meta: false });
+  const heldWheelZoomModifiersRef = useRef({ctrl: false, meta: false});
   const [uncontrolledCamera, setUncontrolledCamera] = useState(defaultCamera);
   const isControlled = controlledCamera !== undefined;
   const camera = controlledCamera ?? uncontrolledCamera;
@@ -115,8 +104,7 @@ export const InfiniteCanvas = forwardRef<
   const updateCamera = useCallback(
     (nextCamera: CanvasCamera | ((current: CanvasCamera) => CanvasCamera)) => {
       const baseCamera = cameraRef.current;
-      const resolved =
-        typeof nextCamera === "function" ? nextCamera(baseCamera) : nextCamera;
+      const resolved = typeof nextCamera === 'function' ? nextCamera(baseCamera) : nextCamera;
       const clamped = {
         ...resolved,
         zoom: clamp(resolved.zoom, controls.minZoom, controls.maxZoom),
@@ -135,20 +123,15 @@ export const InfiniteCanvas = forwardRef<
       const viewport = internalViewportRef.current;
       const width = viewport?.clientWidth ?? bounds?.width ?? 0;
       const height = viewport?.clientHeight ?? bounds?.height ?? 0;
-      updateCamera((current) =>
-        zoomAroundPoint(current, width / 2, height / 2, factor, controls, bounds),
-      );
+      updateCamera((current) => zoomAroundPoint(current, width / 2, height / 2, factor, controls, bounds));
     },
     [bounds, controls, updateCamera],
   );
 
-  const resetCamera = useCallback(
-    () => updateCamera(defaultCamera),
-    [defaultCamera, updateCamera],
-  );
+  const resetCamera = useCallback(() => updateCamera(defaultCamera), [defaultCamera, updateCamera]);
 
   const fitBounds = useCallback(
-    (nextBounds: CanvasBounds, options: { padding?: number } = {}) => {
+    (nextBounds: CanvasBounds, options: {padding?: number} = {}) => {
       const viewport = internalViewportRef.current;
       const viewportWidth = viewport?.clientWidth ?? nextBounds.width;
       const viewportHeight = viewport?.clientHeight ?? nextBounds.height;
@@ -156,23 +139,14 @@ export const InfiniteCanvas = forwardRef<
       const availableWidth = Math.max(1, viewportWidth - padding * 2);
       const availableHeight = Math.max(1, viewportHeight - padding * 2);
       const zoom = clamp(
-        Math.min(
-          availableWidth / Math.max(1, nextBounds.width),
-          availableHeight / Math.max(1, nextBounds.height),
-        ),
+        Math.min(availableWidth / Math.max(1, nextBounds.width), availableHeight / Math.max(1, nextBounds.height)),
         controls.minZoom,
         controls.maxZoom,
       );
 
       updateCamera({
-        x:
-          padding -
-          (nextBounds.offsetX ?? 0) * zoom +
-          (availableWidth - nextBounds.width * zoom) / 2,
-        y:
-          padding -
-          (nextBounds.offsetY ?? 0) * zoom +
-          (availableHeight - nextBounds.height * zoom) / 2,
+        x: padding - (nextBounds.offsetX ?? 0) * zoom + (availableWidth - nextBounds.width * zoom) / 2,
+        y: padding - (nextBounds.offsetY ?? 0) * zoom + (availableHeight - nextBounds.height * zoom) / 2,
         zoom,
       });
     },
@@ -194,18 +168,18 @@ export const InfiniteCanvas = forwardRef<
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Control") {
+      if (event.key === 'Control') {
         heldWheelZoomModifiersRef.current.ctrl = true;
       }
-      if (event.key === "Meta") {
+      if (event.key === 'Meta') {
         heldWheelZoomModifiersRef.current.meta = true;
       }
     };
     const onKeyUp = (event: KeyboardEvent) => {
-      if (event.key === "Control") {
+      if (event.key === 'Control') {
         heldWheelZoomModifiersRef.current.ctrl = false;
       }
-      if (event.key === "Meta") {
+      if (event.key === 'Meta') {
         heldWheelZoomModifiersRef.current.meta = false;
       }
     };
@@ -214,13 +188,13 @@ export const InfiniteCanvas = forwardRef<
       heldWheelZoomModifiersRef.current.meta = false;
     };
 
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("keyup", onKeyUp);
-    window.addEventListener("blur", resetHeldModifiers);
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', resetHeldModifiers);
     return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("keyup", onKeyUp);
-      window.removeEventListener("blur", resetHeldModifiers);
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', resetHeldModifiers);
     };
   }, []);
 
@@ -229,11 +203,7 @@ export const InfiniteCanvas = forwardRef<
     if (event.defaultPrevented || !controls.pan || event.button !== 0) {
       return;
     }
-    if (
-      ignorePanSelector &&
-      event.target instanceof Element &&
-      event.target.closest(ignorePanSelector)
-    ) {
+    if (ignorePanSelector && event.target instanceof Element && event.target.closest(ignorePanSelector)) {
       return;
     }
 
@@ -258,35 +228,28 @@ export const InfiniteCanvas = forwardRef<
       if (upEvent.pointerId !== pointerId) {
         return;
       }
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
     };
 
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
   };
 
   const onWheel = useCallback(
     (event: WheelEvent) => {
       const modifierZoomActive =
-        event.ctrlKey ||
-        event.metaKey ||
-        heldWheelZoomModifiersRef.current.ctrl ||
-        heldWheelZoomModifiersRef.current.meta;
+        event.ctrlKey || event.metaKey || heldWheelZoomModifiersRef.current.ctrl || heldWheelZoomModifiersRef.current.meta;
 
       if (controls.wheelZoom && modifierZoomActive) {
         event.preventDefault();
-        const point = getViewportPoint(
-          internalViewportRef.current,
-          event.clientX,
-          event.clientY,
-        );
+        const point = getViewportPoint(internalViewportRef.current, event.clientX, event.clientY);
         const factor = Math.pow(controls.zoomStep, -event.deltaY / 100);
-        updateCamera((current) =>
-          zoomAroundPoint(current, point.x, point.y, factor, controls, bounds),
-        );
+        updateCamera((current) => zoomAroundPoint(current, point.x, point.y, factor, controls, bounds));
         return;
       }
+
+      if (canScrollWithinTarget(event.target, event.deltaX, event.deltaY)) return;
 
       if (controls.wheelPan) {
         event.preventDefault();
@@ -306,9 +269,9 @@ export const InfiniteCanvas = forwardRef<
       return;
     }
 
-    element.addEventListener("wheel", onWheel, { passive: false });
+    element.addEventListener('wheel', onWheel, {passive: false});
     return () => {
-      element.removeEventListener("wheel", onWheel);
+      element.removeEventListener('wheel', onWheel);
     };
   }, [onWheel]);
 
@@ -320,14 +283,14 @@ export const InfiniteCanvas = forwardRef<
       ref={mergeRefs(internalViewportRef, viewportRef)}
       className={className}
       style={{
-        position: "relative",
-        overflow: "hidden",
-        touchAction: "none",
-        overscrollBehavior: "none",
+        position: 'relative',
+        overflow: 'hidden',
+        touchAction: 'none',
+        overscrollBehavior: 'none',
         ...style,
       }}
       onPointerDown={beginPan}
-      aria-hidden={hidden || rest["aria-hidden"]}
+      aria-hidden={hidden || rest['aria-hidden']}
       data-camera-x={camera.x}
       data-camera-y={camera.y}
       data-camera-zoom={camera.zoom}
@@ -336,7 +299,7 @@ export const InfiniteCanvas = forwardRef<
         style={{
           width: bounds ? `${bounds.width}px` : undefined,
           height: bounds ? `${bounds.height}px` : undefined,
-          position: "relative",
+          position: 'relative',
         }}
       >
         <div
@@ -346,8 +309,8 @@ export const InfiniteCanvas = forwardRef<
           data-camera-zoom={camera.zoom}
           style={{
             transform: worldTransform,
-            transformOrigin: "0 0",
-            position: "absolute",
+            transformOrigin: '0 0',
+            position: 'absolute',
             inset: 0,
             ...worldStyle,
           }}
@@ -359,22 +322,11 @@ export const InfiniteCanvas = forwardRef<
       {overlay}
 
       {controls.toolbar && (
-        <div
-          className="infinite-canvas-toolbar"
-          style={{ position: "absolute", right: 12, bottom: 12 }}
-        >
-          <button
-            type="button"
-            onClick={() => zoomBy(controls.zoomStep)}
-            aria-label="Zoom in"
-          >
+        <div className="infinite-canvas-toolbar" style={{position: 'absolute', right: 12, bottom: 12}}>
+          <button type="button" onClick={() => zoomBy(controls.zoomStep)} aria-label="Zoom in">
             +
           </button>
-          <button
-            type="button"
-            onClick={() => zoomBy(1 / controls.zoomStep)}
-            aria-label="Zoom out"
-          >
+          <button type="button" onClick={() => zoomBy(1 / controls.zoomStep)} aria-label="Zoom out">
             −
           </button>
           <button type="button" onClick={resetCamera} aria-label="Reset camera">
