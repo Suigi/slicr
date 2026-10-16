@@ -130,19 +130,51 @@ flowchart TB
     IndexedDB -->|"explicit backup and verified import only"| OneStore
 ```
 
-### 8. Add agent proposals
+### 8. Bring the project-backed editor to full visual and feature parity
+
+Complete the production-editor experience for the project-backed entry point, using the same project API and `.slicr/` history as the CLI. Reuse shared editor components where practical; do not duplicate graph behavior or introduce a second write authority. Preserve the visible project/store identity and revision as project-specific safety context.
+
+**Visual and interaction gaps to close:**
+
+- Replace the simplified project/chapter selectors with the production project switcher and chapter navigation behavior, including project creation/rename controls, chapter creation, sidebar collapse/expand, selection state, and the same navigation feedback.
+- Bring node interaction states to parity: selection/focus, focused-node detail panel, property focus/hover highlighting, context menus, connected-node creation, connection mode feedback/cancel, and the production node/edge styling and layout behavior.
+- Restore the production keyboard and pointer interactions for focus navigation, label editing/cancel, connect/cancel, add-connected-node, node type changes, and deletion. Keep the project editor's explicit project/store/revision identity visible.
+
+**Read-operation gaps to close:**
+
+- The project view can currently list projects/chapters and render the all-chapter or chapter-scoped graph, including nodes, edges, schemas, and example values. However, node clicks do not focus/select a node, and there is no focused-node detail/property view or focused/hovered-property read state. Add these so users can inspect the same node and property information available in the standalone editor.
+- Preserve stable project/chapter/node identity and display the selected scope consistently. Add tests for switching project/chapter scope and reading nodes with schemas/examples and connected/disconnected edges.
+
+**Write-operation gaps to close:**
+
+- Current project UI writes only `AddNode` (with hard-coded type/lane/label choices) and `RenameNode`. Add the standalone editor's project operations (`AddProject`, `RenameProject`), chapter creation, and full node operations: add slice, add connected node, rename, change type, delete, and edit property schema/example values.
+- Add connection gestures and disconnection/deletion controls. The server currently accepts `ConnectNodes` but has no project-editor UI for it; add the required scoped `NodesDisconnected`/equivalent command path as well.
+- Route every mutation through validated project API commands and the shared deciders/`handleCommand`. Include the latest base revision, preserve atomic cross-process conflict rejection, and keep browser-to-CLI/CLI-to-browser catch-up. Do not append events directly from the UI.
+
+**Explicit exclusions and project-store behavior:**
+
+- Do not add browser-history backup/restore or migration; Git-tracked `.slicr/events.ndjson` is the project backup/versioning path.
+- Do not reproduce the standalone editor's mockup/demo galleries or its layout-test-case export controls; those are design/testing tools, not project-modeling features.
+- Do not reproduce IndexedDB/localStorage persistence or its last-known-good-model fallback. Keep `.slicr/` authoritative and report missing/corrupt project data; never silently substitute stale browser state.
+- Keep initialization explicit through `slicr init`; opening or reading a project must not initialize it implicitly.
+- Update `slicr init` to create or safely maintain `.slicr/.gitignore` that ignores the SQLite outbox (and its transient journal files) while leaving `events.ndjson` trackable. Preserve existing user ignore rules and test both new and existing `.gitignore` cases.
+- Agent proposals/preview/apply remain separate future steps (Steps 9–10 below), not part of this parity step.
+
+**Safe stopping point:** The project-backed editor matches the standalone editor's production visual and read/write workflows except for the exclusions above. Run full root validation and manual project-editor smoke coverage for project/chapter navigation, reading node/property data, every editing gesture, stale conflicts, and cross-process catch-up.
+
+### 9. Add agent proposals
 
 Add `propose`/preview before `apply`: show the resulting slice diff without recording exploratory changes, then conditionally apply an approved proposal against its read revision. A stale proposal must be rejected for re-reading, not silently rebased. Store proposals separately from the authoritative event history and give each proposal a stable ID and base revision so it can be inspected from another client. Decide draft retention and cleanup explicitly.
 
 **Safe stopping point:** Agents can explore alternatives safely and humans can approve changes in the conversation. Proposal creation and preview append no events; full validation and the editor smoke check pass.
 
-### 9. Preview an agent proposal in the browser
+### 10. Preview an agent proposal in the browser
 
 Give the agent a link containing a proposal ID that opens the proposal in the served editor. `slicr serve` loads the project-local draft, reads the current model, and displays a visual diff without applying commands. Show when the proposal is stale and require explicit approval before any conditional append. Test agent CLI creation to browser preview, refresh/restart, unknown IDs, stale drafts, and the invariant that viewing a proposal never changes the event history. Keep proposal drafts distinct from the authoritative `.slicr/` modeling-event log.
 
 **Safe stopping point:** A user can ask an agent for a proposal, inspect it visually, and leave without changing the model. All tests and the editor smoke check pass.
 
-### 10. Package the CLI for Git-based installation
+### 11. Package the CLI for Git-based installation
 
 Produce a versioned, reproducible npm package artifact for the CLI that can be installed by projects outside this monorepo from a Git-hosted release asset. Keep the root `npm run slicr -- ...` command as a development convenience, separate from the distributable package. The installed artifact must include its executable entry point and all required runtime code, must not depend on monorepo-relative paths or private workspace packages, and must document its supported Node version. Bundle the shared runtime into the artifact or make every runtime dependency independently installable; do not assume workspace symlinks exist in a consumer project. Publish or attach the packed `.tgz` to a Git-hosted release, with package version and release tag aligned.
 
