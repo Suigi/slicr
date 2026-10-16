@@ -1,11 +1,11 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
-import {ReadOnlyProjectApp} from './ReadOnlyProjectApp';
+import {ProjectApp} from './ProjectApp';
 import './styles.css';
-import './readOnlyProject.css';
+import './project.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ReadOnlyProjectApp />
+    <ProjectApp />
   </StrictMode>,
 );

@@ -543,7 +543,7 @@ test('missing model fails without creating files', () => {
   }
 });
 
-test('serve hosts the editor and read-only workspace and graph projections, then shuts down', async () => {
+test('serve hosts the editor and workspace and graph projections, then shuts down', async () => {
   const {dir} = fixture();
   const assets = makeAssets();
   const running = startServeServer({root: dir, assets});

@@ -29,7 +29,7 @@ async function readApi<T>(url: string, signal: AbortSignal): Promise<T> {
 const writeApi = (command: EditorCommand) => projectEditorPort.execute(command);
 
 /** Served entry point only: deliberately never imports App, useGraphModel, or any browser event store. */
-export function ReadOnlyProjectApp() {
+export function ProjectApp() {
   const canvasRef = useRef<InfiniteCanvasHandle>(null);
   const measureRef = useRef<HTMLDivElement>(null);
   const [model, setModel] = useState<Model | null>(null);
@@ -409,7 +409,7 @@ export function ReadOnlyProjectApp() {
       onAddChapter={(title) => void execute({type: 'AddChapter', data: {title}})}
       topbarActions={<strong>Project store · editing enabled</strong>}
     >
-      <div className="read-only-identity" aria-label="Project store identity">
+      <div className="project-store-identity" aria-label="Project store identity">
         <strong>Project-backed editor · project store</strong>
         <div>Project directory: {model?.projectDirectory ?? 'Loading…'}</div>
         <div>Store: {model?.storeDirectory ?? 'Loading…'}</div>

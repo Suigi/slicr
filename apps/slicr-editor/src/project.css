@@ -1,0 +1,24 @@
+.project-store-identity {
+  padding: 0.5rem 1rem;
+  background: #e6f4f4;
+  color: #19343a;
+  overflow-wrap: anywhere;
+  font-size: 0.85rem;
+}
+
+.project-store-identity ~ .graph-workspace .canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.project-store-identity ~ .graph-workspace .node-detail-panel {
+  overflow: auto;
+}
+
+.project-store-identity ~ .graph-workspace .node-detail-title {
+  overflow-wrap: anywhere;
+}
+
+.node-box .node-label-button:is(span) {
+  cursor: default;
+}
