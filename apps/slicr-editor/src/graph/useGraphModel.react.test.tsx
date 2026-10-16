@@ -3,286 +3,228 @@
 import {act, createElement, useEffect} from 'react';
 import {createRoot, type Root} from 'react-dom/client';
 import {afterEach, describe, expect, it, vi} from 'vitest';
-
+import type {EditorSnapshot, ProductionEditorPort} from '../application/productionEditorPort';
 import {NODE_HEIGHT, NODE_WIDTH} from './constants';
-import {useGraphModel, type StoredGraphModel} from './useGraphModel';
+import {useGraphModel} from './useGraphModel';
 
 const loadGraphApplicationMock = vi.hoisted(() => vi.fn());
+vi.mock('../application/graphApplicationLoader', () => ({loadGraphApplication: loadGraphApplicationMock}));
 
-vi.mock('../application/graphApplicationLoader', () => ({
-  loadGraphApplication: loadGraphApplicationMock,
-}));
+const scope = {projectId: 'project-1', chapterId: 'chapter-1'};
+const node = (id: string, label = 'Same label') => ({
+  id,
+  label,
+  type: 'ui' as const,
+  laneId: 'lane-0',
+  width: NODE_WIDTH,
+  height: NODE_HEIGHT,
+});
+const snapshot = (revision: string, nodes: EditorSnapshot['nodes'] = [], nextScope = scope): EditorSnapshot => ({
+  revision,
+  scope: nextScope,
+  nodes,
+  edges: [],
+  lanes: [{id: 'lane-0', order: 0}],
+  nodeSchemas: {},
+  nodeExampleValues: {},
+});
 
-function createEmptyGraphModel(): StoredGraphModel {
-  return {nodes: [], edges: [], lanes: [], nodeSchemas: {}, nodeExampleValues: {}};
-}
-
-function createNodeGraphModel(): StoredGraphModel {
-  return {
-    nodes: [{id: 'node-1', label: 'Node 1', type: 'ui', laneId: 'lane-0', width: NODE_WIDTH, height: NODE_HEIGHT}],
-    edges: [],
-    lanes: [{id: 'lane-0', order: 0}],
-    nodeSchemas: {},
-    nodeExampleValues: {},
-  };
-}
-
-describe('useGraphModel', () => {
+describe('useGraphModel port routing', () => {
   let root: Root | null = null;
   let container: HTMLDivElement | null = null;
+  const state = {current: null as ReturnType<typeof useGraphModel> | null};
+  let listener: ((value: EditorSnapshot) => void) | undefined;
+  let unsubscribe: ReturnType<typeof vi.fn<() => void>>;
+  let port: ProductionEditorPort;
+
+  function Harness() {
+    const model = useGraphModel({activeProjectId: scope.projectId, activeChapterId: scope.chapterId});
+    useEffect(() => {
+      state.current = model;
+    }, [model]);
+    return null;
+  }
+
+  async function mount(initial = snapshot('r1', [node('existing')])) {
+    unsubscribe = vi.fn<() => void>();
+    port = {
+      getSnapshot: vi.fn(async () => initial),
+      subscribe: vi.fn((_scope: typeof scope, callback: (value: EditorSnapshot) => void) => {
+        let active = true;
+        listener = (value) => {
+          if (active) callback(value);
+        };
+        return {
+          unsubscribe: () => {
+            active = false;
+            unsubscribe();
+          },
+        };
+      }),
+      execute: vi.fn(async () => ({revision: 'r2', createdIds: []})),
+    };
+    const workspace = {projects: [], chaptersByProjectId: {}};
+    loadGraphApplicationMock.mockResolvedValue({
+      editorPort: port,
+      workspace: {
+        getWorkspaceSnapshot: () => workspace,
+        subscribeToWorkspace: vi.fn((callback) => {
+          callback(workspace);
+          return {unsubscribe: vi.fn()};
+        }),
+      },
+      graph: {
+        setScope: vi.fn(async () => ({})),
+        getScope: () => scope,
+        subscribe: vi.fn(() => {
+          throw new Error('Direct graph subscription forbidden');
+        }),
+      },
+      commands: new Proxy(
+        {},
+        {
+          get: () => {
+            throw new Error('Direct command forbidden');
+          },
+        },
+      ),
+    });
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(createElement(Harness));
+      await Promise.resolve();
+    });
+  }
 
   afterEach(() => {
-    if (root) {
-      act(() => root?.unmount());
-    }
+    if (root) act(() => root?.unmount());
+    expect(unsubscribe).toHaveBeenCalled();
     root = null;
     container?.remove();
     container = null;
+    listener = undefined;
+    state.current = null;
     loadGraphApplicationMock.mockReset();
+    vi.useRealTimers();
   });
 
-  it('waits for a graph subscription update before reflecting a command result', async () => {
-    const initialGraph = createEmptyGraphModel();
-    const updatedGraph = createNodeGraphModel();
-    let graphListener: ((graph: StoredGraphModel) => void) | null = null;
-
-    loadGraphApplicationMock.mockResolvedValue({
-      model: new Proxy(
-        {},
-        {
-          get: () => {
-            throw new Error('Compatibility facade must not be used');
-          },
-        },
-      ),
-      workspace: {
-        getWorkspaceSnapshot: () => ({projects: [], chaptersByProjectId: {}}),
-        subscribeToWorkspace: vi.fn(() => ({unsubscribe: vi.fn()})),
-      },
-      graph: {
-        getSnapshot: () => initialGraph,
-        getScope: () => ({projectId: 'project-1', chapterId: 'chapter-1'}),
-        setScope: vi.fn(async () => initialGraph),
-        subscribe: (listener: (graph: StoredGraphModel) => void) => {
-          graphListener = listener;
-          return {unsubscribe: vi.fn()};
-        },
-      },
-      commands: {addNewSlice: vi.fn(async () => updatedGraph)},
-      graphModel: initialGraph,
-      eventBackup: {},
-    });
-
-    const latestState = {current: null as ReturnType<typeof useGraphModel> | null};
-    function HookHarness(props: {activeProjectId?: string | null; activeChapterId?: string | null}) {
-      const state = useGraphModel(props);
-      useEffect(() => {
-        latestState.current = state;
-      }, [state]);
-      return null;
-    }
-
-    container = document.createElement('div');
-    document.body.append(container);
-    root = createRoot(container);
-
+  it('routes each standalone action with the observed scope and revision, not a fresh basis', async () => {
+    await mount();
     await act(async () => {
-      root?.render(createElement(HookHarness, {activeProjectId: 'project-1', activeChapterId: 'chapter-1'}));
+      state.current?.addNewSlice();
+      state.current?.addConnection('existing', 'target');
+      state.current?.deleteConnection('edge-1');
+      state.current?.setNodeType('existing', 'evt');
+      state.current?.deleteNode('existing');
+      await state.current?.renameProject('project-1', 'Renamed');
+      await state.current?.addChapter('Chapter');
+      await state.current?.addProject('Project');
+    });
+    expect(vi.mocked(port.execute).mock.calls.map(([command]) => command.type)).toEqual([
+      'AddNode',
+      'ConnectNodes',
+      'DisconnectNodes',
+      'ChangeNodeType',
+      'DeleteNode',
+      'RenameProject',
+      'AddChapter',
+      'AddProject',
+    ]);
+    expect(vi.mocked(port.execute).mock.calls.every(([command]) => command.baseRevision === 'r1' && command.scope === scope)).toBe(true);
+    await act(async () => {
+      listener?.(snapshot('r3', [node('existing')]));
+    });
+    await act(async () => {
+      state.current?.setNodeType('existing', 'cmd');
+    });
+    expect(port.execute).toHaveBeenLastCalledWith({
+      scope,
+      baseRevision: 'r3',
+      type: 'ChangeNodeType',
+      data: {nodeId: 'existing', newType: 'cmd'},
+    });
+    await act(async () => {
+      state.current?.startEditingNode(node('existing'));
+    });
+    await act(async () => {
+      state.current?.setDraftLabel('Edited');
+    });
+    await act(async () => {
+      state.current?.saveEditingNode();
       await Promise.resolve();
     });
-
-    expect(latestState.current?.nodes).toEqual([]);
-
-    await act(async () => {
-      await latestState.current?.addNewSlice();
+    expect(port.execute).toHaveBeenLastCalledWith({
+      scope,
+      baseRevision: 'r3',
+      type: 'RenameNode',
+      data: {nodeId: 'existing', name: 'Edited'},
     });
-
-    expect(latestState.current?.nodes).toEqual([]);
-
-    await act(async () => {
-      graphListener?.(updatedGraph);
-      await Promise.resolve();
-    });
-
-    expect(latestState.current?.nodes).toEqual(updatedGraph.nodes);
   });
 
-  it('waits for addProject subscription updates before changing graph and resolved scope', async () => {
-    const initialGraph = createEmptyGraphModel();
-    const nextGraph = createNodeGraphModel();
-    const currentScope = {projectId: 'project-1', chapterId: 'chapter-1'};
-    let graphListener: ((graph: StoredGraphModel) => void) | null = null;
-
-    loadGraphApplicationMock.mockResolvedValue({
-      model: new Proxy(
-        {},
-        {
-          get: () => {
-            throw new Error('Compatibility facade must not be used');
-          },
-        },
-      ),
-      workspace: {
-        getWorkspaceSnapshot: () => ({projects: [], chaptersByProjectId: {}}),
-        subscribeToWorkspace: vi.fn(() => ({unsubscribe: vi.fn()})),
-      },
-      graph: {
-        getSnapshot: () => initialGraph,
-        getScope: () => currentScope,
-        setScope: vi.fn(async () => nextGraph),
-        subscribe: (listener: (graph: StoredGraphModel) => void) => {
-          graphListener = listener;
-          return {unsubscribe: vi.fn()};
-        },
-      },
-      commands: {
-        addProject: vi.fn(async () => {
-          currentScope.projectId = 'project-2';
-          return nextGraph;
-        }),
-      },
-      graphModel: initialGraph,
-      eventBackup: {},
-    });
-
-    const latestState = {current: null as ReturnType<typeof useGraphModel> | null};
-    function HookHarness(props: {activeProjectId?: string | null; activeChapterId?: string | null}) {
-      const state = useGraphModel(props);
-      useEffect(() => {
-        latestState.current = state;
-      }, [state]);
-      return null;
-    }
-
-    container = document.createElement('div');
-    document.body.append(container);
-    root = createRoot(container);
-
+  it('dispatches one ChangeNodeProperties port command with the basis captured at edit time', async () => {
+    await mount();
+    vi.useFakeTimers();
     await act(async () => {
-      root?.render(createElement(HookHarness, {activeProjectId: 'project-1', activeChapterId: 'chapter-1'}));
-      await Promise.resolve();
+      state.current?.updateFocusedNodeProperties([{id: 'property-1', name: 'Name', type: 'string', example: 'Ada'}]);
     });
-
-    expect(latestState.current?.activeProjectId).toBe('project-1');
-    expect(latestState.current?.nodes).toEqual([]);
-
     await act(async () => {
-      await latestState.current?.addProject('New Project');
+      listener?.(snapshot('r3', [node('existing')]));
     });
-
-    expect(latestState.current?.activeProjectId).toBe('project-1');
-    expect(latestState.current?.nodes).toEqual([]);
-
     await act(async () => {
-      graphListener?.(nextGraph);
-      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(1000);
     });
-
-    expect(latestState.current?.activeProjectId).toBe('project-2');
-    expect(latestState.current?.nodes).toEqual(nextGraph.nodes);
+    expect(port.execute).toHaveBeenCalledTimes(1);
+    expect(port.execute).toHaveBeenCalledWith({
+      scope,
+      baseRevision: 'r1',
+      type: 'ChangeNodeProperties',
+      data: {nodeId: 'existing', schema: expect.any(Array), exampleValues: expect.any(Array)},
+    });
+    const command = vi.mocked(port.execute).mock.calls[0][0];
+    expect(command.data.schema).toEqual(expect.arrayContaining([expect.objectContaining({name: 'Name'})]));
+    expect(command.data.exampleValues).toEqual(expect.arrayContaining([expect.objectContaining({propertyId: 'property-1'})]));
   });
 
-  it('replaces projection subscriptions when reload is called', async () => {
-    const initialGraph = createEmptyGraphModel();
-    const reloadedGraph = createNodeGraphModel();
-    const newerGraph: StoredGraphModel = {
-      ...reloadedGraph,
-      nodes: [{...reloadedGraph.nodes[0], id: 'node-2', label: 'Node 2'}],
-    };
-    const initialScope = {projectId: 'project-1', chapterId: 'chapter-1'};
-    const reloadedScope = {projectId: 'project-2', chapterId: 'chapter-2'};
-    let firstGraphListener: ((graph: StoredGraphModel) => void) | null = null;
-    let secondGraphListener: ((graph: StoredGraphModel) => void) | null = null;
-
-    loadGraphApplicationMock
-      .mockResolvedValueOnce({
-        model: new Proxy(
-          {},
-          {
-            get: () => {
-              throw new Error('Compatibility facade must not be used');
-            },
-          },
-        ),
-        workspace: {
-          getWorkspaceSnapshot: () => ({projects: [], chaptersByProjectId: {}}),
-          subscribeToWorkspace: vi.fn(() => ({unsubscribe: vi.fn()})),
-        },
-        graph: {
-          getSnapshot: () => initialGraph,
-          getScope: () => initialScope,
-          setScope: vi.fn(async () => initialGraph),
-          subscribe: (listener: (graph: StoredGraphModel) => void) => {
-            firstGraphListener = listener;
-            return {unsubscribe: vi.fn()};
-          },
-        },
-        commands: {},
-        graphModel: initialGraph,
-        eventBackup: {},
-      })
-      .mockResolvedValueOnce({
-        model: new Proxy(
-          {},
-          {
-            get: () => {
-              throw new Error('Compatibility facade must not be used');
-            },
-          },
-        ),
-        workspace: {
-          getWorkspaceSnapshot: () => ({projects: [], chaptersByProjectId: {}}),
-          subscribeToWorkspace: vi.fn(() => ({unsubscribe: vi.fn()})),
-        },
-        graph: {
-          getSnapshot: () => reloadedGraph,
-          getScope: () => reloadedScope,
-          setScope: vi.fn(async () => reloadedGraph),
-          subscribe: (listener: (graph: StoredGraphModel) => void) => {
-            secondGraphListener = listener;
-            return {unsubscribe: vi.fn()};
-          },
-        },
-        commands: {},
-        graphModel: reloadedGraph,
-        eventBackup: {},
-      });
-
-    const latestState = {current: null as ReturnType<typeof useGraphModel> | null};
-    function HookHarness(props: {activeProjectId?: string | null; activeChapterId?: string | null}) {
-      const state = useGraphModel(props);
-      useEffect(() => {
-        latestState.current = state;
-      }, [state]);
-      return null;
-    }
-
-    container = document.createElement('div');
-    document.body.append(container);
-    root = createRoot(container);
-
+  it('uses receipt identities, never duplicate labels or list order, and returns the created chapter ID', async () => {
+    await mount(snapshot('r1', [node('existing', 'Node 2')]));
+    vi.mocked(port.execute).mockImplementation(async (command) => {
+      if (command.type === 'AddConnectedNode') return {revision: 'r2', createdIds: ['exact-connected', 'edge-id']};
+      if (command.type === 'AddChapter') return {revision: 'r2', createdIds: ['exact-chapter']};
+      return {revision: 'r2', createdIds: ['exact-new']};
+    });
     await act(async () => {
-      root?.render(createElement(HookHarness, {activeProjectId: 'project-1', activeChapterId: 'chapter-1'}));
+      state.current?.addNewSlice();
       await Promise.resolve();
     });
-
+    expect(state.current?.editingNodeId).toBe('exact-new');
     await act(async () => {
-      await latestState.current?.reload();
-    });
-
-    await act(async () => {
-      firstGraphListener?.(initialGraph);
+      state.current?.addConnectedNode(node('existing'), 'right');
       await Promise.resolve();
     });
-
-    expect(latestState.current?.nodes).toEqual([]);
-
+    expect(state.current?.editingNodeId).toBe('exact-connected');
     await act(async () => {
-      secondGraphListener?.(newerGraph);
-      await Promise.resolve();
+      expect(await state.current?.addChapter('New')).toBe('exact-chapter');
     });
+    expect(port.execute).toHaveBeenCalledWith(expect.objectContaining({type: 'AddConnectedNode', baseRevision: 'r1'}));
+  });
 
-    expect(latestState.current?.activeProjectId).toBe('project-2');
-    expect(latestState.current?.nodes).toEqual(newerGraph.nodes);
+  it('replaces the port subscription on reload and ignores the unsubscribed listener', async () => {
+    await mount();
+    const oldListener = listener;
+    vi.mocked(port.getSnapshot).mockResolvedValueOnce(snapshot('r4', [node('reloaded')]));
+    await act(async () => {
+      await state.current?.reload();
+    });
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      oldListener?.(snapshot('r2', []));
+    });
+    expect(state.current?.nodes.map(({id}) => id)).toEqual(['reloaded']);
+    await act(async () => {
+      listener?.(snapshot('r5', [node('latest')]));
+    });
+    expect(state.current?.nodes.map(({id}) => id)).toEqual(['latest']);
   });
 });

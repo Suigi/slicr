@@ -5,12 +5,12 @@ import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import type {NodePropertyExampleValues, NodePropertySchema} from '@slicr/core/events';
 import type {WorkspaceProjection} from '@slicr/core/workspaceProjector';
 import {loadGraphApplication} from '../application/graphApplicationLoader';
+import type {EditorCommand, EditorScope, EditorSnapshot, ProductionEditorPort} from '../application/productionEditorPort';
 import type {createGraphApplication} from '../application/createGraphApplication';
-
-type GraphApplication = Awaited<ReturnType<typeof createGraphApplication>>;
-type ScopedGraphView = GraphApplication['graph'];
 import {getLaneOrder, getSuccessorNodeType} from './graphUtils';
 import {deriveNodePropertyExampleValues, deriveNodePropertySchema, mergeNodePropertyEditorProperties} from './propertyEventMapping';
+
+type GraphApplication = Awaited<ReturnType<typeof createGraphApplication>> & {editorPort: ProductionEditorPort};
 import type {AddDirection, GraphNode, NodeType} from './types';
 
 export type StoredGraphModel = {
@@ -149,11 +149,18 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
   const skipBlurSaveRef = useRef(false);
   const cancelEditRef = useRef(false);
   const applicationRef = useRef<GraphApplication | null>(null);
-  const graphViewRef = useRef<ScopedGraphView | null>(null);
+  const editorPortRef = useRef<ProductionEditorPort | null>(null);
+  const snapshotRef = useRef<EditorSnapshot | null>(null);
   const workspaceSubscriptionRef = useRef<{unsubscribe(): void} | null>(null);
-  const graphSubscriptionRef = useRef<{unsubscribe(): void} | null>(null);
+  const portSubscriptionRef = useRef<{unsubscribe(): void} | null>(null);
   const propertyDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingPropertyEditRef = useRef<{nodeId: string; properties: EditableProperty[]} | null>(null);
+  const pendingPropertyEditRef = useRef<{
+    nodeId: string;
+    properties: EditableProperty[];
+    scope: EditorScope;
+    baseRevision: string;
+    port: ProductionEditorPort;
+  } | null>(null);
 
   const [workspace, setWorkspace] = useState<WorkspaceProjection>(emptyWorkspace);
   const [resolvedProjectId, setResolvedProjectId] = useState('');
@@ -188,7 +195,7 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
 
   const syncWorkspaceState = useCallback(() => {
     const nextWorkspace = applicationRef.current?.workspace.getWorkspaceSnapshot() ?? emptyWorkspace;
-    const nextScope = graphViewRef.current?.getScope() ?? {projectId: '', chapterId: ''};
+    const nextScope = snapshotRef.current?.scope ?? {projectId: '', chapterId: ''};
     setWorkspace(nextWorkspace);
     setResolvedProjectId(nextScope.projectId);
     setResolvedChapterId(nextScope.chapterId);
@@ -196,7 +203,7 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
 
   const flushPendingPropertyEdit = useCallback(async () => {
     const pendingEdit = pendingPropertyEditRef.current;
-    if (!pendingEdit || !applicationRef.current) {
+    if (!pendingEdit) {
       return;
     }
 
@@ -208,8 +215,12 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
 
     const schema = deriveNodePropertySchema(pendingEdit.properties);
     const exampleValues = deriveNodePropertyExampleValues(pendingEdit.properties);
-    await applicationRef.current.commands.changeNodeSchema({nodeId: pendingEdit.nodeId, schema});
-    await applicationRef.current.commands.changeNodeExampleValues({nodeId: pendingEdit.nodeId, exampleValues});
+    await pendingEdit.port.execute({
+      scope: pendingEdit.scope,
+      baseRevision: pendingEdit.baseRevision,
+      type: 'ChangeNodeProperties',
+      data: {nodeId: pendingEdit.nodeId, schema, exampleValues},
+    });
     setFocus((currentFocus) => currentFocus);
   }, []);
 
@@ -257,18 +268,32 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
   const resetProjectionSubscriptions = useCallback(() => {
     workspaceSubscriptionRef.current?.unsubscribe();
     workspaceSubscriptionRef.current = null;
-    graphSubscriptionRef.current?.unsubscribe();
-    graphSubscriptionRef.current = null;
-    graphViewRef.current = null;
+    portSubscriptionRef.current?.unsubscribe();
+    portSubscriptionRef.current = null;
+    snapshotRef.current = null;
+    editorPortRef.current = null;
   }, []);
 
-  const updateGraphFromSubscription = useCallback(
-    (graphModel: StoredGraphModel) => {
-      applyGraphModel(graphModel);
-      syncWorkspaceState();
+  const applySnapshot = useCallback(
+    (snapshot: EditorSnapshot) => {
+      snapshotRef.current = snapshot;
+      applyGraphModel({
+        nodes: [...snapshot.nodes],
+        edges: [...snapshot.edges],
+        lanes: [...snapshot.lanes],
+        nodeSchemas: snapshot.nodeSchemas,
+        nodeExampleValues: snapshot.nodeExampleValues,
+      });
+      setResolvedProjectId(snapshot.scope.projectId);
+      setResolvedChapterId(snapshot.scope.chapterId);
     },
-    [applyGraphModel, syncWorkspaceState],
+    [applyGraphModel],
   );
+
+  const execute = useCallback((type: string, data: EditorCommand['data'], basis = snapshotRef.current) => {
+    if (!basis || !editorPortRef.current) return undefined;
+    return editorPortRef.current.execute({scope: basis.scope, baseRevision: basis.revision, type, data});
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -286,20 +311,16 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
       }
 
       const graphView = application.graph;
-      const graphModel = graphView.getSnapshot();
+      const editorPort = application.editorPort;
+      const initialSnapshot = await editorPort.getSnapshot(graphView.getScope());
+      if (cancelled) return;
+      editorPortRef.current = editorPort;
       applicationRef.current = application;
-      graphViewRef.current = graphView;
-      workspaceSubscriptionRef.current = application.workspace.subscribeToWorkspace((workspace) => {
-        setWorkspace(workspace);
-        setResolvedProjectId(graphView.getScope().projectId);
-        setResolvedChapterId(graphView.getScope().chapterId);
-      });
-      graphSubscriptionRef.current = graphView.subscribe((nextGraphModel) => {
-        updateGraphFromSubscription(nextGraphModel);
-      });
-      applyGraphModel(graphModel);
+      workspaceSubscriptionRef.current = application.workspace.subscribeToWorkspace(setWorkspace);
+      applySnapshot(initialSnapshot);
+      portSubscriptionRef.current = editorPort.subscribe(initialSnapshot.scope, applySnapshot);
       syncWorkspaceState();
-      setFocusedNodeId(graphModel.nodes[0]?.id ?? null);
+      setFocusedNodeId(initialSnapshot.nodes[0]?.id ?? null);
     };
 
     void loadModel();
@@ -307,15 +328,7 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
       cancelled = true;
       resetProjectionSubscriptions();
     };
-  }, [
-    applyGraphModel,
-    resetProjectionSubscriptions,
-    scope.activeChapterId,
-    scope.activeProjectId,
-    setFocusedNodeId,
-    syncWorkspaceState,
-    updateGraphFromSubscription,
-  ]);
+  }, [applySnapshot, resetProjectionSubscriptions, scope.activeChapterId, scope.activeProjectId, setFocusedNodeId, syncWorkspaceState]);
 
   const replaceGraphModel = useCallback(
     (graphModel: StoredGraphModel) => {
@@ -326,35 +339,10 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
     [applyGraphModel, resetTransientState, setFocusedNodeId],
   );
 
-  useEffect(() => {
-    if (!graphViewRef.current) {
-      return;
-    }
-
-    let cancelled = false;
-    void graphViewRef.current
-      .setScope({
-        projectId: scope.activeProjectId ?? undefined,
-        chapterId: scope.activeChapterId ?? undefined,
-      })
-      .then(() => {
-        if (cancelled) {
-          return;
-        }
-
-        syncWorkspaceState();
-        resetTransientState();
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [resetTransientState, scope.activeChapterId, scope.activeProjectId, syncWorkspaceState]);
-
   const reload = useCallback(
     async (options: {preserveScope?: boolean} = {}) => {
       await flushPendingPropertyEdit();
-      const currentScope = graphViewRef.current?.getScope();
+      const currentScope = snapshotRef.current?.scope;
       const requestedScope =
         options.preserveScope && currentScope
           ? currentScope
@@ -366,25 +354,19 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
       const application = await loadGraphApplication(requestedScope);
       await application.graph.setScope(requestedScope);
       const graphView = application.graph;
-      const graphModel = graphView.getSnapshot();
-
+      const editorPort = application.editorPort;
+      const reloadedSnapshot = await editorPort.getSnapshot(graphView.getScope());
+      editorPortRef.current = editorPort;
       applicationRef.current = application;
-      graphViewRef.current = graphView;
-      workspaceSubscriptionRef.current = application.workspace.subscribeToWorkspace((workspace) => {
-        setWorkspace(workspace);
-        setResolvedProjectId(graphView.getScope().projectId);
-        setResolvedChapterId(graphView.getScope().chapterId);
-      });
-      graphSubscriptionRef.current = graphView.subscribe((nextGraphModel) => {
-        updateGraphFromSubscription(nextGraphModel);
-      });
-      applyGraphModel(graphModel);
+      workspaceSubscriptionRef.current = application.workspace.subscribeToWorkspace(setWorkspace);
+      applySnapshot(reloadedSnapshot);
+      portSubscriptionRef.current = editorPort.subscribe(reloadedSnapshot.scope, applySnapshot);
       syncWorkspaceState();
-      setFocusedNodeId(graphModel.nodes[0]?.id ?? null);
+      setFocusedNodeId(reloadedSnapshot.nodes[0]?.id ?? null);
       resetTransientState();
     },
     [
-      applyGraphModel,
+      applySnapshot,
       flushPendingPropertyEdit,
       resetProjectionSubscriptions,
       resetTransientState,
@@ -392,7 +374,6 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
       scope.activeProjectId,
       setFocusedNodeId,
       syncWorkspaceState,
-      updateGraphFromSubscription,
     ],
   );
 
@@ -402,60 +383,69 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
 
   const addNewSlice = useCallback(() => {
     void (async () => {
-      const graphModel = await applicationRef.current?.commands.addNewSlice();
-      if (!graphModel) {
+      const basis = snapshotRef.current;
+      const result = await execute('AddNode', {}, basis);
+      const id = result?.createdIds[0];
+      if (!id) {
         return;
       }
-      const newNode = graphModel.nodes[graphModel.nodes.length - 1];
-      if (!newNode) {
-        return;
-      }
-      setFocusedNodeId(newNode.id);
+      const newNode = snapshotRef.current?.nodes.find((node) => node.id === id);
+      const label = newNode?.label ?? `Node ${(basis?.nodes.length ?? 0) + 1}`;
+      setFocusedNodeId(id);
       setOpenNodeMenuId(null);
       setConnectingSourceNodeId(null);
       skipBlurSaveRef.current = false;
       cancelEditRef.current = false;
-      setEditingNodeId(newNode.id);
-      setDraftLabel(newNode.label);
-      setOriginalLabel(newNode.label);
+      setEditingNodeId(id);
+      setDraftLabel(label);
+      setOriginalLabel(label);
     })();
-  }, [setFocusedNodeId]);
+  }, [execute, setFocusedNodeId]);
 
-  const addProject = useCallback(async (name: string) => {
-    const graphModel = await applicationRef.current?.commands.addProject(name);
-    if (!graphModel || !applicationRef.current) {
-      return;
-    }
+  const addProject = useCallback(
+    async (name: string) => {
+      const result = await execute('AddProject', {name});
+      if (!result?.createdIds[0]) {
+        return;
+      }
 
-    setOpenNodeMenuId(null);
-    setConnectingSourceNodeId(null);
-    skipBlurSaveRef.current = false;
-    cancelEditRef.current = false;
-    setEditingNodeId(null);
-    setDraftLabel('');
-    setOriginalLabel('');
-  }, []);
+      setOpenNodeMenuId(null);
+      setConnectingSourceNodeId(null);
+      skipBlurSaveRef.current = false;
+      cancelEditRef.current = false;
+      setEditingNodeId(null);
+      setDraftLabel('');
+      setOriginalLabel('');
+    },
+    [execute],
+  );
 
-  const renameProject = useCallback(async (projectId: string, name: string) => {
-    await applicationRef.current?.commands.renameProject(projectId, name);
-  }, []);
+  const renameProject = useCallback(
+    async (projectId: string, name: string) => {
+      await execute('RenameProject', {projectId, name});
+    },
+    [execute],
+  );
 
-  const addChapter = useCallback(async (title: string) => {
-    await applicationRef.current?.commands.addChapter(title);
-    if (!applicationRef.current) {
-      return undefined;
-    }
+  const addChapter = useCallback(
+    async (title: string) => {
+      const result = await execute('AddChapter', {title});
+      if (!result?.createdIds[0]) {
+        return undefined;
+      }
 
-    setOpenNodeMenuId(null);
-    setConnectingSourceNodeId(null);
-    skipBlurSaveRef.current = false;
-    cancelEditRef.current = false;
-    setEditingNodeId(null);
-    setDraftLabel('');
-    setOriginalLabel('');
+      setOpenNodeMenuId(null);
+      setConnectingSourceNodeId(null);
+      skipBlurSaveRef.current = false;
+      cancelEditRef.current = false;
+      setEditingNodeId(null);
+      setDraftLabel('');
+      setOriginalLabel('');
 
-    return graphViewRef.current?.getScope().chapterId;
-  }, []);
+      return result.createdIds[0];
+    },
+    [execute],
+  );
 
   const startConnectingFromNode = useCallback(
     (nodeId: string) => {
@@ -483,20 +473,23 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
 
       const role = wouldCreateCycle(edges, sourceNodeId, targetNodeId) ? 'back-reference' : undefined;
       void (async () => {
-        await applicationRef.current?.commands.addConnection(sourceNodeId, targetNodeId, role);
+        await execute('ConnectNodes', {sourceNodeId, targetNodeId, role});
         setConnectingSourceNodeId(null);
         setFocusedNodeId(targetNodeId);
         setOpenNodeMenuId(null);
       })();
     },
-    [edges, setFocusedNodeId],
+    [edges, execute, setFocusedNodeId],
   );
 
-  const deleteConnection = useCallback((edgeId: string) => {
-    void (async () => {
-      await applicationRef.current?.commands.deleteConnection(edgeId);
-    })();
-  }, []);
+  const deleteConnection = useCallback(
+    (edgeId: string) => {
+      void (async () => {
+        await execute('DisconnectNodes', {edgeId});
+      })();
+    },
+    [execute],
+  );
 
   const addConnectedNode = useCallback(
     (sourceNode: GraphNode, direction: AddDirection, typeOverride?: NodeType) => {
@@ -506,26 +499,27 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
       const label = `Node ${nodes.length + 1}`;
 
       void (async () => {
-        await applicationRef.current?.commands.addConnectedNode({
+        const result = await execute('AddConnectedNode', {
           sourceNodeId: sourceNode.id,
           nodeType: targetType,
           laneId: targetLaneOrder,
           label,
         });
-        const newNode = graphViewRef.current?.getSnapshot().nodes.find((node) => node.label === label) ?? null;
-        if (!newNode) {
+        const id =
+          result?.createdIds.find((createdId) => snapshotRef.current?.nodes.some((node) => node.id === createdId)) ?? result?.createdIds[0];
+        if (!id) {
           return;
         }
-        setFocusedNodeId(newNode.id);
+        setFocusedNodeId(id);
         setConnectingSourceNodeId(null);
         skipBlurSaveRef.current = false;
         cancelEditRef.current = false;
-        setEditingNodeId(newNode.id);
-        setDraftLabel(newNode.label);
-        setOriginalLabel(newNode.label);
+        setEditingNodeId(id);
+        setDraftLabel(label);
+        setOriginalLabel(label);
       })();
     },
-    [lanes, nodes, setFocusedNodeId],
+    [execute, lanes, nodes, setFocusedNodeId],
   );
 
   const deleteNode = useCallback(
@@ -533,7 +527,7 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
       const predecessorNodeId = edges.find((edge) => edge.targetId === nodeId)?.sourceId ?? null;
 
       void (async () => {
-        await applicationRef.current?.commands.deleteNode(nodeId);
+        await execute('DeleteNode', {nodeId});
         if (editingNodeId === nodeId) {
           setEditingNodeId(null);
           setDraftLabel('');
@@ -550,15 +544,18 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
         }
       })();
     },
-    [connectingSourceNodeId, edges, editingNodeId, focusedNodeId, openNodeMenuId, setFocusedNodeId],
+    [connectingSourceNodeId, edges, editingNodeId, execute, focusedNodeId, openNodeMenuId, setFocusedNodeId],
   );
 
-  const setNodeType = useCallback((nodeId: string, type: NodeType) => {
-    void (async () => {
-      await applicationRef.current?.commands.setNodeType(nodeId, type);
-      setOpenNodeMenuId(null);
-    })();
-  }, []);
+  const setNodeType = useCallback(
+    (nodeId: string, type: NodeType) => {
+      void (async () => {
+        await execute('ChangeNodeType', {nodeId, newType: type});
+        setOpenNodeMenuId(null);
+      })();
+    },
+    [execute],
+  );
 
   const startEditingNode = useCallback(
     (node: GraphNode) => {
@@ -581,13 +578,13 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
     const nodeId = editingNodeId;
     const nextLabel = draftLabel.trim() || 'Untitled';
     void (async () => {
-      await applicationRef.current?.commands.renameNode(nodeId, nextLabel);
+      await execute('RenameNode', {nodeId, name: nextLabel});
       cancelEditRef.current = false;
       setEditingNodeId(null);
       setDraftLabel('');
       setOriginalLabel('');
     })();
-  }, [draftLabel, editingNodeId]);
+  }, [draftLabel, editingNodeId, execute]);
 
   const cancelEditingNode = useCallback(() => {
     cancelEditRef.current = true;
@@ -672,7 +669,15 @@ export function useGraphModel(scope: {activeProjectId?: string | null; activeCha
         ...currentPropertiesById,
         [focusedNodeId]: properties,
       }));
-      pendingPropertyEditRef.current = {nodeId: focusedNodeId, properties};
+      const basis = pendingPropertyEditRef.current?.nodeId === focusedNodeId ? pendingPropertyEditRef.current : snapshotRef.current;
+      if (!basis || !editorPortRef.current) return;
+      pendingPropertyEditRef.current = {
+        nodeId: focusedNodeId,
+        properties,
+        scope: basis.scope,
+        baseRevision: 'baseRevision' in basis ? basis.baseRevision : basis.revision,
+        port: 'port' in basis ? basis.port : editorPortRef.current,
+      };
       schedulePropertyEditFlush();
     },
     [focusedNodeId, schedulePropertyEditFlush],

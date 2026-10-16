@@ -803,7 +803,9 @@ test('serve saves property schema and example values in one guarded command', as
       body: JSON.stringify(command),
     });
     assert.equal(saved.status, 200);
-    assert.equal((await saved.json()).appended, 2);
+    const receipt = await saved.json();
+    assert.equal(receipt.appended, 2);
+    assert.equal(receipt.revision, (await (await fetch(`${base}/api/model`)).json()).revision);
     const lines = readFileSync(join(dir, '.slicr', 'events.ndjson'), 'utf8')
       .trim()
       .split('\n');

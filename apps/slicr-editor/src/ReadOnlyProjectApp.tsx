@@ -10,6 +10,8 @@ import {deriveNodePropertyExampleValues, deriveNodePropertySchema, mergeNodeProp
 import type {GraphNode, NodeType, RenderNode} from './graph/types';
 import type {NodePropertySchema, NodePropertyExampleValues} from '@slicr/core/events';
 import {measureNodeDimensions, type NodeDimensions} from './nodeMeasurement';
+import {createProjectProductionEditorPort, ProjectCommandError} from './application/projectProductionEditorPort';
+import type {EditorSnapshot} from './application/productionEditorPort';
 
 type Project = {id: string; name: string};
 type Chapter = {id: string; title: string};
@@ -30,6 +32,29 @@ type Projection = {
   nodeExampleValues: Record<string, NodePropertyExampleValues[]>;
 };
 
+const projectEditorPort = createProjectProductionEditorPort();
+
+function toProjection(snapshot: EditorSnapshot): Projection {
+  return {
+    revision: snapshot.revision,
+    projectId: snapshot.scope.projectId,
+    chapterId: snapshot.scope.chapterId,
+    nodes: snapshot.nodes.map((node) => ({
+      id: node.id,
+      label: node.label,
+      type: node.type,
+      laneId: snapshot.lanes.find((lane) => lane.id === node.laneId)?.order ?? 0,
+    })),
+    edges: snapshot.edges.map((edge) => ({sourceNodeId: edge.sourceId, targetNodeId: edge.targetId, role: edge.role ?? 'flow'})),
+    nodeSchemas: snapshot.nodeSchemas,
+    nodeExampleValues: snapshot.nodeExampleValues,
+  };
+}
+
+async function getProjectSnapshot(projectId: string, chapterId: string): Promise<Projection> {
+  return toProjection(await projectEditorPort.getSnapshot({projectId, chapterId}));
+}
+
 async function readApi<T>(url: string, signal: AbortSignal): Promise<T> {
   const response = await fetch(url, {signal, headers: {accept: 'application/json'}});
   const body = await response.json();
@@ -37,24 +62,14 @@ async function readApi<T>(url: string, signal: AbortSignal): Promise<T> {
   return body as T;
 }
 
-class ProjectCommandError extends Error {
-  constructor(
-    message: string,
-    readonly code?: string,
-  ) {
-    super(message);
-  }
-}
-
 async function writeApi(command: {projectId: string; baseRevision: string; type: string; data: Record<string, unknown>}) {
-  const response = await fetch('/api/command', {
-    method: 'POST',
-    headers: {'content-type': 'application/json', accept: 'application/json'},
-    body: JSON.stringify(command),
+  const result = await projectEditorPort.execute({
+    scope: {projectId: command.projectId, chapterId: String(command.data.chapterId ?? '')},
+    baseRevision: command.baseRevision,
+    type: command.type,
+    data: command.data,
   });
-  const body = await response.json();
-  if (!response.ok) throw new ProjectCommandError(body.error ?? `Request failed (${response.status})`, body.code);
-  return body as {appended: number; generatedIds?: string[]; revision: string};
+  return {revision: result.revision, generatedIds: [...result.createdIds]};
 }
 
 /** Served entry point only: deliberately never imports App, useGraphModel, or any browser event store. */
@@ -117,52 +132,25 @@ export function ReadOnlyProjectApp() {
     return () => controller.abort();
   }, []);
 
-  // Poll sequentially so responses cannot overlap or be applied out of order.
   useEffect(() => {
     if (!projectId) return;
-    let active = true;
-    let timer = 0;
-    let controller: AbortController | null = null;
-    const poll = async () => {
-      const generation = ++readGeneration.current;
-      const requestScope = `${projectId}\u0000${chapterId}`;
-      controller = new AbortController();
-      const query = new URLSearchParams({project: projectId});
-      if (chapterId) query.set('chapter', chapterId);
-      try {
-        const [next, nextModel] = await Promise.all([
-          readApi<Projection>(`/api/projection?${query}`, controller.signal),
-          readApi<Model>('/api/model', controller.signal),
-        ]);
-        if (!active || generation !== readGeneration.current || currentScopeIdentity.current !== requestScope) return;
-        setProjection((current) => (current?.revision === next.revision ? current : next));
-        setModel(nextModel);
-        setRefreshError('');
-        setError((current) => (current.startsWith('Could not load project') ? '' : current));
-      } catch (reason: unknown) {
-        if (active && generation === readGeneration.current && currentScopeIdentity.current === requestScope && !controller.signal.aborted)
-          setRefreshError(`Could not refresh project from disk: ${String(reason)}`);
-      } finally {
-        if (active) timer = window.setTimeout(poll, 1000);
-      }
-    };
-    void poll();
-    return () => {
-      active = false;
-      window.clearTimeout(timer);
-      controller?.abort();
-    };
+    const requestScope = `${projectId}\u0000${chapterId}`;
+    const subscription = projectEditorPort.subscribe({projectId, chapterId}, (snapshot) => {
+      if (currentScopeIdentity.current !== requestScope) return;
+      setProjection((current) => (current?.revision === snapshot.revision ? current : toProjection(snapshot)));
+      setRefreshError('');
+      setError((current) => (current.startsWith('Could not load project') ? '' : current));
+    });
+    return () => subscription.unsubscribe();
   }, [projectId, chapterId]);
 
   const refreshProjection = async () => {
     if (!projectId) return;
     const generation = ++readGeneration.current;
     const requestScope = scopeIdentity;
-    const query = new URLSearchParams({project: projectId});
-    if (chapterId) query.set('chapter', chapterId);
     const controller = new AbortController();
     const [next, nextModel] = await Promise.all([
-      readApi<Projection>(`/api/projection?${query}`, controller.signal),
+      getProjectSnapshot(projectId, chapterId),
       readApi<Model>('/api/model', controller.signal),
     ]);
     if (generation !== readGeneration.current || currentScopeIdentity.current !== requestScope) return;

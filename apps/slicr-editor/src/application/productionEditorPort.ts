@@ -1,4 +1,5 @@
 import type {EdgeInput, LaneInput} from 'layout-lib';
+import type {NodePropertyExampleValues, NodePropertySchema} from '@slicr/core/events';
 import type {GraphNode} from '../graph/types';
 
 export type EditorScope = {readonly projectId: string; readonly chapterId: string};
@@ -8,6 +9,8 @@ export type EditorSnapshot = {
   readonly nodes: readonly GraphNode[];
   readonly edges: readonly EdgeInput[];
   readonly lanes: readonly LaneInput[];
+  readonly nodeSchemas: Record<string, NodePropertySchema[]>;
+  readonly nodeExampleValues: Record<string, NodePropertyExampleValues[]>;
 };
 export type EditorCommand = {
   readonly scope: EditorScope;

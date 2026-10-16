@@ -32,7 +32,7 @@
 }
 
 .read-only-identity ~ .graph-workspace {
-  height: calc(100% - 150px);
+  /* height: calc(100% - 150px); */
 }
 
 .read-only-identity ~ .graph-workspace .canvas {
