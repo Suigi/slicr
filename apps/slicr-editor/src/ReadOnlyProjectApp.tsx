@@ -1,13 +1,8 @@
 import {useEffect, useMemo, useRef, useState} from 'react';
-import {InfiniteCanvas, type EditableProperty, type InfiniteCanvasHandle} from '@slicr/react-ui';
+import {type EditableProperty, type InfiniteCanvasHandle} from '@slicr/react-ui';
 import {compactLayout} from 'layout-lib';
-import {AppShell} from './components/AppShell';
-import {ProjectSwitcher} from './components/ProjectSwitcher';
-import {ChapterSidebar} from './components/ChapterSidebar';
-import {NodeEditor} from './components/NodeEditor';
-import {EdgeLayer} from './components/EdgeLayer';
-import {GraphNodeView} from './components/GraphNodeView';
-import {NodeMeasureLayer} from './components/NodeMeasureLayer';
+import {ProductionEditorShell} from './components/ProductionEditorShell';
+import {ProductionGraphEditor} from './components/ProductionGraphEditor';
 import {NODE_HEIGHT, NODE_WIDTH, laneIdForOrder} from './graph/constants';
 import {getArrowRenderPoints} from './graph/graphUtils';
 import {useGraphKeyboardInteractions} from './graph/useGraphKeyboardInteractions';
@@ -526,40 +521,31 @@ export function ReadOnlyProjectApp() {
   }, [editingNodeId, draftLabel, projection]);
 
   return (
-    <AppShell
-      projectSwitcher={
-        <ProjectSwitcher
-          projects={model?.projects ?? []}
-          activeProjectId={projectId}
-          onSelectProject={(id) => {
-            if (hasUnresolvedPropertyDrafts()) {
-              setPendingScopeSwitch({projectId: id, chapterId: '', label: 'project'});
-              return;
-            }
-            switchScope(id, '');
-          }}
-          onAddProject={(name) => void execute('AddProject', {name})}
-          onRenameProject={(id, name) => void execute('RenameProject', {name}, id)}
-        />
-      }
-      sidebar={
-        <ChapterSidebar
-          chapters={chapters}
-          activeChapterId={chapterId}
-          onSelectChapter={(id) => {
-            if (hasUnresolvedPropertyDrafts()) {
-              setPendingScopeSwitch({projectId, chapterId: id, label: 'chapter'});
-              return;
-            }
-            switchScope(projectId, id);
-          }}
-          onCollapse={() => setIsSidebarOpen(false)}
-          onAddChapter={(title) => void execute('AddChapter', {title})}
-        />
-      }
-      collapsedSidebarLabel={chapters.find((chapter) => chapter.id === chapterId)?.title ?? chapters[0]?.title ?? 'Chapters'}
+    <ProductionEditorShell
+      projects={model?.projects ?? []}
+      chapters={chapters}
+      projectId={projectId}
+      chapterId={chapterId}
       isSidebarOpen={isSidebarOpen}
+      onSelectProject={(id) => {
+        if (hasUnresolvedPropertyDrafts()) {
+          setPendingScopeSwitch({projectId: id, chapterId: '', label: 'project'});
+          return;
+        }
+        switchScope(id, '');
+      }}
+      onAddProject={(name) => void execute('AddProject', {name})}
+      onRenameProject={(id, name) => void execute('RenameProject', {name}, id)}
+      onSelectChapter={(id) => {
+        if (hasUnresolvedPropertyDrafts()) {
+          setPendingScopeSwitch({projectId, chapterId: id, label: 'chapter'});
+          return;
+        }
+        switchScope(projectId, id);
+      }}
+      onCollapseSidebar={() => setIsSidebarOpen(false)}
       onExpandSidebar={() => setIsSidebarOpen(true)}
+      onAddChapter={(title) => void execute('AddChapter', {title})}
       topbarActions={<strong>Project store · editing enabled</strong>}
     >
       <div className="read-only-identity" aria-label="Project store identity">
@@ -641,61 +627,42 @@ export function ReadOnlyProjectApp() {
             Add node
           </button>
           <div className="graph-workspace">
-            {connectingNodeId ? (
-              <div className="connect-mode-status">
-                Select a target node to connect from “{graph.nodes.find((node) => node.id === connectingNodeId)?.label}”. Esc to cancel.
-              </div>
-            ) : null}
-            {focusedNodeId && propertiesById[focusedNodeId] ? (
-              <aside className="node-detail-panel" aria-label="Focused node details">
-                <h2
-                  className={`node-detail-title node-detail-title-${graph.nodes.find((node) => node.id === focusedNodeId)?.type ?? 'ui'}`}
-                >
-                  {graph.nodes.find((node) => node.id === focusedNodeId)?.label ?? 'Node'}
-                </h2>
-                <section className="node-detail-properties" aria-labelledby="project-node-properties-heading">
-                  <h3 id="project-node-properties-heading" className="node-detail-properties-heading">
-                    Properties
-                  </h3>
-                  <NodeEditor
-                    properties={propertyDrafts[`${scopeIdentity}\u0000${focusedNodeId}`] ?? propertiesById[focusedNodeId]}
-                    focusedPropertyId={hoveredPropertyId ?? focusedPropertyId}
-                    onChange={(properties) => {
-                      const requestScope = scopeIdentity;
-                      const key = `${requestScope}\u0000${focusedNodeId}`;
-                      setPropertyDrafts((current) => ({...current, [key]: properties}));
-                      pendingPropertySaves.current.set(key, {
-                        projectId,
-                        scopeIdentity: requestScope,
-                        nodeId: focusedNodeId,
-                        schema: deriveNodePropertySchema(properties),
-                        exampleValues: deriveNodePropertyExampleValues(properties),
-                        baseRevision: projection?.revision ?? model?.revision ?? '',
-                      });
-                      if (propertySaveTimer.current !== null) window.clearTimeout(propertySaveTimer.current);
-                      propertySaveTimer.current = window.setTimeout(() => {
-                        propertySaveTimer.current = null;
-                        void drainPropertySaves();
-                      }, 300);
-                    }}
-                    onFocusedPropertyChange={setFocusedPropertyId}
-                  />
-                </section>
-              </aside>
-            ) : null}
-            <NodeMeasureLayer
-              nodes={renderedNodes}
+            <ProductionGraphEditor
+              mode="project"
+              canvasRef={canvasRef}
+              measurementRef={measureRef}
+              renderedNodes={renderedNodes}
+              graphNodes={graph.nodes}
+              graphEdges={graph.edges}
+              renderedEdges={
+                layout.ok
+                  ? layout.result.edges.flatMap((edge) => {
+                      const points = getArrowRenderPoints(edge.points);
+                      return points
+                        ? [
+                            {
+                              id: edge.id,
+                              role: edge.role,
+                              points,
+                              isConnectedToFocusedNode: edge.sourceId === focusedNodeId || edge.targetId === focusedNodeId,
+                            },
+                          ]
+                        : [];
+                    })
+                  : []
+              }
               nodePropertiesById={propertiesById}
-              editingNodeId={null}
-              draftLabel=""
-              containerRef={measureRef}
-            />
-            <InfiniteCanvas
-              ref={canvasRef}
-              className="canvas"
-              defaultCamera={{x: 100, y: 100, zoom: 1}}
-              controls={{toolbar: true}}
-              ignorePanSelector=".node-box, .node-add-button, .node-menu-button, .node-menu, .node-label-input"
+              focusedNodeId={focusedNodeId}
+              focusedNodeProperties={
+                focusedNodeId ? (propertyDrafts[`${scopeIdentity}\u0000${focusedNodeId}`] ?? propertiesById[focusedNodeId] ?? []) : []
+              }
+              editingNodeId={editingNodeId}
+              menuNodeId={menuNodeId}
+              connectingNodeId={connectingNodeId}
+              focusedPropertyId={focusedPropertyId}
+              hoveredPropertyId={hoveredPropertyId}
+              draftLabel={draftLabel}
+              layoutError={!layout.ok ? <p className="layout-error">{layout.error.message}</p> : null}
               onCanvasPointerDown={(event) => {
                 if (event.target instanceof Element && !event.target.closest('.node-box')) {
                   setFocusedNodeId(null);
@@ -705,123 +672,90 @@ export function ReadOnlyProjectApp() {
                   setHoveredPropertyId(null);
                 }
               }}
-            >
-              {layout.ok ? (
-                <EdgeLayer
-                  edges={layout.result.edges.flatMap((edge) => {
-                    const points = getArrowRenderPoints(edge.points);
-                    return points
-                      ? [
-                          {
-                            id: edge.id,
-                            role: edge.role,
-                            points,
-                            isConnectedToFocusedNode: edge.sourceId === focusedNodeId || edge.targetId === focusedNodeId,
-                          },
-                        ]
-                      : [];
-                  })}
-                />
-              ) : (
-                <p className="layout-error">{layout.error.message}</p>
-              )}
-              {renderedNodes.map((node) => (
-                <GraphNodeView
-                  key={node.id}
-                  node={node}
-                  properties={propertiesById[node.id] ?? []}
-                  focusedPropertyId={hoveredPropertyId ?? focusedPropertyId}
-                  onHoveredPropertyChange={setHoveredPropertyId}
-                  renderMode="interactive"
-                  isFocused={focusedNodeId === node.id}
-                  isEditing={editingNodeId === node.id}
-                  isMenuOpen={menuNodeId === node.id}
-                  isConnectingSource={connectingNodeId === node.id}
-                  draftLabel={editingNodeId === node.id ? draftLabel : ''}
-                  connectionMenuItems={graph.edges
-                    .filter((edge) => edge.sourceId === node.id || edge.targetId === node.id)
-                    .map((edge) => {
-                      const otherId = edge.sourceId === node.id ? edge.targetId : edge.sourceId;
-                      const other = graph.nodes.find((item) => item.id === otherId);
-                      return {
-                        id: edge.id,
-                        directionLabel: edge.sourceId === node.id ? ('to' as const) : ('from' as const),
-                        nodeLabel: other?.label ?? otherId,
-                        nodeType: other?.type ?? ('ui' as const),
-                      };
-                    })}
-                  onNodeClick={(selected) => {
-                    if (connectingNodeId && connectingNodeId !== selected.id) {
-                      void execute('ConnectNodes', {sourceNodeId: connectingNodeId, targetNodeId: selected.id});
-                      setConnectingNodeId(null);
-                      setError('');
+              onNodeClick={(selected) => {
+                if (connectingNodeId && connectingNodeId !== selected.id) {
+                  void execute('ConnectNodes', {sourceNodeId: connectingNodeId, targetNodeId: selected.id});
+                  setConnectingNodeId(null);
+                  setError('');
+                }
+                setFocusedNodeId(selected.id);
+                setFocusedPropertyId(null);
+                setHoveredPropertyId(null);
+                setMenuNodeId(null);
+              }}
+              onCloseOtherMenus={() => setMenuNodeId(null)}
+              onToggleMenu={(id) => setMenuNodeId((current) => (current === id ? null : id))}
+              onAddConnectedNode={(source, direction) => {
+                const chapter = chapterId || projection?.nodes.find((item) => item.id === source.id)?.chapterId;
+                if (!chapter) return;
+                void execute('AddConnectedNode', {chapterId: chapter, sourceNodeId: source.id, label: 'New Node', direction}).then(
+                  (result) => {
+                    const id = result?.generatedIds?.[0];
+                    if (id && currentScopeIdentity.current === scopeIdentity) {
+                      setFocusedNodeId(id);
+                      setEditingNodeId(id);
+                      setDraftLabel('New Node');
                     }
-                    setFocusedNodeId(selected.id);
-                    setFocusedPropertyId(null);
-                    setHoveredPropertyId(null);
-                    setMenuNodeId(null);
-                  }}
-                  onCloseOtherMenus={() => setMenuNodeId(null)}
-                  onToggleMenu={() => setMenuNodeId((current) => (current === node.id ? null : node.id))}
-                  onAddConnectedNode={(source, direction) => {
-                    const chapter = chapterId || projection?.nodes.find((item) => item.id === source.id)?.chapterId;
-                    if (!chapter) return;
-                    void execute('AddConnectedNode', {
-                      chapterId: chapter,
-                      sourceNodeId: source.id,
-                      label: 'New Node',
-                      direction,
-                    }).then((result) => {
-                      const id = result?.generatedIds?.[0];
-                      if (id && currentScopeIdentity.current === scopeIdentity) {
-                        setFocusedNodeId(id);
-                        setEditingNodeId(id);
-                        setDraftLabel('New Node');
-                      }
-                    });
-                  }}
-                  onStartEditingNode={(selected) => {
-                    cancelLabelRef.current = false;
-                    setEditingNodeId(selected.id);
-                    setDraftLabel(selected.label);
-                  }}
-                  onSetNodeType={(nodeId, newType) => void execute('ChangeNodeType', {nodeId, newType})}
-                  onStartConnection={(nodeId) => {
-                    setConnectingNodeId(nodeId);
-                    setError(`Select a node to connect from ${nodeId}, or press Escape to cancel.`);
-                  }}
-                  onDeleteConnection={(edgeId) => {
-                    const edge = graph.edges.find((item) => item.id === edgeId);
-                    if (edge) void execute('DisconnectNodes', {sourceNodeId: edge.sourceId, targetNodeId: edge.targetId});
-                  }}
-                  onDeleteNode={(nodeId) => {
-                    void execute('DeleteNode', {nodeId});
-                    setFocusedNodeId(null);
-                  }}
-                  onDraftLabelChange={setDraftLabel}
-                  onSaveEditingNode={() => void saveLabel()}
-                  onCancelEditingFromKeyboard={() => {
-                    cancelLabelRef.current = true;
-                    setEditingNodeId(null);
-                    setDraftLabel('');
-                  }}
-                  onLabelBlur={() => {
-                    if (editingNodeId === node.id) {
-                      if (document.activeElement === document.body) {
-                        cancelLabelRef.current = true;
-                        setEditingNodeId(null);
-                        setDraftLabel('');
-                      } else {
-                        void saveLabel();
-                      }
-                    }
-                  }}
-                />
-              ))}
-            </InfiniteCanvas>
+                  },
+                );
+              }}
+              onStartEditingNode={(node) => {
+                cancelLabelRef.current = false;
+                setEditingNodeId(node.id);
+                setDraftLabel(node.label);
+              }}
+              onSetNodeType={(nodeId, newType) => void execute('ChangeNodeType', {nodeId, newType})}
+              onStartConnection={(id) => {
+                setConnectingNodeId(id);
+                setError(`Select a node to connect from ${id}, or press Escape to cancel.`);
+              }}
+              onDeleteConnection={(id) => {
+                const edge = graph.edges.find((item) => item.id === id);
+                if (edge) void execute('DisconnectNodes', {sourceNodeId: edge.sourceId, targetNodeId: edge.targetId});
+              }}
+              onDeleteNode={(id) => {
+                void execute('DeleteNode', {nodeId: id});
+                setFocusedNodeId(null);
+              }}
+              onDraftLabelChange={setDraftLabel}
+              onSaveEditingNode={() => void saveLabel()}
+              onCancelEditing={() => {
+                cancelLabelRef.current = true;
+                setEditingNodeId(null);
+                setDraftLabel('');
+              }}
+              onLabelBlur={() => {
+                if (editingNodeId && document.activeElement === document.body) {
+                  cancelLabelRef.current = true;
+                  setEditingNodeId(null);
+                  setDraftLabel('');
+                } else void saveLabel();
+              }}
+              onFocusedPropertyChange={setFocusedPropertyId}
+              onHoveredPropertyChange={setHoveredPropertyId}
+              onChangeFocusedProperties={(properties) => {
+                if (!focusedNodeId) return;
+                const requestScope = scopeIdentity;
+                const key = `${requestScope}\u0000${focusedNodeId}`;
+                setPropertyDrafts((current) => ({...current, [key]: properties}));
+                pendingPropertySaves.current.set(key, {
+                  projectId,
+                  scopeIdentity: requestScope,
+                  nodeId: focusedNodeId,
+                  schema: deriveNodePropertySchema(properties),
+                  exampleValues: deriveNodePropertyExampleValues(properties),
+                  baseRevision: projection?.revision ?? model?.revision ?? '',
+                });
+                if (propertySaveTimer.current !== null) window.clearTimeout(propertySaveTimer.current);
+                propertySaveTimer.current = window.setTimeout(() => {
+                  propertySaveTimer.current = null;
+                  void drainPropertySaves();
+                }, 300);
+              }}
+            />
           </div>
         </>
       ) : null}
-    </AppShell>
+    </ProductionEditorShell>
   );
 }

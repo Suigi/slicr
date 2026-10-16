@@ -1,21 +1,9 @@
 import {useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties} from 'react';
-import {
-  InfiniteCanvas,
-  PointyCardTags,
-  PropertyEditor,
-  PropertyGrid,
-  type EditableProperty,
-  type InfiniteCanvasHandle,
-} from '@slicr/react-ui';
+import {PointyCardTags, PropertyEditor, PropertyGrid, type EditableProperty, type InfiniteCanvasHandle} from '@slicr/react-ui';
 import {compactLayout} from 'layout-lib';
-import {AppShell} from './components/AppShell';
+import {ProductionEditorShell} from './components/ProductionEditorShell';
+import {ProductionGraphEditor} from './components/ProductionGraphEditor';
 import {BackupRestoreButtons} from './components/BackupRestoreButtons';
-import {ChapterSidebar} from './components/ChapterSidebar';
-import {EdgeLayer} from './components/EdgeLayer';
-import {GraphNodeView} from './components/GraphNodeView';
-import {NodeEditor} from './components/NodeEditor';
-import {NodeMeasureLayer} from './components/NodeMeasureLayer';
-import {ProjectSwitcher} from './components/ProjectSwitcher';
 import {NODE_HEIGHT, NODE_WIDTH} from './graph/constants';
 import {getArrowRenderPoints} from './graph/graphUtils';
 import {useGraphKeyboardInteractions} from './graph/useGraphKeyboardInteractions';
@@ -266,8 +254,6 @@ export function App() {
     : resolvedChapterExists
       ? activeChapterId
       : (activeChapters[0]?.id ?? '');
-  const activeChapterName = activeChapters.find((chapter) => chapter.id === effectiveChapterId)?.title ?? 'Untitled';
-
   const handleAddChapter = async (title: string) => {
     const newChapterId = await addChapter(title);
     if (newChapterId) {
@@ -367,10 +353,6 @@ export function App() {
     };
   }, [measurementStateKey]);
 
-  const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
-  const focusedNode = focusedNodeId ? nodeById.get(focusedNodeId) : undefined;
-  const connectingSourceNode = connectingSourceNodeId ? nodes.find((node) => node.id === connectingSourceNodeId) : undefined;
-
   const backupEventsToClipboard = async () => {
     try {
       const text = await eventBackup.backupText();
@@ -451,31 +433,22 @@ export function App() {
   });
 
   return (
-    <AppShell
-      projectSwitcher={
-        <ProjectSwitcher
-          projects={workspace.projects}
-          activeProjectId={effectiveProjectId}
-          onSelectProject={(projectId) => {
-            setSelectedProjectId(projectId);
-            setSelectedChapterId(null);
-          }}
-          onAddProject={addProject}
-          onRenameProject={renameProject}
-        />
-      }
-      collapsedSidebarLabel={activeChapterName}
+    <ProductionEditorShell
+      projects={workspace.projects}
+      chapters={activeChapters}
+      projectId={effectiveProjectId}
+      chapterId={effectiveChapterId}
       isSidebarOpen={isSidebarOpen}
+      onSelectProject={(projectId) => {
+        setSelectedProjectId(projectId);
+        setSelectedChapterId(null);
+      }}
+      onAddProject={addProject}
+      onRenameProject={renameProject}
+      onSelectChapter={setSelectedChapterId}
+      onAddChapter={handleAddChapter}
+      onCollapseSidebar={() => setIsSidebarOpen(false)}
       onExpandSidebar={() => setIsSidebarOpen(true)}
-      sidebar={
-        <ChapterSidebar
-          chapters={activeChapters}
-          activeChapterId={effectiveChapterId}
-          onSelectChapter={setSelectedChapterId}
-          onCollapse={() => setIsSidebarOpen(false)}
-          onAddChapter={handleAddChapter}
-        />
-      }
       topbarActions={
         <BackupRestoreButtons onBackup={() => void backupEventsToClipboard()} onRestore={() => void restoreBackupFromClipboard()} />
       }
@@ -489,39 +462,24 @@ export function App() {
             Export layout-lib vitest case
           </button>
         </div>
-        {connectingSourceNode ? (
-          <div className="connect-mode-status">Select a target node to connect from “{connectingSourceNode.label}”. Esc to cancel.</div>
-        ) : null}
-        {focusedNode ? (
-          <aside className="node-detail-panel" aria-label="Focused node details">
-            <h2 className={`node-detail-title node-detail-title-${focusedNode.type}`}>{focusedNode.label}</h2>
-            <section className="node-detail-properties" aria-labelledby="node-detail-properties-heading">
-              <h3 id="node-detail-properties-heading" className="node-detail-properties-heading">
-                Properties
-              </h3>
-              <NodeEditor
-                properties={focusedNodeProperties}
-                focusedPropertyId={highlightedPropertyId}
-                onFocusedPropertyChange={setEditorFocusedPropertyId}
-                onChange={updateFocusedNodeProperties}
-              />
-            </section>
-          </aside>
-        ) : null}
-        <NodeMeasureLayer
-          nodes={renderedNodes}
-          nodePropertiesById={nodePropertiesById}
-          editingNodeId={editingNodeId}
-          draftLabel={draftLabel}
-          containerRef={measurementLayerRef}
-        />
-        <InfiniteCanvas
-          ref={canvasRef}
-          className="canvas"
-          defaultCamera={{x: 100, y: 100, zoom: 1}}
-          controls={{toolbar: true}}
+        <ProductionGraphEditor
+          mode="standalone"
+          canvasRef={canvasRef}
           viewportRef={viewportRef}
-          ignorePanSelector=".node-box, .node-add-button, .node-menu-button, .node-menu, .node-label-input, .export-menu, .node-layout-mockups, .property-editor-example"
+          renderedNodes={renderedNodes}
+          graphNodes={nodes}
+          graphEdges={edges}
+          renderedEdges={arrowRenderPoints}
+          nodePropertiesById={nodePropertiesById}
+          focusedNodeId={focusedNodeId}
+          focusedNodeProperties={focusedNodeProperties}
+          editingNodeId={editingNodeId}
+          menuNodeId={openNodeMenuId}
+          connectingNodeId={connectingSourceNodeId}
+          focusedPropertyId={highlightedPropertyId}
+          hoveredPropertyId={highlightedPropertyId}
+          draftLabel={draftLabel}
+          measurementRef={measurementLayerRef}
           onCanvasPointerDown={(event) => {
             if (event.target instanceof Element && !event.target.closest('.node-box')) {
               if (
@@ -535,54 +493,29 @@ export function App() {
               cancelConnecting();
             }
           }}
+          onNodeClick={(clickedNode) => {
+            if (connectingSourceNodeId) {
+              addConnection(connectingSourceNodeId, clickedNode.id);
+              return;
+            }
+            setFocusedNodeId(clickedNode.id);
+          }}
+          onCloseOtherMenus={() => setOpenNodeMenuId(null)}
+          onToggleMenu={(nodeId) => setOpenNodeMenuId((currentId) => (currentId === nodeId ? null : nodeId))}
+          onAddConnectedNode={addConnectedNode}
+          onStartEditingNode={startEditingNode}
+          onSetNodeType={setNodeType}
+          onStartConnection={startConnectingFromNode}
+          onDeleteConnection={deleteConnection}
+          onDeleteNode={deleteNode}
+          onDraftLabelChange={setDraftLabel}
+          onSaveEditingNode={saveEditingNode}
+          onCancelEditing={cancelEditingFromKeyboard}
+          onLabelBlur={() => handleLabelBlur()}
+          onFocusedPropertyChange={setEditorFocusedPropertyId}
+          onHoveredPropertyChange={setHoveredPropertyId}
+          onChangeFocusedProperties={updateFocusedNodeProperties}
         >
-          <EdgeLayer edges={arrowRenderPoints} />
-          {renderedNodes.map((node) => (
-            <GraphNodeView
-              key={node.id}
-              node={node}
-              isFocused={focusedNodeId === node.id}
-              isEditing={editingNodeId === node.id}
-              isMenuOpen={openNodeMenuId === node.id}
-              isConnectingSource={connectingSourceNodeId === node.id}
-              draftLabel={draftLabel}
-              connectionMenuItems={edges
-                .filter((edge) => edge.sourceId === node.id || edge.targetId === node.id)
-                .map((edge) => {
-                  const connectedNodeId = edge.sourceId === node.id ? edge.targetId : edge.sourceId;
-                  const connectedNode = nodeById.get(connectedNodeId);
-                  return {
-                    id: edge.id,
-                    directionLabel: edge.sourceId === node.id ? 'to' : 'from',
-                    nodeLabel: connectedNode?.label ?? connectedNodeId,
-                    nodeType: connectedNode?.type ?? 'ui',
-                  };
-                })}
-              properties={nodePropertiesById[node.id] ?? []}
-              onNodeClick={(clickedNode) => {
-                if (connectingSourceNodeId) {
-                  addConnection(connectingSourceNodeId, clickedNode.id);
-                  return;
-                }
-
-                setFocusedNodeId(clickedNode.id);
-              }}
-              onCloseOtherMenus={() => setOpenNodeMenuId(null)}
-              onToggleMenu={() => setOpenNodeMenuId((currentId) => (currentId === node.id ? null : node.id))}
-              onAddConnectedNode={addConnectedNode}
-              onStartEditingNode={startEditingNode}
-              onSetNodeType={setNodeType}
-              onStartConnection={startConnectingFromNode}
-              onDeleteConnection={deleteConnection}
-              onDeleteNode={deleteNode}
-              onDraftLabelChange={setDraftLabel}
-              onSaveEditingNode={saveEditingNode}
-              onCancelEditingFromKeyboard={cancelEditingFromKeyboard}
-              onLabelBlur={handleLabelBlur}
-              focusedPropertyId={highlightedPropertyId}
-              onHoveredPropertyChange={setHoveredPropertyId}
-            />
-          ))}
           <section className="node-layout-mockups" aria-label="Node content layout mockups">
             <div className="mockups-heading">
               <p className="mockups-eyebrow">Node content layout experiments</p>
@@ -661,8 +594,8 @@ export function App() {
               </div>
             </div>
           ) : null}
-        </InfiniteCanvas>
+        </ProductionGraphEditor>
       </div>
-    </AppShell>
+    </ProductionEditorShell>
   );
 }
