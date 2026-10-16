@@ -28,6 +28,80 @@ Refactor the standalone and project-backed editor compositions around one shared
 - Standalone and project stores remain independent authorities.
 - Mode-specific property draft, retry, conflict, and scope-switch semantics remain explicit at the application/workflow boundary.
 
+## Target architecture
+
+The entry points are composition roots: each selects a projection adapter, a command adapter, and an explicit mode policy, then mounts the same editor application. The shared application depends on ports and does not branch on IndexedDB versus HTTP.
+
+```mermaid
+flowchart TB
+  subgraph Roots[Mode-specific composition roots]
+    StandaloneRoot["Standalone root<br/>main.tsx → App"]
+    ProjectRoot["Project root<br/>projectMain.tsx → ProjectApp"]
+  end
+
+  SharedApp["Shared production editor application"]
+  Shell["ProductionEditorShell"]
+  Graph["ProductionGraphEditor<br/>graph view + interaction controller"]
+  ProjectionPort["Projection port<br/>workspace + scoped graph + revision"]
+  CommandPort["Command port<br/>semantic action + expected revision"]
+  WorkflowPolicy["Workflow policy<br/>property drafts + scope switching"]
+
+  StandaloneRoot --> SharedApp
+  ProjectRoot --> SharedApp
+  SharedApp --> Shell
+  SharedApp --> Graph
+  SharedApp --> ProjectionPort
+  SharedApp --> CommandPort
+  SharedApp --> WorkflowPolicy
+
+  StandaloneRoot -. "injects" .-> LocalRead["Standalone projection adapter"]
+  StandaloneRoot -. "injects" .-> LocalWrite["Standalone command adapter"]
+  StandaloneRoot -. "injects" .-> LocalPolicy["Standalone policy"]
+  ProjectRoot -. "injects" .-> ApiRead["Project API projection adapter"]
+  ProjectRoot -. "injects" .-> ApiWrite["Project API command adapter"]
+  ProjectRoot -. "injects" .-> ProjectPolicy["Project safety policy"]
+
+  ProjectionPort -. "implemented by" .-> LocalRead
+  ProjectionPort -. "implemented by" .-> ApiRead
+  CommandPort -. "implemented by" .-> LocalWrite
+  CommandPort -. "implemented by" .-> ApiWrite
+  WorkflowPolicy -. "selected by" .-> LocalPolicy
+  WorkflowPolicy -. "selected by" .-> ProjectPolicy
+```
+
+Reads and writes remain separate at the port boundary while each mode's adapters retain their own consistency and persistence behavior:
+
+```mermaid
+flowchart LR
+  App["Shared editor application"]
+  ReadPort["Projection port<br/>snapshot + subscribe"]
+  WritePort["Command port<br/>action + scope + expected revision"]
+
+  App --> ReadPort
+  App --> WritePort
+
+  ReadPort --> LocalProjection["Local projection adapter"]
+  LocalProjection --> LocalApp["Graph application<br/>workspace + graph projectors"]
+  LocalApp --> LocalStore[("IndexedDB event store")]
+
+  WritePort --> LocalCommands["Local command adapter"]
+  LocalCommands --> LocalRouter["Graph application commands<br/>command router + deciders"]
+  LocalRouter --> LocalStore
+
+  ReadPort --> RemoteProjection["Project projection adapter"]
+  RemoteProjection --> ReadApi["GET /api/model<br/>GET /api/projection<br/>revision-paired snapshot"]
+  ReadApi --> Serve["slicr serve"]
+  Serve --> ProjectStore[(".slicr event history")]
+
+  WritePort --> RemoteCommands["Project command adapter"]
+  RemoteCommands --> PostApi["POST /api/command<br/>expected revision + typed result"]
+  PostApi --> Serve
+  Serve --> Guard["Validate + shared handling<br/>atomic revision-guarded append"]
+  Guard --> ProjectStore
+```
+
+The app-level workflow can be shared without pretending the policies are identical: standalone keeps its local property debounce/flush behavior; project mode keeps its serialized queue, conflict guidance, and wait/discard/stay scope guard. Optional backup/export/mockup and project-identity capabilities remain attached only to the relevant composition.
+
 ## Target contracts
 
 A projection port should expose the workspace/project/chapter read model and scoped graph snapshot, including node schemas, example values, stable identities, and a revision. It should expose a subscription or refresh contract; polling versus local event subscription remains adapter-owned.

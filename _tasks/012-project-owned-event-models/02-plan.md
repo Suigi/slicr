@@ -160,80 +160,19 @@ Complete the production-editor experience for the project-backed entry point, us
 - Do not reproduce IndexedDB/localStorage persistence or its last-known-good-model fallback. Keep `.slicr/` authoritative and report missing/corrupt project data; never silently substitute stale browser state.
 - Keep initialization explicit through `slicr init`; opening or reading a project must not initialize it implicitly.
 - Update `slicr init` to create or safely maintain `.slicr/.gitignore` that ignores the SQLite outbox (and its transient journal files) while leaving `events.ndjson` trackable. Preserve existing user ignore rules and test both new and existing `.gitignore` cases.
-- Agent proposals/preview/apply remain separate future steps (Steps 9–10 below), not part of this parity step.
+- The full agent inspection/proposal/preview/approval/apply workflow is tracked in [015-agent-interaction](../015-agent-interaction/02-plan.md), not this parity step.
+- Git-hosted CLI packaging and installation is tracked in [016-git-installed-cli](../016-git-installed-cli/02-plan.md), not this parity step.
 
 **Safe stopping point:** The project-backed editor matches the standalone editor's production visual and read/write workflows except for the exclusions above. Full root validation passed, and the user confirms manual smoke tests were executed; a detailed list of smoke steps is not required.
 
-**Closeout scope:** The user approved moving remaining project workspace-refresh follow-ups to [013-project-workspace-refresh](../013-project-workspace-refresh/02-plan.md) and the broader separate-port/shared-application refactor to [014-shared-editor-application](../014-shared-editor-application/02-plan.md). These follow-ups do not block this scoped closeout. Browser-history migration/cutover remains deferred under Step 7.1.
+**Closeout scope:** The user approved moving remaining project workspace-refresh follow-ups to [013-project-workspace-refresh](../013-project-workspace-refresh/02-plan.md), the broader separate-port/shared-application refactor to [014-shared-editor-application](../014-shared-editor-application/02-plan.md), the full agent interaction workflow to [015-agent-interaction](../015-agent-interaction/02-plan.md), and Git-hosted CLI packaging to [016-git-installed-cli](../016-git-installed-cli/02-plan.md). These follow-ups do not block this scoped closeout. Browser-history migration/cutover remains deferred under Step 7.1.
 
-### 9. Add agent proposals
+## Follow-up tasks
 
-Add `propose`/preview before `apply`: show the resulting slice diff without recording exploratory changes, then conditionally apply an approved proposal against its read revision. A stale proposal must be rejected for re-reading, not silently rebased. Store proposals separately from the authoritative event history and give each proposal a stable ID and base revision so it can be inspected from another client. Decide draft retention and cleanup explicitly.
+### Agent Interaction
 
-**Safe stopping point:** Agents can explore alternatives safely and humans can approve changes in the conversation. Proposal creation and preview append no events; full validation and the editor smoke check pass.
+The full workflow—agent inspection via CLI, proposal creation and preview, optional browser review, human approval, and conditional apply—is tracked in [015-agent-interaction](../015-agent-interaction/02-plan.md). Proposal handling is only one part of this workflow.
 
-### 10. Preview an agent proposal in the browser
+### Git-installed CLI
 
-Give the agent a link containing a proposal ID that opens the proposal in the served editor. `slicr serve` loads the project-local draft, reads the current model, and displays a visual diff without applying commands. Show when the proposal is stale and require explicit approval before any conditional append. Test agent CLI creation to browser preview, refresh/restart, unknown IDs, stale drafts, and the invariant that viewing a proposal never changes the event history. Keep proposal drafts distinct from the authoritative `.slicr/` modeling-event log.
-
-**Safe stopping point:** A user can ask an agent for a proposal, inspect it visually, and leave without changing the model. All tests and the editor smoke check pass.
-
-### 11. Package the CLI for Git-based installation
-
-Produce a versioned, reproducible npm package artifact for the CLI that can be installed by projects outside this monorepo from a Git-hosted release asset. Keep the root `npm run slicr -- ...` command as a development convenience, separate from the distributable package. The installed artifact must include its executable entry point and all required runtime code, must not depend on monorepo-relative paths or private workspace packages, and must document its supported Node version. Bundle the shared runtime into the artifact or make every runtime dependency independently installable; do not assume workspace symlinks exist in a consumer project. Publish or attach the packed `.tgz` to a Git-hosted release, with package version and release tag aligned.
-
-Test packing and installing the artifact in a clean temporary consumer project using the Git-hosted release asset (or a local packed artifact as a pre-release check). From that consumer project, verify the installed `slicr` command discovers its local `.slicr/` model, supports explicit `--path`, and can run the supported read and edit commands without access to the Slicr checkout. Also verify missing/incompatible models fail safely, and that the package can later be published to a registry without changing its runtime layout.
-
-**Safe stopping point:** An external project can install the versioned CLI artifact from the Git host and use it independently of the monorepo; the root forwarding script continues to work for development. Package contents, Node requirement, version/tag, and installation instructions are documented. This step does not itself require registry publication.
-
-## Intended agent interaction
-
-```mermaid
-sequenceDiagram
-    actor Human
-    participant Agent as Agent in kid-points
-    participant CLI as slicr CLI
-    participant Model as kid-points/.slicr
-
-    Human->>Agent: Explore an approval step for earning points
-    Agent->>CLI: Show slice as text
-    CLI->>Model: Read and project events
-    CLI-->>Agent: Slice with stable IDs and revision
-    Agent->>CLI: Propose scoped commands
-    CLI-->>Agent: Preview resulting change
-    Agent-->>Human: Show proposal
-    Human->>Agent: Apply it
-    Agent->>CLI: Apply proposal against revision
-    CLI->>Model: Conditional append
-    CLI-->>Agent: Updated slice or conflict to resolve
-```
-
-## Browser-based proposal preview
-
-```mermaid
-sequenceDiagram
-    actor Human
-    participant Agent as Agent in kid-points
-    participant CLI as slicr CLI
-    participant Drafts as Project-local proposal drafts
-    participant Browser as Slicr editor in browser
-    participant Serve as slicr serve
-    participant Model as kid-points/.slicr event history
-
-    Human->>Agent: Propose an approval step for earning points
-    Agent->>CLI: Read slice and create proposal
-    CLI->>Model: Read current model and revision
-    CLI->>Drafts: Save proposed commands and base revision
-    CLI-->>Agent: Proposal ID and preview link
-    Agent-->>Human: Open this proposal in Slicr
-    Human->>Browser: Open preview link
-    Browser->>Serve: Request proposal by ID
-    Serve->>Drafts: Load proposed commands
-    Serve->>Model: Read current model
-    Serve-->>Browser: Current slice and proposed diff
-    Browser-->>Human: Show preview without changing the model
-```
-
-## First tranche and decisions to revisit
-
-Implement Steps 0–2 first and review the results before settling the `.slicr/` storage format. Later choices requiring explicit discussion include whether the authoritative store is Git-tracked, how to handle branches and merges, how revisions and agent identity are represented, how `slicr serve` is secured to localhost, and how older event schemas are upgraded. None is decided by this plan.
+Versioned packaging and installation of the CLI from a Git-hosted release is tracked in [016-git-installed-cli](../016-git-installed-cli/02-plan.md). Older event-schema upgrade policy remains an independent future concern and is not covered by these follow-ups.
