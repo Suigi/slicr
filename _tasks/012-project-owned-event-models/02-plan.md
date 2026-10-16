@@ -134,6 +134,8 @@ flowchart TB
 
 Complete the production-editor experience for the project-backed entry point, using the same project API and `.slicr/` history as the CLI. Treat the existing standalone editor as the UI and interaction baseline: consolidate its controls over a project-backed application/API adapter instead of rebuilding parallel controls or redesigning the editor. Keep storage-specific behavior behind that adapter; UI components should not choose between direct IndexedDB writes and direct API calls. Preserve the visible project/store identity and revision as project-specific safety context.
 
+**Before implementation:** Inventory the standalone editor's existing controls and map each in-scope read/write path to the project API. Use that mapping to identify wiring gaps and any shared UI or application-boundary refactor needed for both entry points to use the same controls.
+
 **UI consolidation and visual/interaction gaps to close (not a UI rebuild):**
 
 - Reuse the existing project switcher, chapter sidebar, node/edge components, detail panel, menus, and interaction state wherever available. Where the project entry point currently substitutes simple selectors or wires existing controls to no-ops, connect those controls to the project-backed read model and command adapter rather than creating new versions of them.
