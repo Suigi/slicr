@@ -1,0 +1,20 @@
+# Step 8 scope changes
+
+Step 8 remains partial; do not mark the plan DONE or claim its safe stopping point. No manual browser smoke pass is claimed.
+
+## Implemented in this worktree
+
+- The guarded `POST /api/command` supports the existing served controls, validates command inputs, routes mutations through shared deciders/`handleCommand`, and uses revision-guarded atomic append. API responses now include generated project/chapter/node IDs so the editor selects the exact entity created instead of guessing from list order.
+- The served editor uses the existing project switcher, chapter sidebar, node editor, node/edge views, and interaction components. Creating a project selects the returned project identity; creating a chapter selects the returned chapter; adding a node uses lane 0, focuses it, and starts label editing.
+- Property drafts are retained locally per project/chapter/node while a serialized/coalescing save queue writes `ChangeNodeProperties`. Revision/preflight and append-condition conflicts discard the stale draft, reload current projection, and require the user to redo the edit; ordinary transient failures retain drafts when no newer edit supersedes them.
+- Switching project/chapter with pending property drafts now presents an explicit dialog: wait for flush, switch and discard, or stay. Flush must drain successfully before scope changes; failure/conflict keeps the active scope. Discard drops unsent drafts, resolves any already-submitted write before switching, and shows a notice describing the outcome.
+- Top-directed creation at lane 0 now follows the standalone rule and persists lane -1. The core event/decider model permits signed integer lanes; the non-negative restriction was only in the served API validation added by this worktree, so that API-only restriction was removed. The API test asserts lane -1.
+- The unset chapter scope selects the project's first chapter; there is no All Chapters mode. Project/chapter switches invalidate reads and reset transient interaction state.
+
+## Remaining gaps / verification status
+
+- The standalone and served entry points use the same `useGraphKeyboardInteractions` production keyboard workflow and existing shared graph/sidebar/detail controls. The project entry point supplies API-backed command callbacks; standalone supplies IndexedDB-backed callbacks. The entries still own separate projection/workflow state implementations (`useGraphModel` versus `ReadOnlyProjectApp`); a common application port/adapters and one shared editor view/workflow have not been delivered. This remains a Step 8 blocker; the requested full consolidation and adapter-contract/control-parity tests are not complete.
+- Scope-switch flush behavior has a Playwright regression for the wait-and-flush path. Discard behavior, submitted-command race handling, and failure/conflict scope retention still need dedicated regression coverage. Other requested interaction combinations are not fully covered. No manual production-browser smoke coverage is claimed.
+- Focused editor Vitest: 129 passed. Focused scope-switch Playwright regression: 1 passed. Root `npm run validate:llm` passed after the new regression (16 Playwright browser tests, all passed; workspace tests and typechecks passed). Formatting passed. Lint reports one pre-existing `saveLabel` React hook dependency warning in `ReadOnlyProjectApp.tsx`. Dependencies were installed by the user-approved frozen `npm ci`; no dependency manifests or lockfiles were changed.
+
+Do not mark Step 8 DONE. Browser-history migration/cutover remains deferred, and no history is initialized implicitly.

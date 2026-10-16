@@ -32,7 +32,10 @@ function load(root) {
   try {
     text = readFileSync(file, 'utf8');
   } catch (error) {
-    if (error.code === 'ENOENT') throw new Error(`No Slicr model at ${file}. Initialize a model explicitly before inspecting it.`);
+    if (error.code === 'ENOENT')
+      throw new Error(
+        `No Slicr model at ${file}. Run \`slicr init\` to initialize it explicitly; inspection never creates project history.`,
+      );
     throw error;
   }
   const batches = [];
@@ -156,7 +159,8 @@ async function main(args) {
     const portValue = consumeOption(rest, '--port');
     const port = portValue === undefined ? 4173 : Number(portValue);
     if (!Number.isInteger(port) || port < 0 || port > 65535 || rest.length) throw new Error('Usage: serve [--port PORT]');
-    const {startServeServer} = await import('./serve.mjs');
+    const {startServeServer, assertProjectInitialized} = await import('./serve.mjs');
+    assertProjectInitialized(root);
     const assets = fileURLToPath(new URL('../slicr-editor/dist-project/', import.meta.url));
     const serving = startServeServer({root, assets, port});
     const address = await serving.listening;

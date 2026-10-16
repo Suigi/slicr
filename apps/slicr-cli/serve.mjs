@@ -42,7 +42,7 @@ const eventFields = {
     chapterId: identifier,
     nodeId: identifier,
     type: nodeType,
-    laneId: (v) => Number.isSafeInteger(v) && v >= 0,
+    laneId: Number.isSafeInteger,
     label: string,
   },
   NodeChapterChanged: {projectId: identifier, nodeId: identifier, chapterId: identifier},
@@ -100,7 +100,10 @@ function readModel(root) {
     text = readFileSync(file, 'utf8');
   } catch (error) {
     if (error.code === 'ENOENT')
-      throw Object.assign(new Error(`No Slicr model at ${file}. Initialize a model explicitly before serving it.`), {status: 404});
+      throw Object.assign(
+        new Error(`No Slicr model at ${file}. Run \`slicr init\` to initialize it explicitly; serving never creates project history.`),
+        {status: 404},
+      );
     throw error;
   }
   const events = [];
@@ -141,6 +144,33 @@ function readModel(root) {
     position += entries.length;
   }
   return {events, locations, revision: createHash('sha256').update(text).digest('hex')};
+}
+
+export function assertProjectInitialized(root) {
+  readModel(resolve(root));
+}
+
+function successorType(sourceType, direction) {
+  if ((sourceType === 'ui' || sourceType === 'processor') && direction === 'bottom') return 'cmd';
+  if (sourceType === 'cmd' && direction === 'bottom') return 'evt';
+  if (sourceType === 'evt' && direction === 'top') return 'rm';
+  if ((sourceType === 'rm' || sourceType === 'dm') && direction === 'top') return 'ui';
+  return sourceType;
+}
+
+function wouldCreateCycle(edges, sourceNodeId, targetNodeId) {
+  const outgoing = new Map();
+  for (const edge of edges) outgoing.set(edge.sourceNodeId, [...(outgoing.get(edge.sourceNodeId) ?? []), edge.targetNodeId]);
+  const pending = [targetNodeId];
+  const visited = new Set();
+  while (pending.length) {
+    const nodeId = pending.pop();
+    if (nodeId === sourceNodeId) return true;
+    if (!nodeId || visited.has(nodeId)) continue;
+    visited.add(nodeId);
+    pending.push(...(outgoing.get(nodeId) ?? []));
+  }
+  return false;
 }
 
 async function projectModel(root) {
@@ -232,7 +262,9 @@ export function startServeServer({root, assets, port = 0, host = '127.0.0.1', be
         }
         if (
           !object(input) ||
-          !identifier(input.projectId) ||
+          !(input.type === 'AddProject'
+            ? input.projectId === undefined || input.projectId === '' || identifier(input.projectId)
+            : identifier(input.projectId)) ||
           !string(input.type) ||
           !object(input.data) ||
           !/^[a-f0-9]{64}$/.test(input.baseRevision ?? '')
@@ -241,27 +273,28 @@ export function startServeServer({root, assets, port = 0, host = '127.0.0.1', be
             status: 400,
           });
         const commandMap = {
+          AddProject: ['addProject', ['name'], (data) => ({name: data.name})],
           RenameNode: ['renameNode', ['nodeId', 'name'], (data) => ({projectId: input.projectId, nodeId: data.nodeId, newName: data.name})],
-          AddNode: [
-            'addNode',
-            ['chapterId', 'nodeType', 'laneId', 'label'],
-            (data) => ({
-              projectId: input.projectId,
-              chapterId: data.chapterId,
-              nodeType: data.nodeType,
-              laneId: data.laneId,
-              label: data.label,
-            }),
+          AddNode: ['addNode', ['chapterId', 'nodeType', 'laneId', 'label'], (data) => ({projectId: input.projectId, ...data})],
+          ConnectNodes: ['connectNodes', ['sourceNodeId', 'targetNodeId', 'role'], (data) => ({projectId: input.projectId, ...data})],
+          DisconnectNodes: ['disconnectNodes', ['sourceNodeId', 'targetNodeId'], (data) => ({projectId: input.projectId, ...data})],
+          AddConnectedNode: [
+            'addConnectedNode',
+            ['chapterId', 'sourceNodeId', 'nodeType', 'laneId', 'label', 'role', 'direction'],
+            (data) => ({projectId: input.projectId, ...data}),
           ],
-          ConnectNodes: [
-            'connectNodes',
-            ['sourceNodeId', 'targetNodeId', 'role'],
-            (data) => ({
-              projectId: input.projectId,
-              sourceNodeId: data.sourceNodeId,
-              targetNodeId: data.targetNodeId,
-              ...(data.role ? {role: data.role} : {}),
-            }),
+          ChangeNodeType: ['changeNodeType', ['nodeId', 'newType'], (data) => ({projectId: input.projectId, ...data})],
+          DeleteNode: ['deleteNode', ['nodeId'], (data) => ({projectId: input.projectId, ...data})],
+          ChangeNodeSchema: ['changeNodeSchema', ['nodeId', 'schema'], (data) => ({projectId: input.projectId, ...data})],
+          ChangeNodeExampleValues: [
+            'changeNodeExampleValues',
+            ['nodeId', 'exampleValues'],
+            (data) => ({projectId: input.projectId, ...data}),
+          ],
+          ChangeNodeProperties: [
+            'changeNodeProperties',
+            ['nodeId', 'schema', 'exampleValues'],
+            (data) => ({projectId: input.projectId, ...data}),
           ],
           AddChapter: ['addChapter', ['title'], (data) => ({projectId: input.projectId, title: data.title})],
           RenameProject: ['renameProject', ['name'], (data) => ({projectId: input.projectId, name: data.name})],
@@ -269,9 +302,25 @@ export function startServeServer({root, assets, port = 0, host = '127.0.0.1', be
         const mapping = commandMap[input.type];
         if (!mapping) throw Object.assign(new Error(`Unsupported command type: ${input.type}`), {status: 400});
         const fieldValidators = {
+          AddProject: {name: string},
           RenameNode: {nodeId: identifier, name: string},
-          AddNode: {chapterId: identifier, nodeType, laneId: (value) => Number.isSafeInteger(value) && value >= 0, label: string},
+          AddNode: {chapterId: identifier, nodeType, laneId: Number.isSafeInteger, label: string},
           ConnectNodes: {sourceNodeId: identifier, targetNodeId: identifier, role: (value) => ['flow', 'back-reference'].includes(value)},
+          DisconnectNodes: {sourceNodeId: identifier, targetNodeId: identifier},
+          AddConnectedNode: {
+            chapterId: identifier,
+            sourceNodeId: identifier,
+            nodeType,
+            laneId: Number.isSafeInteger,
+            label: string,
+            role: (value) => ['flow', 'back-reference'].includes(value),
+            direction: (value) => ['top', 'right', 'bottom'].includes(value),
+          },
+          ChangeNodeType: {nodeId: identifier, newType: nodeType},
+          DeleteNode: {nodeId: identifier},
+          ChangeNodeSchema: {nodeId: identifier, schema: arrayOf(propertySchema)},
+          ChangeNodeExampleValues: {nodeId: identifier, exampleValues: arrayOf(exampleValue)},
+          ChangeNodeProperties: {nodeId: identifier, schema: arrayOf(propertySchema), exampleValues: arrayOf(exampleValue)},
           AddChapter: {title: string},
           RenameProject: {name: string},
         }[input.type];
@@ -279,22 +328,39 @@ export function startServeServer({root, assets, port = 0, host = '127.0.0.1', be
         if (input.baseRevision !== model.revision)
           throw Object.assign(
             new Error('The project changed since this editor view was loaded. Reload the latest projection and retry your edit.'),
-            {status: 409},
+            {status: 409, code: 'BASE_REVISION_MISMATCH'},
           );
-        if (!model.workspace.projects.some((p) => p.id === input.projectId))
+        if (input.type !== 'AddProject' && !model.workspace.projects.some((p) => p.id === input.projectId))
           throw Object.assign(new Error(`Unknown project ID: ${input.projectId}`), {status: 404});
         const allowedFields = mapping[1];
+        const optionalFields =
+          input.type === 'ConnectNodes' ? ['role'] : input.type === 'AddConnectedNode' ? ['nodeType', 'laneId', 'role', 'direction'] : [];
         if (
           Object.keys(input.data).some((key) => !allowedFields.includes(key)) ||
-          allowedFields.some((key) => !(key in input.data) && !(input.type === 'ConnectNodes' && key === 'role'))
+          allowedFields.some((key) => !(key in input.data) && !optionalFields.includes(key))
         )
           throw Object.assign(new Error('Invalid command data.'), {status: 400});
         if (
           Object.entries(input.data).some(([key, value]) => !fieldValidators[key]?.(value)) ||
-          allowedFields.some((key) => !(key in input.data) && !(input.type === 'ConnectNodes' && key === 'role'))
+          allowedFields.some((key) => !(key in input.data) && !optionalFields.includes(key))
         )
           throw Object.assign(new Error('Invalid command data: field values do not match the command schema.'), {status: 400});
         const data = mapping[2](input.data);
+        if (input.type === 'ConnectNodes' && !data.role) {
+          const graph = model.projectGraph(input.projectId);
+          data.role = wouldCreateCycle(graph.edges, data.sourceNodeId, data.targetNodeId) ? 'back-reference' : 'flow';
+        }
+        if (input.type === 'AddConnectedNode') {
+          const source = model.projectGraph(input.projectId).nodes.find((node) => node.nodeId === data.sourceNodeId);
+          if (!source) throw Object.assign(new Error(`Unknown nodeId ${data.sourceNodeId}`), {status: 400});
+          const direction = data.direction ?? 'right';
+          data.nodeType ??= successorType(source.nodeType, direction);
+          data.laneId ??= source.laneId + (direction === 'bottom' ? 1 : direction === 'top' ? -1 : 0);
+          if (!Number.isSafeInteger(data.laneId))
+            throw Object.assign(new Error('Connected node laneId must be a safe integer.'), {status: 400});
+          data.role ??= 'flow';
+          delete data.direction;
+        }
         const [{NdjsonSpecEventStore}, graphModule, projectModule, {handleCommand}] = await Promise.all([
           import('../../packages/event-sourcing/src/ndjsonSpecEventStore.ts'),
           import('../../packages/slicr-core/src/graphCommands/deciders.ts'),
@@ -318,20 +384,35 @@ export function startServeServer({root, assets, port = 0, host = '127.0.0.1', be
             if (readModel(projectRoot).revision !== input.baseRevision)
               throw Object.assign(
                 new Error('The project changed since this editor view was loaded. Reload the latest projection and retry your edit.'),
-                {status: 409},
+                {status: 409, code: 'APPEND_CONDITION_FAILED'},
               );
             throw error;
           }
           if (!appended.length && readModel(projectRoot).revision !== input.baseRevision)
             throw Object.assign(
               new Error('The project changed since this editor view was loaded. Reload the latest projection and retry your edit.'),
-              {status: 409},
+              {status: 409, code: 'APPEND_CONDITION_FAILED'},
             );
         } finally {
           store.close();
         }
         response.writeHead(200, {'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store'});
-        response.end(JSON.stringify({appended: appended.length}));
+        response.end(
+          JSON.stringify({
+            appended: appended.length,
+            revision: readModel(projectRoot).revision,
+            generatedIds: appended
+              .filter(({event}) => ['ProjectAdded', 'ChapterAdded', 'NodeAdded'].includes(event.type))
+              .map(({event}) =>
+                event.type === 'ProjectAdded'
+                  ? event.payload.projectId
+                  : event.type === 'ChapterAdded'
+                    ? event.payload.chapterId
+                    : event.payload.nodeId,
+              )
+              .filter((id) => typeof id === 'string'),
+          }),
+        );
         return;
       }
       if (url.pathname === '/api/model' || url.pathname === '/api/projection') {
@@ -406,7 +487,7 @@ export function startServeServer({root, assets, port = 0, host = '127.0.0.1', be
         error.status ??
         (['AppendConditionFailedError', 'RevisionConditionFailedError'].includes(error.name) ? 409 : error.code === 'ENOENT' ? 404 : 500);
       response.writeHead(status, {'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store'});
-      response.end(JSON.stringify({error: error.message}));
+      response.end(JSON.stringify({error: error.message, ...(error.code ? {code: error.code} : {})}));
     }
   });
   const listening = new Promise((resolveListen, reject) => {

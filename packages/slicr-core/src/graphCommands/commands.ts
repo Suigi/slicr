@@ -96,3 +96,13 @@ export type ChangeNodeExampleValues = Command<
     exampleValues: NodePropertyExampleValues[];
   }
 >;
+
+export type ChangeNodeProperties = Command<
+  'ChangeNodeProperties',
+  {
+    projectId: ProjectId;
+    nodeId: string;
+    schema: NodePropertySchema[];
+    exampleValues: NodePropertyExampleValues[];
+  }
+>;

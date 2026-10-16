@@ -17,7 +17,8 @@ import {NodeEditor} from './components/NodeEditor';
 import {NodeMeasureLayer} from './components/NodeMeasureLayer';
 import {ProjectSwitcher} from './components/ProjectSwitcher';
 import {NODE_HEIGHT, NODE_WIDTH} from './graph/constants';
-import {getArrowRenderPoints, getKeyboardSuccessorDirection, getKeyboardSuccessorNodeType} from './graph/graphUtils';
+import {getArrowRenderPoints} from './graph/graphUtils';
+import {useGraphKeyboardInteractions} from './graph/useGraphKeyboardInteractions';
 import {useEventBackup} from './application/useEventBackup';
 import {storeLastOkGraphModel, useGraphModel} from './graph/useGraphModel';
 import {serializeVisualGraphAcceptanceTest} from './graph/visualGraphExport';
@@ -435,82 +436,19 @@ export function App() {
     positionCameraAtInitialMargin();
   }, []);
 
-  useEffect(() => {
-    const navigateFocusedNode = (event: KeyboardEvent) => {
-      if (event.target instanceof Element && event.target.closest('.node-label-input, .property-editor')) {
-        return;
-      }
-
-      if (event.key === 'Escape' && connectingSourceNodeId) {
-        event.preventDefault();
-        cancelConnecting();
-        return;
-      }
-
-      if (!focusedNodeId) {
-        return;
-      }
-
-      if (event.key.toLowerCase() === 'c') {
-        event.preventDefault();
-        startConnectingFromNode(focusedNodeId);
-        return;
-      }
-
-      if (event.key === 'Enter') {
-        const focusedNode = nodes.find((node) => node.id === focusedNodeId);
-        if (focusedNode) {
-          event.preventDefault();
-          setOpenNodeMenuId(null);
-          if (event.ctrlKey || event.metaKey) {
-            addConnectedNode(focusedNode, getKeyboardSuccessorDirection(focusedNode.type), getKeyboardSuccessorNodeType(focusedNode.type));
-          } else {
-            startEditingNode(focusedNode);
-          }
-        }
-        return;
-      }
-
-      if (event.key === 'Backspace' && event.metaKey) {
-        event.preventDefault();
-        deleteNode(focusedNodeId);
-        return;
-      }
-
-      if (event.key === 'ArrowLeft') {
-        const predecessorEdge = edges.find((edge) => edge.targetId === focusedNodeId);
-        if (predecessorEdge) {
-          event.preventDefault();
-          setFocusedNodeId(predecessorEdge.sourceId);
-          setOpenNodeMenuId(null);
-        }
-      }
-
-      if (event.key === 'ArrowRight') {
-        const successorEdge = edges.find((edge) => edge.sourceId === focusedNodeId);
-        if (successorEdge) {
-          event.preventDefault();
-          setFocusedNodeId(successorEdge.targetId);
-          setOpenNodeMenuId(null);
-        }
-      }
-    };
-
-    window.addEventListener('keydown', navigateFocusedNode);
-    return () => window.removeEventListener('keydown', navigateFocusedNode);
-  }, [
-    addConnectedNode,
-    cancelConnecting,
-    connectingSourceNodeId,
-    deleteNode,
+  useGraphKeyboardInteractions({
+    nodes,
     edges,
     focusedNodeId,
-    nodes,
-    setFocusedNodeId,
-    setOpenNodeMenuId,
-    startConnectingFromNode,
-    startEditingNode,
-  ]);
+    connectingNodeId: connectingSourceNodeId,
+    onCancelConnection: cancelConnecting,
+    onStartConnection: startConnectingFromNode,
+    onAddConnectedNode: addConnectedNode,
+    onStartEditing: startEditingNode,
+    onDeleteNode: deleteNode,
+    onFocusNode: setFocusedNodeId,
+    onCloseMenus: () => setOpenNodeMenuId(null),
+  });
 
   return (
     <AppShell

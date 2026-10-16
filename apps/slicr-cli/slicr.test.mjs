@@ -587,6 +587,93 @@ test('serve hosts the editor and read-only workspace and graph projections, then
   assert.equal(running.server.listening, false);
 });
 
+test('serve defaults connected-node type, lane, and connection role from standalone rules', async () => {
+  const {dir} = fixture();
+  const assets = makeAssets();
+  const running = startServeServer({root: dir, assets});
+  try {
+    const {port} = await running.listening;
+    const base = `http://127.0.0.1:${port}`;
+    const model = await (await fetch(`${base}/api/model`)).json();
+    const connected = await fetch(`${base}/api/command`, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({
+        projectId: 'p1',
+        baseRevision: model.revision,
+        type: 'AddConnectedNode',
+        data: {chapterId: 'c1', sourceNodeId: 'n1', label: 'Default successor', direction: 'right'},
+      }),
+    });
+    assert.equal(connected.status, 200);
+    assert.equal((await connected.json()).generatedIds.length, 1);
+    const projection = await (await fetch(`${base}/api/projection?project=p1&chapter=c1`)).json();
+    const successor = projection.nodes.find((node) => node.label === 'Default successor');
+    assert.equal(successor.type, 'evt');
+    assert.equal(successor.laneId, 0);
+    const top = await fetch(`${base}/api/command`, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({
+        projectId: 'p1',
+        baseRevision: (await (await fetch(`${base}/api/model`)).json()).revision,
+        type: 'AddConnectedNode',
+        data: {chapterId: 'c1', sourceNodeId: 'n1', label: 'Top successor', direction: 'top'},
+      }),
+    });
+    assert.equal(top.status, 200);
+    assert.equal((await top.json()).generatedIds.length, 1);
+    const withTop = await (await fetch(`${base}/api/projection?project=p1&chapter=c1`)).json();
+    const topSuccessor = withTop.nodes.find((node) => node.label === 'Top successor');
+    assert.equal(topSuccessor.type, 'rm');
+    assert.equal(topSuccessor.laneId, -1);
+    const latest = await (await fetch(`${base}/api/model`)).json();
+    const cycle = await fetch(`${base}/api/command`, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({
+        projectId: 'p1',
+        baseRevision: latest.revision,
+        type: 'ConnectNodes',
+        data: {sourceNodeId: 'n2', targetNodeId: 'n1'},
+      }),
+    });
+    assert.equal(cycle.status, 200, await cycle.text());
+    const final = await (await fetch(`${base}/api/projection?project=p1`)).json();
+    assert.equal(final.edges.find((edge) => edge.sourceNodeId === 'n2' && edge.targetNodeId === 'n1').role, 'back-reference');
+  } finally {
+    await running.close();
+    rmSync(dir, {recursive: true, force: true});
+    rmSync(assets, {recursive: true, force: true});
+  }
+});
+
+test('AddProject is project-global and does not require an existing project ID', async () => {
+  const {dir} = fixture();
+  const assets = makeAssets();
+  const running = startServeServer({root: dir, assets});
+  try {
+    const {port} = await running.listening;
+    const base = `http://127.0.0.1:${port}`;
+    const model = await (await fetch(`${base}/api/model`)).json();
+    const response = await fetch(`${base}/api/command`, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({projectId: '', baseRevision: model.revision, type: 'AddProject', data: {name: 'Another project'}}),
+    });
+    assert.equal(response.status, 200, await response.text());
+    const updated = await (await fetch(`${base}/api/model`)).json();
+    assert.equal(
+      updated.projects.some((project) => project.name === 'Another project'),
+      true,
+    );
+  } finally {
+    await running.close();
+    rmSync(dir, {recursive: true, force: true});
+    rmSync(assets, {recursive: true, force: true});
+  }
+});
+
 test('serve accepts validated editor commands, and projections catch up from disk across reads', async () => {
   const {dir} = fixture();
   const assets = makeAssets();
@@ -672,7 +759,9 @@ test('serve accepts validated editor commands, and projections catch up from dis
       }),
     });
     assert.equal(stale.status, 409);
-    assert.match((await stale.json()).error, /changed since this editor view was loaded.*Reload.*retry/);
+    const staleBody = await stale.json();
+    assert.equal(staleBody.code, 'BASE_REVISION_MISMATCH');
+    assert.match(staleBody.error, /changed since this editor view was loaded.*Reload.*retry/);
     assert.equal(readFileSync(join(dir, '.slicr', 'events.ndjson'), 'utf8'), beforeStale);
     await running.close();
     const restarted = startServeServer({root: dir, assets});
@@ -685,6 +774,59 @@ test('serve accepts validated editor commands, and projections catch up from dis
     }
   } finally {
     if (running.server.listening) await running.close();
+    rmSync(dir, {recursive: true, force: true});
+    rmSync(assets, {recursive: true, force: true});
+  }
+});
+
+test('serve saves property schema and example values in one guarded command', async () => {
+  const {dir} = fixture();
+  const assets = makeAssets();
+  const running = startServeServer({root: dir, assets});
+  try {
+    const {port} = await running.listening;
+    const base = `http://127.0.0.1:${port}`;
+    const initial = await (await fetch(`${base}/api/model`)).json();
+    const command = {
+      projectId: 'p1',
+      baseRevision: initial.revision,
+      type: 'ChangeNodeProperties',
+      data: {
+        nodeId: 'n1',
+        schema: [{propertyId: 'prop-1', name: 'Name', type: 'string'}],
+        exampleValues: [{propertyId: 'prop-1', scalarValue: 'Ada'}],
+      },
+    };
+    const saved = await fetch(`${base}/api/command`, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify(command),
+    });
+    assert.equal(saved.status, 200);
+    assert.equal((await saved.json()).appended, 2);
+    const lines = readFileSync(join(dir, '.slicr', 'events.ndjson'), 'utf8')
+      .trim()
+      .split('\n');
+    const batch = JSON.parse(lines.at(-1));
+    assert.equal(batch.events.length, 2);
+    assert.deepEqual(
+      batch.events.map(({event}) => event.type),
+      ['NodeSchemaChanged', 'NodeExampleValuesChanged'],
+    );
+    const projection = await (await fetch(`${base}/api/projection?project=p1`)).json();
+    assert.deepEqual(projection.nodeSchemas.n1, command.data.schema);
+    assert.deepEqual(projection.nodeExampleValues.n1, command.data.exampleValues);
+
+    const beforeStale = readFileSync(join(dir, '.slicr', 'events.ndjson'), 'utf8');
+    const stale = await fetch(`${base}/api/command`, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({...command, data: {...command.data, schema: [], exampleValues: []}}),
+    });
+    assert.equal(stale.status, 409);
+    assert.equal(readFileSync(join(dir, '.slicr', 'events.ndjson'), 'utf8'), beforeStale);
+  } finally {
+    await running.close();
     rmSync(dir, {recursive: true, force: true});
     rmSync(assets, {recursive: true, force: true});
   }
@@ -719,7 +861,7 @@ test('serve rejects a revision race that turns a command into a no-op', async ()
       body: JSON.stringify({projectId: 'p1', baseRevision: revision, type: 'RenameNode', data: {nodeId: 'n1', name: 'CLI wins'}}),
     });
     assert.equal(response.status, 409);
-    assert.match((await response.json()).error, /changed since this editor view was loaded/);
+    assert.equal((await response.json()).code, 'APPEND_CONDITION_FAILED');
     const projection = await (await fetch(`${base}/api/projection?project=p1`)).json();
     assert.equal(projection.nodes[0].label, 'CLI wins');
     assert.equal(
@@ -882,6 +1024,18 @@ test('serve rejects checksum-valid events with invalid tags or missing payload a
   }
 });
 
+test('serve CLI refuses an uninitialized project and instructs explicit initialization without mutation', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'slicr-serve-uninitialized-'));
+  try {
+    const result = run(dir, 'serve', '--port', '0');
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Run `slicr init` to initialize it explicitly; serving never creates project history/);
+    assert.equal(existsSync(join(dir, '.slicr')), false);
+  } finally {
+    rmSync(dir, {recursive: true, force: true});
+  }
+});
+
 test('serve reports missing and corrupt model errors without writing a store', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'slicr-serve-errors-'));
   const assets = makeAssets();
@@ -891,7 +1045,7 @@ test('serve reports missing and corrupt model errors without writing a store', a
     const url = `http://127.0.0.1:${address.port}/api/model`;
     const missing = await fetch(url);
     assert.equal(missing.status, 404);
-    assert.match((await missing.json()).error, /No Slicr model/);
+    assert.match((await missing.json()).error, /Run `slicr init` to initialize it explicitly; serving never creates project history/);
     assert.equal(existsSync(join(dir, '.slicr')), false);
     mkdirSync(join(dir, '.slicr'));
     writeFileSync(join(dir, '.slicr', 'events.ndjson'), 'not-json\\n');

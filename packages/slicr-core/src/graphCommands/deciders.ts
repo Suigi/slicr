@@ -8,6 +8,7 @@ import {
   type AddConnectedNode,
   type AddNode,
   type ChangeNodeExampleValues,
+  type ChangeNodeProperties,
   type ChangeNodeSchema,
   type ChangeNodeType,
   type ConnectNodes,
@@ -195,6 +196,33 @@ const changeNodeExampleValuesDecider: Decider<
   },
 };
 
+const nodePropertiesChangeContext = combineAtoms({
+  nodeExists: Atoms.nodeExists,
+  nodeSchema: Atoms.nodeSchema,
+  nodeExampleValues: Atoms.nodeExampleValues,
+});
+
+const changeNodePropertiesDecider: Decider<
+  ChangeNodeProperties,
+  DcbEvent,
+  {
+    nodeExists: boolean;
+    nodeSchema: NodePropertySchema[];
+    nodeExampleValues: NodePropertyExampleValues[];
+  }
+> = {
+  ...bindAtomToCommand(nodePropertiesChangeContext),
+  decide: (command, model) => {
+    if (!model.nodeExists) throw new Error(`Unknown nodeId ${command.data.nodeId}`);
+    const events: DcbEvent[] = [];
+    if (!samePayload(model.nodeSchema, command.data.schema))
+      events.push(Events.nodeSchemaChanged(command.data.projectId, command.data.nodeId, command.data.schema));
+    if (!samePayload(model.nodeExampleValues, command.data.exampleValues))
+      events.push(Events.nodeExampleValuesChanged(command.data.projectId, command.data.nodeId, command.data.exampleValues));
+    return events;
+  },
+};
+
 const nodeConnectionContext = combineAtoms({
   sourceNodeExists: rescopeAtom(Atoms.nodeExists, (scope: {projectId: ProjectId; sourceNodeId: NodeId}) => ({
     projectId: scope.projectId,
@@ -259,6 +287,7 @@ export const deciders = (args: {generateUuid?: () => string} = {}) => {
     deleteNode: deleteNodeDecider,
     changeNodeSchema: changeNodeSchemaDecider,
     changeNodeExampleValues: changeNodeExampleValuesDecider,
+    changeNodeProperties: changeNodePropertiesDecider,
     connectNodes: connectNodesDecider,
     disconnectNodes: disconnectNodesDecider,
   };

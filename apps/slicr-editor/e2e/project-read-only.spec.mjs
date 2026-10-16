@@ -57,12 +57,14 @@ test('served editor edits the project store without opening IndexedDB and catche
     await expect(page.getByLabel('Project store identity')).toContainText('project store');
     expect(responses.some((url) => url.includes('/api/model'))).toBe(true);
     expect(responses.some((url) => url.includes('/api/projection'))).toBe(true);
+    await expect(page.locator('.canvas .node-label-button', {hasText: 'Other chapter node'})).toHaveCount(0);
+    await page.getByRole('button', {name: 'Another chapter'}).click();
     await expect(page.locator('.canvas .node-label-button', {hasText: 'Other chapter node'})).toBeVisible();
-    await expect(page.locator('.edge-layer .edge-line')).toHaveCount(1);
-    await page.getByLabel('Chapter', {exact: true}).selectOption(initial.chapterId);
+    await expect(page.locator('.edge-layer .edge-line')).toHaveCount(0);
+    await page.getByRole('button', {name: 'Default Chapter'}).click();
     await expect(page.locator('.canvas .node-label-button', {hasText: 'Visible project event'})).toBeVisible();
     await expect(page.locator('.canvas .node-label-button', {hasText: 'Other chapter node'})).toHaveCount(0);
-    await expect(page.getByRole('button', {name: 'Add node'})).toBeVisible();
+    await expect(page.getByRole('button', {name: 'Add node', exact: true})).toBeVisible();
     await page.locator('.canvas .node-label-button', {hasText: 'Visible project event'}).dblclick();
     const editor = page.getByRole('textbox', {name: 'Edit Visible project event label'});
     await editor.fill('Browser project edit');
@@ -74,6 +76,292 @@ test('served editor edits the project store without opening IndexedDB and catche
     await page.reload();
     await expect(page.locator('.canvas .node-label-button', {hasText: 'CLI project edit'})).toBeVisible();
     expect(pageErrors).toEqual([]);
+  } finally {
+    await context.close();
+    if (serving) await serving.close();
+    rmSync(dir, {recursive: true, force: true});
+  }
+});
+
+test('project create workflows select the exact project and chapter and add nodes in lane zero', async ({browser}) => {
+  const dir = mkdtempSync(join(tmpdir(), 'slicr-project-create-workflows-'));
+  let serving;
+  const context = await browser.newContext();
+  try {
+    command(dir, 'init');
+    serving = startServeServer({root: dir, assets});
+    const {port} = await serving.listening;
+    const page = await context.newPage();
+    await page.goto(`http://127.0.0.1:${port}/`);
+    await page.getByRole('button', {name: 'Current project: Default Project'}).click();
+    await page.getByRole('option', {name: 'Add new Project ...'}).click();
+    await page.locator('.project-switcher-option-add-input').fill('Created project');
+    await page.getByRole('button', {name: 'Create project'}).click();
+    await expect(page.getByRole('button', {name: 'Current project: Created project'})).toBeVisible();
+    await page.getByRole('button', {name: 'Add chapter'}).click();
+    await page.locator('.chapter-sidebar-create-input').fill('Created chapter');
+    await page.locator('.chapter-sidebar-create-input').press('Enter');
+    const chapter = page.getByRole('button', {name: 'Created chapter'});
+    await expect(chapter).toHaveClass(/chapter-nav-item-active/);
+    await page.getByRole('button', {name: 'Add node', exact: true}).click();
+    const node = page.locator('.canvas .node-label-input');
+    await expect(node).toBeVisible();
+    const model = await (await page.request.get(`http://127.0.0.1:${port}/api/model`)).json();
+    const project = model.projects.find((item) => item.name === 'Created project');
+    const createdChapter = model.chaptersByProjectId[project.id].find((item) => item.title === 'Created chapter');
+    const projection = await (
+      await page.request.get(`http://127.0.0.1:${port}/api/projection?project=${project.id}&chapter=${createdChapter.id}`)
+    ).json();
+    expect(projection.nodes).toHaveLength(1);
+    expect(projection.nodes[0].laneId).toBe(0);
+  } finally {
+    await context.close();
+    if (serving) await serving.close();
+    rmSync(dir, {recursive: true, force: true});
+  }
+});
+
+test('scope switches with pending property edits require an explicit flush or discard choice', async ({browser}) => {
+  const dir = mkdtempSync(join(tmpdir(), 'slicr-project-scope-flush-'));
+  let serving;
+  const context = await browser.newContext();
+  try {
+    const initial = command(dir, 'init');
+    const node = command(dir, 'add-node', initial.chapterId, 'evt', '0', 'Pending property node');
+    const nextChapter = command(dir, 'add-chapter', 'Next chapter');
+    serving = startServeServer({root: dir, assets});
+    const {port} = await serving.listening;
+    const page = await context.newPage();
+    await page.goto(`http://127.0.0.1:${port}/`);
+    await page.locator('.canvas .node-label-button', {hasText: 'Pending property node'}).click();
+    const schema = page.locator('.node-editor-schema input[placeholder="Add property"]');
+    await schema.fill('Flush before switch');
+    await schema.press('Enter');
+    await page.getByRole('button', {name: 'Next chapter'}).click();
+    const dialog = page.getByRole('dialog', {name: 'Property edits are pending'});
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', {name: 'Wait for flush'}).click();
+    await expect(page.getByRole('button', {name: 'Next chapter'})).toHaveClass(/chapter-nav-item-active/);
+    const projection = await (
+      await page.request.get(`http://127.0.0.1:${port}/api/projection?project=${initial.projectId}&chapter=${initial.chapterId}`)
+    ).json();
+    expect(projection.nodeSchemas[node.generatedIds[0]].map((property) => property.name)).toContain('Flush before switch');
+  } finally {
+    await context.close();
+    if (serving) await serving.close();
+    rmSync(dir, {recursive: true, force: true});
+  }
+});
+
+test('rapid property edits retain the local draft and persist schema and example values', async ({browser}) => {
+  const dir = mkdtempSync(join(tmpdir(), 'slicr-project-property-edits-'));
+  let serving;
+  const context = await browser.newContext();
+  try {
+    const initial = command(dir, 'init');
+    const node = command(dir, 'add-node', initial.chapterId, 'evt', '0', 'Property node');
+    serving = startServeServer({root: dir, assets});
+    const {port} = await serving.listening;
+    const page = await context.newPage();
+    await page.goto(`http://127.0.0.1:${port}/`);
+    await page.locator('.canvas .node-label-button', {hasText: 'Property node'}).click();
+    const schema = page.locator('.node-editor-schema input[placeholder="Add property"]');
+    await schema.fill('First property');
+    await schema.press('Enter');
+    await schema.fill('Second property');
+    await schema.press('Enter');
+    await expect
+      .poll(() => page.locator('.node-editor-schema input').evaluateAll((inputs) => inputs.map((input) => input.value)))
+      .toContain('First property');
+    await expect
+      .poll(() => page.locator('.node-editor-schema input').evaluateAll((inputs) => inputs.map((input) => input.value)))
+      .toContain('Second property');
+    await expect.poll(() => readFileSync(join(dir, '.slicr', 'events.ndjson'), 'utf8')).toContain('Second property');
+    const projection = await (await page.request.get(`http://127.0.0.1:${port}/api/projection?project=${initial.projectId}`)).json();
+    expect(projection.nodeSchemas[node.generatedIds[0]].map((property) => property.name)).toEqual(['First property', 'Second property']);
+
+    await schema.fill('Conflict property');
+    await schema.press('Enter');
+    command(dir, 'rename-node', node.generatedIds[0], 'Renamed during property save');
+    await expect(page.getByRole('alert')).toContainText('Property edit was not saved');
+    await expect(page.getByRole('alert')).toContainText('redo the edit');
+    await expect
+      .poll(async () => {
+        const latest = await (await page.request.get(`http://127.0.0.1:${port}/api/projection?project=${initial.projectId}`)).json();
+        return latest.nodeSchemas[node.generatedIds[0]].map((property) => property.name);
+      })
+      .toEqual(['First property', 'Second property']);
+    await expect(schema).not.toHaveValue('Conflict property');
+  } finally {
+    await context.close();
+    if (serving) await serving.close();
+    rmSync(dir, {recursive: true, force: true});
+  }
+});
+
+test('a newer property draft survives a failed in-flight write and can be retried', async ({browser}) => {
+  const dir = mkdtempSync(join(tmpdir(), 'slicr-project-property-retry-'));
+  let serving;
+  const context = await browser.newContext();
+  try {
+    const initial = command(dir, 'init');
+    command(dir, 'add-node', initial.chapterId, 'evt', '0', 'Property node');
+    serving = startServeServer({root: dir, assets});
+    const {port} = await serving.listening;
+    const page = await context.newPage();
+    let failedFirstWrite = false;
+    let signalFirstWrite;
+    const firstWriteStarted = new Promise((resolve) => {
+      signalFirstWrite = resolve;
+    });
+    await page.route('**/api/command', async (route) => {
+      if (!failedFirstWrite) {
+        failedFirstWrite = true;
+        signalFirstWrite();
+        await new Promise((resolve) => setTimeout(resolve, 450));
+        await route.fulfill({status: 503, contentType: 'application/json', body: JSON.stringify({error: 'Temporary failure'})});
+        return;
+      }
+      await route.continue();
+    });
+    await page.goto(`http://127.0.0.1:${port}/`);
+    await page.locator('.canvas .node-label-button', {hasText: 'Property node'}).click();
+    const schema = page.locator('.node-editor-schema input[placeholder="Add property"]');
+    await schema.fill('First draft');
+    await schema.press('Enter');
+    await firstWriteStarted;
+    await schema.fill('Newer draft');
+    await schema.press('Enter');
+    await expect.poll(() => readFileSync(join(dir, '.slicr', 'events.ndjson'), 'utf8')).toContain('Newer draft');
+    await expect(page.getByRole('alert')).toContainText('Temporary failure');
+    const projection = await (await page.request.get(`http://127.0.0.1:${port}/api/projection?project=${initial.projectId}`)).json();
+    expect(projection.nodeSchemas[Object.keys(projection.nodeSchemas)[0]].map((property) => property.name)).toEqual([
+      'First draft',
+      'Newer draft',
+    ]);
+  } finally {
+    await context.close();
+    if (serving) await serving.close();
+    rmSync(dir, {recursive: true, force: true});
+  }
+});
+
+test('a CLI property update after a successful served save replaces the acknowledged local draft', async ({browser}) => {
+  const dir = mkdtempSync(join(tmpdir(), 'slicr-project-property-cli-catchup-'));
+  let serving;
+  const context = await browser.newContext();
+  try {
+    const initial = command(dir, 'init');
+    const node = command(dir, 'add-node', initial.chapterId, 'evt', '0', 'Property node');
+    serving = startServeServer({root: dir, assets});
+    const {port} = await serving.listening;
+    const page = await context.newPage();
+    await page.goto(`http://127.0.0.1:${port}/`);
+    await page.locator('.canvas .node-label-button', {hasText: 'Property node'}).click();
+    const schema = page.locator('.node-editor-schema input[placeholder="Add property"]');
+    await schema.fill('First property');
+    await schema.press('Enter');
+    await expect.poll(() => readFileSync(join(dir, '.slicr', 'events.ndjson'), 'utf8')).toContain('First property');
+
+    const projection = await (await page.request.get(`http://127.0.0.1:${port}/api/projection?project=${initial.projectId}`)).json();
+    const model = await (await page.request.get(`http://127.0.0.1:${port}/api/model`)).json();
+    const response = await page.request.post(`http://127.0.0.1:${port}/api/command`, {
+      data: {
+        projectId: initial.projectId,
+        baseRevision: model.revision,
+        type: 'ChangeNodeProperties',
+        data: {
+          nodeId: node.generatedIds[0],
+          schema: [{propertyId: projection.nodeSchemas[node.generatedIds[0]][0].propertyId, name: 'CLI updated property', type: 'string'}],
+          exampleValues: [],
+        },
+      },
+    });
+    expect(response.ok()).toBe(true);
+    await expect(page.locator('.node-editor-schema input[placeholder="propertyName"]')).toHaveValue('CLI updated property', {
+      timeout: 5000,
+    });
+  } finally {
+    await context.close();
+    if (serving) await serving.close();
+    rmSync(dir, {recursive: true, force: true});
+  }
+});
+
+test('project editor preserves focused details, keyboard navigation, and label cancel/outside-save behavior', async ({browser}) => {
+  const dir = mkdtempSync(join(tmpdir(), 'slicr-project-interactions-'));
+  let serving;
+  const context = await browser.newContext();
+  try {
+    const initial = command(dir, 'init');
+    const source = command(dir, 'add-node', initial.chapterId, 'evt', '0', 'Source event');
+    const target = command(dir, 'add-node', initial.chapterId, 'cmd', '1', 'Target command');
+    command(dir, 'connect-nodes', source.generatedIds[0], target.generatedIds[0]);
+    serving = startServeServer({root: dir, assets});
+    const {port} = await serving.listening;
+    const page = await context.newPage();
+    await page.goto(`http://127.0.0.1:${port}/`);
+    const sourceLabel = page.locator('.canvas .node-label-button', {hasText: 'Source event'});
+    await sourceLabel.click();
+    await expect(page.getByLabel('Focused node details')).toContainText('Source event');
+    await expect(page.locator('.node-detail-panel')).toBeVisible();
+    await page.keyboard.press('ArrowRight');
+    await expect(page.locator('.node-box.node-focused .node-label-button')).toHaveText('Target command');
+    const original = readFileSync(join(dir, '.slicr', 'events.ndjson'), 'utf8');
+    await page.keyboard.press('Enter');
+    const edit = page.getByRole('textbox', {name: 'Edit Target command label'});
+    await expect(edit).toBeVisible();
+    await edit.fill('Cancelled name');
+    await edit.press('Escape');
+    await expect(page.locator('.canvas .node-label-button', {hasText: 'Target command'})).toBeVisible();
+    expect(readFileSync(join(dir, '.slicr', 'events.ndjson'), 'utf8')).toBe(original);
+    await page.locator('.canvas').click({position: {x: 30, y: 220}});
+    await page.locator('.canvas .node-label-button', {hasText: 'Target command'}).dblclick();
+    await page.getByRole('textbox', {name: 'Edit Target command label'}).fill('Saved outside');
+    await page.locator('.canvas').click({position: {x: 30, y: 220}});
+    await expect(page.locator('.canvas .node-label-button', {hasText: 'Saved outside'})).toBeVisible();
+    const history = readFileSync(join(dir, '.slicr', 'events.ndjson'), 'utf8');
+    expect((history.match(/NodeRenamed/g) ?? []).length).toBe(1);
+  } finally {
+    await context.close();
+    if (serving) await serving.close();
+    rmSync(dir, {recursive: true, force: true});
+  }
+});
+
+test('a delayed projection for an old chapter cannot replace the newly selected chapter', async ({browser}) => {
+  const dir = mkdtempSync(join(tmpdir(), 'slicr-project-scope-race-'));
+  let serving;
+  const context = await browser.newContext();
+  try {
+    const initial = command(dir, 'init');
+    command(dir, 'add-node', initial.chapterId, 'evt', '0', 'First chapter node');
+    const secondChapter = command(dir, 'add-chapter', 'Second chapter');
+    command(dir, 'add-node', secondChapter.generatedIds[0], 'cmd', '1', 'Second chapter node');
+    serving = startServeServer({root: dir, assets});
+    const {port} = await serving.listening;
+    const page = await context.newPage();
+    await page.goto(`http://127.0.0.1:${port}/`);
+    await expect(page.locator('.canvas .node-label-button', {hasText: 'First chapter node'})).toBeVisible();
+
+    let releaseOldResponse;
+    const delayed = new Promise((resolve) => (releaseOldResponse = resolve));
+    let oldRequestStarted;
+    const oldRequestStartedPromise = new Promise((resolve) => (oldRequestStarted = resolve));
+    await page.route('**/api/projection**', async (route) => {
+      if (new URL(route.request().url()).searchParams.get('chapter') !== initial.chapterId) return route.continue();
+      const response = await route.fetch();
+      oldRequestStarted();
+      await delayed;
+      await route.fulfill({response});
+    });
+    await page.getByRole('button', {name: 'Default Chapter'}).click();
+    await oldRequestStartedPromise;
+    await page.getByRole('button', {name: 'Second chapter'}).click();
+    await expect(page.locator('.canvas .node-label-button', {hasText: 'Second chapter node'})).toBeVisible();
+    releaseOldResponse();
+    await expect(page.locator('.canvas .node-label-button', {hasText: 'First chapter node'})).toHaveCount(0);
+    await expect(page.locator('.canvas .node-label-button', {hasText: 'Second chapter node'})).toBeVisible();
   } finally {
     await context.close();
     if (serving) await serving.close();
@@ -257,7 +545,7 @@ test('a successful edit with a failed refresh is not reported as a failed save',
     await expect(page.getByRole('alert')).toContainText('Edit saved, but project refresh failed');
     await expect(page.getByRole('alert')).not.toContainText('Could not save edit');
     await expect(page.locator('.canvas')).toBeVisible();
-    await expect(page.getByRole('button', {name: 'Add node'})).toBeVisible();
+    await expect(page.getByRole('button', {name: 'Add node', exact: true})).toBeVisible();
     expect(readFileSync(join(dir, '.slicr', 'events.ndjson'), 'utf8')).toContain('Persisted edit');
   } finally {
     await context.close();
