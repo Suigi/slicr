@@ -413,7 +413,7 @@ export function ProjectApp() {
       onAddChapter={(title) => void execute({type: 'AddChapter', data: {title}})}
       topbarActions={
         <>
-          <strong>Project store · editing enabled</strong>
+          <strong>Project Store</strong>
           <button
             type="button"
             className="node-add-button project-info-button"
