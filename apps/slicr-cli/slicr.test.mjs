@@ -397,6 +397,16 @@ test('init creates a default project and chapter; scoped commands use shared dec
     assert.equal(initResult.projectName, 'Default Project');
     assert.equal(initResult.chapterTitle, 'Default Chapter');
     assert.equal(initResult.appended, 2);
+    const gitignore = readFileSync(join(dir, '.slicr', '.gitignore'), 'utf8');
+    assert.equal(gitignore, 'events-outbox.sqlite\nevents-outbox.sqlite-*\n');
+    assert.doesNotMatch(gitignore, /^events\.ndjson$/m);
+    assert.equal(spawnSync('git', ['init', '-q'], {cwd: dir}).status, 0);
+    for (const path of ['.slicr/events-outbox.sqlite', '.slicr/events-outbox.sqlite-journal', '.slicr/events-outbox.sqlite-wal']) {
+      assert.equal(spawnSync('git', ['check-ignore', '--no-index', '-q', '--', path], {cwd: dir}).status, 0, path);
+    }
+    assert.equal(spawnSync('git', ['check-ignore', '--no-index', '-q', '--', '.slicr/events.ndjson'], {cwd: dir}).status, 1);
+    assert.equal(invoke('init').status !== 0, true);
+    assert.equal(readFileSync(join(dir, '.slicr', '.gitignore'), 'utf8'), gitignore);
     const projectId = initResult.projectId;
     const defaultChapterId = initResult.chapterId;
     const chapters = JSON.parse(invoke('chapters').stdout);
@@ -468,14 +478,32 @@ test('init seeds an existing empty event log with the default workspace', () => 
   try {
     mkdirSync(join(dir, '.slicr'));
     writeFileSync(join(dir, '.slicr', 'events.ndjson'), '');
+    writeFileSync(join(dir, '.slicr', '.gitignore'), 'custom-rule');
     const initialized = run(dir, 'init');
     assert.equal(initialized.status, 0, initialized.stderr);
     assert.equal(JSON.parse(initialized.stdout).projectName, 'Default Project');
     assert.equal(JSON.parse(initialized.stdout).chapterTitle, 'Default Chapter');
+    const ignoreAfterInit = readFileSync(join(dir, '.slicr', '.gitignore'), 'utf8');
+    assert.equal(ignoreAfterInit, 'custom-rule\nevents-outbox.sqlite\nevents-outbox.sqlite-*\n');
     assert.deepEqual(
       JSON.parse(run(dir, 'projects').stdout).projects.map((project) => project.name),
       ['Default Project'],
     );
+  } finally {
+    rmSync(dir, {recursive: true, force: true});
+  }
+});
+test('init preserves complete CRLF ignore rules without duplicating them', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'slicr-init-ignore-existing-'));
+  try {
+    const store = join(dir, '.slicr');
+    mkdirSync(store);
+    writeFileSync(join(store, 'events.ndjson'), '');
+    const original = 'custom-rule\r\nevents-outbox.sqlite\r\nevents-outbox.sqlite-*';
+    writeFileSync(join(store, '.gitignore'), original);
+    const initialized = run(dir, 'init');
+    assert.equal(initialized.status, 0, initialized.stderr);
+    assert.equal(readFileSync(join(store, '.gitignore'), 'utf8'), original);
   } finally {
     rmSync(dir, {recursive: true, force: true});
   }
@@ -497,6 +525,7 @@ test('init refuses to overwrite existing data', () => {
     const refused = run(incompatible, 'init');
     assert.notEqual(refused.status, 0);
     assert.equal(readFileSync(incompatibleFile, 'utf8'), 'existing bytes\n');
+    assert.equal(existsSync(join(incompatible, '.slicr', '.gitignore')), false);
     rmSync(incompatible, {recursive: true, force: true});
   } finally {
     rmSync(dir, {recursive: true, force: true});

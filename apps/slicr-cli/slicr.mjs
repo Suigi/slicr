@@ -1,9 +1,25 @@
 #!/usr/bin/env node
 import {createHash} from 'node:crypto';
-import {readFileSync, mkdirSync, openSync, closeSync, fsyncSync, existsSync, unlinkSync, rmdirSync} from 'node:fs';
+import {readFileSync, writeFileSync, mkdirSync, openSync, closeSync, fsyncSync, existsSync, unlinkSync, rmdirSync} from 'node:fs';
 import {spawnSync} from 'node:child_process';
 import {resolve, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
+
+const OUTBOX_GITIGNORE_RULES = ['events-outbox.sqlite', 'events-outbox.sqlite-*'];
+
+function ensureOutboxGitignore(directory) {
+  const file = join(directory, '.gitignore');
+  let existing = '';
+  try {
+    existing = readFileSync(file, 'utf8');
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  const missing = OUTBOX_GITIGNORE_RULES.filter((rule) => !existing.split(/\r?\n/).includes(rule));
+  if (!missing.length) return;
+  const separator = existing && !existing.endsWith('\n') ? '\n' : '';
+  writeFileSync(file, `${existing}${separator}${missing.join('\n')}\n`, {flag: existsSync(file) ? 'w' : 'wx'});
+}
 
 function fail(message) {
   console.error(`slicr: ${message}`);
@@ -172,6 +188,7 @@ async function main(args) {
       const existing = load(root);
       validateEventTypes(existing.events);
       if (existing.events.length) throw new Error(`Refusing to initialize: ${directory} already contains events.`);
+      ensureOutboxGitignore(directory);
       await initializeWorkspace(root, file);
       return;
     }
@@ -196,6 +213,7 @@ async function main(args) {
       rmdirSync(directory);
       throw new Error(`Refusing to initialize: ${file} already exists or cannot be created (${error.message})`);
     }
+    ensureOutboxGitignore(directory);
     await initializeWorkspace(root, file);
     return;
   }
