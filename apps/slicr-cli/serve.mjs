@@ -24,7 +24,7 @@ const exampleValue = (value) =>
   object(value) &&
   Object.keys(value).every((key) => ['propertyId', 'scalarValue', 'scalarListValues', 'complexValue', 'complexListValues'].includes(key)) &&
   identifier(value.propertyId) &&
-  ['scalarValue', 'scalarListValues', 'complexValue', 'complexListValues'].filter((key) => key in value).length === 1 &&
+  ['scalarValue', 'scalarListValues', 'complexValue', 'complexListValues'].filter((key) => key in value).length <= 1 &&
   (!('scalarValue' in value) || primitive(value.scalarValue)) &&
   (!('scalarListValues' in value) || (Array.isArray(value.scalarListValues) && value.scalarListValues.every(primitive))) &&
   (!('complexValue' in value) || complexValue(value.complexValue)) &&
@@ -167,9 +167,28 @@ async function projectModel(root) {
   };
 }
 
-export function startServeServer({root, assets, port = 0, host = '127.0.0.1'}) {
+function preflightAssets(assetRoot) {
+  try {
+    const html = readFileSync(resolve(assetRoot, 'project.html'), 'utf8');
+    const references = [...html.matchAll(/(?:src|href)=["'](\/assets\/[^"']+)["']/g)].map((match) => match[1]);
+    if (!references.length) throw new Error('project.html does not reference a built frontend asset');
+    for (const reference of references) {
+      const file = resolve(assetRoot, `.${reference}`);
+      const realRoot = realpathSync(assetRoot);
+      const realFile = realpathSync(file);
+      if (!realFile.startsWith(realRoot + sep) || !statSync(realFile).isFile()) throw new Error(`missing or invalid ${reference}`);
+    }
+  } catch (error) {
+    throw new Error(
+      `Cannot start slicr serve: frontend assets are missing or incomplete in ${assetRoot}. Run npm run build:project --workspace=slicr-editor. ${error.message}`,
+    );
+  }
+}
+
+export function startServeServer({root, assets, port = 0, host = '127.0.0.1', beforeCommandHandler}) {
   const projectRoot = resolve(root);
   const assetRoot = resolve(assets);
+  preflightAssets(assetRoot);
   const server = createServer(async (request, response) => {
     try {
       if (request.method !== 'GET' && request.method !== 'HEAD' && !(request.method === 'POST' && request.url === '/api/command'))
@@ -187,6 +206,19 @@ export function startServeServer({root, assets, port = 0, host = '127.0.0.1'}) {
       const url = new URL(request.url, `http://${hostHeader}`);
       if (url.pathname === '/api/command') {
         if (request.method !== 'POST') throw Object.assign(new Error('POST required.'), {status: 405});
+        const contentType = request.headers['content-type']?.split(';', 1)[0].trim().toLowerCase();
+        if (contentType !== 'application/json') throw Object.assign(new Error('Content-Type must be application/json.'), {status: 415});
+        if (request.headers.origin) {
+          let origin;
+          try {
+            origin = new URL(request.headers.origin);
+          } catch {
+            throw Object.assign(new Error('Invalid Origin header.'), {status: 403});
+          }
+          const requestOrigin = `${request.socket.encrypted ? 'https' : 'http'}://${hostHeader}`;
+          if (origin.origin !== new URL(requestOrigin).origin)
+            throw Object.assign(new Error('Cross-origin writes are not allowed.'), {status: 403});
+        }
         let body = '';
         for await (const chunk of request) {
           body += chunk;
@@ -198,8 +230,16 @@ export function startServeServer({root, assets, port = 0, host = '127.0.0.1'}) {
         } catch {
           throw Object.assign(new Error('Invalid JSON command.'), {status: 400});
         }
-        if (!object(input) || typeof input.projectId !== 'string' || typeof input.type !== 'string' || !object(input.data))
-          throw Object.assign(new Error('Expected a scoped command with projectId, type and data.'), {status: 400});
+        if (
+          !object(input) ||
+          !identifier(input.projectId) ||
+          !string(input.type) ||
+          !object(input.data) ||
+          !/^[a-f0-9]{64}$/.test(input.baseRevision ?? '')
+        )
+          throw Object.assign(new Error('Expected projectId, type, data, and a 64-character baseRevision from the latest model read.'), {
+            status: 400,
+          });
         const commandMap = {
           RenameNode: ['renameNode', ['nodeId', 'name'], (data) => ({projectId: input.projectId, nodeId: data.nodeId, newName: data.name})],
           AddNode: [
@@ -228,7 +268,19 @@ export function startServeServer({root, assets, port = 0, host = '127.0.0.1'}) {
         };
         const mapping = commandMap[input.type];
         if (!mapping) throw Object.assign(new Error(`Unsupported command type: ${input.type}`), {status: 400});
+        const fieldValidators = {
+          RenameNode: {nodeId: identifier, name: string},
+          AddNode: {chapterId: identifier, nodeType, laneId: (value) => Number.isSafeInteger(value) && value >= 0, label: string},
+          ConnectNodes: {sourceNodeId: identifier, targetNodeId: identifier, role: (value) => ['flow', 'back-reference'].includes(value)},
+          AddChapter: {title: string},
+          RenameProject: {name: string},
+        }[input.type];
         const model = await projectModel(projectRoot);
+        if (input.baseRevision !== model.revision)
+          throw Object.assign(
+            new Error('The project changed since this editor view was loaded. Reload the latest projection and retry your edit.'),
+            {status: 409},
+          );
         if (!model.workspace.projects.some((p) => p.id === input.projectId))
           throw Object.assign(new Error(`Unknown project ID: ${input.projectId}`), {status: 404});
         const allowedFields = mapping[1];
@@ -237,20 +289,44 @@ export function startServeServer({root, assets, port = 0, host = '127.0.0.1'}) {
           allowedFields.some((key) => !(key in input.data) && !(input.type === 'ConnectNodes' && key === 'role'))
         )
           throw Object.assign(new Error('Invalid command data.'), {status: 400});
+        if (
+          Object.entries(input.data).some(([key, value]) => !fieldValidators[key]?.(value)) ||
+          allowedFields.some((key) => !(key in input.data) && !(input.type === 'ConnectNodes' && key === 'role'))
+        )
+          throw Object.assign(new Error('Invalid command data: field values do not match the command schema.'), {status: 400});
         const data = mapping[2](input.data);
-        if (Object.values(data).some((value) => value === undefined))
-          throw Object.assign(new Error('Invalid command data.'), {status: 400});
         const [{NdjsonSpecEventStore}, graphModule, projectModule, {handleCommand}] = await Promise.all([
           import('../../packages/event-sourcing/src/ndjsonSpecEventStore.ts'),
           import('../../packages/slicr-core/src/graphCommands/deciders.ts'),
           import('../../packages/slicr-core/src/projectCommands/projectCommandHandler.ts'),
           import('../../packages/slicr-core/src/eventSourcing.ts'),
         ]);
+        await beforeCommandHandler?.();
         const store = NdjsonSpecEventStore.open(projectRoot);
         let appended;
         try {
+          const revisionGuardedStore = {
+            read: (...args) => store.read(...args),
+            query: (...args) => store.query(...args),
+            append: (events, condition) => store.appendAtRevision(events, input.baseRevision, condition),
+            subscribe: (...args) => store.subscribe(...args),
+          };
           const decider = graphModule.deciders()[mapping[0]] ?? projectModule.deciders()[mapping[0]];
-          appended = await handleCommand(store, decider, {type: input.type, data});
+          try {
+            appended = await handleCommand(revisionGuardedStore, decider, {type: input.type, data});
+          } catch (error) {
+            if (readModel(projectRoot).revision !== input.baseRevision)
+              throw Object.assign(
+                new Error('The project changed since this editor view was loaded. Reload the latest projection and retry your edit.'),
+                {status: 409},
+              );
+            throw error;
+          }
+          if (!appended.length && readModel(projectRoot).revision !== input.baseRevision)
+            throw Object.assign(
+              new Error('The project changed since this editor view was loaded. Reload the latest projection and retry your edit.'),
+              {status: 409},
+            );
         } finally {
           store.close();
         }
@@ -326,7 +402,9 @@ export function startServeServer({root, assets, port = 0, host = '127.0.0.1'}) {
       response.writeHead(200, {'content-type': contentTypes[extname(file)] ?? 'application/octet-stream'});
       createReadStream(file).pipe(response);
     } catch (error) {
-      const status = error.status ?? (error.name === 'AppendConditionFailedError' ? 409 : error.code === 'ENOENT' ? 404 : 500);
+      const status =
+        error.status ??
+        (['AppendConditionFailedError', 'RevisionConditionFailedError'].includes(error.name) ? 409 : error.code === 'ENOENT' ? 404 : 500);
       response.writeHead(status, {'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store'});
       response.end(JSON.stringify({error: error.message}));
     }

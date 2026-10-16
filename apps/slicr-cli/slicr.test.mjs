@@ -8,6 +8,7 @@ import {spawn, spawnSync} from 'node:child_process';
 import {request as httpRequest} from 'node:http';
 import {promises as fs} from 'node:fs';
 import {Events} from '../../packages/slicr-core/src/events.ts';
+import {Query} from '../../packages/event-sourcing/src/query.ts';
 import {startServeServer} from './serve.mjs';
 
 const cli = new URL('./slicr.mjs', import.meta.url);
@@ -29,6 +30,13 @@ function withConstructorTags(event) {
     NodesDisconnected: () => Events.nodesDisconnected(p.projectId, p.sourceNodeId, p.targetNodeId),
   };
   return constructors[event.type]?.() ?? event;
+}
+function makeAssets() {
+  const assets = mkdtempSync(join(tmpdir(), 'slicr-assets-'));
+  mkdirSync(join(assets, 'assets'));
+  writeFileSync(join(assets, 'project.html'), '<html><div id="root"></div><script src="/assets/app.js"></script></html>');
+  writeFileSync(join(assets, 'assets', 'app.js'), 'ok');
+  return assets;
 }
 function fixture(extraEvents = []) {
   const events = [
@@ -508,10 +516,7 @@ test('missing model fails without creating files', () => {
 
 test('serve hosts the editor and read-only workspace and graph projections, then shuts down', async () => {
   const {dir} = fixture();
-  const assets = mkdtempSync(join(tmpdir(), 'slicr-assets-'));
-  mkdirSync(join(assets, 'assets'));
-  writeFileSync(join(assets, 'project.html'), '<html><div id="root"></div><script src="/assets/app.js"></script></html>');
-  writeFileSync(join(assets, 'assets', 'app.js'), 'ok');
+  const assets = makeAssets();
   const running = startServeServer({root: dir, assets});
   try {
     const address = await running.listening;
@@ -555,37 +560,91 @@ test('serve hosts the editor and read-only workspace and graph projections, then
 
 test('serve accepts validated editor commands, and projections catch up from disk across reads', async () => {
   const {dir} = fixture();
-  const assets = mkdtempSync(join(tmpdir(), 'slicr-assets-'));
+  const assets = makeAssets();
   const running = startServeServer({root: dir, assets});
   try {
     const {port} = await running.listening;
     const base = `http://127.0.0.1:${port}`;
+    const initialRevision = (await (await fetch(`${base}/api/model`)).json()).revision;
     const response = await fetch(`${base}/api/command`, {
       method: 'POST',
       headers: {'content-type': 'application/json'},
-      body: JSON.stringify({projectId: 'p1', type: 'RenameNode', data: {nodeId: 'n1', name: 'Browser edit'}}),
+      body: JSON.stringify({
+        projectId: 'p1',
+        baseRevision: initialRevision,
+        type: 'RenameNode',
+        data: {nodeId: 'n1', name: 'Browser edit'},
+      }),
     });
     assert.equal(response.status, 200);
     assert.equal((await response.json()).appended, 1);
     const projection = await (await fetch(`${base}/api/projection?project=p1&chapter=c1`)).json();
     assert.equal(projection.nodes[0].label, 'Browser edit');
+    const currentRevision = (await (await fetch(`${base}/api/model`)).json()).revision;
     const invalid = await fetch(`${base}/api/command`, {
       method: 'POST',
       headers: {'content-type': 'application/json'},
-      body: JSON.stringify({projectId: 'p1', type: 'RenameNode', data: {nodeId: 'missing', name: 'Nope'}}),
+      body: JSON.stringify({projectId: 'p1', baseRevision: currentRevision, type: 'RenameNode', data: {nodeId: 'missing', name: 'Nope'}}),
     });
     assert.notEqual(invalid.status, 200);
+    const beforeRejected = readFileSync(join(dir, '.slicr', 'events.ndjson'), 'utf8');
+    for (const data of [
+      {nodeId: 'n1', name: 42},
+      {nodeId: '', name: 'Bad'},
+      {nodeId: 'n1', name: 'Bad', extra: true},
+    ]) {
+      const rejected = await fetch(`${base}/api/command`, {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({projectId: 'p1', baseRevision: currentRevision, type: 'RenameNode', data}),
+      });
+      assert.equal(rejected.status, 400);
+      assert.equal(readFileSync(join(dir, '.slicr', 'events.ndjson'), 'utf8'), beforeRejected);
+    }
+    const wrongType = await fetch(`${base}/api/command`, {
+      method: 'POST',
+      headers: {'content-type': 'text/plain'},
+      body: '{}',
+    });
+    assert.equal(wrongType.status, 415);
+    const foreignOrigin = await fetch(`${base}/api/command`, {
+      method: 'POST',
+      headers: {'content-type': 'application/json', origin: 'https://attacker.example'},
+      body: '{}',
+    });
+    assert.equal(foreignOrigin.status, 403);
+    assert.equal(readFileSync(join(dir, '.slicr', 'events.ndjson'), 'utf8'), beforeRejected);
     const {NdjsonSpecEventStore} = await import('../../packages/event-sourcing/src/ndjsonSpecEventStore.ts');
     const store = NdjsonSpecEventStore.open(dir);
     try {
       const events = await store.read();
       assert.equal(events.at(-1).event.payload.newName, 'Browser edit');
       await store.append([Events.nodeRenamed('p1', 'n1', 'CLI edit')]);
+      await assert.rejects(
+        store.appendAtRevision([Events.nodeRenamed('p1', 'n1', 'Stale guarded append')], currentRevision, {
+          failIfEventsMatch: Query.all(),
+        }),
+        {name: 'AppendConditionFailedError'},
+      );
     } finally {
       store.close();
     }
     const caughtUp = await (await fetch(`${base}/api/projection?project=p1&chapter=c1`)).json();
     assert.equal(caughtUp.nodes[0].label, 'CLI edit');
+    const beforeStale = readFileSync(join(dir, '.slicr', 'events.ndjson'), 'utf8');
+    const stale = await fetch(`${base}/api/command`, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({
+        projectId: 'p1',
+        baseRevision: initialRevision,
+        type: 'RenameNode',
+        data: {nodeId: 'n1', name: 'Stale browser edit'},
+      }),
+    });
+    assert.equal(stale.status, 409);
+    assert.match((await stale.json()).error, /changed since this editor view was loaded.*Reload.*retry/);
+    assert.equal(readFileSync(join(dir, '.slicr', 'events.ndjson'), 'utf8'), beforeStale);
     await running.close();
     const restarted = startServeServer({root: dir, assets});
     try {
@@ -602,13 +661,58 @@ test('serve accepts validated editor commands, and projections catch up from dis
   }
 });
 
+test('serve rejects a revision race that turns a command into a no-op', async () => {
+  const {dir} = fixture();
+  const assets = makeAssets();
+  let raced = false;
+  const running = startServeServer({
+    root: dir,
+    assets,
+    beforeCommandHandler: async () => {
+      if (raced) return;
+      raced = true;
+      const {NdjsonSpecEventStore} = await import('../../packages/event-sourcing/src/ndjsonSpecEventStore.ts');
+      const store = NdjsonSpecEventStore.open(dir);
+      try {
+        await store.append([Events.nodeRenamed('p1', 'n1', 'CLI wins')]);
+      } finally {
+        store.close();
+      }
+    },
+  });
+  try {
+    const {port} = await running.listening;
+    const base = `http://127.0.0.1:${port}`;
+    const revision = (await (await fetch(`${base}/api/model`)).json()).revision;
+    const response = await fetch(`${base}/api/command`, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify({projectId: 'p1', baseRevision: revision, type: 'RenameNode', data: {nodeId: 'n1', name: 'CLI wins'}}),
+    });
+    assert.equal(response.status, 409);
+    assert.match((await response.json()).error, /changed since this editor view was loaded/);
+    const projection = await (await fetch(`${base}/api/projection?project=p1`)).json();
+    assert.equal(projection.nodes[0].label, 'CLI wins');
+    assert.equal(
+      readFileSync(join(dir, '.slicr', 'events.ndjson'), 'utf8')
+        .split('\n')
+        .filter(Boolean).length,
+      2,
+    );
+  } finally {
+    await running.close();
+    rmSync(dir, {recursive: true, force: true});
+    rmSync(assets, {recursive: true, force: true});
+  }
+});
+
 test('serve scopes chapter IDs by project when node IDs are reused', async () => {
   const {dir} = fixture([
     Events.projectAdded('p2', 'Other'),
     Events.chapterAdded('p2', 'c9', 'Other chapter'),
     Events.nodeAdded('p2', 'c9', 'n1', 'evt', 0, 'Other node'),
   ]);
-  const assets = mkdtempSync(join(tmpdir(), 'slicr-assets-'));
+  const assets = makeAssets();
   const running = startServeServer({root: dir, assets});
   try {
     const {port} = await running.listening;
@@ -623,10 +727,35 @@ test('serve scopes chapter IDs by project when node IDs are reused', async () =>
   }
 });
 
+test('serve accepts property-only example-value entries from core event types', async () => {
+  const {dir} = fixture([Events.nodeExampleValuesChanged('p1', 'n1', [{propertyId: 'future-property'}])]);
+  const assets = makeAssets();
+  const running = startServeServer({root: dir, assets});
+  try {
+    const {port} = await running.listening;
+    const response = await fetch(`http://127.0.0.1:${port}/api/model`);
+    assert.equal(response.status, 200, JSON.stringify(await response.json()));
+  } finally {
+    await running.close();
+    rmSync(dir, {recursive: true, force: true});
+    rmSync(assets, {recursive: true, force: true});
+  }
+});
+
+test('serve fails before listening with an actionable error when built assets are missing', () => {
+  const dir = fixture().dir;
+  const assets = mkdtempSync(join(tmpdir(), 'slicr-missing-assets-'));
+  try {
+    assert.throws(() => startServeServer({root: dir, assets}), /Run npm run build:project --workspace=slicr-editor/);
+  } finally {
+    rmSync(dir, {recursive: true, force: true});
+    rmSync(assets, {recursive: true, force: true});
+  }
+});
+
 test('serve rejects non-loopback Host headers', async () => {
   const {dir} = fixture();
-  const assets = mkdtempSync(join(tmpdir(), 'slicr-assets-'));
-  writeFileSync(join(assets, 'project.html'), '<html></html>');
+  const assets = makeAssets();
   const running = startServeServer({root: dir, assets});
   try {
     const {port} = await running.listening;
@@ -648,7 +777,7 @@ test('serve rejects non-loopback Host headers', async () => {
 
 test('serve does not follow static symlinks outside the asset root', async () => {
   const {dir} = fixture();
-  const assets = mkdtempSync(join(tmpdir(), 'slicr-assets-'));
+  const assets = makeAssets();
   const outside = mkdtempSync(join(tmpdir(), 'slicr-outside-'));
   writeFileSync(join(outside, 'secret.txt'), 'not for serving');
   await fs.symlink(join(outside, 'secret.txt'), join(assets, 'secret.txt'));
@@ -669,7 +798,7 @@ test('serve does not follow static symlinks outside the asset root', async () =>
 test('serve rejects checksum-valid events with inherited schema names across both read APIs', async () => {
   for (const type of ['__proto__', 'constructor', 'toString']) {
     const {dir} = fixture();
-    const assets = mkdtempSync(join(tmpdir(), 'slicr-assets-'));
+    const assets = makeAssets();
     const file = join(dir, '.slicr', 'events.ndjson');
     const batch = {v: 1, id: 'inherited', start: 9, events: [{id: 'inherited:0', event: {type, payload: {}, tags: []}}]};
     batch.sha256 = createHash('sha256').update(JSON.stringify(batch)).digest('hex');
@@ -698,7 +827,7 @@ test('serve rejects checksum-valid events with invalid tags or missing payload a
     {type: 'NodeAdded', tags: ['projectId:p1', 'chapterId:c1', 'nodeId:hidden', 'type:evt']},
   ]) {
     const {dir} = fixture();
-    const assets = mkdtempSync(join(tmpdir(), 'slicr-assets-'));
+    const assets = makeAssets();
     const file = join(dir, '.slicr', 'events.ndjson');
     const batch = {v: 1, id: 'invalid', start: 9, events: [{id: 'invalid:0', event: invalidEvent}]};
     batch.sha256 = createHash('sha256').update(JSON.stringify(batch)).digest('hex');
@@ -726,8 +855,7 @@ test('serve rejects checksum-valid events with invalid tags or missing payload a
 
 test('serve reports missing and corrupt model errors without writing a store', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'slicr-serve-errors-'));
-  const assets = mkdtempSync(join(tmpdir(), 'slicr-assets-'));
-  writeFileSync(join(assets, 'project.html'), '<div id="root"></div>');
+  const assets = makeAssets();
   const running = startServeServer({root: dir, assets});
   try {
     const address = await running.listening;

@@ -193,6 +193,21 @@ export class NdjsonSpecEventStore<E extends Event> implements SpecEventStore<E> 
     return filterSequencedEventsByQuery(await this.read(options), query);
   }
   async append(events: readonly E[], condition?: AppendCondition): Promise<readonly SequencedEvent<E>[]> {
+    return this.appendInternal(events, condition);
+  }
+  /** Append only if the exact canonical log revision still matches while holding the cross-process store lock. */
+  async appendAtRevision(
+    events: readonly E[],
+    expectedRevision: string,
+    condition?: AppendCondition,
+  ): Promise<readonly SequencedEvent<E>[]> {
+    return this.appendInternal(events, condition, expectedRevision);
+  }
+  private async appendInternal(
+    events: readonly E[],
+    condition?: AppendCondition,
+    expectedRevision?: string,
+  ): Promise<readonly SequencedEvent<E>[]> {
     if (!events.length) return [];
     const copies = events.map((event) => {
       const copy = JSON.parse(JSON.stringify(event)) as E;
@@ -201,6 +216,15 @@ export class NdjsonSpecEventStore<E extends Event> implements SpecEventStore<E> 
     });
     const appended = this.transaction(() => {
       const current = entries(this.recover());
+      if (expectedRevision !== undefined) {
+        const actualRevision = createHash('sha256')
+          .update(readFileSync(join(this.directory, LOG)))
+          .digest('hex');
+        if (actualRevision !== expectedRevision) {
+          if (condition) throw new AppendConditionFailedError(condition, current);
+          throw Object.assign(new Error('The event log changed from the expected revision.'), {name: 'RevisionConditionFailedError'});
+        }
+      }
       if (condition) {
         const conflicting = filterSequencedEventsByQuery(
           current.filter(({position}) => position > (condition.after ?? 0)),
