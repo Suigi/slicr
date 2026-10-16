@@ -419,7 +419,7 @@ export function ProjectApp() {
             className="node-add-button project-info-button"
             aria-label="Project store information"
             title="Project store information"
-            onClick={() => setIsIdentityOpen(true)}
+            onClick={() => setIsIdentityOpen((isOpen) => !isOpen)}
           >
             <FontAwesomeIcon icon={faInfo} />
           </button>
