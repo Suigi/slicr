@@ -52,6 +52,7 @@ test('served editor edits the project store without opening IndexedDB and catche
     });
     await page.goto(`http://127.0.0.1:${port}/`);
     await expect(page.locator('.canvas .node-label-button', {hasText: 'Visible project event'})).toBeVisible();
+    await page.getByRole('button', {name: 'Project store information'}).click();
     await expect(page.getByLabel('Project store identity')).toContainText(dir);
     await expect(page.getByLabel('Project store identity')).toContainText('.slicr');
     await expect(page.getByLabel('Project store identity')).toContainText('project store');

@@ -609,7 +609,7 @@ body {
   border-left: 1px solid rgba(23, 32, 51, 0.12);
   background: rgba(255, 255, 255, 0.94);
   box-shadow: -18px 0 42px rgba(23, 32, 51, 0.14);
-  padding: 28px 10px;
+  padding: 10px 10px;
 }
 
 .node-detail-title {

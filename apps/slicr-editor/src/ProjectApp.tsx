@@ -1,4 +1,6 @@
 import {useEffect, useMemo, useRef, useState} from 'react';
+import {FontAwesomeIcon} from '@fortawesome/react-fontawesome';
+import {faInfo} from '@fortawesome/free-solid-svg-icons';
 import {type EditableProperty, type InfiniteCanvasHandle} from '@slicr/react-ui';
 import {ProductionEditorShell} from './components/ProductionEditorShell';
 import {ProductionGraphEditor} from './components/ProductionGraphEditor';
@@ -381,6 +383,8 @@ export function ProjectApp() {
     [],
   );
 
+  const [isIdentityOpen, setIsIdentityOpen] = useState(false);
+
   return (
     <ProductionEditorShell
       projects={model?.projects ?? []}
@@ -407,14 +411,32 @@ export function ProjectApp() {
       onCollapseSidebar={() => setIsSidebarOpen(false)}
       onExpandSidebar={() => setIsSidebarOpen(true)}
       onAddChapter={(title) => void execute({type: 'AddChapter', data: {title}})}
-      topbarActions={<strong>Project store · editing enabled</strong>}
+      topbarActions={
+        <>
+          <strong>Project store · editing enabled</strong>
+          <button
+            type="button"
+            className="node-add-button project-info-button"
+            aria-label="Project store information"
+            title="Project store information"
+            onClick={() => setIsIdentityOpen(true)}
+          >
+            <FontAwesomeIcon icon={faInfo} />
+          </button>
+        </>
+      }
     >
-      <div className="project-store-identity" aria-label="Project store identity">
-        <strong>Project-backed editor · project store</strong>
-        <div>Project directory: {model?.projectDirectory ?? 'Loading…'}</div>
-        <div>Store: {model?.storeDirectory ?? 'Loading…'}</div>
-        <div>Revision: {projection?.revision ?? model?.revision ?? 'Loading…'}</div>
-      </div>
+      {isIdentityOpen ? (
+        <section className="project-store-identity-popup" role="dialog" aria-modal="true" aria-label="Project store identity">
+          <button type="button" aria-label="Close project store information" onClick={() => setIsIdentityOpen(false)}>
+            Close
+          </button>
+          <strong>Project-backed editor · project store</strong>
+          <div>Project directory: {model?.projectDirectory ?? 'Loading…'}</div>
+          <div>Store: {model?.storeDirectory ?? 'Loading…'}</div>
+          <div>Revision: {projection?.revision ?? model?.revision ?? 'Loading…'}</div>
+        </section>
+      ) : null}
       {error ? <p role="alert">{error}</p> : null}
       {refreshError ? <p role="alert">{refreshError}</p> : null}
       {scopeSwitchNotice ? <p role="status">{scopeSwitchNotice}</p> : null}
@@ -443,7 +465,7 @@ export function ProjectApp() {
       {projectId && !projection && !error ? <p>Loading project projection…</p> : null}
       {projection ? (
         <>
-          <button type="button" onClick={() => void controller.addNewSlice()}>
+          <button className="project-add-node-button" type="button" onClick={() => void controller.addNewSlice()}>
             Add node
           </button>
           <div className="graph-workspace">
