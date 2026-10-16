@@ -68,54 +68,47 @@ export function createStandaloneProductionEditorPort(application: Application): 
           throw new Error('The standalone graph changed since this editor view was loaded. Reload and retry.');
         const before = application.graph.getSnapshot();
         const beforeWorkspace = application.workspace.getWorkspaceSnapshot();
-        const data = command.data;
         switch (command.type) {
           case 'AddNode':
             await application.commands.addNewSlice();
             break;
           case 'AddProject':
-            await application.commands.addProject(String(data.name ?? ''));
+            await application.commands.addProject(command.data.name);
             break;
           case 'RenameProject':
-            await application.commands.renameProject(String(data.projectId), String(data.name));
+            await application.commands.renameProject(command.data.projectId, command.data.name);
             break;
           case 'AddChapter':
-            await application.commands.addChapter(String(data.title ?? ''));
+            await application.commands.addChapter(command.data.title);
             break;
           case 'ConnectNodes':
-            await application.commands.addConnection(
-              String(data.sourceNodeId),
-              String(data.targetNodeId),
-              data.role as 'flow' | 'back-reference' | undefined,
-            );
+            await application.commands.addConnection(command.data.sourceNodeId, command.data.targetNodeId, command.data.role);
             break;
           case 'DisconnectNodes':
-            await application.commands.deleteConnection(String(data.edgeId));
+            await application.commands.deleteConnection(command.data.edgeId);
             break;
           case 'AddConnectedNode':
             await application.commands.addConnectedNode({
-              sourceNodeId: String(data.sourceNodeId),
-              nodeType: data.nodeType as never,
-              laneId: Number(data.laneId),
-              label: String(data.label),
+              sourceNodeId: command.data.sourceNodeId,
+              nodeType: command.data.nodeType,
+              laneId: command.data.laneId,
+              label: command.data.label,
             });
             break;
           case 'RenameNode':
-            await application.commands.renameNode(String(data.nodeId), String(data.name ?? data.newName ?? ''));
+            await application.commands.renameNode(command.data.nodeId, command.data.name);
             break;
           case 'ChangeNodeType':
-            await application.commands.setNodeType(String(data.nodeId), data.newType as never);
+            await application.commands.setNodeType(command.data.nodeId, command.data.newType);
             break;
           case 'ChangeNodeProperties':
             // One port command retains the two legacy schema/example commands (and their separate event writes).
-            await application.commands.changeNodeSchema({nodeId: String(data.nodeId), schema: data.schema as never});
-            await application.commands.changeNodeExampleValues({nodeId: String(data.nodeId), exampleValues: data.exampleValues as never});
+            await application.commands.changeNodeSchema({nodeId: command.data.nodeId, schema: command.data.schema});
+            await application.commands.changeNodeExampleValues({nodeId: command.data.nodeId, exampleValues: command.data.exampleValues});
             break;
           case 'DeleteNode':
-            await application.commands.deleteNode(String(data.nodeId));
+            await application.commands.deleteNode(command.data.nodeId);
             break;
-          default:
-            throw new Error(`Unsupported standalone editor command: ${command.type}`);
         }
         const after = application.graph.getSnapshot();
         const afterWorkspace = application.workspace.getWorkspaceSnapshot();

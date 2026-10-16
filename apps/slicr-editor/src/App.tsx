@@ -1,17 +1,13 @@
-import {useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties} from 'react';
+import {useEffect, useRef, useState, type CSSProperties} from 'react';
 import {PointyCardTags, PropertyEditor, PropertyGrid, type EditableProperty, type InfiniteCanvasHandle} from '@slicr/react-ui';
-import {compactLayout} from 'layout-lib';
 import {ProductionEditorShell} from './components/ProductionEditorShell';
 import {ProductionGraphEditor} from './components/ProductionGraphEditor';
 import {BackupRestoreButtons} from './components/BackupRestoreButtons';
 import {NODE_HEIGHT, NODE_WIDTH} from './graph/constants';
-import {getArrowRenderPoints} from './graph/graphUtils';
-import {useGraphKeyboardInteractions} from './graph/useGraphKeyboardInteractions';
+import {useProductionGraphView} from './graph/useProductionGraphView';
 import {useEventBackup} from './application/useEventBackup';
 import {storeLastOkGraphModel, useGraphModel} from './graph/useGraphModel';
 import {serializeVisualGraphAcceptanceTest} from './graph/visualGraphExport';
-import type {RenderNode} from './graph/types';
-import {measureNodeDimensions, type NodeDimensions} from './nodeMeasurement';
 
 const propertyGridColorScheme = {
   '--property-grid-line': 'var(--mockup-grid-line)',
@@ -31,21 +27,6 @@ type PropertyGridCardMockup = {
   properties: EditableProperty[];
   pointyTags?: {label: string; href: string}[];
 };
-
-function areNodeMeasurementMapsEqual(current: Record<string, NodeDimensions>, next: Record<string, NodeDimensions>) {
-  const currentKeys = Object.keys(current);
-  const nextKeys = Object.keys(next);
-
-  if (currentKeys.length !== nextKeys.length) {
-    return false;
-  }
-
-  return currentKeys.every((nodeId) => {
-    const currentDimensions = current[nodeId];
-    const nextDimensions = next[nodeId];
-    return currentDimensions?.width === nextDimensions?.width && currentDimensions?.height === nextDimensions?.height;
-  });
-}
 
 const initialPropertyGridCardMockups: PropertyGridCardMockup[] = [
   {
@@ -189,8 +170,6 @@ export function App() {
   const [selectedPropertyGridMockupVariant, setSelectedPropertyGridMockupVariant] = useState(
     initialPropertyGridCardMockups[0]?.variant ?? '',
   );
-  const [nodeMeasurements, setNodeMeasurements] = useState<Record<string, NodeDimensions>>({});
-  const [settledMeasurementKey, setSettledMeasurementKey] = useState('');
   const selectedPropertyGridMockup =
     propertyGridMockups.find((mockup) => mockup.variant === selectedPropertyGridMockupVariant) ?? propertyGridMockups[0];
   const updateSelectedPropertyGridProperties = (properties: EditableProperty[]) => {
@@ -227,7 +206,7 @@ export function App() {
     addChapter,
     startConnectingFromNode,
     cancelConnecting,
-    addConnection,
+    onNodeClick,
     deleteConnection,
     addConnectedNode,
     deleteNode,
@@ -261,97 +240,16 @@ export function App() {
     }
   };
 
-  const layoutNodes = useMemo(
-    () =>
-      nodes.map((node) => {
-        const measuredDimensions = nodeMeasurements[node.id];
-        return measuredDimensions
-          ? {
-              ...node,
-              width: NODE_WIDTH,
-              height: Math.max(NODE_HEIGHT, measuredDimensions.height),
-            }
-          : {
-              ...node,
-              width: NODE_WIDTH,
-            };
-      }),
-    [nodeMeasurements, nodes],
-  );
-
-  const layoutResult = useMemo(
-    () =>
-      compactLayout({
-        nodes: layoutNodes,
-        edges,
-        lanes,
-        defaults: {nodeWidth: NODE_WIDTH, nodeHeight: NODE_HEIGHT},
-        spacing: {laneMargin: 0, laneGap: 100, minTargetShift: 20, minNodeGap: 40},
-      }),
-    [edges, lanes, layoutNodes],
-  );
-
-  const renderedNodes: RenderNode[] = useMemo(() => {
-    if (!layoutResult.ok) {
-      return [];
-    }
-
-    const inputNodeById = new Map(layoutNodes.map((node) => [node.id, node]));
-    return layoutResult.result.nodes.flatMap((nodeLayout) => {
-      const node = inputNodeById.get(nodeLayout.id);
-      if (!node) {
-        return [];
-      }
-
-      return [{...node, ...nodeLayout}];
-    });
-  }, [layoutNodes, layoutResult]);
-
-  const arrowRenderPoints = layoutResult.ok
-    ? layoutResult.result.edges
-        .map((edge) => ({
-          id: edge.id,
-          role: edge.role,
-          points: getArrowRenderPoints(edge.points),
-          isConnectedToFocusedNode: edge.sourceId === focusedNodeId || edge.targetId === focusedNodeId,
-        }))
-        .filter(
-          (
-            edge,
-          ): edge is {
-            id: string;
-            role: 'flow' | 'back-reference' | undefined;
-            points: NonNullable<ReturnType<typeof getArrowRenderPoints>>;
-            isConnectedToFocusedNode: boolean;
-          } => Boolean(edge.points),
-        )
-    : [];
-
-  const measurementStateKey = useMemo(
-    () => JSON.stringify({nodes, nodePropertiesById, editingNodeId, draftLabel}),
-    [draftLabel, editingNodeId, nodePropertiesById, nodes],
-  );
-  const isMeasurementSettled = settledMeasurementKey === measurementStateKey;
-
-  useLayoutEffect(() => {
-    let cancelled = false;
-
-    queueMicrotask(() => {
-      if (cancelled) {
-        return;
-      }
-
-      const measuredDimensions = measureNodeDimensions(measurementLayerRef.current ?? document);
-      setNodeMeasurements((currentMeasurements) =>
-        areNodeMeasurementMapsEqual(currentMeasurements, measuredDimensions) ? currentMeasurements : measuredDimensions,
-      );
-      setSettledMeasurementKey(measurementStateKey);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [measurementStateKey]);
+  const {layoutNodes, layoutResult, renderedNodes, renderedEdges, isMeasurementSettled} = useProductionGraphView({
+    nodes,
+    edges,
+    lanes,
+    focusedNodeId,
+    nodePropertiesById,
+    editingNodeId,
+    draftLabel,
+    measurementRef: measurementLayerRef,
+  });
 
   const backupEventsToClipboard = async () => {
     try {
@@ -418,20 +316,6 @@ export function App() {
     positionCameraAtInitialMargin();
   }, []);
 
-  useGraphKeyboardInteractions({
-    nodes,
-    edges,
-    focusedNodeId,
-    connectingNodeId: connectingSourceNodeId,
-    onCancelConnection: cancelConnecting,
-    onStartConnection: startConnectingFromNode,
-    onAddConnectedNode: addConnectedNode,
-    onStartEditing: startEditingNode,
-    onDeleteNode: deleteNode,
-    onFocusNode: setFocusedNodeId,
-    onCloseMenus: () => setOpenNodeMenuId(null),
-  });
-
   return (
     <ProductionEditorShell
       projects={workspace.projects}
@@ -469,7 +353,7 @@ export function App() {
           renderedNodes={renderedNodes}
           graphNodes={nodes}
           graphEdges={edges}
-          renderedEdges={arrowRenderPoints}
+          renderedEdges={renderedEdges}
           nodePropertiesById={nodePropertiesById}
           focusedNodeId={focusedNodeId}
           focusedNodeProperties={focusedNodeProperties}
@@ -493,13 +377,7 @@ export function App() {
               cancelConnecting();
             }
           }}
-          onNodeClick={(clickedNode) => {
-            if (connectingSourceNodeId) {
-              addConnection(connectingSourceNodeId, clickedNode.id);
-              return;
-            }
-            setFocusedNodeId(clickedNode.id);
-          }}
+          onNodeClick={onNodeClick}
           onCloseOtherMenus={() => setOpenNodeMenuId(null)}
           onToggleMenu={(nodeId) => setOpenNodeMenuId((currentId) => (currentId === nodeId ? null : nodeId))}
           onAddConnectedNode={addConnectedNode}

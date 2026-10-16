@@ -1,17 +1,13 @@
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {type EditableProperty, type InfiniteCanvasHandle} from '@slicr/react-ui';
-import {compactLayout} from 'layout-lib';
 import {ProductionEditorShell} from './components/ProductionEditorShell';
 import {ProductionGraphEditor} from './components/ProductionGraphEditor';
-import {NODE_HEIGHT, NODE_WIDTH, laneIdForOrder} from './graph/constants';
-import {getArrowRenderPoints} from './graph/graphUtils';
-import {useGraphKeyboardInteractions} from './graph/useGraphKeyboardInteractions';
+import {useProductionGraphView} from './graph/useProductionGraphView';
+import {useProductionGraphController} from './graph/useProductionGraphController';
 import {deriveNodePropertyExampleValues, deriveNodePropertySchema, mergeNodePropertyEditorProperties} from './graph/propertyEventMapping';
-import type {GraphNode, NodeType, RenderNode} from './graph/types';
 import type {NodePropertySchema, NodePropertyExampleValues} from '@slicr/core/events';
-import {measureNodeDimensions, type NodeDimensions} from './nodeMeasurement';
 import {createProjectProductionEditorPort, ProjectCommandError} from './application/projectProductionEditorPort';
-import type {EditorSnapshot} from './application/productionEditorPort';
+import type {EditorAction, EditorCommand, EditorSnapshot} from './application/productionEditorPort';
 
 type Project = {id: string; name: string};
 type Chapter = {id: string; title: string};
@@ -22,39 +18,7 @@ type Model = {
   projects: Project[];
   chaptersByProjectId: Record<string, Chapter[]>;
 };
-type Projection = {
-  revision: string;
-  projectId: string;
-  chapterId: string | null;
-  nodes: {id: string; label: string; type: NodeType; laneId: number; chapterId?: string | null}[];
-  edges: {sourceNodeId: string; targetNodeId: string; role: 'flow' | 'back-reference'}[];
-  nodeSchemas: Record<string, NodePropertySchema[]>;
-  nodeExampleValues: Record<string, NodePropertyExampleValues[]>;
-};
-
 const projectEditorPort = createProjectProductionEditorPort();
-
-function toProjection(snapshot: EditorSnapshot): Projection {
-  return {
-    revision: snapshot.revision,
-    projectId: snapshot.scope.projectId,
-    chapterId: snapshot.scope.chapterId,
-    nodes: snapshot.nodes.map((node) => ({
-      id: node.id,
-      label: node.label,
-      type: node.type,
-      laneId: snapshot.lanes.find((lane) => lane.id === node.laneId)?.order ?? 0,
-    })),
-    edges: snapshot.edges.map((edge) => ({sourceNodeId: edge.sourceId, targetNodeId: edge.targetId, role: edge.role ?? 'flow'})),
-    nodeSchemas: snapshot.nodeSchemas,
-    nodeExampleValues: snapshot.nodeExampleValues,
-  };
-}
-
-async function getProjectSnapshot(projectId: string, chapterId: string): Promise<Projection> {
-  return toProjection(await projectEditorPort.getSnapshot({projectId, chapterId}));
-}
-
 async function readApi<T>(url: string, signal: AbortSignal): Promise<T> {
   const response = await fetch(url, {signal, headers: {accept: 'application/json'}});
   const body = await response.json();
@@ -62,15 +26,7 @@ async function readApi<T>(url: string, signal: AbortSignal): Promise<T> {
   return body as T;
 }
 
-async function writeApi(command: {projectId: string; baseRevision: string; type: string; data: Record<string, unknown>}) {
-  const result = await projectEditorPort.execute({
-    scope: {projectId: command.projectId, chapterId: String(command.data.chapterId ?? '')},
-    baseRevision: command.baseRevision,
-    type: command.type,
-    data: command.data,
-  });
-  return {revision: result.revision, generatedIds: [...result.createdIds]};
-}
+const writeApi = (command: EditorCommand) => projectEditorPort.execute(command);
 
 /** Served entry point only: deliberately never imports App, useGraphModel, or any browser event store. */
 export function ReadOnlyProjectApp() {
@@ -79,7 +35,7 @@ export function ReadOnlyProjectApp() {
   const [model, setModel] = useState<Model | null>(null);
   const [projectId, setProjectId] = useState('');
   const [chapterId, setChapterId] = useState('');
-  const [projection, setProjection] = useState<Projection | null>(null);
+  const [projection, setProjection] = useState<EditorSnapshot | null>(null);
   const [error, setError] = useState('');
   const [refreshError, setRefreshError] = useState('');
   const [scopeSwitchNotice, setScopeSwitchNotice] = useState('');
@@ -87,19 +43,9 @@ export function ReadOnlyProjectApp() {
   const scopeIdentity = `${projectId}\u0000${chapterId}`;
   const currentScopeIdentity = useRef(scopeIdentity);
   currentScopeIdentity.current = scopeIdentity;
-  const [measurements, setMeasurements] = useState<Record<string, NodeDimensions>>({});
-  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
-  const [draftLabel, setDraftLabel] = useState('');
-  const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
-  const [menuNodeId, setMenuNodeId] = useState<string | null>(null);
-  const [connectingNodeId, setConnectingNodeId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [focusedPropertyId, setFocusedPropertyId] = useState<string | null>(null);
-  const [hoveredPropertyId, setHoveredPropertyId] = useState<string | null>(null);
   const [propertyDrafts, setPropertyDrafts] = useState<Record<string, EditableProperty[]>>({});
   const [pendingScopeSwitch, setPendingScopeSwitch] = useState<{projectId: string; chapterId: string; label: string} | null>(null);
-  const savingLabelRef = useRef(false);
-  const cancelLabelRef = useRef(false);
   const propertySaveTimer = useRef<number | null>(null);
   const pendingPropertySaves = useRef(
     new Map<
@@ -115,6 +61,8 @@ export function ReadOnlyProjectApp() {
     >(),
   );
   const propertySaveInFlight = useRef(false);
+  const submittedPropertySave = useRef<{key: string; scopeIdentity: string} | null>(null);
+  const discardedSubmittedSave = useRef<{key: string; scopeIdentity: string} | null>(null);
   const propertySaveFailed = useRef(false);
 
   useEffect(() => {
@@ -137,7 +85,7 @@ export function ReadOnlyProjectApp() {
     const requestScope = `${projectId}\u0000${chapterId}`;
     const subscription = projectEditorPort.subscribe({projectId, chapterId}, (snapshot) => {
       if (currentScopeIdentity.current !== requestScope) return;
-      setProjection((current) => (current?.revision === snapshot.revision ? current : toProjection(snapshot)));
+      setProjection((current) => (current?.revision === snapshot.revision ? current : snapshot));
       setRefreshError('');
       setError((current) => (current.startsWith('Could not load project') ? '' : current));
     });
@@ -150,7 +98,7 @@ export function ReadOnlyProjectApp() {
     const requestScope = scopeIdentity;
     const controller = new AbortController();
     const [next, nextModel] = await Promise.all([
-      getProjectSnapshot(projectId, chapterId),
+      projectEditorPort.getSnapshot({projectId, chapterId}),
       readApi<Model>('/api/model', controller.signal),
     ]);
     if (generation !== readGeneration.current || currentScopeIdentity.current !== requestScope) return;
@@ -175,9 +123,10 @@ export function ReadOnlyProjectApp() {
           },
         ];
         pendingPropertySaves.current.delete(key);
+        submittedPropertySave.current = {key, scopeIdentity: pending.scopeIdentity};
         try {
           const result = await writeApi({
-            projectId: pending.projectId,
+            scope: {projectId: pending.projectId, chapterId: pending.scopeIdentity.split('\u0000')[1]},
             baseRevision: pending.baseRevision,
             type: 'ChangeNodeProperties',
             data: {nodeId: pending.nodeId, schema: pending.schema, exampleValues: pending.exampleValues},
@@ -201,6 +150,11 @@ export function ReadOnlyProjectApp() {
             }
           }
         } catch (reason) {
+          if (discardedSubmittedSave.current?.key === key && discardedSubmittedSave.current.scopeIdentity === pending.scopeIdentity) {
+            // Discard includes a submitted write: resolve its outcome without resurrecting its draft.
+            propertySaveFailed.current = false;
+            continue;
+          }
           propertySaveFailed.current = true;
           if (pending.scopeIdentity === currentScopeIdentity.current) {
             const conflict =
@@ -228,6 +182,10 @@ export function ReadOnlyProjectApp() {
             }
             break;
           }
+        } finally {
+          submittedPropertySave.current = null;
+          if (discardedSubmittedSave.current?.key === key && discardedSubmittedSave.current.scopeIdentity === pending.scopeIdentity)
+            discardedSubmittedSave.current = null;
         }
       }
     } finally {
@@ -241,53 +199,30 @@ export function ReadOnlyProjectApp() {
     }
   };
 
-  const saveLabel = async () => {
-    if (!editingNodeId || !projectId || savingLabelRef.current || cancelLabelRef.current) return;
-    const nodeId = editingNodeId;
+  const execute = async (action: EditorAction) => {
     const requestScope = scopeIdentity;
-    const label = draftLabel.trim() || 'Untitled';
-    savingLabelRef.current = true;
-    try {
-      if (!projection) throw new Error('The latest project revision is not loaded.');
-      await writeApi({projectId, baseRevision: projection.revision, type: 'RenameNode', data: {nodeId, name: label}});
-      if (currentScopeIdentity.current !== requestScope) return;
-      setEditingNodeId(null);
-      setDraftLabel('');
-      setError('');
-      try {
-        await refreshProjection();
-        if (currentScopeIdentity.current === requestScope) setRefreshError('');
-      } catch (reason) {
-        if (currentScopeIdentity.current === requestScope) setRefreshError(`Edit saved, but project refresh failed: ${String(reason)}`);
-      }
-    } catch (reason) {
-      if (currentScopeIdentity.current === requestScope) setError(`Could not save edit: ${String(reason)}`);
-    } finally {
-      savingLabelRef.current = false;
-    }
-  };
-
-  const execute = async (type: string, data: Record<string, unknown>, selectedProjectId = projectId) => {
-    const requestScope = scopeIdentity;
+    const type = action.type;
     try {
       const baseRevision = projection?.revision ?? model?.revision;
+      if (type === 'RenameNode' && !projection) throw new Error('The latest project revision is not loaded.');
       if (!baseRevision) throw new Error('The latest project revision is not loaded.');
+      const selectedProjectId = type === 'RenameProject' ? action.data.projectId : projectId;
       if (type !== 'AddProject' && !selectedProjectId) throw new Error('Select a project before editing it.');
-      const result = await writeApi({projectId: selectedProjectId, baseRevision, type, data});
-      if (currentScopeIdentity.current !== requestScope) return result;
+      const result = await writeApi({
+        ...action,
+        scope: {projectId: selectedProjectId, chapterId},
+        baseRevision,
+      });
+      if (currentScopeIdentity.current !== requestScope) return null;
       setError('');
       if (type === 'AddProject') {
         setProjection(null);
-        setFocusedNodeId(null);
-        setFocusedPropertyId(null);
-        setHoveredPropertyId(null);
-        setEditingNodeId(null);
-        setMenuNodeId(null);
-        setConnectingNodeId(null);
+        controller.resetTransientState();
+        controller.setFocusedNodeId(null);
         try {
           const updatedModel = await readApi<Model>('/api/model', new AbortController().signal);
-          if (currentScopeIdentity.current !== requestScope) return result;
-          const createdProjectId = result.generatedIds?.[0];
+          if (currentScopeIdentity.current !== requestScope) return null;
+          const createdProjectId = result.createdIds[0];
           setModel(updatedModel);
           if (createdProjectId && updatedModel.projects.some((project) => project.id === createdProjectId)) {
             setProjectId(createdProjectId);
@@ -298,32 +233,33 @@ export function ReadOnlyProjectApp() {
             setRefreshError(`Project saved, but the project list could not be refreshed. Do not create it again. ${String(reason)}`);
         }
       } else {
+        let refreshed = true;
         if (type === 'AddChapter') {
           setProjection(null);
-          setFocusedNodeId(null);
-          setFocusedPropertyId(null);
-          setHoveredPropertyId(null);
-          setEditingNodeId(null);
-          setMenuNodeId(null);
-          setConnectingNodeId(null);
+          controller.resetTransientState();
+          controller.setFocusedNodeId(null);
         }
         try {
           await refreshProjection();
           if (type === 'AddChapter') {
-            const createdChapterId = result.generatedIds?.[0];
+            const createdChapterId = result.createdIds[0];
             if (createdChapterId) setChapterId(createdChapterId);
           }
         } catch (reason) {
+          refreshed = false;
           if (currentScopeIdentity.current === requestScope)
             setRefreshError(
-              `${type === 'AddChapter' ? 'Chapter' : type} saved, but project refresh failed. Do not repeat the create command. ${String(reason)}`,
+              type === 'RenameNode'
+                ? `Edit saved, but project refresh failed: ${String(reason)}`
+                : `${type === 'AddChapter' ? 'Chapter' : type} saved, but project refresh failed. Do not repeat the create command. ${String(reason)}`,
             );
         }
+        if (refreshed && currentScopeIdentity.current === requestScope) setRefreshError('');
       }
-      if (currentScopeIdentity.current === requestScope) setRefreshError('');
       return result;
     } catch (reason) {
-      if (currentScopeIdentity.current === requestScope) setError(`Could not save ${type}: ${String(reason)}`);
+      if (currentScopeIdentity.current === requestScope)
+        setError(`Could not save ${type === 'RenameNode' ? 'edit' : type}: ${String(reason)}`);
       return null;
     }
   };
@@ -335,13 +271,8 @@ export function ReadOnlyProjectApp() {
     setProjection(null);
     if (propertySaveTimer.current !== null) window.clearTimeout(propertySaveTimer.current);
     propertySaveTimer.current = null;
-    setFocusedPropertyId(null);
-    setHoveredPropertyId(null);
-    setFocusedNodeId(null);
-    setEditingNodeId(null);
-    setDraftLabel('');
-    setMenuNodeId(null);
-    setConnectingNodeId(null);
+    controller.resetTransientState();
+    controller.setFocusedNodeId(null);
     setError('');
     setRefreshError('');
     setProjectId(nextProjectId);
@@ -365,6 +296,8 @@ export function ReadOnlyProjectApp() {
       return;
     }
     const submitted = propertySaveInFlight.current;
+    discardedSubmittedSave.current = submittedPropertySave.current;
+    propertySaveFailed.current = false;
     if (propertySaveTimer.current !== null) window.clearTimeout(propertySaveTimer.current);
     propertySaveTimer.current = null;
     pendingPropertySaves.current.clear();
@@ -375,30 +308,35 @@ export function ReadOnlyProjectApp() {
         'Unsent property drafts were discarded. A submitted command could not be canceled; its outcome was resolved before switching.';
       while (propertySaveInFlight.current) await new Promise((resolve) => window.setTimeout(resolve, 10));
     }
+    propertySaveFailed.current = false;
     setPendingScopeSwitch(null);
     switchScope(target.projectId, target.chapterId);
     setScopeSwitchNotice(notice);
   };
 
   const chapters = model?.chaptersByProjectId[projectId] ?? [];
-  const graph = useMemo(() => {
-    const nodes: GraphNode[] = (projection?.nodes ?? []).map((node) => ({
-      id: node.id,
-      label: node.label,
-      type: node.type,
-      laneId: laneIdForOrder(node.laneId),
-      width: NODE_WIDTH,
-      height: NODE_HEIGHT,
-    }));
-    const edges = (projection?.edges ?? []).map((edge) => ({
-      id: `edge-${edge.sourceNodeId}-${edge.targetNodeId}`,
-      sourceId: edge.sourceNodeId,
-      targetId: edge.targetNodeId,
-      role: edge.role,
-    }));
-    const lanes = [...new Set(nodes.map((node) => Number(node.laneId.slice(5))))].map((order) => ({id: laneIdForOrder(order), order}));
-    return {nodes, edges, lanes};
-  }, [projection]);
+  const graph = useMemo(
+    () => ({nodes: [...(projection?.nodes ?? [])], edges: [...(projection?.edges ?? [])], lanes: [...(projection?.lanes ?? [])]}),
+    [projection],
+  );
+  const controller = useProductionGraphController({
+    ...graph,
+    chapterId,
+    execute,
+    connectedLabel: 'New Node',
+    cancelOnBodyBlur: true,
+    onStartConnection: (id) => setError(id ? `Select a node to connect from ${id}, or press Escape to cancel.` : ''),
+  });
+  const {
+    focusedNodeId,
+    editingNodeId,
+    draftLabel,
+    openNodeMenuId: menuNodeId,
+    connectingSourceNodeId: connectingNodeId,
+    editorFocusedPropertyId: focusedPropertyId,
+    hoveredPropertyId,
+    setFocusedNodeId,
+  } = controller;
   const propertiesById = useMemo(
     () =>
       Object.fromEntries(
@@ -409,79 +347,27 @@ export function ReadOnlyProjectApp() {
       ),
     [graph.nodes, projection],
   );
-  const layout = useMemo(
-    () =>
-      compactLayout({
-        nodes: graph.nodes.map((node) => ({...node, height: Math.max(NODE_HEIGHT, measurements[node.id]?.height ?? NODE_HEIGHT)})),
-        edges: graph.edges,
-        lanes: graph.lanes,
-        defaults: {nodeWidth: NODE_WIDTH, nodeHeight: NODE_HEIGHT},
-        spacing: {laneMargin: 0, laneGap: 100, minTargetShift: 20, minNodeGap: 40},
-      }),
-    [graph, measurements],
-  );
-  const renderedNodes: RenderNode[] = layout.ok
-    ? layout.result.nodes.flatMap((position) => {
-        const node = graph.nodes.find((item) => item.id === position.id);
-        return node ? [{...node, ...position}] : [];
-      })
-    : [];
+  const {
+    layoutResult: layout,
+    renderedNodes,
+    renderedEdges,
+  } = useProductionGraphView({
+    ...graph,
+    focusedNodeId,
+    nodePropertiesById: propertiesById,
+    editingNodeId,
+    draftLabel,
+    measurementRef: measureRef,
+  });
   useEffect(() => {
     if (focusedNodeId && !graph.nodes.some((node) => node.id === focusedNodeId)) setFocusedNodeId(null);
-  }, [focusedNodeId, graph.nodes]);
+  }, [focusedNodeId, graph.nodes, setFocusedNodeId]);
   useEffect(() => {
-    if (projection?.nodes.length) setFocusedNodeId((current) => current ?? projection.nodes[0].id);
-  }, [projection]);
-  useEffect(() => {
-    const next = measureNodeDimensions(measureRef.current ?? document);
-    setMeasurements((current) => (JSON.stringify(current) === JSON.stringify(next) ? current : next));
-  }, [projection, propertiesById]);
+    if (projection?.nodes.length && !focusedNodeId) setFocusedNodeId(projection.nodes[0].id);
+  }, [projection, focusedNodeId, setFocusedNodeId]);
   useEffect(() => {
     canvasRef.current?.setCamera({x: 100, y: 100, zoom: 1});
   }, []);
-
-  useGraphKeyboardInteractions({
-    nodes: graph.nodes,
-    edges: graph.edges,
-    focusedNodeId,
-    connectingNodeId,
-    onCancelConnection: () => {
-      setConnectingNodeId(null);
-      setError('');
-    },
-    onStartConnection: (nodeId) => {
-      setConnectingNodeId(nodeId);
-    },
-    onAddConnectedNode: (node, direction, type) => {
-      const chapter = chapterId || projection?.nodes.find((item) => item.id === node.id)?.chapterId;
-      if (chapter)
-        void execute('AddConnectedNode', {chapterId: chapter, sourceNodeId: node.id, label: 'New Node', direction, nodeType: type}).then(
-          (result) => {
-            const id = result?.generatedIds?.[0];
-            if (id && currentScopeIdentity.current === scopeIdentity) {
-              setFocusedNodeId(id);
-              setEditingNodeId(id);
-              setDraftLabel('New Node');
-            }
-          },
-        );
-    },
-    onStartEditing: (node) => {
-      cancelLabelRef.current = false;
-      setEditingNodeId(node.id);
-      setDraftLabel(node.label);
-    },
-    onDeleteNode: (nodeId) => {
-      void execute('DeleteNode', {nodeId});
-      setFocusedNodeId(null);
-    },
-    onFocusNode: (nodeId) => {
-      setFocusedNodeId(nodeId);
-      setFocusedPropertyId(null);
-      setHoveredPropertyId(null);
-    },
-    onCloseMenus: () => setMenuNodeId(null),
-  });
 
   useEffect(() => {
     if (!chapterId && model?.chaptersByProjectId[projectId]?.length) {
@@ -498,16 +384,6 @@ export function ReadOnlyProjectApp() {
     [],
   );
 
-  useEffect(() => {
-    if (!editingNodeId) return;
-    const outsidePointer = (event: PointerEvent) => {
-      if (event.target instanceof Element && event.target.closest('.node-label-input')) return;
-      saveLabel();
-    };
-    document.addEventListener('pointerdown', outsidePointer, true);
-    return () => document.removeEventListener('pointerdown', outsidePointer, true);
-  }, [editingNodeId, draftLabel, projection]);
-
   return (
     <ProductionEditorShell
       projects={model?.projects ?? []}
@@ -522,8 +398,8 @@ export function ReadOnlyProjectApp() {
         }
         switchScope(id, '');
       }}
-      onAddProject={(name) => void execute('AddProject', {name})}
-      onRenameProject={(id, name) => void execute('RenameProject', {name}, id)}
+      onAddProject={(name) => void execute({type: 'AddProject', data: {name}})}
+      onRenameProject={(id, name) => void execute({type: 'RenameProject', data: {projectId: id, name}})}
       onSelectChapter={(id) => {
         if (hasUnresolvedPropertyDrafts()) {
           setPendingScopeSwitch({projectId, chapterId: id, label: 'chapter'});
@@ -533,7 +409,7 @@ export function ReadOnlyProjectApp() {
       }}
       onCollapseSidebar={() => setIsSidebarOpen(false)}
       onExpandSidebar={() => setIsSidebarOpen(true)}
-      onAddChapter={(title) => void execute('AddChapter', {title})}
+      onAddChapter={(title) => void execute({type: 'AddChapter', data: {title}})}
       topbarActions={<strong>Project store · editing enabled</strong>}
     >
       <div className="read-only-identity" aria-label="Project store identity">
@@ -570,48 +446,7 @@ export function ReadOnlyProjectApp() {
       {projectId && !projection && !error ? <p>Loading project projection…</p> : null}
       {projection ? (
         <>
-          <button
-            type="button"
-            onClick={() => {
-              const chapter = chapterId || chapters[0]?.id;
-              if (!chapter) {
-                setError('Select a chapter before adding a node.');
-                return;
-              }
-              if (!projection) {
-                setError('The latest project revision is not loaded.');
-                return;
-              }
-              const requestScope = scopeIdentity;
-              const label = `Node ${graph.nodes.length + 1}`;
-              void writeApi({
-                projectId,
-                baseRevision: projection.revision,
-                type: 'AddNode',
-                data: {chapterId: chapter, nodeType: 'ui', laneId: 0, label},
-              })
-                .then(async (result) => {
-                  if (currentScopeIdentity.current !== requestScope) return;
-                  setError('');
-                  try {
-                    await refreshProjection();
-                    const createdNodeId = result.generatedIds?.[0];
-                    if (createdNodeId && currentScopeIdentity.current === requestScope) {
-                      setFocusedNodeId(createdNodeId);
-                      setEditingNodeId(createdNodeId);
-                      setDraftLabel(label);
-                    }
-                    if (currentScopeIdentity.current === requestScope) setRefreshError('');
-                  } catch (reason) {
-                    if (currentScopeIdentity.current === requestScope)
-                      setRefreshError(`Node added, but project refresh failed: ${String(reason)}`);
-                  }
-                })
-                .catch((reason) => {
-                  if (currentScopeIdentity.current === requestScope) setError(`Could not add node: ${String(reason)}`);
-                });
-            }}
-          >
+          <button type="button" onClick={() => void controller.addNewSlice()}>
             Add node
           </button>
           <div className="graph-workspace">
@@ -622,23 +457,7 @@ export function ReadOnlyProjectApp() {
               renderedNodes={renderedNodes}
               graphNodes={graph.nodes}
               graphEdges={graph.edges}
-              renderedEdges={
-                layout.ok
-                  ? layout.result.edges.flatMap((edge) => {
-                      const points = getArrowRenderPoints(edge.points);
-                      return points
-                        ? [
-                            {
-                              id: edge.id,
-                              role: edge.role,
-                              points,
-                              isConnectedToFocusedNode: edge.sourceId === focusedNodeId || edge.targetId === focusedNodeId,
-                            },
-                          ]
-                        : [];
-                    })
-                  : []
-              }
+              renderedEdges={renderedEdges}
               nodePropertiesById={propertiesById}
               focusedNodeId={focusedNodeId}
               focusedNodeProperties={
@@ -653,74 +472,26 @@ export function ReadOnlyProjectApp() {
               layoutError={!layout.ok ? <p className="layout-error">{layout.error.message}</p> : null}
               onCanvasPointerDown={(event) => {
                 if (event.target instanceof Element && !event.target.closest('.node-box')) {
-                  setFocusedNodeId(null);
-                  setMenuNodeId(null);
-                  setConnectingNodeId(null);
-                  setFocusedPropertyId(null);
-                  setHoveredPropertyId(null);
+                  controller.setFocusedNodeId(null);
+                  controller.setOpenNodeMenuId(null);
+                  controller.cancelConnecting();
                 }
               }}
-              onNodeClick={(selected) => {
-                if (connectingNodeId && connectingNodeId !== selected.id) {
-                  void execute('ConnectNodes', {sourceNodeId: connectingNodeId, targetNodeId: selected.id});
-                  setConnectingNodeId(null);
-                  setError('');
-                }
-                setFocusedNodeId(selected.id);
-                setFocusedPropertyId(null);
-                setHoveredPropertyId(null);
-                setMenuNodeId(null);
-              }}
-              onCloseOtherMenus={() => setMenuNodeId(null)}
-              onToggleMenu={(id) => setMenuNodeId((current) => (current === id ? null : id))}
-              onAddConnectedNode={(source, direction) => {
-                const chapter = chapterId || projection?.nodes.find((item) => item.id === source.id)?.chapterId;
-                if (!chapter) return;
-                void execute('AddConnectedNode', {chapterId: chapter, sourceNodeId: source.id, label: 'New Node', direction}).then(
-                  (result) => {
-                    const id = result?.generatedIds?.[0];
-                    if (id && currentScopeIdentity.current === scopeIdentity) {
-                      setFocusedNodeId(id);
-                      setEditingNodeId(id);
-                      setDraftLabel('New Node');
-                    }
-                  },
-                );
-              }}
-              onStartEditingNode={(node) => {
-                cancelLabelRef.current = false;
-                setEditingNodeId(node.id);
-                setDraftLabel(node.label);
-              }}
-              onSetNodeType={(nodeId, newType) => void execute('ChangeNodeType', {nodeId, newType})}
-              onStartConnection={(id) => {
-                setConnectingNodeId(id);
-                setError(`Select a node to connect from ${id}, or press Escape to cancel.`);
-              }}
-              onDeleteConnection={(id) => {
-                const edge = graph.edges.find((item) => item.id === id);
-                if (edge) void execute('DisconnectNodes', {sourceNodeId: edge.sourceId, targetNodeId: edge.targetId});
-              }}
-              onDeleteNode={(id) => {
-                void execute('DeleteNode', {nodeId: id});
-                setFocusedNodeId(null);
-              }}
-              onDraftLabelChange={setDraftLabel}
-              onSaveEditingNode={() => void saveLabel()}
-              onCancelEditing={() => {
-                cancelLabelRef.current = true;
-                setEditingNodeId(null);
-                setDraftLabel('');
-              }}
-              onLabelBlur={() => {
-                if (editingNodeId && document.activeElement === document.body) {
-                  cancelLabelRef.current = true;
-                  setEditingNodeId(null);
-                  setDraftLabel('');
-                } else void saveLabel();
-              }}
-              onFocusedPropertyChange={setFocusedPropertyId}
-              onHoveredPropertyChange={setHoveredPropertyId}
+              onNodeClick={controller.onNodeClick}
+              onCloseOtherMenus={() => controller.setOpenNodeMenuId(null)}
+              onToggleMenu={(id) => controller.setOpenNodeMenuId((current) => (current === id ? null : id))}
+              onAddConnectedNode={controller.addConnectedNode}
+              onStartEditingNode={controller.startEditingNode}
+              onSetNodeType={controller.setNodeType}
+              onStartConnection={controller.startConnectingFromNode}
+              onDeleteConnection={controller.deleteConnection}
+              onDeleteNode={controller.deleteNode}
+              onDraftLabelChange={controller.setDraftLabel}
+              onSaveEditingNode={controller.saveEditingNode}
+              onCancelEditing={controller.cancelEditingFromKeyboard}
+              onLabelBlur={controller.handleLabelBlur}
+              onFocusedPropertyChange={controller.setEditorFocusedPropertyId}
+              onHoveredPropertyChange={controller.setHoveredPropertyId}
               onChangeFocusedProperties={(properties) => {
                 if (!focusedNodeId) return;
                 const requestScope = scopeIdentity;

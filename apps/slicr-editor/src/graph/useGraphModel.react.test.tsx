@@ -36,9 +36,11 @@ describe('useGraphModel port routing', () => {
   let listener: ((value: EditorSnapshot) => void) | undefined;
   let unsubscribe: ReturnType<typeof vi.fn<() => void>>;
   let port: ProductionEditorPort;
+  let selectedScope = scope;
+  let setGraphScope: ReturnType<typeof vi.fn>;
 
   function Harness() {
-    const model = useGraphModel({activeProjectId: scope.projectId, activeChapterId: scope.chapterId});
+    const model = useGraphModel({activeProjectId: selectedScope.projectId, activeChapterId: selectedScope.chapterId});
     useEffect(() => {
       state.current = model;
     }, [model]);
@@ -64,6 +66,7 @@ describe('useGraphModel port routing', () => {
       execute: vi.fn(async () => ({revision: 'r2', createdIds: []})),
     };
     const workspace = {projects: [], chaptersByProjectId: {}};
+    setGraphScope = vi.fn(async () => ({}));
     loadGraphApplicationMock.mockResolvedValue({
       editorPort: port,
       workspace: {
@@ -74,8 +77,8 @@ describe('useGraphModel port routing', () => {
         }),
       },
       graph: {
-        setScope: vi.fn(async () => ({})),
-        getScope: () => scope,
+        setScope: setGraphScope,
+        getScope: () => selectedScope,
         subscribe: vi.fn(() => {
           throw new Error('Direct graph subscription forbidden');
         }),
@@ -106,15 +109,16 @@ describe('useGraphModel port routing', () => {
     container = null;
     listener = undefined;
     state.current = null;
+    selectedScope = scope;
     loadGraphApplicationMock.mockReset();
     vi.useRealTimers();
   });
 
   it('routes each standalone action with the observed scope and revision, not a fresh basis', async () => {
-    await mount();
+    await mount({...snapshot('r1', [node('existing')]), edges: [{id: 'edge-1', sourceId: 'existing', targetId: 'target'}]});
     await act(async () => {
       state.current?.addNewSlice();
-      state.current?.addConnection('existing', 'target');
+      state.current?.addConnection('existing', 'other');
       state.current?.deleteConnection('edge-1');
       state.current?.setNodeType('existing', 'evt');
       state.current?.deleteNode('existing');
@@ -183,8 +187,56 @@ describe('useGraphModel port routing', () => {
       data: {nodeId: 'existing', schema: expect.any(Array), exampleValues: expect.any(Array)},
     });
     const command = vi.mocked(port.execute).mock.calls[0][0];
+    if (command.type !== 'ChangeNodeProperties') throw new Error('Expected property command');
     expect(command.data.schema).toEqual(expect.arrayContaining([expect.objectContaining({name: 'Name'})]));
     expect(command.data.exampleValues).toEqual(expect.arrayContaining([expect.objectContaining({propertyId: 'property-1'})]));
+  });
+
+  it('clears same-ID editing, menu and connection state on a scope change after the old property write settles', async () => {
+    await mount(snapshot('r1', [node('shared', 'Chapter A')]));
+    const nextScope = {projectId: 'project-2', chapterId: 'chapter-2'};
+    vi.mocked(port.getSnapshot).mockImplementation(async (requested) =>
+      requested.projectId === nextScope.projectId
+        ? snapshot('r2', [node('shared', 'Chapter B')], nextScope)
+        : snapshot('r1', [node('shared', 'Chapter A')]),
+    );
+    let releaseWrite!: () => void;
+    vi.mocked(port.execute).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          releaseWrite = () => resolve({revision: 'r-written', createdIds: []});
+        }),
+    );
+    await act(async () => {
+      state.current?.updateFocusedNodeProperties([{id: 'property-1', name: 'Old draft', type: 'string'}]);
+      state.current?.startEditingNode(node('shared', 'Chapter A'));
+      state.current?.setDraftLabel('Unsent label');
+      state.current?.startConnectingFromNode('shared');
+      state.current?.setOpenNodeMenuId('shared');
+      state.current?.setEditorFocusedPropertyId('property-1');
+      state.current?.setHoveredPropertyId('property-1');
+    });
+    selectedScope = nextScope;
+    await act(async () => {
+      root?.render(createElement(Harness));
+      await Promise.resolve();
+    });
+    expect(port.execute).toHaveBeenCalledWith(expect.objectContaining({scope, baseRevision: 'r1', type: 'ChangeNodeProperties'}));
+    expect(setGraphScope).toHaveBeenCalledTimes(1); // No new graph scope while A's write is unresolved.
+    releaseWrite();
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(setGraphScope).toHaveBeenLastCalledWith(nextScope);
+    expect(state.current?.nodes).toEqual([node('shared', 'Chapter B')]);
+    expect(state.current?.focusedNodeId).toBe('shared');
+    expect(state.current?.focusedNodeProperties).toEqual([]);
+    expect(state.current?.editingNodeId).toBeNull();
+    expect(state.current?.draftLabel).toBe('');
+    expect(state.current?.openNodeMenuId).toBeNull();
+    expect(state.current?.connectingSourceNodeId).toBeNull();
+    expect(state.current?.editorFocusedPropertyId).toBeNull();
+    expect(state.current?.hoveredPropertyId).toBeNull();
   });
 
   it('uses receipt identities, never duplicate labels or list order, and returns the created chapter ID', async () => {

@@ -82,7 +82,18 @@ export function createProjectProductionEditorPort(options: {pollIntervalMs?: num
           projectId: command.scope.projectId,
           baseRevision: command.baseRevision,
           type: command.type,
-          data: command.data,
+          data:
+            command.type === 'AddConnectedNode'
+              ? {
+                  chapterId: command.data.chapterId,
+                  sourceNodeId: command.data.sourceNodeId,
+                  nodeType: command.data.nodeType,
+                  label: command.data.label,
+                  direction: command.data.direction,
+                }
+              : command.type === 'DisconnectNodes'
+                ? {sourceNodeId: command.data.sourceNodeId, targetNodeId: command.data.targetNodeId}
+                : command.data,
         }),
       });
       const body = await response.json();

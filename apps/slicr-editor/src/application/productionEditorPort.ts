@@ -1,6 +1,6 @@
 import type {EdgeInput, LaneInput} from 'layout-lib';
 import type {NodePropertyExampleValues, NodePropertySchema} from '@slicr/core/events';
-import type {GraphNode} from '../graph/types';
+import type {GraphNode, NodeType, AddDirection} from '../graph/types';
 
 export type EditorScope = {readonly projectId: string; readonly chapterId: string};
 export type EditorSnapshot = {
@@ -12,12 +12,26 @@ export type EditorSnapshot = {
   readonly nodeSchemas: Record<string, NodePropertySchema[]>;
   readonly nodeExampleValues: Record<string, NodePropertyExampleValues[]>;
 };
-export type EditorCommand = {
+export type EditorAction =
+  | {type: 'AddNode'; data: {chapterId: string; nodeType: NodeType; laneId: number; label: string}}
+  | {type: 'AddProject'; data: {name: string}}
+  | {type: 'RenameProject'; data: {projectId: string; name: string}}
+  | {type: 'AddChapter'; data: {title: string}}
+  | {type: 'ConnectNodes'; data: {sourceNodeId: string; targetNodeId: string; role?: 'flow' | 'back-reference'}}
+  | {type: 'DisconnectNodes'; data: {edgeId: string; sourceNodeId: string; targetNodeId: string}}
+  | {
+      type: 'AddConnectedNode';
+      data: {chapterId: string; sourceNodeId: string; nodeType: NodeType; laneId: number; direction: AddDirection; label: string};
+    }
+  | {type: 'RenameNode'; data: {nodeId: string; name: string}}
+  | {type: 'ChangeNodeType'; data: {nodeId: string; newType: NodeType}}
+  | {type: 'ChangeNodeProperties'; data: {nodeId: string; schema: NodePropertySchema[]; exampleValues: NodePropertyExampleValues[]}}
+  | {type: 'DeleteNode'; data: {nodeId: string}};
+
+export type EditorCommand = EditorAction & {
   readonly scope: EditorScope;
   /** Revision captured when the user initiated the command; adapters must not silently rebase. */
   readonly baseRevision: string;
-  readonly type: string;
-  readonly data: Readonly<Record<string, unknown>>;
 };
 export type EditorCommandResult = {readonly revision: string; readonly createdIds: readonly string[]};
 

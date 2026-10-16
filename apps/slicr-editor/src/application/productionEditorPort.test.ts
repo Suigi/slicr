@@ -19,7 +19,12 @@ describe('standalone production editor port', () => {
     const resolvedScope = app.graph.getScope();
     const initial = await port.getSnapshot(resolvedScope);
     expect(initial.nodes).toEqual([]);
-    const result = await port.execute({scope: resolvedScope, baseRevision: initial.revision, type: 'AddNode', data: {}});
+    const result = await port.execute({
+      scope: resolvedScope,
+      baseRevision: initial.revision,
+      type: 'AddNode',
+      data: {chapterId: resolvedScope.chapterId, nodeType: 'ui', laneId: 0, label: 'New'},
+    });
     expect(result.createdIds).toHaveLength(1);
     expect((await port.getSnapshot(resolvedScope)).nodes[0]?.id).toBe(result.createdIds[0]);
   });
@@ -32,9 +37,14 @@ describe('standalone production editor port', () => {
     await app.commands.addNewSlice();
     const updated = await port.getSnapshot(resolvedScope);
     expect(updated.revision).not.toBe(initial.revision);
-    await expect(port.execute({scope: resolvedScope, baseRevision: initial.revision, type: 'AddNode', data: {}})).rejects.toThrow(
-      'changed since this editor view was loaded',
-    );
+    await expect(
+      port.execute({
+        scope: resolvedScope,
+        baseRevision: initial.revision,
+        type: 'AddNode',
+        data: {chapterId: resolvedScope.chapterId, nodeType: 'ui', laneId: 0, label: 'New'},
+      }),
+    ).rejects.toThrow('changed since this editor view was loaded');
     expect((await port.getSnapshot(resolvedScope)).nodes).toHaveLength(1);
   });
 
@@ -86,7 +96,12 @@ describe('standalone production editor port', () => {
     expect(first).toHaveBeenCalledTimes(firstCount);
     expect(second).toHaveBeenCalledWith(expect.objectContaining({scope: otherScope, nodes: [expect.objectContaining({id: 'node-2'})]}));
     const secondCount = second.mock.calls.length;
-    await port.execute({scope: otherScope, baseRevision: secondSnapshot.revision, type: 'AddNode', data: {}});
+    await port.execute({
+      scope: otherScope,
+      baseRevision: secondSnapshot.revision,
+      type: 'AddNode',
+      data: {chapterId: otherScope.chapterId, nodeType: 'ui', laneId: 0, label: 'New'},
+    });
     expect(first).toHaveBeenCalledTimes(firstCount);
     expect(second.mock.calls.length).toBeGreaterThan(secondCount);
     expect(second.mock.calls.at(-1)?.[0].nodes).toHaveLength(2);
@@ -96,7 +111,12 @@ describe('standalone production editor port', () => {
     expect(second).toHaveBeenCalledTimes(secondAfterCommand);
     expect(first.mock.calls.length).toBeGreaterThan(firstCount);
     const firstAfterRead = first.mock.calls.length;
-    await port.execute({scope, baseRevision: firstSnapshot.revision, type: 'AddNode', data: {}});
+    await port.execute({
+      scope,
+      baseRevision: firstSnapshot.revision,
+      type: 'AddNode',
+      data: {chapterId: scope.chapterId, nodeType: 'ui', laneId: 0, label: 'New'},
+    });
     expect(first.mock.calls.length).toBeGreaterThan(firstAfterRead);
     expect(first.mock.calls.at(-1)?.[0].nodes).toHaveLength(2);
     expect(second).toHaveBeenCalledTimes(secondAfterCommand);
@@ -104,13 +124,23 @@ describe('standalone production editor port', () => {
     firstSubscription.unsubscribe();
     const firstAfterUnsubscribe = first.mock.calls.length;
     const secondAgain = await port.getSnapshot(otherScope);
-    await port.execute({scope: otherScope, baseRevision: secondAgain.revision, type: 'AddNode', data: {}});
+    await port.execute({
+      scope: otherScope,
+      baseRevision: secondAgain.revision,
+      type: 'AddNode',
+      data: {chapterId: otherScope.chapterId, nodeType: 'ui', laneId: 0, label: 'New'},
+    });
     expect(first).toHaveBeenCalledTimes(firstAfterUnsubscribe);
     expect(second.mock.calls.length).toBeGreaterThan(secondAfterCommand);
     secondSubscription.unsubscribe();
     const secondAfterUnsubscribe = second.mock.calls.length;
     const firstAgain = await port.getSnapshot(scope);
-    await port.execute({scope, baseRevision: firstAgain.revision, type: 'AddNode', data: {}});
+    await port.execute({
+      scope,
+      baseRevision: firstAgain.revision,
+      type: 'AddNode',
+      data: {chapterId: scope.chapterId, nodeType: 'ui', laneId: 0, label: 'New'},
+    });
     expect(first).toHaveBeenCalledTimes(firstAfterUnsubscribe);
     expect(second).toHaveBeenCalledTimes(secondAfterUnsubscribe);
     expect(
@@ -127,7 +157,12 @@ describe('standalone production editor port', () => {
     const app = await createGraphApplication();
     const port = createStandaloneProductionEditorPort(app);
     const initial = await port.getSnapshot(app.graph.getScope());
-    const command = {scope: initial.scope, baseRevision: initial.revision, type: 'AddNode', data: {}};
+    const command = {
+      scope: initial.scope,
+      baseRevision: initial.revision,
+      type: 'AddNode',
+      data: {chapterId: initial.scope.chapterId, nodeType: 'ui', laneId: 0, label: 'New'},
+    } as const;
     const results = await Promise.allSettled([port.execute(command), port.execute(command)]);
     expect(results.map(({status}) => status)).toEqual(['fulfilled', 'rejected']);
     expect((await port.getSnapshot(initial.scope)).nodes).toHaveLength(1);
@@ -143,7 +178,7 @@ describe('standalone production editor port', () => {
     const app = await createGraphApplication(scope);
     const port = createStandaloneProductionEditorPort(app);
     const initial = await port.getSnapshot(scope);
-    const schema = [{propertyId: 'prop-1', name: 'Name', type: 'string'}];
+    const schema = [{propertyId: 'prop-1', name: 'Name', type: 'string' as const}];
     const exampleValues = [{propertyId: 'prop-1', value: 'Ada'}];
     await port.execute({
       scope,
@@ -200,15 +235,50 @@ describe('project production editor port', () => {
     expect(snapshot.nodes[0]).toMatchObject({id: 'n1', label: 'One'});
     expect(snapshot.nodeSchemas).toEqual({n1: []});
   });
+  it('translates typed graph identifiers without changing the observed revision or receipt', async () => {
+    const port = createProjectProductionEditorPort();
+    fetchMock.mockImplementation(async () => new Response(JSON.stringify({revision: 'r2', generatedIds: ['node-exact', 'edge-exact']})));
+
+    const created = await port.execute({
+      scope,
+      baseRevision: 'r1',
+      type: 'AddConnectedNode',
+      data: {chapterId: 'c1', sourceNodeId: 'n1', nodeType: 'evt', laneId: -1, direction: 'top', label: 'New'},
+    });
+    expect(created).toEqual({revision: 'r2', createdIds: ['node-exact', 'edge-exact']});
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      projectId: 'p1',
+      baseRevision: 'r1',
+      type: 'AddConnectedNode',
+      data: {chapterId: 'c1', sourceNodeId: 'n1', nodeType: 'evt', direction: 'top', label: 'New'},
+    });
+    await port.execute({
+      scope,
+      baseRevision: 'r2',
+      type: 'DisconnectNodes',
+      data: {edgeId: 'edge-n1-n2', sourceNodeId: 'n1', targetNodeId: 'n2'},
+    });
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body).data).toEqual({sourceNodeId: 'n1', targetNodeId: 'n2'});
+  });
+
   it('preserves typed stale conflicts and exact server-generated identities', async () => {
     const port = createProjectProductionEditorPort();
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({error: 'stale', code: 'BASE_REVISION_MISMATCH'}), {status: 409}));
-    await expect(port.execute({scope, baseRevision: 'old', type: 'RenameNode', data: {nodeId: 'n1'}})).rejects.toMatchObject({
-      code: 'BASE_REVISION_MISMATCH',
-      status: 409,
-    } satisfies Partial<ProjectCommandError>);
+    await expect(port.execute({scope, baseRevision: 'old', type: 'RenameNode', data: {nodeId: 'n1', name: 'After'}})).rejects.toMatchObject(
+      {
+        code: 'BASE_REVISION_MISMATCH',
+        status: 409,
+      } satisfies Partial<ProjectCommandError>,
+    );
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({revision: 'r2', generatedIds: ['new-node']})));
-    await expect(port.execute({scope, baseRevision: 'r1', type: 'AddNode', data: {}})).resolves.toEqual({
+    await expect(
+      port.execute({
+        scope,
+        baseRevision: 'r1',
+        type: 'AddNode',
+        data: {chapterId: scope.chapterId, nodeType: 'ui', laneId: 0, label: 'New'},
+      }),
+    ).resolves.toEqual({
       revision: 'r2',
       createdIds: ['new-node'],
     });

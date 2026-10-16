@@ -153,6 +153,221 @@ test('scope switches with pending property edits require an explicit flush or di
   }
 });
 
+test('discarding an unsent property draft switches scope without writing it', async ({browser}) => {
+  const dir = mkdtempSync(join(tmpdir(), 'slicr-project-scope-discard-'));
+  let serving;
+  const context = await browser.newContext();
+  try {
+    const initial = command(dir, 'init');
+    const node = command(dir, 'add-node', initial.chapterId, 'evt', '0', 'Draft node');
+    command(dir, 'add-chapter', 'Next chapter');
+    serving = startServeServer({root: dir, assets});
+    const {port} = await serving.listening;
+    const page = await context.newPage();
+    let writes = 0;
+    await page.route('**/api/command', (route) => {
+      writes++;
+      return route.continue();
+    });
+    await page.clock.install();
+    await page.goto(`http://127.0.0.1:${port}/`);
+    await page.locator('.canvas .node-label-button', {hasText: 'Draft node'}).click();
+    const schema = page.locator('.node-editor-schema input[placeholder="Add property"]');
+    await schema.fill('Discard me');
+    await schema.press('Enter');
+    await page.getByRole('button', {name: 'Next chapter'}).click();
+    await page.getByRole('dialog', {name: 'Property edits are pending'}).getByRole('button', {name: 'Switch and discard'}).click();
+    await expect(page.getByRole('button', {name: 'Next chapter'})).toHaveClass(/chapter-nav-item-active/);
+    await expect(page.getByRole('status')).toContainText('Pending property drafts were discarded');
+    await page.clock.runFor(400); // Past the debounced save window: no discarded command may be sent.
+    expect(writes).toBe(0);
+    const projection = await (
+      await page.request.get(`http://127.0.0.1:${port}/api/projection?project=${initial.projectId}&chapter=${initial.chapterId}`)
+    ).json();
+    expect(projection.nodeSchemas[node.generatedIds[0]] ?? []).toEqual([]);
+  } finally {
+    await context.close();
+    if (serving) await serving.close();
+    rmSync(dir, {recursive: true, force: true});
+  }
+});
+
+test('discard waits for a submitted property command outcome before switching scope', async ({browser}) => {
+  const dir = mkdtempSync(join(tmpdir(), 'slicr-project-scope-submitted-'));
+  let serving;
+  const context = await browser.newContext();
+  let releaseWrite;
+  try {
+    const initial = command(dir, 'init');
+    const node = command(dir, 'add-node', initial.chapterId, 'evt', '0', 'Draft node');
+    command(dir, 'add-chapter', 'Next chapter');
+    serving = startServeServer({root: dir, assets});
+    const {port} = await serving.listening;
+    const page = await context.newPage();
+    let signalWrite;
+    const writeStarted = new Promise((resolve) => {
+      signalWrite = resolve;
+    });
+    const holdWrite = new Promise((resolve) => {
+      releaseWrite = resolve;
+    });
+    await page.route('**/api/command', async (route) => {
+      signalWrite();
+      await holdWrite;
+      await route.continue();
+    });
+    await page.goto(`http://127.0.0.1:${port}/`);
+    await page.locator('.canvas .node-label-button', {hasText: 'Draft node'}).click();
+    const schema = page.locator('.node-editor-schema input[placeholder="Add property"]');
+    await schema.fill('Submitted property');
+    await schema.press('Enter');
+    await writeStarted;
+    await page.getByRole('button', {name: 'Next chapter'}).click();
+    const dialog = page.getByRole('dialog', {name: 'Property edits are pending'});
+    await dialog.getByRole('button', {name: 'Switch and discard'}).click();
+    await expect(page.getByRole('button', {name: 'Default Chapter'})).toHaveClass(/chapter-nav-item-active/);
+    releaseWrite();
+    await expect(page.getByRole('button', {name: 'Next chapter'})).toHaveClass(/chapter-nav-item-active/);
+    await expect(page.getByRole('status')).toContainText('submitted command could not be canceled');
+    const projection = await (
+      await page.request.get(`http://127.0.0.1:${port}/api/projection?project=${initial.projectId}&chapter=${initial.chapterId}`)
+    ).json();
+    expect(projection.nodeSchemas[node.generatedIds[0]].map((property) => property.name)).toContain('Submitted property');
+  } finally {
+    releaseWrite?.();
+    await context.close();
+    if (serving) await serving.close();
+    rmSync(dir, {recursive: true, force: true});
+  }
+});
+
+test('discarded submitted property failure cannot restore an old-scope draft', async ({browser}) => {
+  const dir = mkdtempSync(join(tmpdir(), 'slicr-project-scope-discard-failure-'));
+  let serving;
+  const context = await browser.newContext();
+  let releaseWrite;
+  try {
+    const initial = command(dir, 'init');
+    command(dir, 'add-node', initial.chapterId, 'evt', '0', 'Draft node');
+    command(dir, 'add-chapter', 'Next chapter');
+    serving = startServeServer({root: dir, assets});
+    const {port} = await serving.listening;
+    const page = await context.newPage();
+    let signalWrite;
+    const writeStarted = new Promise((resolve) => {
+      signalWrite = resolve;
+    });
+    const holdWrite = new Promise((resolve) => {
+      releaseWrite = resolve;
+    });
+    let writes = 0;
+    await page.route('**/api/command', async (route) => {
+      writes++;
+      signalWrite();
+      await holdWrite;
+      await route.fulfill({status: 503, contentType: 'application/json', body: JSON.stringify({error: 'Temporary failure'})});
+    });
+    await page.goto(`http://127.0.0.1:${port}/`);
+    await page.locator('.canvas .node-label-button', {hasText: 'Draft node'}).click();
+    const schema = page.locator('.node-editor-schema input[placeholder="Add property"]');
+    await schema.fill('Discard failed write');
+    await schema.press('Enter');
+    await writeStarted;
+    await page.getByRole('button', {name: 'Next chapter'}).click();
+    await page.getByRole('dialog', {name: 'Property edits are pending'}).getByRole('button', {name: 'Switch and discard'}).click();
+    await expect(page.getByRole('button', {name: 'Default Chapter'})).toHaveClass(/chapter-nav-item-active/);
+    releaseWrite();
+    await expect(page.getByRole('button', {name: 'Next chapter'})).toHaveClass(/chapter-nav-item-active/);
+    await expect(page.getByRole('status')).toContainText('submitted command could not be canceled');
+    await expect(page.getByRole('button', {name: 'Retry property save'})).toHaveCount(0);
+    await page.getByRole('button', {name: 'Default Chapter'}).click();
+    await expect(page.locator('.canvas .node-label-button', {hasText: 'Draft node'})).toBeVisible();
+    await expect(page.getByRole('dialog', {name: 'Property edits are pending'})).toHaveCount(0);
+    await expect(page.getByRole('button', {name: 'Retry property save'})).toHaveCount(0);
+    await page.getByRole('button', {name: 'Next chapter'}).click();
+    await expect(page.getByRole('button', {name: 'Next chapter'})).toHaveClass(/chapter-nav-item-active/);
+    await expect(page.getByRole('dialog', {name: 'Property edits are pending'})).toHaveCount(0);
+    expect(writes).toBe(1);
+  } finally {
+    releaseWrite?.();
+    await context.close();
+    if (serving) await serving.close();
+    rmSync(dir, {recursive: true, force: true});
+  }
+});
+
+test('a failed flush keeps the current chapter and its retryable property draft', async ({browser}) => {
+  const dir = mkdtempSync(join(tmpdir(), 'slicr-project-scope-failure-'));
+  let serving;
+  const context = await browser.newContext();
+  try {
+    const initial = command(dir, 'init');
+    const node = command(dir, 'add-node', initial.chapterId, 'evt', '0', 'Draft node');
+    command(dir, 'add-chapter', 'Next chapter');
+    serving = startServeServer({root: dir, assets});
+    const {port} = await serving.listening;
+    const page = await context.newPage();
+    await page.route('**/api/command', (route) =>
+      route.fulfill({status: 503, contentType: 'application/json', body: JSON.stringify({error: 'Temporary failure'})}),
+    );
+    await page.goto(`http://127.0.0.1:${port}/`);
+    await page.locator('.canvas .node-label-button', {hasText: 'Draft node'}).click();
+    const schema = page.locator('.node-editor-schema input[placeholder="Add property"]');
+    await schema.fill('Retry me');
+    await schema.press('Enter');
+    await page.getByRole('button', {name: 'Next chapter'}).click();
+    await page.getByRole('dialog', {name: 'Property edits are pending'}).getByRole('button', {name: 'Wait for flush'}).click();
+    await expect(page.getByRole('alert')).toContainText('current scope remains open');
+    await expect(page.getByRole('button', {name: 'Default Chapter'})).toHaveClass(/chapter-nav-item-active/);
+    await expect(schema).toBeVisible();
+    await expect(page.getByRole('button', {name: 'Retry property save'})).toBeVisible();
+    const projection = await (
+      await page.request.get(`http://127.0.0.1:${port}/api/projection?project=${initial.projectId}&chapter=${initial.chapterId}`)
+    ).json();
+    expect(projection.nodeSchemas[node.generatedIds[0]] ?? []).toEqual([]);
+  } finally {
+    await context.close();
+    if (serving) await serving.close();
+    rmSync(dir, {recursive: true, force: true});
+  }
+});
+
+test('a stale property flush conflict retains the active scope and discards the stale draft', async ({browser}) => {
+  const dir = mkdtempSync(join(tmpdir(), 'slicr-project-scope-conflict-'));
+  let serving;
+  const context = await browser.newContext();
+  try {
+    const initial = command(dir, 'init');
+    const node = command(dir, 'add-node', initial.chapterId, 'evt', '0', 'Draft node');
+    command(dir, 'add-chapter', 'Next chapter');
+    serving = startServeServer({root: dir, assets});
+    const {port} = await serving.listening;
+    const page = await context.newPage();
+    await page.route('**/api/command', (route) => {
+      command(dir, 'rename-node', node.generatedIds[0], 'Updated by CLI');
+      return route.continue();
+    });
+    await page.goto(`http://127.0.0.1:${port}/`);
+    await page.locator('.canvas .node-label-button', {hasText: 'Draft node'}).click();
+    const schema = page.locator('.node-editor-schema input[placeholder="Add property"]');
+    await schema.fill('Stale draft');
+    await schema.press('Enter');
+    await page.getByRole('button', {name: 'Next chapter'}).click();
+    await page.getByRole('dialog', {name: 'Property edits are pending'}).getByRole('button', {name: 'Wait for flush'}).click();
+    await expect(page.getByRole('alert')).toContainText('current scope remains open');
+    await expect(page.getByRole('button', {name: 'Default Chapter'})).toHaveClass(/chapter-nav-item-active/);
+    await expect(page.locator('.canvas .node-label-button', {hasText: 'Updated by CLI'})).toBeVisible();
+    const projection = await (
+      await page.request.get(`http://127.0.0.1:${port}/api/projection?project=${initial.projectId}&chapter=${initial.chapterId}`)
+    ).json();
+    expect(projection.nodeSchemas[node.generatedIds[0]] ?? []).toEqual([]);
+  } finally {
+    await context.close();
+    if (serving) await serving.close();
+    rmSync(dir, {recursive: true, force: true});
+  }
+});
+
 test('rapid property edits retain the local draft and persist schema and example values', async ({browser}) => {
   const dir = mkdtempSync(join(tmpdir(), 'slicr-project-property-edits-'));
   let serving;
