@@ -81,6 +81,191 @@ test('served editor edits the project store without opening IndexedDB and catche
   }
 });
 
+test('stale edit conflict guidance remains visible after successful background polling', async ({browser}) => {
+  const dir = mkdtempSync(join(tmpdir(), 'slicr-project-browser-conflict-'));
+  let serving;
+  const context = await browser.newContext();
+  try {
+    const initial = command(dir, 'init');
+    const node = command(dir, 'add-node', initial.chapterId, 'evt', '0', 'Original label');
+    serving = startServeServer({root: dir, assets});
+    const {port} = await serving.listening;
+    const base = `http://127.0.0.1:${port}`;
+    const model = await (await fetch(`${base}/api/model`)).json();
+    const projection = await (await fetch(`${base}/api/projection?project=${initial.projectId}`)).json();
+    const page = await context.newPage();
+    await page.goto(`${base}/`);
+    await expect(page.locator('.canvas .node-label-button', {hasText: 'Original label'})).toBeVisible();
+    let refreshResponses = 0;
+    await page.route('**/api/model', async (route) => {
+      refreshResponses += 1;
+      await route.fulfill({json: model});
+    });
+    await page.route('**/api/projection**', async (route) => {
+      refreshResponses += 1;
+      await route.fulfill({json: projection});
+    });
+
+    command(dir, 'rename-node', node.generatedIds[0], 'Changed by CLI');
+    await page.locator('.canvas .node-label-button', {hasText: 'Original label'}).dblclick();
+    const editor = page.getByRole('textbox', {name: 'Edit Original label label'});
+    await editor.fill('Stale browser edit');
+    await editor.press('Enter');
+    await expect(page.getByRole('alert')).toContainText('changed since this editor view was loaded');
+    const pollsAtConflict = refreshResponses;
+    await expect.poll(() => refreshResponses).toBeGreaterThan(pollsAtConflict);
+    await expect(page.getByRole('alert')).toContainText('changed since this editor view was loaded');
+    await page.unrouteAll({behavior: 'wait'});
+    const retryEditor = page.getByRole('textbox', {name: 'Edit Changed by CLI label'});
+    await expect(retryEditor).toBeVisible();
+    await expect(page.getByRole('alert')).toContainText('changed since this editor view was loaded');
+    await retryEditor.fill('Browser retry succeeded');
+    await retryEditor.press('Enter');
+    await expect(page.locator('.canvas .node-label-button', {hasText: 'Browser retry succeeded'})).toBeVisible();
+  } finally {
+    await context.close();
+    if (serving) await serving.close();
+    rmSync(dir, {recursive: true, force: true});
+  }
+});
+
+test('a delayed background poll cannot overwrite a newer post-write projection', async ({browser}) => {
+  const dir = mkdtempSync(join(tmpdir(), 'slicr-project-browser-order-'));
+  let serving;
+  const context = await browser.newContext();
+  try {
+    const initial = command(dir, 'init');
+    command(dir, 'add-node', initial.chapterId, 'evt', '0', 'Before edit');
+    serving = startServeServer({root: dir, assets});
+    const {port} = await serving.listening;
+    const page = await context.newPage();
+    await page.goto(`http://127.0.0.1:${port}/`);
+    await expect(page.locator('.canvas .node-label-button', {hasText: 'Before edit'})).toBeVisible();
+
+    let releasePoll;
+    const waitToRelease = new Promise((resolve) => (releasePoll = resolve));
+    let pollStarted;
+    const pollStartedPromise = new Promise((resolve) => (pollStarted = resolve));
+    let pollFinished;
+    const pollFinishedPromise = new Promise((resolve) => (pollFinished = resolve));
+    let holdFirstPoll = true;
+    await page.route('**/api/projection**', async (route) => {
+      if (!holdFirstPoll) return route.continue();
+      holdFirstPoll = false;
+      const staleResponse = await route.fetch();
+      pollStarted();
+      await waitToRelease;
+      await route.fulfill({response: staleResponse});
+      pollFinished();
+    });
+    await pollStartedPromise;
+
+    await page.locator('.canvas .node-label-button', {hasText: 'Before edit'}).dblclick();
+    const editor = page.getByRole('textbox', {name: 'Edit Before edit label'});
+    await editor.fill('After edit');
+    await editor.press('Enter');
+    await expect(page.locator('.canvas .node-label-button', {hasText: 'After edit'})).toBeVisible();
+    releasePoll();
+    await pollFinishedPromise;
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await expect(page.locator('.canvas .node-label-button', {hasText: 'After edit'})).toBeVisible();
+    expect(readFileSync(join(dir, '.slicr', 'events.ndjson'), 'utf8')).toContain('After edit');
+  } finally {
+    await context.close();
+    if (serving) await serving.close();
+    rmSync(dir, {recursive: true, force: true});
+  }
+});
+
+test('a superseded poll failure does not mask a successful write refresh', async ({browser}) => {
+  const dir = mkdtempSync(join(tmpdir(), 'slicr-project-browser-old-poll-error-'));
+  let serving;
+  const context = await browser.newContext();
+  try {
+    const initial = command(dir, 'init');
+    command(dir, 'add-node', initial.chapterId, 'evt', '0', 'Before edit');
+    serving = startServeServer({root: dir, assets});
+    const {port} = await serving.listening;
+    const page = await context.newPage();
+    await page.goto(`http://127.0.0.1:${port}/`);
+    await expect(page.locator('.canvas .node-label-button', {hasText: 'Before edit'})).toBeVisible();
+
+    let releasePoll;
+    const waitToRelease = new Promise((resolve) => (releasePoll = resolve));
+    let pollStarted;
+    const pollStartedPromise = new Promise((resolve) => (pollStarted = resolve));
+    let pollFinished;
+    const pollFinishedPromise = new Promise((resolve) => (pollFinished = resolve));
+    let holdFirstPoll = true;
+    await page.route('**/api/projection**', async (route) => {
+      if (!holdFirstPoll) return route.continue();
+      holdFirstPoll = false;
+      pollStarted();
+      await waitToRelease;
+      await route.fulfill({status: 503, json: {error: 'superseded poll failure'}});
+      pollFinished();
+    });
+    await pollStartedPromise;
+
+    await page.locator('.canvas .node-label-button', {hasText: 'Before edit'}).dblclick();
+    const editor = page.getByRole('textbox', {name: 'Edit Before edit label'});
+    await editor.fill('Write refresh wins');
+    await editor.press('Enter');
+    await expect(page.locator('.canvas .node-label-button', {hasText: 'Write refresh wins'})).toBeVisible();
+    releasePoll();
+    await pollFinishedPromise;
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    await expect(page.locator('.canvas .node-label-button', {hasText: 'Write refresh wins'})).toBeVisible();
+  } finally {
+    await context.close();
+    if (serving) await serving.close();
+    rmSync(dir, {recursive: true, force: true});
+  }
+});
+
+test('a successful edit with a failed refresh is not reported as a failed save', async ({browser}) => {
+  const dir = mkdtempSync(join(tmpdir(), 'slicr-project-browser-refresh-error-'));
+  let serving;
+  const context = await browser.newContext();
+  try {
+    const initial = command(dir, 'init');
+    command(dir, 'add-node', initial.chapterId, 'evt', '0', 'Before edit');
+    serving = startServeServer({root: dir, assets});
+    const {port} = await serving.listening;
+    const page = await context.newPage();
+    await page.goto(`http://127.0.0.1:${port}/`);
+    await expect(page.locator('.canvas .node-label-button', {hasText: 'Before edit'})).toBeVisible();
+    let failNextProjection = false;
+    await page.route('**/api/command', async (route) => {
+      const response = await route.fetch();
+      if (response.ok()) failNextProjection = true;
+      await route.fulfill({response});
+    });
+    await page.route('**/api/projection**', async (route) => {
+      if (failNextProjection) {
+        failNextProjection = false;
+        await route.fulfill({status: 503, json: {error: 'simulated refresh outage'}});
+      } else {
+        await route.continue();
+      }
+    });
+    await page.locator('.canvas .node-label-button', {hasText: 'Before edit'}).dblclick();
+    const editor = page.getByRole('textbox', {name: 'Edit Before edit label'});
+    await editor.fill('Persisted edit');
+    await editor.press('Enter');
+    await expect(page.getByRole('alert')).toContainText('Edit saved, but project refresh failed');
+    await expect(page.getByRole('alert')).not.toContainText('Could not save edit');
+    await expect(page.locator('.canvas')).toBeVisible();
+    await expect(page.getByRole('button', {name: 'Add node'})).toBeVisible();
+    expect(readFileSync(join(dir, '.slicr', 'events.ndjson'), 'utf8')).toContain('Persisted edit');
+  } finally {
+    await context.close();
+    if (serving) await serving.close();
+    rmSync(dir, {recursive: true, force: true});
+  }
+});
+
 test('missing and corrupt project history is explained without creating or rewriting it', async ({page}) => {
   const dir = mkdtempSync(join(tmpdir(), 'slicr-project-browser-errors-'));
   const serving = startServeServer({root: dir, assets});

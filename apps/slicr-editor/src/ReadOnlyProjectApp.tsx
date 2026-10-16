@@ -40,7 +40,7 @@ async function readApi<T>(url: string, signal: AbortSignal): Promise<T> {
 
 const noop = () => {};
 
-async function writeApi(command: {projectId: string; type: string; data: Record<string, unknown>}) {
+async function writeApi(command: {projectId: string; baseRevision: string; type: string; data: Record<string, unknown>}) {
   const response = await fetch('/api/command', {
     method: 'POST',
     headers: {'content-type': 'application/json', accept: 'application/json'},
@@ -59,6 +59,8 @@ export function ReadOnlyProjectApp() {
   const [chapterId, setChapterId] = useState('');
   const [projection, setProjection] = useState<Projection | null>(null);
   const [error, setError] = useState('');
+  const [refreshError, setRefreshError] = useState('');
+  const readGeneration = useRef(0);
   const [measurements, setMeasurements] = useState<Record<string, NodeDimensions>>({});
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [draftLabel, setDraftLabel] = useState('');
@@ -76,41 +78,45 @@ export function ReadOnlyProjectApp() {
     return () => controller.abort();
   }, []);
 
+  // Poll sequentially so responses cannot overlap or be applied out of order.
   useEffect(() => {
     if (!projectId) return;
-    const controller = new AbortController();
-    const query = new URLSearchParams({project: projectId});
-    if (chapterId) query.set('chapter', chapterId);
-    readApi<Projection>(`/api/projection?${query}`, controller.signal)
-      .then((next) => {
-        setProjection(next);
-        setError('');
-      })
-      .catch((reason: unknown) => {
-        if (!controller.signal.aborted) setError(`Could not load project projection: ${String(reason)}`);
-      });
-    return () => controller.abort();
-  }, [projectId, chapterId]);
-
-  // Poll the disk-backed projection: store subscriptions are process-local and cannot observe CLI writes.
-  useEffect(() => {
-    if (!projectId) return;
-    const timer = window.setInterval(() => {
+    let active = true;
+    let timer = 0;
+    let controller: AbortController | null = null;
+    const poll = async () => {
+      const generation = ++readGeneration.current;
+      controller = new AbortController();
       const query = new URLSearchParams({project: projectId});
       if (chapterId) query.set('chapter', chapterId);
-      const controller = new AbortController();
-      readApi<Projection>(`/api/projection?${query}`, controller.signal)
-        .then((next) => setProjection((current) => (current?.revision === next.revision ? current : next)))
-        .catch(() => {});
-      readApi<Model>('/api/model', controller.signal)
-        .then(setModel)
-        .catch(() => {});
-    }, 1000);
-    return () => window.clearInterval(timer);
+      try {
+        const [next, nextModel] = await Promise.all([
+          readApi<Projection>(`/api/projection?${query}`, controller.signal),
+          readApi<Model>('/api/model', controller.signal),
+        ]);
+        if (!active || generation !== readGeneration.current) return;
+        setProjection((current) => (current?.revision === next.revision ? current : next));
+        setModel(nextModel);
+        setRefreshError('');
+        setError((current) => (current.startsWith('Could not load project') ? '' : current));
+      } catch (reason: unknown) {
+        if (active && generation === readGeneration.current && !controller.signal.aborted)
+          setRefreshError(`Could not refresh project from disk: ${String(reason)}`);
+      } finally {
+        if (active) timer = window.setTimeout(poll, 1000);
+      }
+    };
+    void poll();
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+      controller?.abort();
+    };
   }, [projectId, chapterId]);
 
   const refreshProjection = async () => {
     if (!projectId) return;
+    const generation = ++readGeneration.current;
     const query = new URLSearchParams({project: projectId});
     if (chapterId) query.set('chapter', chapterId);
     const controller = new AbortController();
@@ -118,18 +124,26 @@ export function ReadOnlyProjectApp() {
       readApi<Projection>(`/api/projection?${query}`, controller.signal),
       readApi<Model>('/api/model', controller.signal),
     ]);
+    if (generation !== readGeneration.current) return;
     setProjection(next);
     setModel(nextModel);
   };
   const saveLabel = async () => {
     if (!editingNodeId || !projectId) return;
     try {
-      await writeApi({projectId, type: 'RenameNode', data: {nodeId: editingNodeId, name: draftLabel}});
+      if (!projection) throw new Error('The latest project revision is not loaded.');
+      await writeApi({projectId, baseRevision: projection.revision, type: 'RenameNode', data: {nodeId: editingNodeId, name: draftLabel}});
       setEditingNodeId(null);
       setError('');
-      await refreshProjection();
     } catch (reason) {
       setError(`Could not save edit: ${String(reason)}`);
+      return;
+    }
+    try {
+      await refreshProjection();
+      setRefreshError('');
+    } catch (reason) {
+      setRefreshError(`Edit saved, but project refresh failed: ${String(reason)}`);
     }
   };
 
@@ -244,10 +258,11 @@ export function ReadOnlyProjectApp() {
         <div>Revision: {projection?.revision ?? model?.revision ?? 'Loading…'}</div>
       </div>
       {error ? <p role="alert">{error}</p> : null}
-      {!model && !error ? <p>Loading project model…</p> : null}
+      {refreshError ? <p role="alert">{refreshError}</p> : null}
+      {!model && !error && !refreshError ? <p>Loading project model…</p> : null}
       {model && !projectId ? <p>No projects in this model.</p> : null}
       {projectId && !projection && !error ? <p>Loading project projection…</p> : null}
-      {projection && !error ? (
+      {projection ? (
         <>
           <button
             type="button"
@@ -257,12 +272,25 @@ export function ReadOnlyProjectApp() {
                 setError('Select a chapter before adding a node.');
                 return;
               }
+              if (!projection) {
+                setError('The latest project revision is not loaded.');
+                return;
+              }
               void writeApi({
                 projectId,
+                baseRevision: projection.revision,
                 type: 'AddNode',
                 data: {chapterId: chapter, nodeType: 'ui', laneId: graph.nodes.length, label: `Node ${graph.nodes.length + 1}`},
               })
-                .then(refreshProjection)
+                .then(async () => {
+                  setError('');
+                  try {
+                    await refreshProjection();
+                    setRefreshError('');
+                  } catch (reason) {
+                    setRefreshError(`Node added, but project refresh failed: ${String(reason)}`);
+                  }
+                })
                 .catch((reason) => setError(`Could not add node: ${String(reason)}`));
             }}
           >
