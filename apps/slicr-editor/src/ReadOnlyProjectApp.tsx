@@ -363,9 +363,6 @@ export function ReadOnlyProjectApp() {
     if (focusedNodeId && !graph.nodes.some((node) => node.id === focusedNodeId)) setFocusedNodeId(null);
   }, [focusedNodeId, graph.nodes, setFocusedNodeId]);
   useEffect(() => {
-    if (projection?.nodes.length && !focusedNodeId) setFocusedNodeId(projection.nodes[0].id);
-  }, [projection, focusedNodeId, setFocusedNodeId]);
-  useEffect(() => {
     canvasRef.current?.setCamera({x: 100, y: 100, zoom: 1});
   }, []);
 
