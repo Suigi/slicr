@@ -130,7 +130,7 @@ flowchart TB
     IndexedDB -->|"explicit backup and verified import only"| OneStore
 ```
 
-### 8. Bring the project-backed editor to full visual and feature parity
+### 8. Bring the project-backed editor to full visual and feature parity [DONE — scoped; residuals moved to follow-ups]
 
 Complete the production-editor experience for the project-backed entry point, using the same project API and `.slicr/` history as the CLI. Treat the existing standalone editor as the UI and interaction baseline: consolidate its controls over a project-backed application/API adapter instead of rebuilding parallel controls or redesigning the editor. Keep storage-specific behavior behind that adapter; UI components should not choose between direct IndexedDB writes and direct API calls. Preserve the visible project/store identity and revision as project-specific safety context.
 
@@ -144,7 +144,7 @@ Complete the production-editor experience for the project-backed entry point, us
 
 **Read-operation gaps to close:**
 
-- The project view can currently list projects/chapters and render the all-chapter or chapter-scoped graph, including nodes, edges, schemas, and example values. However, node clicks do not focus/select a node, and there is no focused-node detail/property view or focused/hovered-property read state. Wire the existing standalone inspection/detail behavior to project-backed reads so users can inspect the same node and property information.
+- The project view lists projects/chapters and renders the selected chapter graph, including nodes, edges, schemas, and example values. An All Chapters view is not required. Node clicks do not initially focus/select a node, and there is no focused-node detail/property view or focused/hovered-property read state. Wire the existing standalone inspection/detail behavior to project-backed reads so users can inspect the same node and property information.
 - Preserve stable project/chapter/node identity and display the selected scope consistently. Add tests for switching project/chapter scope and reading nodes with schemas/examples and connected/disconnected edges.
 
 **Write-operation gaps to close:**
@@ -162,7 +162,9 @@ Complete the production-editor experience for the project-backed entry point, us
 - Update `slicr init` to create or safely maintain `.slicr/.gitignore` that ignores the SQLite outbox (and its transient journal files) while leaving `events.ndjson` trackable. Preserve existing user ignore rules and test both new and existing `.gitignore` cases.
 - Agent proposals/preview/apply remain separate future steps (Steps 9–10 below), not part of this parity step.
 
-**Safe stopping point:** The project-backed editor matches the standalone editor's production visual and read/write workflows except for the exclusions above. Run full root validation and manual project-editor smoke coverage for project/chapter navigation, reading node/property data, every editing gesture, stale conflicts, and cross-process catch-up.
+**Safe stopping point:** The project-backed editor matches the standalone editor's production visual and read/write workflows except for the exclusions above. Full root validation passed, and the user confirms manual smoke tests were executed; a detailed list of smoke steps is not required.
+
+**Closeout scope:** The user approved moving remaining project workspace-refresh follow-ups to [013-project-workspace-refresh](../013-project-workspace-refresh/02-plan.md) and the broader separate-port/shared-application refactor to [014-shared-editor-application](../014-shared-editor-application/02-plan.md). These follow-ups do not block this scoped closeout. Browser-history migration/cutover remains deferred under Step 7.1.
 
 ### 9. Add agent proposals
 
