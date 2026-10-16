@@ -164,7 +164,7 @@ async function main(args) {
     const assets = fileURLToPath(new URL('../slicr-editor/dist-project/', import.meta.url));
     const serving = startServeServer({root, assets, port});
     const address = await serving.listening;
-    console.log(`Slicr project editor listening at http://${address.address}:${address.port} (editing enabled)`);
+    console.log(`Slicr project editor listening at http://${address.address}:${address.port}`);
     const shutdown = () => serving.close().finally(() => process.exit(0));
     process.once('SIGINT', shutdown);
     process.once('SIGTERM', shutdown);
