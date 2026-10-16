@@ -3,6 +3,7 @@
 ## Repo Setup
 
 - This is a mono-repo using npm workspaces
+- Do not add or change dependencies, dependency versions, package manifests, or lockfiles without explicit user approval. A frozen `npm ci` that installs exactly from the existing lockfile does not change dependencies; run it only when separately approved.
 
 ## Editing Files
 
